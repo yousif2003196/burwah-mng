@@ -43,4 +43,5 @@ jobs:
         run: |
           firebase appdistribution:distribute build/app/outputs/flutter-apk/app-debug.apk \
             --app "${{ secrets.FIREBASE_APP_ID }}" \
+            --groups "testers" \
             --token "${{ secrets.FIREBASE_TOKEN }}"
