@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../domain/entities/subscription_request_entity.dart';
@@ -20,13 +21,18 @@ String _newFinancialRequestId(String prefix, String timestamp) =>
 class FinanceMockDataSource implements FinanceRemoteDataSource {
   final List<BankAccountEditRequestEntity> _bankAccountEditRequests = [];
   final List<ExpenseRequestEntity> _expenseRequests = [];
+  bool _expenseRequestsLoaded = false;
   List<WithdrawalRequestEntity>? _merchantWithdrawalRequests;
   List<WithdrawalRequestEntity>? _supervisorWithdrawalRequests;
+  List<SubscriptionRequestEntity>? _subscriptionRequests;
   bool _supervisorRequestsLoaded = false;
   bool _merchantRequestsLoaded = false;
   static const _supervisorRequestsStorageKey =
       'finance_supervisor_operations_v1';
   static const _merchantRequestsStorageKey = 'finance_merchant_withdrawals_v1';
+  static const _subscriptionDecisionsStorageKey =
+      'finance_subscription_decisions_v1';
+  static const _expenseRequestsStorageKey = 'finance_expense_requests_v1';
   final List<BankLinkRequestEntity> _bankLinkRequests = [
     const BankLinkRequestEntity(
       id: '#TRD-5501',
@@ -95,7 +101,6 @@ class FinanceMockDataSource implements FinanceRemoteDataSource {
     ),
   ];
   int _nextBankAccountEditRequestId = 0;
-  int _nextExpenseRequestId = 0;
 
   // القائمة المركزية الموحدة للحسابات البنكية والقنوات الرسمية
   final List<BankAccountModel> _mockBankAccounts = [
@@ -192,9 +197,8 @@ class FinanceMockDataSource implements FinanceRemoteDataSource {
         0.0, (sum, req) => sum + req.netAmount);
 
     final pendingSubscriptions = subscriptions
-        .where((req) =>
-            req.status == 'قيد المطابقة' || req.status.contains('جاهز'))
-        .toList();
+        .where((req) => req.reviewDecision == null)
+        .toList(growable: false);
     final int subsCount = pendingSubscriptions.length;
     final double subsAmount =
         pendingSubscriptions.fold(0.0, (sum, req) => sum + req.totalAmount);
@@ -277,6 +281,31 @@ class FinanceMockDataSource implements FinanceRemoteDataSource {
 
   @override
   Future<List<ExpenseRequestEntity>> getExpenseRequests() async {
+    if (!_expenseRequestsLoaded) {
+      try {
+        final preferences = await SharedPreferences.getInstance();
+        await preferences.reload();
+        final stored = preferences.getString(_expenseRequestsStorageKey);
+        if (stored != null) {
+          final decoded = jsonDecode(stored);
+          if (decoded is! List) {
+            throw const FormatException('Stored expense requests are invalid.');
+          }
+          _expenseRequests
+            ..clear()
+            ..addAll(decoded.map((value) {
+              if (value is! Map<String, dynamic>) {
+                throw const FormatException(
+                    'Stored expense request is invalid.');
+              }
+              return _expenseRequestFromJson(value);
+            }));
+        }
+      } on MissingPluginException {
+        // Keep the mock source usable in unit tests without platform channels.
+      }
+      _expenseRequestsLoaded = true;
+    }
     return List.unmodifiable(_expenseRequests);
   }
 
@@ -285,8 +314,12 @@ class FinanceMockDataSource implements FinanceRemoteDataSource {
     required double amount,
     required String bankAccountId,
     required String reason,
+    String category = 'other',
+    String beneficiaryName = '',
     String? attachmentName,
+    String? attachmentPath,
   }) async {
+    await getExpenseRequests();
     if (!amount.isFinite || amount <= 0) {
       throw ArgumentError.value(
           amount, 'amount', 'Amount must be greater than zero.');
@@ -304,22 +337,186 @@ class FinanceMockDataSource implements FinanceRemoteDataSource {
           bankAccountId, 'bankAccountId', 'Bank account not found.');
     }
     final account = _mockBankAccounts[accountIndex];
+    if (amount > account.balance) {
+      throw ArgumentError.value(
+          amount, 'amount', 'Amount exceeds the account balance.');
+    }
 
     final normalizedAttachment = attachmentName?.trim();
     final request = ExpenseRequestEntity(
-      id: 'expense-${++_nextExpenseRequestId}',
+      id: 'expense-${DateTime.now().microsecondsSinceEpoch}',
       amount: amount,
       bankAccountId: account.id,
       bankName: account.bankName,
       reason: normalizedReason,
+      category: category.trim().isEmpty ? 'other' : category.trim(),
+      beneficiaryName: beneficiaryName.trim(),
       attachmentName:
           normalizedAttachment == null || normalizedAttachment.isEmpty
               ? null
               : normalizedAttachment,
+      attachmentPath: attachmentPath,
       submittedAt: DateTime.now(),
     );
     _expenseRequests.add(request);
+    try {
+      await _persistExpenseRequests();
+    } catch (_) {
+      _expenseRequests.remove(request);
+      rethrow;
+    }
     return request;
+  }
+
+  @override
+  Future<void> updateExpenseRequestStatus({
+    required String requestId,
+    required ExpenseRequestStatus status,
+    String? reason,
+  }) async {
+    await getExpenseRequests();
+    final index =
+        _expenseRequests.indexWhere((request) => request.id == requestId);
+    if (index < 0)
+      throw ArgumentError.value(
+          requestId, 'requestId', 'Expense request not found.');
+    final current = _expenseRequests[index];
+    if (current.status != ExpenseRequestStatus.pendingAdminApproval) {
+      throw StateError('Only pending expense requests can be updated.');
+    }
+    final normalizedReason = reason?.trim();
+    if ((status == ExpenseRequestStatus.rejected ||
+            status == ExpenseRequestStatus.cancelled) &&
+        (normalizedReason == null || normalizedReason.isEmpty)) {
+      throw ArgumentError.value(
+          reason, 'reason', 'A reason is required for this action.');
+    }
+    _expenseRequests[index] = current.copyWith(
+      status: status,
+      decisionReason: normalizedReason,
+      clearDecisionReason: normalizedReason == null,
+    );
+    try {
+      await _persistExpenseRequests();
+    } catch (_) {
+      _expenseRequests[index] = current;
+      rethrow;
+    }
+  }
+
+  @override
+  Future<ExpenseRequestEntity> editExpenseRequest({
+    required String requestId,
+    required double amount,
+    required String bankAccountId,
+    required String reason,
+    required String category,
+    required String beneficiaryName,
+    String? attachmentName,
+    String? attachmentPath,
+  }) async {
+    await getExpenseRequests();
+    if (!amount.isFinite || amount <= 0) {
+      throw ArgumentError.value(
+          amount, 'amount', 'Amount must be greater than zero.');
+    }
+    if (reason.trim().isEmpty || beneficiaryName.trim().isEmpty) {
+      throw ArgumentError('Reason and beneficiary are required.');
+    }
+    final accountIndex =
+        _mockBankAccounts.indexWhere((account) => account.id == bankAccountId);
+    if (accountIndex < 0) {
+      throw ArgumentError.value(
+          bankAccountId, 'bankAccountId', 'Bank account not found.');
+    }
+    final index =
+        _expenseRequests.indexWhere((request) => request.id == requestId);
+    if (index < 0)
+      throw ArgumentError.value(
+          requestId, 'requestId', 'Expense request not found.');
+    final current = _expenseRequests[index];
+    if (current.status != ExpenseRequestStatus.pendingAdminApproval) {
+      throw StateError('Only pending expense requests can be edited.');
+    }
+    if (amount > _mockBankAccounts[accountIndex].balance) {
+      throw ArgumentError.value(
+          amount, 'amount', 'Amount exceeds the account balance.');
+    }
+    final updated = current.copyWith(
+      amount: amount,
+      bankAccountId: bankAccountId,
+      bankName: _mockBankAccounts[accountIndex].bankName,
+      reason: reason.trim(),
+      category: category.trim().isEmpty ? 'other' : category.trim(),
+      beneficiaryName: beneficiaryName.trim(),
+      attachmentName: attachmentName,
+      attachmentPath: attachmentPath,
+      clearAttachment: attachmentName == null,
+    );
+    _expenseRequests[index] = updated;
+    try {
+      await _persistExpenseRequests();
+    } catch (_) {
+      _expenseRequests[index] = current;
+      rethrow;
+    }
+    return updated;
+  }
+
+  Future<void> _persistExpenseRequests() async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      final encoded = jsonEncode(
+        _expenseRequests.map(_expenseRequestToJson).toList(growable: false),
+      );
+      final saved =
+          await preferences.setString(_expenseRequestsStorageKey, encoded);
+      if (!saved) {
+        await preferences.reload();
+        if (preferences.getString(_expenseRequestsStorageKey) != encoded) {
+          throw StateError('Could not save expense requests.');
+        }
+      }
+    } on MissingPluginException {
+      // In-memory behavior is retained for test environments without plugins.
+    }
+  }
+
+  Map<String, Object?> _expenseRequestToJson(ExpenseRequestEntity request) => {
+        'id': request.id,
+        'amount': request.amount,
+        'bankAccountId': request.bankAccountId,
+        'bankName': request.bankName,
+        'reason': request.reason,
+        'category': request.category,
+        'beneficiaryName': request.beneficiaryName,
+        'attachmentName': request.attachmentName,
+        'attachmentPath': request.attachmentPath,
+        'submittedAt': request.submittedAt.toIso8601String(),
+        'status': request.status.name,
+        'decisionReason': request.decisionReason,
+      };
+
+  ExpenseRequestEntity _expenseRequestFromJson(Map<String, dynamic> json) {
+    final statusName = json['status'] as String? ??
+        ExpenseRequestStatus.pendingAdminApproval.name;
+    return ExpenseRequestEntity(
+      id: json['id'] as String,
+      amount: (json['amount'] as num).toDouble(),
+      bankAccountId: json['bankAccountId'] as String,
+      bankName: json['bankName'] as String,
+      reason: json['reason'] as String,
+      category: json['category'] as String? ?? 'other',
+      beneficiaryName: json['beneficiaryName'] as String? ?? '',
+      attachmentName: json['attachmentName'] as String?,
+      attachmentPath: json['attachmentPath'] as String?,
+      submittedAt: DateTime.parse(json['submittedAt'] as String),
+      status: ExpenseRequestStatus.values.firstWhere(
+        (value) => value.name == statusName,
+        orElse: () => ExpenseRequestStatus.pendingAdminApproval,
+      ),
+      decisionReason: json['decisionReason'] as String?,
+    );
   }
 
   @override
@@ -609,6 +806,13 @@ class FinanceMockDataSource implements FinanceRemoteDataSource {
       sourceOfFunds: requestTitle.trim(),
       sourceAccount: sourceAccount.trim(),
       operationType: operationType,
+      history: [
+        FinancialRequestHistoryEvent(
+          status: RequestStatus.pending,
+          note: 'تم استلام الطلب وإضافته للمراجعة المالية',
+          occurredAt: DateTime.now(),
+        ),
+      ],
     );
     final updated = List<WithdrawalRequestEntity>.of(
       _merchantWithdrawalRequests!,
@@ -622,7 +826,10 @@ class FinanceMockDataSource implements FinanceRemoteDataSource {
   Future<void> approveMerchantFinancialRequest(String requestId) =>
       _updateMerchantFinancialRequest(
         requestId,
-        (request) => request.copyWith(status: RequestStatus.approved),
+        (request) => request.copyWith(
+          status: RequestStatus.approved,
+          historyNote: 'تم اعتماد الطلب من المشرف المالي',
+        ),
       );
 
   @override
@@ -643,6 +850,7 @@ class FinanceMockDataSource implements FinanceRemoteDataSource {
       (request) => request.copyWith(
         status: RequestStatus.underInvestigation,
         alertNotice: normalizedReason,
+        historyNote: normalizedReason,
       ),
     );
   }
@@ -661,6 +869,7 @@ class FinanceMockDataSource implements FinanceRemoteDataSource {
       (request) => request.copyWith(
         status: RequestStatus.rejected,
         alertNotice: reason.trim(),
+        historyNote: reason.trim(),
       ),
     );
   }
@@ -836,6 +1045,13 @@ class FinanceMockDataSource implements FinanceRemoteDataSource {
       transferMethod: transferMethod.trim(),
       operationType: operationType,
       sourceAccount: sourceAccount.trim(),
+      history: [
+        FinancialRequestHistoryEvent(
+          status: RequestStatus.pending,
+          note: 'تم استلام الطلب وإضافته للمراجعة المالية',
+          occurredAt: now,
+        ),
+      ],
     );
     _supervisorWithdrawalRequests!.insert(0, request);
     try {
@@ -901,18 +1117,25 @@ class FinanceMockDataSource implements FinanceRemoteDataSource {
 
     final request = requests[requestIndex];
     if (request.status != RequestStatus.frozen &&
-        request.status != RequestStatus.underInvestigation) {
-      throw StateError('Withdrawal is no longer frozen.');
+        request.status != RequestStatus.underInvestigation &&
+        request.status != RequestStatus.rejected) {
+      throw StateError('Only a rejected or frozen withdrawal can be restored.');
     }
-    requests[requestIndex] = request.copyWith(status: RequestStatus.pending);
-    if (beneficiaryType == BeneficiaryType.supervisor ||
-        beneficiaryType == BeneficiaryType.serviceProvider) {
-      try {
+    requests[requestIndex] = request.copyWith(
+      status: RequestStatus.pending,
+      clearAlertNotice: true,
+      historyNote: 'تم التراجع عن الإجراء وإعادة الطلب إلى قائمة الانتظار',
+    );
+    try {
+      if (beneficiaryType == BeneficiaryType.merchant ||
+          beneficiaryType == BeneficiaryType.user) {
+        await _persistMerchantRequests(requests);
+      } else {
         await _persistSupervisorRequests();
-      } catch (_) {
-        requests[requestIndex] = request;
-        rethrow;
       }
+    } catch (_) {
+      requests[requestIndex] = request;
+      rethrow;
     }
   }
 
@@ -946,6 +1169,7 @@ class FinanceMockDataSource implements FinanceRemoteDataSource {
     requests[requestIndex] = request.copyWith(
       status: RequestStatus.rejected,
       alertNotice: normalizedReason,
+      historyNote: normalizedReason,
     );
     if (beneficiaryType == BeneficiaryType.supervisor ||
         beneficiaryType == BeneficiaryType.serviceProvider) {
@@ -1006,10 +1230,13 @@ class FinanceMockDataSource implements FinanceRemoteDataSource {
 
   @override
   Future<void> restoreFrozenBankLinkRequest(String requestId) async {
-    final index = _bankLinkRequestIndex(
-      requestId,
-      BankLinkRequestStatus.frozen,
-    );
+    final index = _bankLinkRequests.indexWhere((request) =>
+        request.id == requestId &&
+        (request.status == BankLinkRequestStatus.frozen ||
+            request.status == BankLinkRequestStatus.rejected));
+    if (index == -1) {
+      throw StateError('Bank link request is not frozen or rejected.');
+    }
     _bankLinkRequests[index] = _bankLinkRequests[index].copyWith(
       status: BankLinkRequestStatus.pending,
       clearDecisionReason: true,
@@ -1069,7 +1296,12 @@ class FinanceMockDataSource implements FinanceRemoteDataSource {
 
   @override
   Future<List<SubscriptionRequestEntity>> getSubscriptions() async {
-    return const [
+    if (_subscriptionRequests != null) {
+      return List.unmodifiable(_subscriptionRequests!);
+    }
+
+    final now = DateTime.now();
+    final seeds = <SubscriptionRequestEntity>[
       SubscriptionRequestEntity(
         id: '1',
         providerName: 'متجر إلكترونيات النخبة',
@@ -1082,6 +1314,7 @@ class FinanceMockDataSource implements FinanceRemoteDataSource {
         paymentMethod: 'تحويل بنكي مباشر (سداد / الراجحي)',
         status: 'قيد المطابقة',
         type: SubscriptionType.merchant,
+        createdAt: now.subtract(const Duration(minutes: 35)),
       ),
       SubscriptionRequestEntity(
         id: '2',
@@ -1094,6 +1327,7 @@ class FinanceMockDataSource implements FinanceRemoteDataSource {
         paymentMethod: 'خصم مباشر من رصيد المحفظة الضامنة (Escrow)',
         status: 'جاهز للاعتماد التلقائي',
         type: SubscriptionType.serviceProvider,
+        createdAt: now.subtract(const Duration(hours: 2)),
         availableBalance: 'رصيد متاح 6,400 ج.م',
       ),
       SubscriptionRequestEntity(
@@ -1107,6 +1341,7 @@ class FinanceMockDataSource implements FinanceRemoteDataSource {
         paymentMethod: 'البطاقة الائتمانية (Mada)',
         status: 'قيد المطابقة',
         type: SubscriptionType.user,
+        createdAt: now.subtract(const Duration(days: 1)),
       ),
       SubscriptionRequestEntity(
         id: '4',
@@ -1119,6 +1354,7 @@ class FinanceMockDataSource implements FinanceRemoteDataSource {
         paymentMethod: 'خصم من المحفظة',
         status: 'جاهز للاعتماد التلقائي',
         type: SubscriptionType.courier,
+        createdAt: now.subtract(const Duration(days: 2)),
         availableBalance: 'رصيد متاح 800 ج.م',
       ),
       SubscriptionRequestEntity(
@@ -1132,8 +1368,141 @@ class FinanceMockDataSource implements FinanceRemoteDataSource {
         paymentMethod: 'تحويل بنكي مباشر (الأهلي)',
         status: 'قيد المطابقة',
         type: SubscriptionType.ad,
+        createdAt: now.subtract(const Duration(days: 3)),
       ),
     ];
+
+    final preferences = await SharedPreferences.getInstance();
+    final stored = preferences.getString(_subscriptionDecisionsStorageKey);
+    final decisions = <String, Map<String, dynamic>>{};
+    if (stored != null) {
+      final decoded = jsonDecode(stored);
+      if (decoded is! List) {
+        throw const FormatException(
+            'Subscription decision archive is invalid.');
+      }
+      for (final item in decoded) {
+        if (item is! Map<String, dynamic> || item['id'] is! String) {
+          throw const FormatException(
+              'Subscription decision record is invalid.');
+        }
+        decisions[item['id'] as String] = item;
+      }
+    }
+
+    _subscriptionRequests = seeds.map((subscription) {
+      final decisionData = decisions[subscription.id];
+      if (decisionData == null) return subscription;
+      final decisionName = decisionData['decision'];
+      if (decisionName is! String) {
+        throw const FormatException('Subscription decision is missing.');
+      }
+      final decision = SubscriptionReviewDecision.values.firstWhere(
+        (value) => value.name == decisionName,
+        orElse: () => throw FormatException(
+          'Unknown subscription decision: $decisionName',
+        ),
+      );
+      final reason = decisionData['reason'];
+      if (reason != null && reason is! String) {
+        throw const FormatException('Subscription decision reason is invalid.');
+      }
+      return subscription.copyWith(
+        reviewDecision: decision,
+        decisionReason: reason as String?,
+      );
+    }).toList();
+    return List.unmodifiable(_subscriptionRequests!);
+  }
+
+  @override
+  Future<void> updateSubscriptionDecision({
+    required String requestId,
+    required SubscriptionReviewDecision decision,
+    required String reason,
+  }) async {
+    final current = await _reloadSubscriptionRequests();
+    final index = current.indexWhere((request) => request.id == requestId);
+    if (index < 0) {
+      throw ArgumentError.value(
+        requestId,
+        'requestId',
+        'Subscription request not found.',
+      );
+    }
+    if (reason.trim().isEmpty) {
+      throw ArgumentError.value(
+          reason, 'reason', 'A decision reason is required.');
+    }
+
+    final updated = current.toList();
+    updated[index] = updated[index].copyWith(
+      reviewDecision: decision,
+      decisionReason: reason.trim(),
+    );
+    await _saveSubscriptionDecisions(updated);
+    _subscriptionRequests = updated;
+  }
+
+  @override
+  Future<void> restoreSubscriptionDecision(String requestId) async {
+    final current = await _reloadSubscriptionRequests();
+    final index = current.indexWhere((request) => request.id == requestId);
+    if (index < 0) {
+      throw ArgumentError.value(
+        requestId,
+        'requestId',
+        'Subscription request not found.',
+      );
+    }
+    final decision = current[index].reviewDecision;
+    if (decision == null) return;
+    if (decision != SubscriptionReviewDecision.frozen &&
+        decision != SubscriptionReviewDecision.rejected) {
+      throw StateError('Only frozen or rejected requests can be restored.');
+    }
+
+    final updated = current.toList();
+    updated[index] = updated[index].copyWith(
+      clearReviewDecision: true,
+      clearDecisionReason: true,
+    );
+    await _saveSubscriptionDecisions(updated);
+    _subscriptionRequests = updated;
+  }
+
+  Future<List<SubscriptionRequestEntity>> _reloadSubscriptionRequests() async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.reload();
+    _subscriptionRequests = null;
+    return getSubscriptions();
+  }
+
+  Future<void> _saveSubscriptionDecisions(
+    List<SubscriptionRequestEntity> subscriptions,
+  ) async {
+    final archived = subscriptions
+        .where((subscription) => subscription.reviewDecision != null)
+        .map((subscription) => {
+              'id': subscription.id,
+              'decision': subscription.reviewDecision!.name,
+              'reason': subscription.decisionReason,
+            })
+        .toList(growable: false);
+    final preferences = await SharedPreferences.getInstance();
+    final saved = await preferences.setString(
+      _subscriptionDecisionsStorageKey,
+      jsonEncode(archived),
+    );
+    if (!saved) {
+      // SharedPreferences may report false when the value is already present.
+      // Verify the persisted value before treating that as a failed write.
+      await preferences.reload();
+      if (preferences.getString(_subscriptionDecisionsStorageKey) !=
+          jsonEncode(archived)) {
+        throw StateError('Could not save the subscription decision archive.');
+      }
+    }
   }
 
   @override
@@ -1154,6 +1523,7 @@ class FinanceMockDataSource implements FinanceRemoteDataSource {
     }
     _supervisorWithdrawalRequests![index] = request.copyWith(
       status: RequestStatus.approved,
+      historyNote: 'تم اعتماد الطلب من المشرف المالي',
       alertNotice: request.operationType == FinancialOperationType.withdrawal
           ? 'Approved by the financial supervisor. Transfer execution requires the configured payment service.'
           : 'Deposit approved by the financial supervisor. Balance posting requires the configured payment service.',
@@ -1190,6 +1560,7 @@ class FinanceMockDataSource implements FinanceRemoteDataSource {
     _supervisorWithdrawalRequests![index] = request.copyWith(
       status: RequestStatus.underInvestigation,
       alertNotice: normalizedReason,
+      historyNote: normalizedReason,
     );
     try {
       await _persistSupervisorRequests();
@@ -1223,6 +1594,7 @@ class FinanceMockDataSource implements FinanceRemoteDataSource {
     _supervisorWithdrawalRequests![index] = request.copyWith(
       status: RequestStatus.rejected,
       alertNotice: normalizedReason,
+      historyNote: normalizedReason,
     );
     try {
       await _persistSupervisorRequests();
@@ -1270,6 +1642,13 @@ class FinanceMockDataSource implements FinanceRemoteDataSource {
         'transferMethod': request.transferMethod,
         'operationType': request.operationType.name,
         'sourceAccount': request.sourceAccount,
+        'history': request.history
+            .map((event) => {
+                  'status': event.status.name,
+                  'note': event.note,
+                  'occurredAt': event.occurredAt.toIso8601String(),
+                })
+            .toList(growable: false),
       };
 
   WithdrawalRequestEntity _withdrawalRequestFromJson(
@@ -1302,5 +1681,20 @@ class FinanceMockDataSource implements FinanceRemoteDataSource {
           json['operationType'] as String? ?? 'withdrawal',
         ),
         sourceAccount: json['sourceAccount'] as String?,
+        history: (json['history'] as List<dynamic>? ?? const []).map((value) {
+          if (value is! Map<String, dynamic> ||
+              value['status'] is! String ||
+              value['note'] is! String ||
+              value['occurredAt'] is! String) {
+            throw const FormatException(
+              'Invalid financial request history event.',
+            );
+          }
+          return FinancialRequestHistoryEvent(
+            status: RequestStatus.values.byName(value['status'] as String),
+            note: value['note'] as String,
+            occurredAt: DateTime.parse(value['occurredAt'] as String),
+          );
+        }).toList(growable: false),
       );
 }

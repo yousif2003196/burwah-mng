@@ -1,15 +1,19 @@
+import 'dart:convert';
+
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../../wasalny_supervisor/data/wasalny_local_event_store.dart';
 import '../../../merchants/presentation/screens/merchant_conversation_screen.dart';
 
 enum _ComplaintStatus { investigating, waiting, closed }
 
 class _ServiceComplaint {
   final String id;
-  final _ComplaintStatus status;
+  _ComplaintStatus status;
   final String priority;
   final String age;
   final String client;
@@ -21,7 +25,7 @@ class _ServiceComplaint {
   final String clientPhone;
   final String providerPhone;
   final List<String> photoUrls;
-  final String action;
+  String action;
   bool escalated = false;
 
   _ServiceComplaint({
@@ -51,10 +55,63 @@ class ServicesComplaintsScreen extends StatefulWidget {
 }
 
 class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
+  static const _storageKey = 'services_supervisor_complaint_actions_v1';
   final _searchController = TextEditingController();
   int _selectedFilter = 0;
+  Map<String, dynamic> _savedActions = const {};
+  bool _isLoadingActions = true;
 
   late final List<_ServiceComplaint> _complaints = _createComplaints();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadSavedActions());
+  }
+
+  Future<void> _loadSavedActions() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final encoded = prefs.getString(_storageKey);
+      if (encoded != null) {
+        _savedActions = jsonDecode(encoded) as Map<String, dynamic>;
+        for (final complaint in _complaints) {
+          final saved = _savedActions[complaint.id];
+          if (saved is! Map<String, dynamic>) continue;
+          complaint.status = _ComplaintStatus.values.byName(
+            saved['status'] as String? ?? complaint.status.name,
+          );
+          complaint.escalated = saved['escalated'] as bool? ?? false;
+          complaint.action = saved['action'] as String? ?? complaint.action;
+        }
+      }
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'services complaints',
+        context: ErrorDescription('while loading complaint actions'),
+      ));
+    } finally {
+      if (mounted) setState(() => _isLoadingActions = false);
+    }
+  }
+
+  Future<void> _saveComplaintActions() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = await prefs.setString(
+      _storageKey,
+      jsonEncode({
+        for (final complaint in _complaints)
+          complaint.id: {
+            'status': complaint.status.name,
+            'escalated': complaint.escalated,
+            'action': complaint.action,
+          },
+      }),
+    );
+    if (!saved) throw StateError('Could not save complaint actions.');
+  }
 
   List<_ServiceComplaint> _createComplaints() {
     final l10n = AppLocalizations.of(context)!;
@@ -122,6 +179,9 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
     final isArabic = l10n.localeName.startsWith('ar');
     final complaints = _filteredComplaints();
 
+    if (_isLoadingActions) {
+      return const Center(child: CircularProgressIndicator());
+    }
     return Directionality(
       textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
       child: ListView(
@@ -194,7 +254,7 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
           child: _MetricCard(
             icon: Icons.report_gmailerrorred_outlined,
             label: l10n.servicesComplaintActive,
-            value: '3',
+            value: '${_complaints.where((complaint) => complaint.status != _ComplaintStatus.closed).length}',
             detail: l10n.servicesComplaintUrgent,
             color: AppColors.danger,
           ),
@@ -251,7 +311,12 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
       l10n.servicesComplaintFilterWaiting,
       l10n.servicesComplaintFilterClosed,
     ];
-    final counts = ['8', '3', '2', '3'];
+    final counts = [
+      _complaints.length,
+      _complaints.where((item) => item.status == _ComplaintStatus.investigating).length,
+      _complaints.where((item) => item.status == _ComplaintStatus.waiting).length,
+      _complaints.where((item) => item.status == _ComplaintStatus.closed).length,
+    ].map((count) => '$count').toList();
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -370,6 +435,7 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
           isArabic: isArabic,
           onCall: (phone) => _callParty(phone, l10n),
           onChat: (name) => _openPartyChat(name),
+          onResolve: () => _resolveComplaint(complaint, l10n),
         ),
       ),
     );
@@ -413,7 +479,83 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
       ),
     );
     if (confirmed == true && mounted) {
+      final previousStatus = complaint.status;
+      final previousAction = complaint.action;
+      setState(() {
+        complaint.status = _ComplaintStatus.investigating;
+        complaint.action = l10n.servicesComplaintContactParties;
+      });
+      final saved = await _persistComplaintActions(l10n);
+      if (!saved) {
+        if (mounted) {
+          setState(() {
+            complaint.status = previousStatus;
+            complaint.action = previousAction;
+          });
+        }
+        return;
+      }
       _showMessage(l10n.servicesComplaintActionRecorded);
+    }
+  }
+
+  Future<void> _resolveComplaint(
+    _ServiceComplaint complaint,
+    AppLocalizations l10n,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.servicesComplaintInvestigateAndResolve),
+        content: Text(l10n.servicesComplaintActionConfirmation),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(l10n.logoutCancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(l10n.productConfirmAction),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final previousStatus = complaint.status;
+    final previousAction = complaint.action;
+    setState(() {
+      complaint.status = _ComplaintStatus.closed;
+      complaint.action = l10n.servicesComplaintShowResolution;
+    });
+    final saved = await _persistComplaintActions(l10n);
+    if (!saved) {
+      if (mounted) {
+        setState(() {
+          complaint.status = previousStatus;
+          complaint.action = previousAction;
+        });
+      }
+      return;
+    }
+    if (mounted) {
+      Navigator.of(context).pop();
+      _showMessage(l10n.servicesComplaintActionRecorded);
+    }
+  }
+
+  Future<bool> _persistComplaintActions(AppLocalizations l10n) async {
+    try {
+      await _saveComplaintActions();
+      return true;
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'services complaints',
+        context: ErrorDescription('while saving a complaint action'),
+      ));
+      if (mounted) _showMessage(l10n.servicesAccountSaveError('$error'));
+      return false;
     }
   }
 
@@ -432,7 +574,36 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
       ),
     );
     if (confirmed != true || !mounted) return;
+    final previousEscalated = complaint.escalated;
     setState(() => complaint.escalated = true);
+    final saved = await _persistComplaintActions(l10n);
+    if (!saved) {
+      if (mounted) setState(() => complaint.escalated = previousEscalated);
+      return;
+    }
+    try {
+      await WasalnyLocalEventStore().publish(
+        WasalnyLocalEvent(
+          id: 'services-complaint-escalated-${complaint.id}',
+          recipient: 'head',
+          source: 'services',
+          titleAr: 'تصعيد شكوى من قسم الخدمات',
+          titleEn: 'Service complaint escalated',
+          messageAr:
+              '${complaint.id}: ${complaint.service} — ${complaint.description}',
+          messageEn:
+              '${complaint.id}: ${complaint.service} — ${complaint.description}',
+          createdAt: DateTime.now(),
+        ),
+      );
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'services complaints',
+        context: ErrorDescription('while notifying the head supervisor'),
+      ));
+    }
     _showMessage(l10n.servicesComplaintEscalatedNotice(complaint.id));
   }
 
@@ -693,6 +864,7 @@ class _ServiceComplaintDetailsSheet extends StatelessWidget {
   final bool isArabic;
   final ValueChanged<String> onCall;
   final ValueChanged<String> onChat;
+  final VoidCallback onResolve;
 
   const _ServiceComplaintDetailsSheet({
     required this.complaint,
@@ -700,6 +872,7 @@ class _ServiceComplaintDetailsSheet extends StatelessWidget {
     required this.isArabic,
     required this.onCall,
     required this.onChat,
+    required this.onResolve,
   });
 
   @override
@@ -867,12 +1040,32 @@ class _ServiceComplaintDetailsSheet extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(18, 8, 18, 12),
                 child: SizedBox(
-                  height: 46,
                   width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close),
-                    label: Text(l10n.logoutCancel),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (complaint.status != _ComplaintStatus.closed) ...[
+                        SizedBox(
+                          height: 46,
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: onResolve,
+                            icon: const Icon(Icons.task_alt_outlined),
+                            label: Text(l10n.servicesComplaintInvestigateAndResolve),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                      ],
+                      SizedBox(
+                        height: 46,
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: const Icon(Icons.close),
+                          label: Text(l10n.logoutCancel),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),

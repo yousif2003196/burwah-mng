@@ -4,16 +4,22 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../../core/errors/failures.dart';
 import '../../../domain/entities/expense_request_entity.dart';
 import '../../../domain/usecases/get_expense_requests_usecase.dart';
+import '../../../domain/usecases/edit_expense_request_usecase.dart';
 import '../../../domain/usecases/submit_expense_request_usecase.dart';
+import '../../../domain/usecases/update_expense_request_status_usecase.dart';
 import 'expense_requests_state.dart';
 
 class ExpenseRequestsCubit extends Cubit<ExpenseRequestsState> {
   final GetExpenseRequestsUseCase getExpenseRequestsUseCase;
   final SubmitExpenseRequestUseCase submitExpenseRequestUseCase;
+  final UpdateExpenseRequestStatusUseCase updateExpenseRequestStatusUseCase;
+  final EditExpenseRequestUseCase editExpenseRequestUseCase;
 
   ExpenseRequestsCubit({
     required this.getExpenseRequestsUseCase,
     required this.submitExpenseRequestUseCase,
+    required this.updateExpenseRequestStatusUseCase,
+    required this.editExpenseRequestUseCase,
   }) : super(const ExpenseRequestsState());
 
   Future<void> loadRequests() async {
@@ -36,7 +42,10 @@ class ExpenseRequestsCubit extends Cubit<ExpenseRequestsState> {
     required double amount,
     required String bankAccountId,
     required String reason,
+    String category = 'other',
+    String beneficiaryName = '',
     String? attachmentName,
+    String? attachmentPath,
   }) async {
     if (state.isSubmitting) {
       return const Left(ServerFailure());
@@ -47,7 +56,10 @@ class ExpenseRequestsCubit extends Cubit<ExpenseRequestsState> {
       amount: amount,
       bankAccountId: bankAccountId,
       reason: reason,
+      category: category,
+      beneficiaryName: beneficiaryName,
       attachmentName: attachmentName,
+      attachmentPath: attachmentPath,
     );
 
     return result.fold(
@@ -61,6 +73,77 @@ class ExpenseRequestsCubit extends Cubit<ExpenseRequestsState> {
       (request) {
         emit(state.copyWith(
           requests: [...state.requests, request],
+          isSubmitting: false,
+          clearError: true,
+        ));
+        return Right(request);
+      },
+    );
+  }
+
+  Future<Either<Failure, void>> updateRequestStatus({
+    required String requestId,
+    required ExpenseRequestStatus status,
+    String? reason,
+  }) async {
+    final result = await updateExpenseRequestStatusUseCase(
+      requestId: requestId,
+      status: status,
+      reason: reason,
+    );
+    return result.fold(
+      (failure) {
+        emit(state.copyWith(errorMessage: failure.message));
+        return Left(failure);
+      },
+      (_) {
+        final requests = state.requests.map((request) {
+          if (request.id != requestId) return request;
+          return request.copyWith(
+            status: status,
+            decisionReason: reason,
+            clearDecisionReason: reason == null,
+          );
+        }).toList(growable: false);
+        emit(state.copyWith(requests: requests, clearError: true));
+        return const Right(null);
+      },
+    );
+  }
+
+  Future<Either<Failure, ExpenseRequestEntity>> editRequest({
+    required String requestId,
+    required double amount,
+    required String bankAccountId,
+    required String reason,
+    required String category,
+    required String beneficiaryName,
+    String? attachmentName,
+    String? attachmentPath,
+  }) async {
+    if (state.isSubmitting) return const Left(ServerFailure());
+    emit(state.copyWith(isSubmitting: true, clearError: true));
+    final result = await editExpenseRequestUseCase(
+      requestId: requestId,
+      amount: amount,
+      bankAccountId: bankAccountId,
+      reason: reason,
+      category: category,
+      beneficiaryName: beneficiaryName,
+      attachmentName: attachmentName,
+      attachmentPath: attachmentPath,
+    );
+    return result.fold(
+      (failure) {
+        emit(state.copyWith(isSubmitting: false, errorMessage: failure.message));
+        return Left(failure);
+      },
+      (request) {
+        final requests = state.requests
+            .map((item) => item.id == request.id ? request : item)
+            .toList(growable: false);
+        emit(state.copyWith(
+          requests: requests,
           isSubmitting: false,
           clearError: true,
         ));

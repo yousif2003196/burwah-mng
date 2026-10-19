@@ -72,291 +72,329 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
             showBackButton: true,
             onBackPressed: () => Navigator.pop(context),
           ),
-          body: BlocBuilder<BankReconciliationCubit,
-              BankReconciliationState>(
+          body: BlocBuilder<BankReconciliationCubit, BankReconciliationState>(
             builder: (context, bankLinkState) =>
                 BlocBuilder<FrozenRequestsCubit, FrozenRequestsState>(
               builder: (context, state) {
-              if (state.isLoading) {
-                return const Center(
-                    child: CircularProgressIndicator(
-                        color: AppColors.primaryDark));
-              } else if (state.errorMessage != null) {
-                return Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
+                if (state.isLoading) {
+                  return const Center(
+                      child: CircularProgressIndicator(
+                          color: AppColors.primaryDark));
+                } else if (state.errorMessage != null) {
+                  return Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(l10n.frozenLoadFailed),
+                        const SizedBox(height: 12),
+                        ElevatedButton(
+                          onPressed: _cubit.loadRequests,
+                          child: Text(l10n.frozenRefresh),
+                        ),
+                      ],
+                    ),
+                  );
+                } else {
+                  final frozenRequests =
+                      _mapFrozenRequests(state.requests, l10n);
+                  final filteredRequests = frozenRequests.where((req) {
+                    return _selectedFilter == 'all' ||
+                        req['type'] == _selectedFilter;
+                  }).toList(growable: false);
+                  final filteredBankLinks = bankLinkState.archiveRequests
+                      .where((request) =>
+                          request.status == BankLinkRequestStatus.frozen &&
+                          _matchesBankLinkFilter(request, l10n))
+                      .toList(growable: false);
+
+                  final totalAmount = filteredRequests.fold<double>(
+                    0.0,
+                    (double sum, req) =>
+                        sum + (req['amount'] as num).toDouble(),
+                  );
+                  final int totalCount =
+                      filteredRequests.length + filteredBankLinks.length;
+
+                  return Column(
                     children: [
-                      Text(l10n.frozenLoadFailed),
-                      const SizedBox(height: 12),
-                      ElevatedButton(
-                        onPressed: _cubit.loadRequests,
-                        child: Text(l10n.frozenRefresh),
-                      ),
-                    ],
-                  ),
-                );
-              } else {
-                final frozenRequests = _mapFrozenRequests(state.requests, l10n);
-                final filteredRequests = frozenRequests.where((req) {
-                  return _selectedFilter == 'all' ||
-                      req['type'] == _selectedFilter;
-                }).toList(growable: false);
-
-                final double totalAmount = filteredRequests.fold(
-                    0.0, (sum, req) => sum + (req['amount'] as double));
-                final int totalCount =
-                    filteredRequests.length + bankLinkState.frozenRequests.length;
-
-                return Column(
-                  children: [
-                    Expanded(
-                      child: SingleChildScrollView(
-                        physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 20),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            // 1. Top Card
-                            Container(
-                              padding: const EdgeInsets.all(20),
-                              decoration: BoxDecoration(
-                                color: AppColors.primaryExtraDark,
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: Column(
-                                children: [
-                                  Text(
-                                    l10n.frozenTotalTitle,
-                                    style: const TextStyle(
-                                        color: Colors.white70, fontSize: 12),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Flexible(
-                                        child: FittedBox(
-                                          fit: BoxFit.scaleDown,
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.end,
-                                            children: [
-                                              Text(
-                                                CurrencyFormatter.format(
-                                                    totalAmount),
-                                                style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 32,
-                                                    fontWeight: FontWeight.bold,
-                                                    height: 1),
-                                              ),
-                                              const SizedBox(width: 4),
-                                              Text(
-                                                AppLocalizations.of(context)!
-                                                    .currencyEgy,
-                                                style: const TextStyle(
-                                                    color: Colors.white70,
-                                                    fontSize: 14,
-                                                    fontWeight:
-                                                        FontWeight.bold),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 16, vertical: 10),
-                                    decoration: BoxDecoration(
-                                      color:
-                                          Colors.white.withValues(alpha: 0.05),
-                                      borderRadius: BorderRadius.circular(10),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          physics: const BouncingScrollPhysics(),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // 1. Top Card
+                              Container(
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primaryExtraDark,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Column(
+                                  children: [
+                                    Text(
+                                      l10n.frozenTotalTitle,
+                                      style: const TextStyle(
+                                          color: Colors.white70, fontSize: 12),
                                     ),
-                                    child: Row(
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
                                       children: [
-                                        Container(
-                                          padding: const EdgeInsets.all(6),
-                                          decoration: BoxDecoration(
-                                            color: Colors.white
-                                                .withValues(alpha: 0.1),
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: const Icon(Icons.lock_outline,
-                                              color: Colors.white70, size: 16),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                '$totalCount ${l10n.frozenRequestCount}',
-                                                style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 12,
-                                                    fontWeight:
-                                                        FontWeight.bold),
-                                              ),
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                l10n.frozenProtocol,
-                                                style: const TextStyle(
-                                                    color: Colors.white60,
-                                                    fontSize: 10),
-                                              ),
-                                            ],
+                                        Flexible(
+                                          child: FittedBox(
+                                            fit: BoxFit.scaleDown,
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.end,
+                                              children: [
+                                                Text(
+                                                  CurrencyFormatter.format(
+                                                      totalAmount),
+                                                  style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 32,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      height: 1),
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  AppLocalizations.of(context)!
+                                                      .currencyEgy,
+                                                  style: const TextStyle(
+                                                      color: Colors.white70,
+                                                      fontSize: 14,
+                                                      fontWeight:
+                                                          FontWeight.bold),
+                                                ),
+                                              ],
+                                            ),
                                           ),
                                         ),
                                       ],
                                     ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-
-                            // 2. Filters
-                            SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: Row(
-                                children: [
-                                  _buildFilterChip(l10n.frozenAllFilter,
-                                      filterValue: 'all', count: totalCount),
-                                  const SizedBox(width: 8),
-                                  _buildFilterChip(l10n.frozenMerchantsFilter,
-                                      filterValue: l10n.frozenMerchantsFilter,
-                                      icon: Icons.storefront),
-                                  const SizedBox(width: 8),
-                                  _buildFilterChip(l10n.frozenProvidersFilter,
-                                      filterValue: l10n.frozenProvidersFilter,
-                                      icon: Icons.handyman_outlined),
-                                  const SizedBox(width: 8),
-                                  _buildFilterChip(l10n.frozenSupervisorsFilter,
-                                      filterValue: l10n.frozenSupervisorsFilter,
-                                      icon: Icons.supervisor_account_outlined),
-                                  const SizedBox(width: 8),
-                                  _buildFilterChip(l10n.frozenCouriersFilter,
-                                      filterValue: l10n.frozenCouriersFilter,
-                                      icon: Icons.local_shipping_outlined),
-                                  const SizedBox(width: 8),
-                                  _buildFilterChip(l10n.frozenUsersFilter,
-                                      filterValue: l10n.frozenUsersFilter,
-                                      icon: Icons.person_outline),
-                                  const SizedBox(width: 8),
-                                  _buildFilterChip(l10n.frozenAdsFilter,
-                                      filterValue: l10n.frozenAdsFilter,
-                                      icon: Icons.campaign_outlined),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-
-                            // 3. Requests List
-                            if (filteredRequests.isEmpty &&
-                                bankLinkState.frozenRequests.isEmpty)
-                              Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 32),
-                                child: Center(
-                                  child: Text(l10n.frozenNoRequests),
+                                    const SizedBox(height: 16),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 16, vertical: 10),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white
+                                            .withValues(alpha: 0.05),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(6),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white
+                                                  .withValues(alpha: 0.1),
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: const Icon(
+                                                Icons.lock_outline,
+                                                color: Colors.white70,
+                                                size: 16),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  '$totalCount ${l10n.frozenRequestCount}',
+                                                  style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 12,
+                                                      fontWeight:
+                                                          FontWeight.bold),
+                                                ),
+                                                const SizedBox(height: 2),
+                                                Text(
+                                                  l10n.frozenProtocol,
+                                                  style: const TextStyle(
+                                                      color: Colors.white60,
+                                                      fontSize: 10),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              )
-                            else
-                              ...filteredRequests.map((req) => Padding(
-                                    padding: const EdgeInsets.only(bottom: 16),
-                                    child: _buildRequestCard(req, context),
-                                  )),
-                            if (bankLinkState.frozenRequests.isNotEmpty) ...[
-                              const SizedBox(height: 8),
-                              _buildFrozenBankLinksSection(
-                                context,
-                                bankLinkState.frozenRequests,
                               ),
+                              const SizedBox(height: 20),
+
+                              // 2. Filters
+                              SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  children: [
+                                    _buildFilterChip(l10n.frozenAllFilter,
+                                        filterValue: 'all', count: totalCount),
+                                    const SizedBox(width: 8),
+                                    _buildFilterChip(l10n.frozenMerchantsFilter,
+                                        filterValue: l10n.frozenMerchantsFilter,
+                                        icon: Icons.storefront),
+                                    const SizedBox(width: 8),
+                                    _buildFilterChip(l10n.frozenProvidersFilter,
+                                        filterValue: l10n.frozenProvidersFilter,
+                                        icon: Icons.handyman_outlined),
+                                    const SizedBox(width: 8),
+                                    _buildFilterChip(
+                                        l10n.frozenSupervisorsFilter,
+                                        filterValue:
+                                            l10n.frozenSupervisorsFilter,
+                                        icon:
+                                            Icons.supervisor_account_outlined),
+                                    const SizedBox(width: 8),
+                                    _buildFilterChip(l10n.frozenCouriersFilter,
+                                        filterValue: l10n.frozenCouriersFilter,
+                                        icon: Icons.local_shipping_outlined),
+                                    const SizedBox(width: 8),
+                                    _buildFilterChip(l10n.frozenUsersFilter,
+                                        filterValue: l10n.frozenUsersFilter,
+                                        icon: Icons.person_outline),
+                                    const SizedBox(width: 8),
+                                    _buildFilterChip(l10n.frozenAdsFilter,
+                                        filterValue: l10n.frozenAdsFilter,
+                                        icon: Icons.campaign_outlined),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+
+                              // 3. Requests List
+                              if (filteredRequests.isEmpty &&
+                                  filteredBankLinks.isEmpty)
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 32),
+                                  child: Center(
+                                    child: Text(l10n.frozenNoRequests),
+                                  ),
+                                )
+                              else
+                                ...filteredRequests.map((req) => Padding(
+                                      padding:
+                                          const EdgeInsets.only(bottom: 16),
+                                      child: _buildRequestCard(req, context),
+                                    )),
+                              if (filteredBankLinks.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                _buildFrozenBankLinksSection(
+                                  context,
+                                  filteredBankLinks,
+                                ),
+                              ],
                             ],
+                          ),
+                        ),
+                      ),
+
+                      // 4. Bottom Sticky Actions
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          boxShadow: [
+                            BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.05),
+                                blurRadius: 10,
+                                offset: const Offset(0, -5)),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFFE2E8F0),
+                                  foregroundColor: AppColors.textPrimary,
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10)),
+                                  elevation: 0,
+                                ),
+                                icon: const Icon(Icons.ios_share, size: 18),
+                                onPressed: () {},
+                                label: Text(l10n.frozenExport,
+                                    style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold)),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.textSecondary,
+                                  backgroundColor: const Color(0xFFF8FAFC),
+                                  side: const BorderSide(
+                                      color: Colors.transparent),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10)),
+                                ),
+                                icon: const Icon(Icons.sync, size: 18),
+                                onPressed: () {
+                                  _cubit.loadRequests();
+                                  _bankLinkCubit.loadRequests();
+                                },
+                                label: Text(l10n.frozenRefresh,
+                                    style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold)),
+                              ),
+                            ),
                           ],
                         ),
                       ),
-                    ),
-
-                    // 4. Bottom Sticky Actions
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        boxShadow: [
-                          BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.05),
-                              blurRadius: 10,
-                              offset: const Offset(0, -5)),
-                        ],
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFFE2E8F0),
-                                foregroundColor: AppColors.textPrimary,
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10)),
-                                elevation: 0,
-                              ),
-                              icon: const Icon(Icons.ios_share, size: 18),
-                              onPressed: () {},
-                              label: Text(l10n.frozenExport,
-                                  style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold)),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton.icon(
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.textSecondary,
-                                backgroundColor: const Color(0xFFF8FAFC),
-                                side:
-                                    const BorderSide(color: Colors.transparent),
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10)),
-                              ),
-                              icon: const Icon(Icons.sync, size: 18),
-                              onPressed: () {
-                                _cubit.loadRequests();
-                                _bankLinkCubit.loadRequests();
-                              },
-                              label: Text(l10n.frozenRefresh,
-                                  style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold)),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                );
-              }
+                    ],
+                  );
+                }
               },
             ),
           ),
         ),
       ),
     );
+  }
+
+  bool _matchesBankLinkFilter(
+    BankLinkRequestEntity request,
+    AppLocalizations l10n,
+  ) {
+    if (_selectedFilter == 'all') return true;
+    final requestType =
+        '${request.requestType} ${request.requestTypeEn ?? ''}'.toLowerCase();
+    if (_selectedFilter == l10n.frozenMerchantsFilter) {
+      return requestType.contains('commercial') ||
+          requestType.contains('supplier') ||
+          requestType.contains('تجاري') ||
+          requestType.contains('مورد');
+    }
+    if (_selectedFilter == l10n.frozenProvidersFilter) {
+      return requestType.contains('service provider') ||
+          requestType.contains('مزود خدمة') ||
+          requestType.contains('مزود خدم');
+    }
+    return false;
   }
 
   List<Map<String, dynamic>> _mapFrozenRequests(

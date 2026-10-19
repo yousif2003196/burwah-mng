@@ -3,14 +3,15 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../core/di/injection_container.dart';
+import '../../core/widgets/account_conversations_screen.dart';
 import '../../features/finance/presentation/widgets/finance_navigation.dart';
 import '../../features/products/presentation/controllers/product_review_cubit.dart';
 import '../../features/products/presentation/screens/product_ads_review_screen.dart';
 import '../../features/products/presentation/screens/product_promotions_screen.dart';
 import '../../features/products/presentation/screens/product_reports_screen.dart';
 import '../../features/products/presentation/screens/product_supervisor_profile_screen.dart';
-import '../../features/products/presentation/screens/product_supervisor_chats_screen.dart';
 import '../../features/products/presentation/screens/product_supervisor_notifications_screen.dart';
+import '../../features/wasalny_supervisor/data/wasalny_local_event_store.dart';
 import '../../l10n/app_localizations.dart';
 
 class ProductSupervisorTabsShell extends StatefulWidget {
@@ -28,9 +29,34 @@ class _ProductSupervisorTabsShellState
   late final PageController _pageController = PageController(initialPage: 3);
   int _currentIndex = 3;
   bool _isBarsVisible = true;
+  int _unreadNotifications = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WasalnyLocalEventStore.revision.addListener(_loadUnreadNotifications);
+    _loadUnreadNotifications();
+  }
+
+  Future<void> _loadUnreadNotifications() async {
+    try {
+      final events = await WasalnyLocalEventStore().getEvents('products');
+      if (mounted) {
+        setState(() => _unreadNotifications =
+            events.where((event) => !event.isRead).length);
+      }
+    } on Object catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'product supervisor notification badge',
+      ));
+    }
+  }
 
   @override
   void dispose() {
+    WasalnyLocalEventStore.revision.removeListener(_loadUnreadNotifications);
     _pageController.dispose();
     super.dispose();
   }
@@ -111,7 +137,7 @@ class _ProductSupervisorTabsShellState
                           onPressed: () => Navigator.of(context).push(
                             MaterialPageRoute<void>(
                               builder: (_) =>
-                                  const ProductSupervisorChatsScreen(),
+                                  const AccountConversationsScreen(accountId: 'products'),
                             ),
                           ),
                           icon: const Icon(Icons.chat_bubble_outline),
@@ -124,7 +150,38 @@ class _ProductSupervisorTabsShellState
                                   const ProductSupervisorNotificationsScreen(),
                             ),
                           ),
-                          icon: const Icon(Icons.notifications_none_outlined),
+                          icon: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              const Icon(Icons.notifications_none_outlined),
+                              if (_unreadNotifications > 0)
+                                PositionedDirectional(
+                                  top: -6,
+                                  end: -7,
+                                  child: Container(
+                                    constraints: const BoxConstraints(
+                                      minWidth: 17,
+                                      minHeight: 17,
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 4),
+                                    decoration: const BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      '$_unreadNotifications',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                       ]
                     : const [],

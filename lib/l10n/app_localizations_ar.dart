@@ -765,7 +765,7 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
-  String get servicesCompletedToday => 'المعتمد اليوم';
+  String get servicesCompletedToday => 'الطلبات المعتمدة';
 
   @override
   String get servicesAwaitingDecision => 'بانتظار القرار';
@@ -2326,6 +2326,44 @@ class AppLocalizationsAr extends AppLocalizations {
   String get reconciliationNextAccount => 'الحساب التالي في قائمة الانتظار';
 
   @override
+  String get reconciliationQueueTitle => 'قائمة طلبات المطابقة';
+
+  @override
+  String get reconciliationSearchHint =>
+      'ابحث بالاسم أو رقم الطلب أو البنك أو الآيبان';
+
+  @override
+  String get reconciliationFilterAll => 'الكل';
+
+  @override
+  String get reconciliationFilterAttention => 'تحتاج إلى مراجعة';
+
+  @override
+  String get reconciliationNeedsAttention => 'مراجعة';
+
+  @override
+  String get reconciliationNoMatchingRequests =>
+      'لا توجد طلبات مطابقة لخيارات البحث.';
+
+  @override
+  String get reconciliationAwaitingManagement => 'بانتظار اعتماد الإدارة';
+
+  @override
+  String get reconciliationAwaitingCertificate => 'بانتظار شهادة آيبان محدثة';
+
+  @override
+  String get reconciliationInProgressTab => 'قيد الإجراء';
+
+  @override
+  String get reconciliationArchiveTab => 'الأرشيف';
+
+  @override
+  String get reconciliationArchiveEmpty => 'لا توجد طلبات في الأرشيف.';
+
+  @override
+  String get reconciliationDecisionReason => 'سبب القرار';
+
+  @override
   String get reconciliationNextBusiness => 'متجر السهيلة للعطور';
 
   @override
@@ -2410,7 +2448,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get withdrawSheetAmount5k => '5,000 ج.م';
 
   @override
-  String get matrixLive => 'مباشر';
+  String get matrixLive => 'إعدادات محلية';
 
   @override
   String get matrixCfoPermission =>
@@ -2418,7 +2456,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get matrixIntro =>
-      'تحديد النسب الرسمية لاقتطاعات المنصة التلقائية وتحديث محرك التسويات والرسوم اللوجستية لكافة العمليات المالية المعتمدة.';
+      'مراجعة نسب العمولات والرسوم وحفظ التعديلات محليًا للمراجعة.';
 
   @override
   String get matrixLastUpdate =>
@@ -2655,15 +2693,14 @@ class AppLocalizationsAr extends AppLocalizations {
       'تعديل دوري لمواكبة تحديثات رسوم بوابات الدفع البنكية وتوسعة شبكة التوصيل الميداني';
 
   @override
-  String get matrixLastUpdated =>
-      'آخر تحديث: 01 يناير 2025 بموجب قرار مجلس الإدارة رقم BOD-44/B';
+  String get matrixLastUpdated => 'آخر حفظ:';
 
   @override
   String get matrixCfoDescription =>
-      'تحديد النسب الرسمية لاقتطاعات المنصة التلقائية وتحديث محرك التسويات والرسوم اللوجستية لكافة العمليات المالية المعتمدة.';
+      'تعديل نسب العمولات المقترحة وحفظها محليًا للمراجعة؛ لا تُفعّل التغييرات على محرك الدفع من هذه الصفحة.';
 
   @override
-  String get matrixAppliedRate => 'النسبة المطبقة حالياً';
+  String get matrixAppliedRate => 'النسبة المحفوظة';
 
   @override
   String get matrixTargetRate => 'ضبط النسبة المستهدفة';
@@ -2721,17 +2758,17 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get matrixNotifyUsers =>
-      'إشعار فوري لجميع التجار والمناديب والمشرفين بتحديث قائمة الأسعار قبل 7 أيام من موعد التطبيق الإلزامي.';
+      'تفضيل إشعار التجار والمناديب والمشرفين عند تطبيق تحديث للمصفوفة.';
 
   @override
-  String get matrixSaveSuccess => 'تم رفع التعديلات للسجل المالي بنجاح';
+  String get matrixSaveSuccess => 'تم حفظ تعديلات المصفوفة على هذا الجهاز.';
 
   @override
-  String get matrixSaveAndSend => 'حفظ وإرسال مصفوفة النسب رسمياً للإدارة';
+  String get matrixSaveAndSend => 'حفظ التعديلات';
 
   @override
   String get matrixAuditTrailNotice =>
-      'سيتم قيد هذا الإجراء تلقائياً في سجل التدقيق المالي المركزي SHA-256';
+      'تُحفظ التعديلات محلياً مع وقت الحفظ وسبب التعديل. اضغط لعرض السجل.';
 
   @override
   String get settlementsScreenTitle => 'إدارة التسويات';
@@ -6972,6 +7009,45 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get financeWalletOperationNote =>
       'يجب أن يوافق المشرف المالي على الطلب. تُسجل الموافقة في التطبيق ولا تتحرك الأموال قبل تكامل خدمة الدفع.';
+
+  @override
+  String get departmentPendingAmount => 'أرصدة معلقة';
+
+  @override
+  String get departmentPendingOnlyFilter => 'لديها مبالغ معلقة';
+
+  @override
+  String get departmentNoPendingItems => 'لا توجد محافظ بمبالغ معلقة.';
+
+  @override
+  String get departmentExportReport => 'تصدير التقرير';
+
+  @override
+  String get departmentExportExcel => 'تصدير إلى Excel';
+
+  @override
+  String get departmentExportPdf => 'طباعة أو حفظ PDF';
+
+  @override
+  String get departmentReportName => 'الاسم';
+
+  @override
+  String get departmentReportReference => 'المرجع';
+
+  @override
+  String get departmentSearchHint => 'ابحث بالاسم أو المرجع أو الحالة';
+
+  @override
+  String get departmentNoSearchResults => 'لا توجد محافظ مطابقة لمعايير البحث.';
+
+  @override
+  String get departmentViewDetails => 'عرض تفاصيل المحفظة';
+
+  @override
+  String get departmentStatusLabel => 'حالة الحساب';
+
+  @override
+  String get departmentOperationsCount => 'عدد العمليات';
 
   @override
   String get merchantInfoAdRejected => 'مرفوض';

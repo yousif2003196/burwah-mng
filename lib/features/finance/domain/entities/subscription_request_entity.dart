@@ -2,6 +2,8 @@ import 'package:equatable/equatable.dart';
 
 enum SubscriptionType { merchant, serviceProvider, user, courier, ad }
 
+enum SubscriptionReviewDecision { approved, frozen, rejected }
+
 class SubscriptionRequestEntity extends Equatable {
   final String id;
   final String providerName; // متجر إلكترونيات النخبة
@@ -13,6 +15,9 @@ class SubscriptionRequestEntity extends Equatable {
   final String paymentMethod; // تحويل بنكي مباشر / خصم مباشر من المحفظة
   final String status; // قيد المطابقة / جاهز للاعتماد التلقائي
   final SubscriptionType type;
+  final DateTime? createdAt;
+  final SubscriptionReviewDecision? reviewDecision;
+  final String? decisionReason;
   final String?
       availableBalance; // رصيد متاح في المحفظة إن وجد (مثال: رصيد متاح 6,400 ج.م)
 
@@ -27,6 +32,9 @@ class SubscriptionRequestEntity extends Equatable {
     required this.paymentMethod,
     required this.status,
     required this.type,
+    this.createdAt,
+    this.reviewDecision,
+    this.decisionReason,
     this.availableBalance,
   });
 
@@ -41,6 +49,11 @@ class SubscriptionRequestEntity extends Equatable {
     String? paymentMethod,
     String? status,
     SubscriptionType? type,
+    DateTime? createdAt,
+    SubscriptionReviewDecision? reviewDecision,
+    String? decisionReason,
+    bool clearReviewDecision = false,
+    bool clearDecisionReason = false,
     String? availableBalance,
   }) {
     return SubscriptionRequestEntity(
@@ -54,10 +67,23 @@ class SubscriptionRequestEntity extends Equatable {
       paymentMethod: paymentMethod ?? this.paymentMethod,
       status: status ?? this.status,
       type: type ?? this.type,
+      createdAt: createdAt ?? this.createdAt,
+      reviewDecision:
+          clearReviewDecision ? null : reviewDecision ?? this.reviewDecision,
+      decisionReason:
+          clearDecisionReason ? null : decisionReason ?? this.decisionReason,
       availableBalance: availableBalance ?? this.availableBalance,
     );
   }
 
   @override
-  List<Object?> get props => [id, providerName, totalAmount, status];
+  List<Object?> get props => [
+        id,
+        providerName,
+        totalAmount,
+        status,
+        createdAt,
+        reviewDecision,
+        decisionReason,
+      ];
 }

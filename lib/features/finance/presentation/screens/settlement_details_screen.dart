@@ -20,6 +20,7 @@ class SettlementDetailsScreen extends StatefulWidget {
   final Color badgeColor;
   final String linkedBank;
   final String iban;
+  final ValueChanged<String>? onAction;
 
   const SettlementDetailsScreen({
     super.key,
@@ -37,6 +38,7 @@ class SettlementDetailsScreen extends StatefulWidget {
     required this.badgeColor,
     this.linkedBank = 'مصرف الراجحي - حساب الضمان المركزي',
     this.iban = 'SA44 8000 0123 6080 1012 3456',
+    this.onAction,
   });
 
   @override
@@ -71,6 +73,10 @@ class _SettlementDetailsScreenState extends State<SettlementDetailsScreen> {
     );
 
     if (confirmed && mounted) {
+      if (widget.onAction != null) {
+        widget.onAction!('approved');
+        return;
+      }
       setState(() {
         _currentStatus =
             isArabic ? 'بانتظار مصادقة الإدارة' : 'Pending Admin Approval';
@@ -89,6 +95,10 @@ class _SettlementDetailsScreenState extends State<SettlementDetailsScreen> {
     );
 
     if (confirmed && mounted) {
+      if (widget.onAction != null) {
+        widget.onAction!('frozen');
+        return;
+      }
       setState(() {
         _currentStatus = isArabic ? 'مجمد احترازياً' : 'Frozen';
       });
@@ -108,6 +118,10 @@ class _SettlementDetailsScreenState extends State<SettlementDetailsScreen> {
     );
 
     if (reason != null && mounted) {
+      if (widget.onAction != null) {
+        widget.onAction!('rejected');
+        return;
+      }
       setState(() {
         _currentStatus = isArabic ? 'مرفوض' : 'Rejected';
       });
@@ -115,6 +129,42 @@ class _SettlementDetailsScreenState extends State<SettlementDetailsScreen> {
           ? 'تم رفض الطلب بنجاح وإرسال السبب ("$reason") إلى رئيس المشرفين.'
           : 'Settlement rejected and reason forwarded to Head of Supervisors.');
     }
+  }
+
+  bool get _isFrozen =>
+      _currentStatus == 'مجمدة' ||
+      _currentStatus == 'مجمد احترازياً' ||
+      _currentStatus == 'Frozen' ||
+      _currentStatus == 'Frozen as a precaution';
+
+  bool get _isRejected =>
+      _currentStatus == 'مرفوض' ||
+      _currentStatus == 'مرفوضة' ||
+      _currentStatus == 'Rejected';
+
+  bool get _isInProgress =>
+      _currentStatus == 'قيد المراجعة' ||
+      _currentStatus == 'In review' ||
+      _currentStatus == 'Under review';
+
+  Future<void> _handleRestore() async {
+    final l10n = AppLocalizations.of(context)!;
+    final confirmed = await FinanceDialogs.showApprovalDialog(
+      context,
+      title: l10n.frozenBankLinkRestoreDialogTitle,
+      description: l10n.frozenBankLinkRestoreDialogDescription,
+      confirmText: l10n.frozenBankLinkRestoreConfirm,
+    );
+    if (!confirmed || !mounted) return;
+    if (widget.onAction != null) {
+      widget.onAction!('restored');
+      return;
+    }
+    setState(() {
+      _currentStatus =
+          AppLocaleController.instance.isArabic ? 'قيد المراجعة' : 'In review';
+    });
+    _showFeedback(l10n.frozenBankLinkRestoreSuccess);
   }
 
   @override
@@ -513,6 +563,26 @@ class _SettlementDetailsScreenState extends State<SettlementDetailsScreen> {
   }
 
   Widget _buildActionButtons(bool isArabic) {
+    if (_isFrozen || _isRejected) {
+      return SizedBox(
+        width: double.infinity,
+        height: 44,
+        child: OutlinedButton.icon(
+          onPressed: _handleRestore,
+          icon: const Icon(Icons.restore_outlined, size: 17),
+          label: Text(AppLocalizations.of(context)!.frozenBankLinkRestore),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.primaryDark,
+            side: const BorderSide(color: AppColors.cardBorder),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        ),
+      );
+    }
+    if (!_isInProgress) return const SizedBox.shrink();
+
     return Column(
       children: [
         SizedBox(

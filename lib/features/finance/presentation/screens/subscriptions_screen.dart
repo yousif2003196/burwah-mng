@@ -3,12 +3,15 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/utils/currency_formatter.dart';
 import '../../domain/entities/subscription_request_entity.dart';
+import '../../domain/repositories/finance_repository.dart';
 import '../../domain/usecases/get_subscriptions_usecase.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../../core/widgets/app_snack_bar.dart';
 import '../../../../core/widgets/finance_dialogs.dart';
 import '../utils/finance_localizer.dart';
 import '../widgets/finance_navigation.dart';
+
+enum _SubscriptionSortOption { newest, oldest, amountHigh, amountLow }
 
 class SubscriptionsScreen extends StatefulWidget {
   const SubscriptionsScreen({super.key});
@@ -18,72 +21,131 @@ class SubscriptionsScreen extends StatefulWidget {
 }
 
 class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
+  final _searchController = TextEditingController();
   List<SubscriptionRequestEntity> _subscriptions = [];
   bool _isLoading = true;
+  bool _hasLoadError = false;
+  bool _showSearch = false;
+  String _query = '';
   String _selectedFilter = 'الكل';
+  String? _selectedStatus;
+  _SubscriptionSortOption _sortOption = _SubscriptionSortOption.newest;
+  bool _showArchive = false;
+  final Set<String> _processingIds = {};
+
+  List<SubscriptionRequestEntity> get _queueSubscriptions =>
+      _subscriptions.where((subscription) {
+        return _showArchive
+            ? subscription.reviewDecision != null
+            : subscription.reviewDecision == null;
+      }).toList(growable: false);
 
   List<SubscriptionRequestEntity> get _filteredSubscriptions {
-    if (_selectedFilter == 'المتاجر والتجار') {
-      return _subscriptions
-          .where((s) => s.type == SubscriptionType.merchant)
-          .toList();
-    }
-    if (_selectedFilter == 'مزودوا الخدمات') {
-      return _subscriptions
-          .where((s) => s.type == SubscriptionType.serviceProvider)
-          .toList();
-    }
-    if (_selectedFilter == 'مستخدمين') {
-      return _subscriptions
-          .where((s) => s.type == SubscriptionType.user)
-          .toList();
-    }
-    if (_selectedFilter == 'مناديب') {
-      return _subscriptions
-          .where((s) => s.type == SubscriptionType.courier)
-          .toList();
-    }
-    if (_selectedFilter == 'اعلانات') {
-      return _subscriptions
-          .where((s) => s.type == SubscriptionType.ad)
-          .toList();
-    }
-    return _subscriptions;
+    final query = _query.trim().toLowerCase();
+    final results = _queueSubscriptions.where((subscription) {
+      final matchesType = switch (_selectedFilter) {
+        'المتاجر والتجار' => subscription.type == SubscriptionType.merchant,
+        'مزودوا الخدمات' =>
+          subscription.type == SubscriptionType.serviceProvider,
+        'مستخدمين' => subscription.type == SubscriptionType.user,
+        'مناديب' => subscription.type == SubscriptionType.courier,
+        'اعلانات' => subscription.type == SubscriptionType.ad,
+        _ => true,
+      };
+      final currentStatus = _showArchive
+          ? subscription.reviewDecision?.name
+          : subscription.status;
+      final matchesStatus =
+          _selectedStatus == null || currentStatus == _selectedStatus;
+      final searchableText = [
+        subscription.providerName,
+        subscription.id,
+        subscription.registrationNumber,
+        subscription.categoryName,
+        subscription.targetPackageName,
+        subscription.status,
+        subscription.reviewDecision?.name ?? '',
+        subscription.decisionReason ?? '',
+      ].join(' ').toLowerCase();
+      return matchesType && matchesStatus && searchableText.contains(query);
+    }).toList();
+
+    results.sort((a, b) {
+      final dateA = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final dateB = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return switch (_sortOption) {
+        _SubscriptionSortOption.newest => dateB.compareTo(dateA),
+        _SubscriptionSortOption.oldest => dateA.compareTo(dateB),
+        _SubscriptionSortOption.amountHigh =>
+          b.totalAmount.compareTo(a.totalAmount),
+        _SubscriptionSortOption.amountLow =>
+          a.totalAmount.compareTo(b.totalAmount),
+      };
+    });
+    return results;
   }
 
   int _countFor(String filter) {
     if (filter == 'المتاجر والتجار') {
-      return _subscriptions
+      return _queueSubscriptions
           .where((s) => s.type == SubscriptionType.merchant)
           .length;
     }
     if (filter == 'مزودوا الخدمات') {
-      return _subscriptions
+      return _queueSubscriptions
           .where((s) => s.type == SubscriptionType.serviceProvider)
           .length;
     }
     if (filter == 'مستخدمين') {
-      return _subscriptions
+      return _queueSubscriptions
           .where((s) => s.type == SubscriptionType.user)
           .length;
     }
     if (filter == 'مناديب') {
-      return _subscriptions
+      return _queueSubscriptions
           .where((s) => s.type == SubscriptionType.courier)
           .length;
     }
     if (filter == 'اعلانات') {
-      return _subscriptions.where((s) => s.type == SubscriptionType.ad).length;
+      return _queueSubscriptions
+          .where((s) => s.type == SubscriptionType.ad)
+          .length;
     }
-    return _subscriptions.length;
+    return _queueSubscriptions.length;
   }
 
   int get _pendingCount => _subscriptions
+      .where((s) => s.reviewDecision == null)
       .where((s) => s.status.contains('قيد') || s.status.contains('جاهز'))
       .length;
   double get _pendingAmount => _subscriptions
+      .where((s) => s.reviewDecision == null)
       .where((s) => s.status.contains('قيد') || s.status.contains('جاهز'))
       .fold(0.0, (sum, s) => sum + s.totalAmount);
+
+  int get _expiredCount => _subscriptions
+          .where((subscription) => subscription.reviewDecision == null)
+          .where((subscription) {
+        final status = subscription.status.toLowerCase();
+        return status.contains('منتهي') || status.contains('expired');
+      }).length;
+
+  double get _activatedThisMonthAmount {
+    final now = DateTime.now();
+    return _subscriptions.where((subscription) {
+      final status = subscription.status.toLowerCase();
+      final createdAt = subscription.createdAt;
+      return (subscription.reviewDecision ==
+                  SubscriptionReviewDecision.approved ||
+              status.contains('معتمد') ||
+              status.contains('نشط') ||
+              status.contains('approved') ||
+              status.contains('active')) &&
+          createdAt != null &&
+          createdAt.year == now.year &&
+          createdAt.month == now.month;
+    }).fold(0.0, (sum, subscription) => sum + subscription.totalAmount);
+  }
 
   @override
   void initState() {
@@ -91,20 +153,204 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
     _loadData();
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadData() async {
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _hasLoadError = false;
+      });
+    }
     final result = await sl<GetSubscriptionsUseCase>()();
     result.fold(
-      (failure) => setState(() => _isLoading = false),
-      (data) => setState(() {
-        _subscriptions = data;
-        _isLoading = false;
-      }),
+      (failure) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _hasLoadError = true;
+          });
+        }
+      },
+      (data) {
+        if (mounted) {
+          setState(() {
+            _subscriptions = data;
+            _isLoading = false;
+            _hasLoadError = false;
+          });
+        }
+      },
     );
+  }
+
+  Future<void> _handleDecision(
+    SubscriptionRequestEntity subscription,
+    SubscriptionReviewDecision decision,
+  ) async {
+    if (_processingIds.contains(subscription.id)) return;
+    setState(() => _processingIds.add(subscription.id));
+    final l10n = AppLocalizations.of(context)!;
+    final isArabic = l10n.localeName.startsWith('ar');
+    String? reason;
+    try {
+      if (decision == SubscriptionReviewDecision.approved) {
+        final confirmed = await FinanceDialogs.showApprovalDialog(
+          context,
+          title: isArabic ? 'اعتماد طلب الاشتراك' : 'Approve Subscription',
+          description: isArabic
+              ? 'هل تريد اعتماد طلب ${subscription.providerName} لباقة ${subscription.targetPackageName} بقيمة ${CurrencyFormatter.format(subscription.totalAmount)} وإرساله للإدارة للموافقة؟'
+              : 'Do you want to approve ${FinanceLocalizer.localizeProviderName(context, subscription.providerName)} for ${FinanceLocalizer.localizePackageName(context, subscription.targetPackageName)} (${CurrencyFormatter.format(subscription.totalAmount)}) and send it to management?',
+        );
+        if (!confirmed || !mounted) return;
+        reason = isArabic
+            ? 'تم اعتماد الطلب وإرساله للإدارة'
+            : 'Approved and sent to management';
+      } else if (decision == SubscriptionReviewDecision.frozen) {
+        final confirmed = await FinanceDialogs.showFreezeDialog(
+          context,
+          requestTitle: FinanceLocalizer.localizeProviderName(
+            context,
+            subscription.providerName,
+          ),
+        );
+        if (!confirmed || !mounted) return;
+        reason = l10n.temporarilySuspendedForAudit;
+      } else {
+        reason = await FinanceDialogs.showRejectionDialog(
+          context,
+          title: isArabic
+              ? 'رفض طلب الاشتراك / الترقية'
+              : 'Reject Subscription Request',
+        );
+        if (reason == null || reason.trim().isEmpty || !mounted) return;
+      }
+
+      final result = await sl<FinanceRepository>().updateSubscriptionDecision(
+        requestId: subscription.id,
+        decision: decision,
+        reason: reason,
+      );
+      final failure = result.fold((value) => value, (_) => null);
+      if (failure != null) {
+        if (mounted) {
+          AppSnackBar.showError(
+            context,
+            isArabic
+                ? 'تعذر حفظ القرار: ${failure.message}'
+                : 'Could not save the decision: ${failure.message}',
+          );
+        }
+        return;
+      }
+      if (!mounted) return;
+      final refreshed = await sl<GetSubscriptionsUseCase>()();
+      if (!mounted) return;
+      setState(() {
+        _subscriptions = refreshed.fold(
+          (_) => _subscriptions
+              .map((item) => item.id == subscription.id
+                  ? item.copyWith(
+                      reviewDecision: decision,
+                      decisionReason: reason,
+                    )
+                  : item)
+              .toList(growable: false),
+          (data) => data,
+        );
+      });
+      switch (decision) {
+        case SubscriptionReviewDecision.approved:
+          AppSnackBar.showSuccess(
+            context,
+            isArabic
+                ? 'تم اعتماد طلب الاشتراك وإرساله للإدارة'
+                : 'Subscription approved and sent to management',
+          );
+        case SubscriptionReviewDecision.frozen:
+          AppSnackBar.showWarning(
+            context,
+            isArabic
+                ? 'تم تجميد الطلب ونقله إلى الأرشيف'
+                : 'Subscription frozen and moved to archive',
+          );
+        case SubscriptionReviewDecision.rejected:
+          AppSnackBar.showError(
+            context,
+            isArabic
+                ? 'تم رفض الطلب ونقله إلى الأرشيف'
+                : 'Subscription rejected and moved to archive',
+          );
+      }
+    } catch (error, stackTrace) {
+      debugPrint('Failed to save subscription decision: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (mounted) {
+        AppSnackBar.showError(
+          context,
+          isArabic
+              ? 'تعذر حفظ القرار: $error'
+              : 'Could not save the decision: $error',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _processingIds.remove(subscription.id));
+    }
+  }
+
+  Future<void> _restoreDecision(SubscriptionRequestEntity subscription) async {
+    if (_processingIds.contains(subscription.id)) return;
+    setState(() => _processingIds.add(subscription.id));
+    final isArabic = AppLocalizations.of(context)!.localeName.startsWith('ar');
+    try {
+      final result = await sl<FinanceRepository>()
+          .restoreSubscriptionDecision(subscription.id);
+      final failure = result.fold((value) => value, (_) => null);
+      if (failure != null) throw StateError(failure.message);
+      if (!mounted) return;
+      final refreshed = await sl<GetSubscriptionsUseCase>()();
+      if (!mounted) return;
+      setState(() {
+        _subscriptions = refreshed.fold(
+          (_) => _subscriptions
+              .map((item) => item.id == subscription.id
+                  ? item.copyWith(
+                      clearReviewDecision: true,
+                      clearDecisionReason: true,
+                    )
+                  : item)
+              .toList(growable: false),
+          (data) => data,
+        );
+      });
+      AppSnackBar.showSuccess(
+        context,
+        isArabic
+            ? 'تم التراجع عن القرار وإعادة الطلب إلى قيد الإجراء'
+            : 'Decision reversed and request returned to in progress',
+      );
+    } catch (error) {
+      if (mounted) {
+        AppSnackBar.showError(
+          context,
+          isArabic
+              ? 'تعذر إعادة الطلب. حاول مرة أخرى.'
+              : 'Could not restore the request. Please try again.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _processingIds.remove(subscription.id));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final isArabic = l10n.localeName.startsWith('ar');
 
     return Directionality(
       textDirection: l10n.localeName.startsWith('ar')
@@ -121,573 +367,733 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
         body: _isLoading
             ? const Center(
                 child: CircularProgressIndicator(color: AppColors.primaryDark))
-            : ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  // 1. Header Info
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                const Icon(Icons.verified,
-                                    color: Colors.blueAccent, size: 14),
-                                const SizedBox(width: 4),
-                                Expanded(
-                                  child: Text(l10n.financialAuditAndLicenses,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                          color: Colors.blue.shade700,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.bold)),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            Text(l10n.subscriptionsAndUpgradesReviewTitle,
-                                style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w900,
-                                    color: AppColors.primaryDark),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis),
-                            const SizedBox(height: 2),
-                            Text(l10n.subscriptionsAndUpgradesReviewSubtitle,
-                                style: const TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.grey,
-                                    height: 1.3)),
-                          ],
+            : _hasLoadError
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.cloud_off_outlined,
+                            size: 42, color: AppColors.textSecondary),
+                        const SizedBox(height: 10),
+                        Text(l10n.financeRequestDecisionFailed),
+                        const SizedBox(height: 8),
+                        OutlinedButton.icon(
+                          onPressed: _loadData,
+                          icon: const Icon(Icons.refresh),
+                          label: Text(l10n.frozenRefresh),
                         ),
-                      ),
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                                border:
-                                    Border.all(color: Colors.grey.shade300)),
-                            child: const Icon(Icons.search,
-                                color: Colors.black87, size: 20),
-                          ),
-                          const SizedBox(width: 8),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-
-                  // 2. Summary Dashboard Card
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0F172A), // Dark blue background
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.1),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4)),
                       ],
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  )
+                : RefreshIndicator(
+                    onRefresh: _loadData,
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(16),
                       children: [
+                        // 1. Header Info
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Expanded(
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text(
-                                  l10n.currentSubscriptionsCycleSummary,
-                                  style: const TextStyle(
-                                      color: Colors.white, fontSize: 11),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Flexible(
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: Colors.blue.withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text(
-                                  l10n.updatedNow,
-                                  style: const TextStyle(
-                                      color: Colors.lightBlueAccent,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        Text(l10n.pendingSubscriptionFees,
-                            style: const TextStyle(
-                                color: Colors.white70, fontSize: 12)),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Expanded(
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Flexible(
-                                      child: Text(
-                                          CurrencyFormatter.format(
-                                              _pendingAmount,
-                                              includeCurrency: false),
-                                          style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 28,
-                                              fontWeight: FontWeight.bold,
-                                              height: 1),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis)),
-                                  const SizedBox(width: 4),
-                                  Text(l10n.currencyEgy,
-                                      style: const TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.bold)),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.05),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Expanded(
-                                            child: Text(l10n.activatedThisMonth,
-                                                style: const TextStyle(
-                                                    color: Colors.white70,
-                                                    fontSize: 9),
-                                                maxLines: 1,
-                                                overflow:
-                                                    TextOverflow.ellipsis)),
-                                        const Icon(Icons.trending_up,
-                                            color: Colors.lightBlueAccent,
-                                            size: 12),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.end,
-                                      children: [
-                                        Expanded(
-                                            child: Text(
-                                                CurrencyFormatter.format(142500,
-                                                    includeCurrency: false),
-                                                style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 14,
-                                                    fontWeight:
-                                                        FontWeight.bold),
-                                                maxLines: 1,
-                                                overflow:
-                                                    TextOverflow.ellipsis)),
-                                        const SizedBox(width: 2),
-                                        Text(l10n.currencyEgy,
-                                            style: const TextStyle(
-                                                color: Colors.white70,
-                                                fontSize: 9)),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(l10n.revenueGrowth,
-                                        style: const TextStyle(
-                                            color: Colors.greenAccent,
-                                            fontSize: 9),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.05),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Expanded(
-                                            child: Text(l10n.pendingRequests,
-                                                style: const TextStyle(
-                                                    color: Colors.white70,
-                                                    fontSize: 9),
-                                                maxLines: 1,
-                                                overflow:
-                                                    TextOverflow.ellipsis)),
-                                        const Icon(Icons.pause_circle_outline,
-                                            color: Colors.orangeAccent,
-                                            size: 12),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.end,
-                                      children: [
-                                        Expanded(
-                                            child: Text('$_pendingCount',
-                                                style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 14,
-                                                    fontWeight:
-                                                        FontWeight.bold),
-                                                maxLines: 1,
-                                                overflow:
-                                                    TextOverflow.ellipsis)),
-                                        const SizedBox(width: 4),
-                                        Text(l10n.ordersUnit,
-                                            style: const TextStyle(
-                                                color: Colors.white70,
-                                                fontSize: 9)),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(l10n.ordersUnderAudit,
-                                        style: const TextStyle(
-                                            color: Colors.orangeAccent,
-                                            fontSize: 9),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.05),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Expanded(
-                                            child: Text(
-                                                l10n.expiredAwaitingRenewal,
-                                                style: const TextStyle(
-                                                    color: Colors.white70,
-                                                    fontSize: 9),
-                                                maxLines: 1,
-                                                overflow:
-                                                    TextOverflow.ellipsis)),
-                                        const Icon(Icons.access_time,
-                                            color: Colors.redAccent, size: 12),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.end,
-                                      children: [
-                                        const Expanded(
-                                            child: Text('9',
-                                                style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 14,
-                                                    fontWeight:
-                                                        FontWeight.bold),
-                                                maxLines: 1,
-                                                overflow:
-                                                    TextOverflow.ellipsis)),
-                                        const SizedBox(width: 4),
-                                        Text(l10n.ordersUnit,
-                                            style: const TextStyle(
-                                                color: Colors.white70,
-                                                fontSize: 9)),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(l10n.autoCommercialAlert,
-                                        style: const TextStyle(
-                                            color: Colors.redAccent,
-                                            fontSize: 9),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // 3. Filters
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        _buildFilterChip('الكل', isDark: true),
-                        const SizedBox(width: 8),
-                        _buildFilterChip('المتاجر والتجار',
-                            icon: Icons.storefront),
-                        const SizedBox(width: 8),
-                        _buildFilterChip('مزودوا الخدمات',
-                            icon: Icons.handshake),
-                        const SizedBox(width: 8),
-                        _buildFilterChip('مستخدمين', icon: Icons.person),
-                        const SizedBox(width: 8),
-                        _buildFilterChip('مناديب', icon: Icons.local_shipping),
-                        const SizedBox(width: 8),
-                        _buildFilterChip('اعلانات', icon: Icons.campaign),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // 4. Section Title
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Row(
-                          children: [
-                            const Icon(Icons.circle,
-                                color: AppColors.primaryDark, size: 10),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                l10n.awaitingCertificationRequests,
-                                style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black87),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.sort,
-                                color: Colors.blueAccent, size: 16),
-                            const SizedBox(width: 4),
-                            Flexible(
-                              child: Text(
-                                l10n.sortByNewest,
-                                style: TextStyle(
-                                    fontSize: 11, color: Colors.blue.shade700),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // 5. List
-                  ..._filteredSubscriptions
-                      .map((sub) => _buildSubscriptionCard(context, sub)),
-
-                  // 6. Bottom Info Banner
-                  Container(
-                    margin: const EdgeInsets.only(top: 10, bottom: 20),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.grey.shade200),
-                      boxShadow: [
-                        BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.02),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2)),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                  color: Colors.blue.shade50,
-                                  borderRadius: BorderRadius.circular(12)),
-                              child: Icon(Icons.shield_outlined,
-                                  color: Colors.blue.shade700, size: 24),
-                            ),
-                            const SizedBox(width: 12),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(l10n.licensesGovernanceTitle,
-                                      style: const TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.black87)),
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.verified,
+                                          color: Colors.blueAccent, size: 14),
+                                      const SizedBox(width: 4),
+                                      Expanded(
+                                        child: Text(
+                                            l10n.financialAuditAndLicenses,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                                color: Colors.blue.shade700,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.bold)),
+                                      ),
+                                    ],
+                                  ),
                                   const SizedBox(height: 4),
+                                  Text(l10n.subscriptionsAndUpgradesReviewTitle,
+                                      style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w900,
+                                          color: AppColors.primaryDark),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis),
+                                  const SizedBox(height: 2),
                                   Text(
-                                    l10n.licensesGovernanceDesc,
-                                    style: TextStyle(
-                                        fontSize: 11,
-                                        color: Colors.grey.shade600,
-                                        height: 1.4),
+                                      l10n
+                                          .subscriptionsAndUpgradesReviewSubtitle,
+                                      style: const TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.grey,
+                                          height: 1.3)),
+                                ],
+                              ),
+                            ),
+                            Row(
+                              children: [
+                                IconButton(
+                                  tooltip: isArabic ? 'بحث' : 'Search',
+                                  onPressed: () => setState(() {
+                                    _showSearch = !_showSearch;
+                                    if (!_showSearch) {
+                                      _searchController.clear();
+                                      _query = '';
+                                    }
+                                  }),
+                                  icon: Icon(
+                                      _showSearch
+                                          ? Icons.search_off
+                                          : Icons.search,
+                                      color: Colors.black87,
+                                      size: 20),
+                                ),
+                                const SizedBox(width: 8),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+
+                        if (_showSearch) ...[
+                          TextField(
+                            controller: _searchController,
+                            onChanged: (value) =>
+                                setState(() => _query = value),
+                            decoration: InputDecoration(
+                              hintText: isArabic
+                                  ? 'ابحث بالاسم أو رقم الطلب أو السجل التجاري'
+                                  : 'Search name, request number, or registration',
+                              prefixIcon: const Icon(Icons.search),
+                              suffixIcon: _query.isEmpty
+                                  ? null
+                                  : IconButton(
+                                      onPressed: () {
+                                        _searchController.clear();
+                                        setState(() => _query = '');
+                                      },
+                                      icon: const Icon(Icons.close),
+                                    ),
+                              filled: true,
+                              fillColor: Colors.white,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide:
+                                    BorderSide(color: Colors.grey.shade300),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide:
+                                    BorderSide(color: Colors.grey.shade300),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+
+                        // 2. Summary Dashboard Card
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color:
+                                const Color(0xFF0F172A), // Dark blue background
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.1),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4)),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color:
+                                            Colors.white.withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: Text(
+                                        l10n.currentSubscriptionsCycleSummary,
+                                        style: const TextStyle(
+                                            color: Colors.white, fontSize: 11),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Flexible(
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color:
+                                            Colors.blue.withValues(alpha: 0.2),
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: Text(
+                                        l10n.updatedNow,
+                                        style: const TextStyle(
+                                            color: Colors.lightBlueAccent,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
                                   ),
                                 ],
+                              ),
+                              const SizedBox(height: 20),
+                              Text(l10n.pendingSubscriptionFees,
+                                  style: const TextStyle(
+                                      color: Colors.white70, fontSize: 12)),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Expanded(
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                      children: [
+                                        Flexible(
+                                            child: Text(
+                                                CurrencyFormatter.format(
+                                                    _pendingAmount,
+                                                    includeCurrency: false),
+                                                style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 28,
+                                                    fontWeight: FontWeight.bold,
+                                                    height: 1),
+                                                maxLines: 1,
+                                                overflow:
+                                                    TextOverflow.ellipsis)),
+                                        const SizedBox(width: 4),
+                                        Text(l10n.currencyEgy,
+                                            style: const TextStyle(
+                                                color: Colors.white70,
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.bold)),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 20),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white
+                                            .withValues(alpha: 0.05),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Expanded(
+                                                  child: Text(
+                                                      l10n.activatedThisMonth,
+                                                      style: const TextStyle(
+                                                          color: Colors.white70,
+                                                          fontSize: 9),
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow
+                                                          .ellipsis)),
+                                              const Icon(
+                                                  Icons.calendar_month_outlined,
+                                                  color: Colors.lightBlueAccent,
+                                                  size: 12),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.end,
+                                            children: [
+                                              Expanded(
+                                                  child: Text(
+                                                      CurrencyFormatter.format(
+                                                          _activatedThisMonthAmount,
+                                                          includeCurrency:
+                                                              false),
+                                                      style: const TextStyle(
+                                                          color: Colors.white,
+                                                          fontSize: 14,
+                                                          fontWeight:
+                                                              FontWeight.bold),
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow
+                                                          .ellipsis)),
+                                              const SizedBox(width: 2),
+                                              Text(l10n.currencyEgy,
+                                                  style: const TextStyle(
+                                                      color: Colors.white70,
+                                                      fontSize: 9)),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white
+                                            .withValues(alpha: 0.05),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Expanded(
+                                                  child: Text(
+                                                      l10n.pendingRequests,
+                                                      style: const TextStyle(
+                                                          color: Colors.white70,
+                                                          fontSize: 9),
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow
+                                                          .ellipsis)),
+                                              const Icon(
+                                                  Icons.pause_circle_outline,
+                                                  color: Colors.orangeAccent,
+                                                  size: 12),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.end,
+                                            children: [
+                                              Expanded(
+                                                  child: Text('$_pendingCount',
+                                                      style: const TextStyle(
+                                                          color: Colors.white,
+                                                          fontSize: 14,
+                                                          fontWeight:
+                                                              FontWeight.bold),
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow
+                                                          .ellipsis)),
+                                              const SizedBox(width: 4),
+                                              Text(l10n.ordersUnit,
+                                                  style: const TextStyle(
+                                                      color: Colors.white70,
+                                                      fontSize: 9)),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(l10n.ordersUnderAudit,
+                                              style: const TextStyle(
+                                                  color: Colors.orangeAccent,
+                                                  fontSize: 9),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white
+                                            .withValues(alpha: 0.05),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Expanded(
+                                                  child: Text(
+                                                      l10n
+                                                          .expiredAwaitingRenewal,
+                                                      style: const TextStyle(
+                                                          color: Colors.white70,
+                                                          fontSize: 9),
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow
+                                                          .ellipsis)),
+                                              const Icon(Icons.access_time,
+                                                  color: Colors.redAccent,
+                                                  size: 12),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.end,
+                                            children: [
+                                              Expanded(
+                                                  child: Text('$_expiredCount',
+                                                      style: const TextStyle(
+                                                          color: Colors.white,
+                                                          fontSize: 14,
+                                                          fontWeight:
+                                                              FontWeight.bold),
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow
+                                                          .ellipsis)),
+                                              const SizedBox(width: 4),
+                                              Text(l10n.ordersUnit,
+                                                  style: const TextStyle(
+                                                      color: Colors.white70,
+                                                      fontSize: 9)),
+                                            ],
+                                          ),
+                                          if (_expiredCount > 0) ...[
+                                            const SizedBox(height: 4),
+                                            Text(l10n.autoCommercialAlert,
+                                                style: const TextStyle(
+                                                    color: Colors.redAccent,
+                                                    fontSize: 9),
+                                                maxLines: 1,
+                                                overflow:
+                                                    TextOverflow.ellipsis),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        _buildQueueSelector(isArabic),
+                        const SizedBox(height: 14),
+
+                        // 3. Filters
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              _buildFilterChip('الكل', isDark: true),
+                              const SizedBox(width: 8),
+                              _buildFilterChip('المتاجر والتجار',
+                                  icon: Icons.storefront),
+                              const SizedBox(width: 8),
+                              _buildFilterChip('مزودوا الخدمات',
+                                  icon: Icons.handshake),
+                              const SizedBox(width: 8),
+                              _buildFilterChip('مستخدمين', icon: Icons.person),
+                              const SizedBox(width: 8),
+                              _buildFilterChip('مناديب',
+                                  icon: Icons.local_shipping),
+                              const SizedBox(width: 8),
+                              _buildFilterChip('اعلانات', icon: Icons.campaign),
+                              if (_selectedFilter != 'الكل' ||
+                                  _selectedStatus != null ||
+                                  _query.isNotEmpty) ...[
+                                const SizedBox(width: 6),
+                                TextButton.icon(
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() {
+                                      _selectedFilter = 'الكل';
+                                      _selectedStatus = null;
+                                      _query = '';
+                                    });
+                                  },
+                                  icon: const Icon(Icons.filter_alt_off,
+                                      size: 16),
+                                  label:
+                                      Text(isArabic ? 'مسح التصفية' : 'Clear'),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        _buildStatusFilters(),
+                        const SizedBox(height: 12),
+
+                        // 4. Section Title
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.circle,
+                                      color: AppColors.primaryDark, size: 10),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      l10n.awaitingCertificationRequests,
+                                      style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black87),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              isArabic
+                                  ? '${_filteredSubscriptions.length} طلب'
+                                  : '${_filteredSubscriptions.length} requests',
+                              style: const TextStyle(
+                                  fontSize: 10, color: AppColors.textSecondary),
+                            ),
+                            PopupMenuButton<_SubscriptionSortOption>(
+                              tooltip:
+                                  isArabic ? 'ترتيب الطلبات' : 'Sort requests',
+                              initialValue: _sortOption,
+                              onSelected: (option) =>
+                                  setState(() => _sortOption = option),
+                              itemBuilder: (context) => [
+                                _sortMenuItem(
+                                  _SubscriptionSortOption.newest,
+                                  isArabic ? 'الأحدث أولاً' : 'Newest first',
+                                ),
+                                _sortMenuItem(
+                                  _SubscriptionSortOption.oldest,
+                                  isArabic ? 'الأقدم أولاً' : 'Oldest first',
+                                ),
+                                _sortMenuItem(
+                                  _SubscriptionSortOption.amountHigh,
+                                  isArabic ? 'الأعلى مبلغاً' : 'Highest amount',
+                                ),
+                                _sortMenuItem(
+                                  _SubscriptionSortOption.amountLow,
+                                  isArabic ? 'الأقل مبلغاً' : 'Lowest amount',
+                                ),
+                              ],
+                              child: Padding(
+                                padding:
+                                    const EdgeInsetsDirectional.only(start: 6),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.sort,
+                                        color: Colors.blueAccent, size: 18),
+                                    const SizedBox(width: 2),
+                                    Text(
+                                      _sortLabel(isArabic),
+                                      style: TextStyle(
+                                          fontSize: 10,
+                                          color: Colors.blue.shade700),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 16),
-                        Wrap(
-                          alignment: WrapAlignment.spaceBetween,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          runSpacing: 8,
-                          spacing: 8,
-                          children: [
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.lock_outline,
-                                    size: 14, color: Colors.grey),
-                                const SizedBox(width: 4),
-                                Text(l10n.certifiedAndDocumentedRecord,
-                                    style: const TextStyle(
-                                        fontSize: 11, color: Colors.grey)),
-                              ],
+
+                        // 5. List
+                        if (_filteredSubscriptions.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 28),
+                            child: Center(
+                              child: Text(isArabic
+                                  ? 'لا توجد طلبات مطابقة للبحث والتصفية'
+                                  : 'No requests match your search and filter'),
                             ),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _buildSmallButton(l10n.pdfReport,
-                                    Icons.picture_as_pdf, Colors.red),
-                                const SizedBox(width: 8),
-                                _buildSmallButton(l10n.exportExcel,
-                                    Icons.table_chart, Colors.green),
-                              ],
+                          )
+                        else
+                          ..._filteredSubscriptions.map(
+                            (sub) => KeyedSubtree(
+                              key: ValueKey(sub.id),
+                              child: _buildSubscriptionCard(context, sub),
                             ),
-                          ],
+                          ),
+
+                        // 6. Bottom Info Banner
+                        Container(
+                          margin: const EdgeInsets.only(top: 10, bottom: 20),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.grey.shade200),
+                            boxShadow: [
+                              BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.02),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2)),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                        color: Colors.blue.shade50,
+                                        borderRadius:
+                                            BorderRadius.circular(12)),
+                                    child: Icon(Icons.shield_outlined,
+                                        color: Colors.blue.shade700, size: 24),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(l10n.licensesGovernanceTitle,
+                                            style: const TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.black87)),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          l10n.licensesGovernanceDesc,
+                                          style: TextStyle(
+                                              fontSize: 11,
+                                              color: Colors.grey.shade600,
+                                              height: 1.4),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              Wrap(
+                                alignment: WrapAlignment.spaceBetween,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                runSpacing: 8,
+                                spacing: 8,
+                                children: [
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.lock_outline,
+                                          size: 14, color: Colors.grey),
+                                      const SizedBox(width: 4),
+                                      Text(l10n.certifiedAndDocumentedRecord,
+                                          style: const TextStyle(
+                                              fontSize: 11,
+                                              color: Colors.grey)),
+                                    ],
+                                  ),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      _buildSmallButton(l10n.pdfReport,
+                                          Icons.picture_as_pdf, Colors.red),
+                                      const SizedBox(width: 8),
+                                      _buildSmallButton(l10n.exportExcel,
+                                          Icons.table_chart, Colors.green),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
+
+                        // 7. Bottom Record Button
+                        InkWell(
+                          onTap: () {
+                            AppSnackBar.showInfo(
+                                context, l10n.openingSubscriptionsRegister);
+                          },
+                          borderRadius: BorderRadius.circular(16),
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.blue.shade100),
+                              boxShadow: [
+                                BoxShadow(
+                                    color: Colors.blue.withValues(alpha: 0.05),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2)),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                      color: Colors.blue.shade50,
+                                      borderRadius: BorderRadius.circular(10)),
+                                  child: Icon(Icons.history,
+                                      color: Colors.blue.shade700, size: 20),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(l10n.subscriptionsHistoryTitle,
+                                          style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.blue.shade900)),
+                                      const SizedBox(height: 2),
+                                      Text(l10n.browsePreviousOperations,
+                                          style: TextStyle(
+                                              fontSize: 10,
+                                              color: Colors.grey.shade600)),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(Icons.arrow_forward_ios,
+                                    size: 14, color: Colors.grey),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
                       ],
                     ),
                   ),
-
-                  // 7. Bottom Record Button
-                  InkWell(
-                    onTap: () {
-                      AppSnackBar.showInfo(context, l10n.openingSubscriptionsRegister);
-                    },
-                    borderRadius: BorderRadius.circular(16),
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.blue.shade100),
-                        boxShadow: [
-                          BoxShadow(
-                              color: Colors.blue.withValues(alpha: 0.05),
-                              blurRadius: 4,
-                              offset: const Offset(0, 2)),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                                color: Colors.blue.shade50,
-                                borderRadius: BorderRadius.circular(10)),
-                            child: Icon(Icons.history,
-                                color: Colors.blue.shade700, size: 20),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(l10n.subscriptionsHistoryTitle,
-                                    style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.blue.shade900)),
-                                const SizedBox(height: 2),
-                                Text(l10n.browsePreviousOperations,
-                                    style: TextStyle(
-                                        fontSize: 10,
-                                        color: Colors.grey.shade600)),
-                              ],
-                            ),
-                          ),
-                          const Icon(Icons.arrow_forward_ios,
-                              size: 14, color: Colors.grey),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                ],
-              ),
       ),
     );
   }
@@ -741,6 +1147,171 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
     );
   }
 
+  Widget _buildStatusFilters() {
+    final isArabic = AppLocalizations.of(context)!.localeName.startsWith('ar');
+    final statuses = _queueSubscriptions
+        .map((subscription) => _showArchive
+            ? subscription.reviewDecision!.name
+            : subscription.status)
+        .toSet()
+        .toList();
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          _buildStatusChip(null, isArabic ? 'كل الحالات' : 'All statuses'),
+          for (final status in statuses) ...[
+            const SizedBox(width: 8),
+            _buildStatusChip(
+              status,
+              '${_localizeStatus(status)} ${_countForStatus(status)}',
+            ),
+          ],
+          if (_selectedStatus != null) ...[
+            const SizedBox(width: 4),
+            IconButton(
+              tooltip: isArabic ? 'مسح الحالة' : 'Clear status',
+              visualDensity: VisualDensity.compact,
+              onPressed: () => setState(() => _selectedStatus = null),
+              icon: const Icon(Icons.close, size: 18),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusChip(String? status, String label) {
+    final isSelected = _selectedStatus == status;
+    return ChoiceChip(
+      label: Text(label),
+      selected: isSelected,
+      showCheckmark: false,
+      onSelected: (_) => setState(() => _selectedStatus = status),
+      selectedColor: AppColors.primaryDark,
+      backgroundColor: Colors.white,
+      side: BorderSide(color: Colors.grey.shade300),
+      labelStyle: TextStyle(
+        color: isSelected ? Colors.white : AppColors.textSecondary,
+        fontSize: 11,
+        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+      ),
+    );
+  }
+
+  Widget _buildQueueSelector(bool isArabic) {
+    final activeCount = _subscriptions
+        .where((subscription) => subscription.reviewDecision == null)
+        .length;
+    final archiveCount = _subscriptions.length - activeCount;
+    return SegmentedButton<bool>(
+      showSelectedIcon: false,
+      segments: [
+        ButtonSegment(
+          value: false,
+          icon: const Icon(Icons.pending_actions_outlined, size: 17),
+          label: Text(
+            '${isArabic ? 'قيد الإجراء' : 'In progress'} ($activeCount)',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        ButtonSegment(
+          value: true,
+          icon: const Icon(Icons.archive_outlined, size: 17),
+          label: Text(
+            '${isArabic ? 'الأرشيف' : 'Archive'} ($archiveCount)',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+      selected: {_showArchive},
+      onSelectionChanged: (selection) {
+        setState(() {
+          _showArchive = selection.first;
+          _selectedStatus = null;
+        });
+      },
+      style: ButtonStyle(
+        backgroundColor: WidgetStateProperty.resolveWith((states) =>
+            states.contains(WidgetState.selected)
+                ? AppColors.primaryDark
+                : Colors.white),
+        foregroundColor: WidgetStateProperty.resolveWith((states) =>
+            states.contains(WidgetState.selected)
+                ? Colors.white
+                : AppColors.textSecondary),
+        side: WidgetStateProperty.all(
+          BorderSide(color: Colors.grey.shade300),
+        ),
+        shape: WidgetStateProperty.all(
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
+    );
+  }
+
+  PopupMenuItem<_SubscriptionSortOption> _sortMenuItem(
+    _SubscriptionSortOption option,
+    String label,
+  ) =>
+      PopupMenuItem(value: option, child: Text(label));
+
+  String _sortLabel(bool isArabic) => switch (_sortOption) {
+        _SubscriptionSortOption.newest => isArabic ? 'الأحدث' : 'Newest',
+        _SubscriptionSortOption.oldest => isArabic ? 'الأقدم' : 'Oldest',
+        _SubscriptionSortOption.amountHigh =>
+          isArabic ? 'الأعلى مبلغاً' : 'Highest amount',
+        _SubscriptionSortOption.amountLow =>
+          isArabic ? 'الأقل مبلغاً' : 'Lowest amount',
+      };
+
+  int _countForStatus(String status) =>
+      _queueSubscriptions.where((subscription) {
+        return _showArchive
+            ? subscription.reviewDecision?.name == status
+            : subscription.status == status;
+      }).length;
+
+  String _localizeStatus(String status) {
+    final normalized = status.toLowerCase();
+    if (normalized == SubscriptionReviewDecision.approved.name) {
+      return AppLocalizations.of(context)!.financeRequestApproved;
+    }
+    if (normalized == SubscriptionReviewDecision.frozen.name) {
+      return AppLocalizations.of(context)!.withdrawalDetailsStatusFrozen;
+    }
+    if (normalized == SubscriptionReviewDecision.rejected.name) {
+      return AppLocalizations.of(context)!.financeRequestRejected;
+    }
+    if (normalized.contains('مطابقة') || normalized.contains('matching')) {
+      return AppLocalizations.of(context)!.underMatching;
+    }
+    if (normalized.contains('جاهز') || normalized.contains('ready')) {
+      return AppLocalizations.of(context)!.autoApprovalReady;
+    }
+    if (normalized.contains('معتمد') || normalized.contains('approved')) {
+      return AppLocalizations.of(context)!.financeRequestApproved;
+    }
+    if (normalized.contains('مرفوض') || normalized.contains('rejected')) {
+      return AppLocalizations.of(context)!.financeRequestRejected;
+    }
+    if (normalized.contains('معلق') || normalized.contains('frozen')) {
+      return AppLocalizations.of(context)!.withdrawalDetailsStatusFrozen;
+    }
+    return status;
+  }
+
+  String _formatRequestDate(DateTime date, bool isArabic) {
+    final localDate = date.toLocal();
+    final dateText =
+        '${localDate.day.toString().padLeft(2, '0')}/${localDate.month.toString().padLeft(2, '0')}/${localDate.year}';
+    final timeText =
+        '${localDate.hour.toString().padLeft(2, '0')}:${localDate.minute.toString().padLeft(2, '0')}';
+    return isArabic ? '$dateText، $timeText' : '$dateText, $timeText';
+  }
+
   Widget _buildSmallButton(String title, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -767,7 +1338,21 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
   Widget _buildSubscriptionCard(
       BuildContext context, SubscriptionRequestEntity sub) {
     final l10n = AppLocalizations.of(context)!;
-    bool isAutoReady = sub.status.contains('جاهز');
+    final isArabic = l10n.localeName.startsWith('ar');
+    final isAutoReady = sub.status.contains('جاهز');
+    final isArchived = sub.reviewDecision != null;
+    final isBusy = _processingIds.contains(sub.id);
+    final decisionColor = switch (sub.reviewDecision) {
+      SubscriptionReviewDecision.approved => AppColors.success,
+      SubscriptionReviewDecision.frozen => AppColors.warning,
+      SubscriptionReviewDecision.rejected => AppColors.danger,
+      null => isAutoReady ? AppColors.primaryDark : Colors.blue.shade800,
+    };
+    final decisionLabel = isArchived
+        ? _localizeStatus(sub.reviewDecision?.name ?? '')
+        : isAutoReady
+            ? l10n.autoApprovalReady
+            : l10n.underMatching;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -869,32 +1454,39 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: isAutoReady
-                        ? Colors.blue.shade50
-                        : const Color(0xFFF1F5F9),
+                    color: isArchived
+                        ? decisionColor.withValues(alpha: 0.1)
+                        : isAutoReady
+                            ? Colors.blue.shade50
+                            : const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (isAutoReady)
-                        const Icon(Icons.flash_on,
-                            color: AppColors.primaryDark, size: 12),
-                      if (!isAutoReady)
-                        const Icon(Icons.circle,
-                            color: Colors.blueAccent, size: 8),
+                      Icon(
+                        isArchived
+                            ? sub.reviewDecision ==
+                                    SubscriptionReviewDecision.approved
+                                ? Icons.check_circle_outline
+                                : sub.reviewDecision ==
+                                        SubscriptionReviewDecision.frozen
+                                    ? Icons.pause_circle_outline
+                                    : Icons.cancel_outlined
+                            : isAutoReady
+                                ? Icons.flash_on
+                                : Icons.circle,
+                        color: decisionColor,
+                        size: 13,
+                      ),
                       const SizedBox(width: 4),
                       Flexible(
                         child: Text(
-                          isAutoReady
-                              ? l10n.autoApprovalReady
-                              : l10n.underMatching,
+                          decisionLabel,
                           style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
-                              color: isAutoReady
-                                  ? AppColors.primaryDark
-                                  : Colors.blue.shade800),
+                              color: decisionColor),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -905,6 +1497,26 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
               ),
             ],
           ),
+
+          if (sub.createdAt != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.schedule,
+                    size: 13, color: AppColors.textSecondary),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: Text(
+                    '${isArabic ? 'طلب #${sub.id}' : 'Request #${sub.id}'} · ${_formatRequestDate(sub.createdAt!, isArabic)}',
+                    style: const TextStyle(
+                        fontSize: 10, color: AppColors.textSecondary),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ],
 
           const SizedBox(height: 16),
 
@@ -1069,154 +1681,192 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
 
           const SizedBox(height: 16),
 
-          // Action Buttons (3 إجراءات ثابتة: اعتماد وإرسال للإدارة، تجميد مؤقتاً، معاينة الإيصال والبيانات)
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // 1. اعتماد وإرسال للإدارة
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryDark,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                  elevation: 0,
-                ),
-                icon: const Icon(Icons.check_circle_outline, size: 16),
-                onPressed: () async {
-                  final isArabic = l10n.localeName.startsWith('ar');
-                  final confirmed = await FinanceDialogs.showApprovalDialog(
-                    context,
-                    title: isArabic
-                        ? 'اعتماد طلب الاشتراك'
-                        : 'Approve Subscription',
-                    description: isArabic
-                        ? 'هل تريد اعتماد طلب ${sub.providerName} لباقة ${sub.targetPackageName} بقيمة ${CurrencyFormatter.format(sub.totalAmount)} وإرساله للإدارة للموافقة؟'
-                        : 'Do you want to approve ${FinanceLocalizer.localizeProviderName(context, sub.providerName)} for ${FinanceLocalizer.localizePackageName(context, sub.targetPackageName)} (${CurrencyFormatter.format(sub.totalAmount)}) and send it to management?',
-                  );
-                  if (confirmed && mounted && context.mounted) {
-                    setState(() {
-                      _subscriptions.removeWhere((s) => s.id == sub.id);
-                    });
-                    AppSnackBar.showSuccess(
-                      context,
-                      isArabic
-                          ? 'تم اعتماد طلب الاشتراك بنجاح وإرساله للإدارة'
-                          : 'Subscription request approved and sent to Admin',
-                    );
-                  }
-                },
-                label: Text(l10n.approveAndSendToAdmin,
-                    style: const TextStyle(
-                        fontSize: 12, fontWeight: FontWeight.bold)),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  // 2. تجميد الطلب مؤقتاً
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.orange.shade800,
-                        backgroundColor: Colors.orange.shade50,
-                        side: BorderSide(color: Colors.orange.shade200),
-                        padding: const EdgeInsets.symmetric(vertical: 11),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                      ),
-                      icon: const Icon(Icons.pause_circle_outline, size: 16),
-                      onPressed: () async {
-                        final isArabic = l10n.localeName.startsWith('ar');
-                        final confirmed = await FinanceDialogs.showFreezeDialog(
-                          context,
-                          requestTitle: FinanceLocalizer.localizeProviderName(
-                              context, sub.providerName),
-                        );
-                        if (confirmed && mounted && context.mounted) {
-                          setState(() {
-                            _subscriptions.removeWhere((s) => s.id == sub.id);
-                          });
-                          AppSnackBar.showWarning(
-                            context,
-                            isArabic
-                                ? 'تم تجميد طلب الاشتراك ونقله إلى قائمة التدقيق الرقابي'
-                                : 'Subscription request frozen and moved to audit inspection',
-                          );
-                        }
-                      },
-                      label: Text(l10n.freezeRequestTemporarily,
-                          style: const TextStyle(
-                              fontSize: 11, fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  // رفض الطلب مع ذكر السبب لرئيس المشرفين
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.danger,
-                        backgroundColor:
-                            AppColors.dangerLight.withValues(alpha: 0.3),
-                        side: const BorderSide(color: AppColors.dangerLight),
-                        padding: const EdgeInsets.symmetric(vertical: 11),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                      ),
-                      icon: const Icon(Icons.cancel_outlined, size: 16),
-                      onPressed: () async {
-                        final isArabic = l10n.localeName.startsWith('ar');
-                        final reason = await FinanceDialogs.showRejectionDialog(
-                          context,
-                          title: isArabic
-                              ? 'رفض طلب الاشتراك / الترقية'
-                              : 'Reject Subscription Request',
-                        );
-                        if (reason != null && mounted && context.mounted) {
-                          setState(() {
-                            _subscriptions.removeWhere((s) => s.id == sub.id);
-                          });
-                          AppSnackBar.showError(
-                            context,
-                            isArabic
-                                ? 'تم رفض الطلب وإرسال السبب لرئيس المشرفين للمراجعة'
-                                : 'Request rejected and reason submitted to Head Supervisor',
-                          );
-                        }
-                      },
-                      label: Text(l10n.rejectWithReason,
-                          style: const TextStyle(
-                              fontSize: 11, fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              // 3. معاينة إيصال وبيانات التحويل
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.blue.shade700,
-                    side: BorderSide(color: Colors.blue.shade200),
-                    backgroundColor: Colors.blue.shade50.withValues(alpha: 0.5),
-                    padding: const EdgeInsets.symmetric(vertical: 11),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                  ),
-                  icon: const Icon(Icons.receipt_long, size: 16),
-                  onPressed: () => _showReceiptPreviewDialog(context, sub),
-                  label: Text(l10n.previewReceiptAndTransferData,
-                      style: const TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.bold)),
-                ),
-              ),
-            ],
-          ),
+          _buildSubscriptionActions(context, sub, l10n, isArabic, isBusy),
         ],
       ),
     );
   }
+
+  Widget _buildSubscriptionActions(
+    BuildContext context,
+    SubscriptionRequestEntity subscription,
+    AppLocalizations l10n,
+    bool isArabic,
+    bool isBusy,
+  ) {
+    if (_showArchive) {
+      final canRestore = subscription.reviewDecision ==
+              SubscriptionReviewDecision.frozen ||
+          subscription.reviewDecision == SubscriptionReviewDecision.rejected;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (subscription.decisionReason?.isNotEmpty ?? false) ...[
+            Text(
+              '${isArabic ? 'سبب القرار:' : 'Decision reason:'} ${subscription.decisionReason}',
+              style:
+                  const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 8),
+          ],
+          if (canRestore)
+            OutlinedButton.icon(
+              onPressed: isBusy ? null : () => _restoreDecision(subscription),
+              icon: isBusy
+                  ? const SizedBox.square(
+                      dimension: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.undo_rounded, size: 17),
+              label: Text(isArabic
+                  ? 'التراجع عن القرار وإعادة الطلب لقيد الإجراء'
+                  : 'Reverse decision and return to in progress'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primaryDark,
+                side: const BorderSide(color: AppColors.primaryDark),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          if (!canRestore)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Text(
+                isArabic
+                    ? 'الطلب معتمد ولا يمكن التراجع عنه من الأرشيف.'
+                    : 'Approved requests cannot be reversed from the archive.',
+                style: const TextStyle(
+                    fontSize: 11, color: AppColors.textSecondary),
+              ),
+            ),
+          const SizedBox(height: 8),
+          _buildReceiptPreviewButton(context, subscription, l10n),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primaryDark,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            elevation: 0,
+          ),
+          icon: isBusy
+              ? const SizedBox.square(
+                  dimension: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.check_circle_outline, size: 16),
+          onPressed: isBusy
+              ? null
+              : () => _handleDecision(
+                    subscription,
+                    SubscriptionReviewDecision.approved,
+                  ),
+          label: Text(l10n.approveAndSendToAdmin,
+              style:
+                  const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.orange.shade800,
+                  backgroundColor: Colors.orange.shade50,
+                  side: BorderSide(color: Colors.orange.shade200),
+                  padding: const EdgeInsets.symmetric(vertical: 11),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: isBusy
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.pause_circle_outline, size: 16),
+                onPressed: isBusy
+                    ? null
+                    : () => _handleDecision(
+                          subscription,
+                          SubscriptionReviewDecision.frozen,
+                        ),
+                label: Text(l10n.freezeRequestTemporarily,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 11, fontWeight: FontWeight.bold)),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.danger,
+                  backgroundColor: AppColors.dangerLight.withValues(alpha: 0.3),
+                  side: const BorderSide(color: AppColors.dangerLight),
+                  padding: const EdgeInsets.symmetric(vertical: 11),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: isBusy
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.cancel_outlined, size: 16),
+                onPressed: isBusy
+                    ? null
+                    : () => _handleDecision(
+                          subscription,
+                          SubscriptionReviewDecision.rejected,
+                        ),
+                label: Text(l10n.rejectWithReason,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 11, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _buildReceiptPreviewButton(context, subscription, l10n),
+      ],
+    );
+  }
+
+  Widget _buildReceiptPreviewButton(
+    BuildContext context,
+    SubscriptionRequestEntity subscription,
+    AppLocalizations l10n,
+  ) =>
+      SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Colors.blue.shade700,
+            side: BorderSide(color: Colors.blue.shade200),
+            backgroundColor: Colors.blue.shade50.withValues(alpha: 0.5),
+            padding: const EdgeInsets.symmetric(vertical: 11),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+          icon: const Icon(Icons.receipt_long, size: 16),
+          onPressed: () => _showReceiptPreviewDialog(context, subscription),
+          label: Text(l10n.previewReceiptAndTransferData,
+              style:
+                  const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+        ),
+      );
 
   // نافذة معاينة إيصال وبيانات التحويل
   void _showReceiptPreviewDialog(

@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/di/injection_container.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../domain/entities/product_supervisor_audit_entry.dart';
+import '../../domain/repositories/product_supervisor_audit_repository.dart';
 
 enum _ReportPeriod { today, week, month, custom }
 
@@ -22,8 +25,11 @@ class _ReportMetrics {
     required this.declined,
     required this.approvalRate,
     required this.averageMinutes,
-    required this.change,
+    this.change = '—',
   });
+
+  String get declinedRate =>
+      reviewed == 0 ? '0%' : '${(declined * 100 / reviewed).round()}%';
 }
 
 class _AuditAction {
@@ -73,41 +79,6 @@ class ProductReportsScreen extends StatefulWidget {
 }
 
 class _ProductReportsScreenState extends State<ProductReportsScreen> {
-  static const _metricsByPeriod = {
-    _ReportPeriod.today: _ReportMetrics(
-      reviewed: 28,
-      approved: 22,
-      declined: 6,
-      approvalRate: '79%',
-      averageMinutes: '3.5',
-      change: '+9%',
-    ),
-    _ReportPeriod.week: _ReportMetrics(
-      reviewed: 184,
-      approved: 151,
-      declined: 33,
-      approvalRate: '82%',
-      averageMinutes: '3.8',
-      change: '+18%',
-    ),
-    _ReportPeriod.month: _ReportMetrics(
-      reviewed: 726,
-      approved: 602,
-      declined: 124,
-      approvalRate: '83%',
-      averageMinutes: '4.1',
-      change: '+12%',
-    ),
-    _ReportPeriod.custom: _ReportMetrics(
-      reviewed: 184,
-      approved: 151,
-      declined: 33,
-      approvalRate: '82%',
-      averageMinutes: '3.8',
-      change: '+18%',
-    ),
-  };
-
   static const _initialActions = [
     _AuditAction(
       adNumber: 'AD-98204',
@@ -146,12 +117,91 @@ class _ProductReportsScreenState extends State<ProductReportsScreen> {
   List<_AuditAction> _draftActions = List.of(_initialActions);
   DateTimeRange? _customRange;
   bool _hasUnsavedChanges = false;
+  List<ProductSupervisorAuditEntry> _auditEntries = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAuditEntries();
+  }
+
+  Future<void> _loadAuditEntries() async {
+    try {
+      final entries = await sl<ProductSupervisorAuditRepository>().getEntries();
+      if (!mounted) return;
+      setState(() {
+        _auditEntries = entries;
+      });
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'product reports audit loading',
+      ));
+    }
+  }
+
+  _ReportMetrics _metricsForSelectedPeriod() {
+    final now = DateTime.now();
+    late final DateTime start;
+    late final DateTime end;
+    switch (_period) {
+      case _ReportPeriod.today:
+        start = DateTime(now.year, now.month, now.day);
+        end = now;
+        break;
+      case _ReportPeriod.week:
+        final today = DateTime(now.year, now.month, now.day);
+        start = today.subtract(Duration(days: today.weekday - 1));
+        end = now;
+        break;
+      case _ReportPeriod.month:
+        start = DateTime(now.year, now.month);
+        end = now;
+        break;
+      case _ReportPeriod.custom:
+        final range = _customRange;
+        start = range == null
+            ? DateTime(now.year, now.month, now.day)
+            : DateTime(range.start.year, range.start.month, range.start.day);
+        end = range == null
+            ? now
+            : DateTime(range.end.year, range.end.month, range.end.day, 23, 59, 59);
+        break;
+    }
+    const reviewActions = {
+      'product_approved',
+      'product_hidden',
+      'product_rejected',
+      'product_suspended',
+    };
+    final actions = _auditEntries.where((entry) =>
+        reviewActions.contains(entry.actionKey) &&
+        !entry.occurredAt.isBefore(start) &&
+        !entry.occurredAt.isAfter(end));
+    final approved =
+        actions.where((entry) => entry.actionKey == 'product_approved').length;
+    final declined = actions
+        .where((entry) =>
+            entry.actionKey == 'product_rejected' ||
+            entry.actionKey == 'product_suspended')
+        .length;
+    final reviewed = actions.length;
+    final rate = reviewed == 0 ? 0 : (approved * 100 / reviewed).round();
+    return _ReportMetrics(
+      reviewed: reviewed,
+      approved: approved,
+      declined: declined,
+      approvalRate: '$rate%',
+      averageMinutes: '—',
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final isArabic = l10n.localeName.startsWith('ar');
-    final metrics = _metricsByPeriod[_period]!;
+    final metrics = _metricsForSelectedPeriod();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7F9),
@@ -168,8 +218,6 @@ class _ProductReportsScreenState extends State<ProductReportsScreen> {
                 _buildMetrics(metrics, l10n),
                 const SizedBox(height: 22),
                 _buildStandardsSection(l10n),
-                const SizedBox(height: 22),
-                _buildCategorySection(metrics, l10n),
                 const SizedBox(height: 22),
                 _buildAuditSection(l10n, isArabic),
                 const SizedBox(height: 16),
@@ -337,8 +385,7 @@ class _ProductReportsScreenState extends State<ProductReportsScreen> {
       ),
       _MetricCardData(
         title: l10n.productReportDeclinedRate,
-        value:
-            '${(100 - int.parse(metrics.approvalRate.replaceAll('%', '')))}%',
+        value: metrics.declinedRate,
         detail: l10n.productReportDeclinedCount(metrics.declined),
         icon: Icons.block_outlined,
         iconColor: AppColors.danger,
@@ -350,7 +397,9 @@ class _ProductReportsScreenState extends State<ProductReportsScreen> {
         detail: l10n.productReportMinutesAndFaster,
         icon: Icons.timer_outlined,
         iconColor: AppColors.primaryDark,
-        unit: l10n.productReportMinuteUnit,
+        unit: metrics.averageMinutes == '—'
+            ? null
+            : l10n.productReportMinuteUnit,
       ),
     ];
 
@@ -998,7 +1047,7 @@ class _ProductReportsScreenState extends State<ProductReportsScreen> {
   }
 
   Future<void> _showExportDialog(AppLocalizations l10n) async {
-    final metrics = _metricsByPeriod[_period]!;
+    final metrics = _metricsForSelectedPeriod();
     final report = [
       l10n.productReportTitle,
       '${l10n.productReportReviewedAds},${metrics.reviewed}',

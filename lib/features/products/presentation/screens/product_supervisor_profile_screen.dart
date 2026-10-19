@@ -8,18 +8,24 @@ import '../../../services_supervisor/presentation/screens/services_supervisor_wa
 import '../../domain/entities/product_supervisor_audit_entry.dart';
 import '../../domain/repositories/product_supervisor_audit_repository.dart';
 import 'product_supervisor_audit_screen.dart';
+import 'product_supervisor_complaints_screen.dart';
 import 'product_supervisor_support_screen.dart';
+import 'product_supervisor_chats_screen.dart';
 
 class ProductSupervisorProfileScreen extends StatefulWidget {
   final VoidCallback onLogout;
   final List<Widget> additionalOperations;
   final String auditActionKeyPrefix;
+  final bool showGenericComplaintsShortcut;
+  final String conversationsAccountId;
 
   const ProductSupervisorProfileScreen({
     super.key,
     required this.onLogout,
     this.additionalOperations = const [],
     this.auditActionKeyPrefix = '',
+    this.showGenericComplaintsShortcut = true,
+    this.conversationsAccountId = 'products',
   });
 
   @override
@@ -804,6 +810,21 @@ class _ProductSupervisorProfileScreenState
                     : widget.auditActionKeyPrefix,
               ),
             ),
+          ),
+          if (widget.showGenericComplaintsShortcut)
+            _operationLink(
+              icon: Icons.report_gmailerrorred_outlined,
+              title: 'شكاوى العملاء',
+              subtitle: 'مراجعة الشكاوى ومتابعة الإجراءات والتواصل مع العملاء',
+              onTap: () => _openPage(const ProductSupervisorComplaintsScreen()),
+            ),
+          _operationLink(
+            icon: Icons.chat_outlined,
+            title: 'التواصل مع المشرفين والدعم',
+            subtitle: 'المشرف المالي ورئيس المشرفين وفريق الدعم التقني',
+            onTap: () => _openPage(ProductSupervisorChatsScreen(
+              accountId: widget.conversationsAccountId,
+            )),
           ),
           _operationLink(
             icon: Icons.support_agent,

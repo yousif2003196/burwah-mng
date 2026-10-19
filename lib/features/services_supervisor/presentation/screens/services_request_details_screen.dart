@@ -21,7 +21,7 @@ class ServicesRequestDetailsScreen extends StatefulWidget {
   final String workFee;
   final List<String> photoUrls;
   final ServiceProvider? assignedProvider;
-  final ValueChanged<ServiceProvider> onAssign;
+  final Future<bool> Function(ServiceProvider) onAssign;
   final IconData icon;
   final String initialCategory;
   final Future<bool> Function() onConfirm;
@@ -451,8 +451,9 @@ class _ServicesRequestDetailsScreenState
             child: FilledButton.icon(
               onPressed: _selectedProvider == null
                   ? null
-                  : () {
-                      widget.onAssign(_selectedProvider!);
+                  : () async {
+                      final assigned = await widget.onAssign(_selectedProvider!);
+                      if (!context.mounted || !assigned) return;
                       AppSnackBar.showSuccess(
                         context,
                         l10n.servicesRequestAssigned(

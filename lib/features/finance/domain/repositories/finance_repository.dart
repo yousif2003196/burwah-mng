@@ -26,7 +26,25 @@ abstract class FinanceRepository {
     required double amount,
     required String bankAccountId,
     required String reason,
+    String category = 'other',
+    String beneficiaryName = '',
     String? attachmentName,
+    String? attachmentPath,
+  });
+  Future<Either<Failure, void>> updateExpenseRequestStatus({
+    required String requestId,
+    required ExpenseRequestStatus status,
+    String? reason,
+  });
+  Future<Either<Failure, ExpenseRequestEntity>> editExpenseRequest({
+    required String requestId,
+    required double amount,
+    required String bankAccountId,
+    required String reason,
+    required String category,
+    required String beneficiaryName,
+    String? attachmentName,
+    String? attachmentPath,
   });
   Future<Either<Failure, List<WithdrawalRequestEntity>>>
       getMerchantWithdrawals();
@@ -92,6 +110,12 @@ abstract class FinanceRepository {
   Future<Either<Failure, void>> rejectFrozenBankLinkRequest(
       String requestId, String reason);
   Future<Either<Failure, List<SubscriptionRequestEntity>>> getSubscriptions();
+  Future<Either<Failure, void>> updateSubscriptionDecision({
+    required String requestId,
+    required SubscriptionReviewDecision decision,
+    required String reason,
+  });
+  Future<Either<Failure, void>> restoreSubscriptionDecision(String requestId);
   Future<Either<Failure, DepartmentWalletEntity>> getDepartmentWallet(
       DepartmentType type);
   Future<Either<Failure, void>> approveWithdrawal(String requestId);

@@ -84,54 +84,78 @@ class _ProductReviewDetailsScreenState
         minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isPending) ...[
-              SizedBox(
-                width: double.infinity,
-                height: 54,
-                child: FilledButton.icon(
-                  onPressed: () => widget.onSubmit(
-                    product,
-                    ProductReviewStatus.approved,
+          children: isPending
+              ? [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => widget.onSubmit(
+                              product, ProductReviewStatus.rejected),
+                          icon: const Icon(Icons.cancel_outlined, size: 17),
+                          label: Text(l10n.productRejectAction),
+                        ),
+                      ),
+                      const SizedBox(width: 7),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => widget.onSubmit(
+                              product, ProductReviewStatus.hidden),
+                          icon: const Icon(Icons.visibility_off_outlined,
+                              size: 17),
+                          label: Text(l10n.productHideAction),
+                        ),
+                      ),
+                      const SizedBox(width: 7),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => widget.onSubmit(
+                              product, ProductReviewStatus.suspended),
+                          icon:
+                              const Icon(Icons.pause_circle_outline, size: 17),
+                          label: Text(l10n.productSuspendAction),
+                        ),
+                      ),
+                    ],
                   ),
-                  icon: const Icon(Icons.verified_outlined, size: 20),
-                  label: Text(
-                    l10n.productApproveAndPublishNow,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: FilledButton.icon(
+                      onPressed: () => widget.onSubmit(
+                          product, ProductReviewStatus.approved),
+                      icon: const Icon(Icons.verified_outlined, size: 20),
+                      label: Text(l10n.productApproveAndPublishNow),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.primaryDark,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                      ),
                     ),
                   ),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primaryDark,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                ]
+              : [
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: FilledButton.icon(
+                      onPressed: () =>
+                          widget.onSubmit(product, ProductReviewStatus.pending),
+                      icon: const Icon(Icons.restart_alt),
+                      label: Text(widget.isArabic
+                          ? 'إعادة للمراجعة'
+                          : 'Return to review'),
                     ),
-                    elevation: 3,
                   ),
-                ),
-              ),
-              const SizedBox(height: 8),
-            ],
-            SizedBox(
-              width: double.infinity,
-              height: 46,
-              child: OutlinedButton.icon(
-                onPressed: () => Navigator.of(context).maybePop(),
-                icon: const Icon(Icons.arrow_forward, size: 18),
-                label: Text(l10n.productBackToReview),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.textSecondary,
-                  backgroundColor: const Color(0xFFE7E9EC),
-                  side: BorderSide.none,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(13),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.of(context).maybePop(),
+                    icon: const Icon(Icons.arrow_forward, size: 18),
+                    label: Text(l10n.productBackToReview),
                   ),
-                ),
-              ),
-            ),
-          ],
+                ],
         ),
       ),
     );

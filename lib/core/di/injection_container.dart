@@ -38,6 +38,8 @@ import '../../features/finance/domain/usecases/get_subscriptions_usecase.dart';
 import '../../features/finance/domain/usecases/get_supervisor_withdrawals_usecase.dart';
 import '../../features/finance/domain/usecases/submit_bank_account_edit_request_usecase.dart';
 import '../../features/finance/domain/usecases/submit_expense_request_usecase.dart';
+import '../../features/finance/domain/usecases/update_expense_request_status_usecase.dart';
+import '../../features/finance/domain/usecases/edit_expense_request_usecase.dart';
 import '../../features/finance/domain/usecases/restore_frozen_withdrawal_usecase.dart';
 import '../../features/finance/domain/usecases/reject_and_forfeit_withdrawal_usecase.dart';
 import '../../features/finance/domain/usecases/approve_bank_link_request_usecase.dart';
@@ -79,6 +81,8 @@ Future<void> initDependencies() async {
   sl.registerLazySingleton(() => SubmitBankAccountEditRequestUseCase(sl()));
   sl.registerLazySingleton(() => GetExpenseRequestsUseCase(sl()));
   sl.registerLazySingleton(() => SubmitExpenseRequestUseCase(sl()));
+  sl.registerLazySingleton(() => UpdateExpenseRequestStatusUseCase(sl()));
+  sl.registerLazySingleton(() => EditExpenseRequestUseCase(sl()));
   sl.registerLazySingleton(() => GetDepartmentWalletUseCase(sl()));
   sl.registerLazySingleton(() => GetMerchantWithdrawalsUseCase(sl()));
   sl.registerLazySingleton(() => GetSupervisorWithdrawalsUseCase(sl()));

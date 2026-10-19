@@ -41,12 +41,10 @@ class BankReconciliationCubit extends Cubit<BankReconciliationState> {
       )),
       (requests) => emit(state.copyWith(
         requests: requests
-            .where((request) =>
-                request.status == BankLinkRequestStatus.pending)
+            .where((request) => request.status == BankLinkRequestStatus.pending)
             .toList(growable: false),
-        frozenRequests: requests
-            .where((request) =>
-                request.status == BankLinkRequestStatus.frozen)
+        archiveRequests: requests
+            .where((request) => request.status != BankLinkRequestStatus.pending)
             .toList(growable: false),
         isLoading: false,
         clearError: true,
@@ -54,11 +52,27 @@ class BankReconciliationCubit extends Cubit<BankReconciliationState> {
     );
   }
 
-  Future<Either<Failure, void>> approveRequest(String requestId) =>
-      _perform(requestId, () => approveRequestUseCase(requestId));
+  Future<Either<Failure, void>> approveRequest(String requestId) {
+    final request = state.requests.firstWhere((item) => item.id == requestId);
+    return _perform(
+      requestId,
+      () => approveRequestUseCase(requestId),
+      archivedRequest: request.copyWith(
+        status: BankLinkRequestStatus.pendingManagementApproval,
+      ),
+    );
+  }
 
-  Future<Either<Failure, void>> requestIbanCertificate(String requestId) =>
-      _perform(requestId, () => requestIbanCertificateUseCase(requestId));
+  Future<Either<Failure, void>> requestIbanCertificate(String requestId) {
+    final request = state.requests.firstWhere((item) => item.id == requestId);
+    return _perform(
+      requestId,
+      () => requestIbanCertificateUseCase(requestId),
+      archivedRequest: request.copyWith(
+        status: BankLinkRequestStatus.ibanCertificateRequested,
+      ),
+    );
+  }
 
   Future<Either<Failure, void>> freezeRequest(
     String requestId,
@@ -70,7 +84,7 @@ class BankReconciliationCubit extends Cubit<BankReconciliationState> {
     return _perform(
       requestId,
       () => freezeRequestUseCase(requestId, reason),
-      frozenRequest: request.copyWith(
+      archivedRequest: request.copyWith(
         status: BankLinkRequestStatus.frozen,
         decisionReason: reason,
       ),
@@ -80,11 +94,20 @@ class BankReconciliationCubit extends Cubit<BankReconciliationState> {
   Future<Either<Failure, void>> rejectRequest(
     String requestId,
     String reason,
-  ) =>
-      _perform(requestId, () => rejectRequestUseCase(requestId, reason));
+  ) {
+    final request = state.requests.firstWhere((item) => item.id == requestId);
+    return _perform(
+      requestId,
+      () => rejectRequestUseCase(requestId, reason),
+      archivedRequest: request.copyWith(
+        status: BankLinkRequestStatus.rejected,
+        decisionReason: reason,
+      ),
+    );
+  }
 
   Future<Either<Failure, void>> restoreFrozenRequest(String requestId) {
-    final request = state.frozenRequests.firstWhere(
+    final request = state.archiveRequests.firstWhere(
       (item) => item.id == requestId,
     );
     return _perform(
@@ -101,22 +124,29 @@ class BankReconciliationCubit extends Cubit<BankReconciliationState> {
   Future<Either<Failure, void>> rejectFrozenRequest(
     String requestId,
     String reason,
-  ) =>
-      _perform(
-        requestId,
-        () => rejectFrozenRequestUseCase(requestId, reason),
-        fromFrozen: true,
-      );
+  ) {
+    final request = state.archiveRequests.firstWhere(
+      (item) =>
+          item.id == requestId && item.status == BankLinkRequestStatus.frozen,
+    );
+    return _perform(
+      requestId,
+      () => rejectFrozenRequestUseCase(requestId, reason),
+      archivedRequest: request.copyWith(
+        status: BankLinkRequestStatus.rejected,
+        decisionReason: reason,
+      ),
+      fromFrozen: true,
+    );
+  }
 
   Future<Either<Failure, void>> _perform(
     String requestId,
-    Future<Either<Failure, void>> Function() action,
-    {
-    BankLinkRequestEntity? frozenRequest,
+    Future<Either<Failure, void>> Function() action, {
+    BankLinkRequestEntity? archivedRequest,
     BankLinkRequestEntity? restoredRequest,
     bool fromFrozen = false,
-  }
-  ) async {
+  }) async {
     if (state.processingRequestId != null) {
       return const Left(ServerFailure());
     }
@@ -140,10 +170,10 @@ class BankReconciliationCubit extends Cubit<BankReconciliationState> {
             ...state.requests.where((request) => request.id != requestId),
             if (restoredRequest != null) restoredRequest,
           ],
-          frozenRequests: [
-            ...state.frozenRequests.where(
-                (request) => !fromFrozen || request.id != requestId),
-            if (frozenRequest != null) frozenRequest,
+          archiveRequests: [
+            ...state.archiveRequests
+                .where((request) => !fromFrozen || request.id != requestId),
+            if (archivedRequest != null) archivedRequest,
           ],
           clearProcessingRequestId: true,
           clearError: true,

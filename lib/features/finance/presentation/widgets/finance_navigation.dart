@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/utils/app_locale_controller.dart';
 import '../../../../l10n/app_localizations.dart';
-import '../screens/audit_screen.dart';
+import '../screens/financial_activity_log_screen.dart';
 import '../screens/bank_reconciliation_screen.dart';
 import '../screens/commissions_screen.dart';
 import '../screens/settlements_screen.dart';
@@ -134,7 +134,7 @@ class FinanceNavigation {
     }
 
     final screen = switch (index) {
-      0 => const AuditScreen(),
+      0 => const FinancialActivityLogScreen(),
       1 => const CommissionsScreen(),
       2 => const SettlementsScreen(),
       3 => const BankReconciliationScreen(),

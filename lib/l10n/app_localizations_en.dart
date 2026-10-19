@@ -785,7 +785,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get servicesCompletedToday => 'Approved today';
+  String get servicesCompletedToday => 'Approved requests';
 
   @override
   String get servicesAwaitingDecision => 'Awaiting decision';
@@ -2389,6 +2389,45 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reconciliationNextAccount => 'Next account in the waiting list';
 
   @override
+  String get reconciliationQueueTitle => 'Reconciliation request queue';
+
+  @override
+  String get reconciliationSearchHint =>
+      'Search by name, request ID, bank, or IBAN';
+
+  @override
+  String get reconciliationFilterAll => 'All';
+
+  @override
+  String get reconciliationFilterAttention => 'Needs attention';
+
+  @override
+  String get reconciliationNeedsAttention => 'Review';
+
+  @override
+  String get reconciliationNoMatchingRequests =>
+      'No requests match these search criteria.';
+
+  @override
+  String get reconciliationAwaitingManagement => 'Awaiting management approval';
+
+  @override
+  String get reconciliationAwaitingCertificate =>
+      'Awaiting updated IBAN certificate';
+
+  @override
+  String get reconciliationInProgressTab => 'In progress';
+
+  @override
+  String get reconciliationArchiveTab => 'Archive';
+
+  @override
+  String get reconciliationArchiveEmpty => 'There are no archived requests.';
+
+  @override
+  String get reconciliationDecisionReason => 'Decision reason';
+
+  @override
   String get reconciliationNextBusiness => 'Suhaila Perfumes Store';
 
   @override
@@ -2477,14 +2516,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get withdrawSheetAmount5k => '5,000 Egy';
 
   @override
-  String get matrixLive => 'Live';
+  String get matrixLive => 'Local settings';
 
   @override
   String get matrixCfoPermission => 'Exclusive CFO authority (CFO-01)';
 
   @override
   String get matrixIntro =>
-      'Set official automatic platform deductions and update settlement and logistics-fee engines for all approved financial operations.';
+      'Review commission rates and save local changes for review.';
 
   @override
   String get matrixLastUpdate =>
@@ -2726,15 +2765,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Periodic update to reflect bank payment-gateway fee changes and expansion of the field-delivery network';
 
   @override
-  String get matrixLastUpdated =>
-      'Last updated: January 1, 2025 under board resolution BOD-44/B';
+  String get matrixLastUpdated => 'Last saved:';
 
   @override
   String get matrixCfoDescription =>
-      'Set official automatic platform deductions and update settlement and logistics-fee engines for all approved financial operations.';
+      'Edit proposed commission rates and save them locally for review; this page does not activate changes on the payment engine.';
 
   @override
-  String get matrixAppliedRate => 'Currently applied rate';
+  String get matrixAppliedRate => 'Saved rate';
 
   @override
   String get matrixTargetRate => 'Set target rate';
@@ -2795,19 +2833,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get matrixNotifyUsers =>
-      'Notify all merchants, couriers, and supervisors 7 days before the updated price list takes effect.';
+      'Notification preference for merchants, couriers, and supervisors when a matrix update is applied.';
 
   @override
-  String get matrixSaveSuccess =>
-      'Changes submitted to the financial ledger successfully';
+  String get matrixSaveSuccess => 'Matrix changes were saved on this device.';
 
   @override
-  String get matrixSaveAndSend =>
-      'Save and formally send the rate matrix to management';
+  String get matrixSaveAndSend => 'Save changes';
 
   @override
   String get matrixAuditTrailNotice =>
-      'This action will be recorded automatically in the central SHA-256 financial audit log';
+      'Changes are saved locally with the save time and reason. Tap to view history.';
 
   @override
   String get settlementsScreenTitle => 'Settlements Management';
@@ -7178,6 +7214,46 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get financeWalletOperationNote =>
       'The financial supervisor must approve this request. Approval is recorded in the app; no money is moved until a payment service is integrated.';
+
+  @override
+  String get departmentPendingAmount => 'Pending balances';
+
+  @override
+  String get departmentPendingOnlyFilter => 'With pending balances';
+
+  @override
+  String get departmentNoPendingItems => 'No wallets have pending balances.';
+
+  @override
+  String get departmentExportReport => 'Export report';
+
+  @override
+  String get departmentExportExcel => 'Export to Excel';
+
+  @override
+  String get departmentExportPdf => 'Print or save PDF';
+
+  @override
+  String get departmentReportName => 'Name';
+
+  @override
+  String get departmentReportReference => 'Reference';
+
+  @override
+  String get departmentSearchHint => 'Search by name, reference, or status';
+
+  @override
+  String get departmentNoSearchResults =>
+      'No wallets match these search criteria.';
+
+  @override
+  String get departmentViewDetails => 'View wallet details';
+
+  @override
+  String get departmentStatusLabel => 'Account status';
+
+  @override
+  String get departmentOperationsCount => 'Operation count';
 
   @override
   String get merchantInfoAdRejected => 'Rejected';

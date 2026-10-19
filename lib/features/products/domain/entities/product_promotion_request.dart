@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-enum ProductPromotionStatus { pending, active, rejected, expired }
+enum ProductPromotionStatus { pending, active, rejected, expired, suspended }
 
 @immutable
 class ProductPromotionRequest {
@@ -15,6 +15,7 @@ class ProductPromotionRequest {
   final int price;
   final DateTime requestedAt;
   final bool paymentConfirmedByFinance;
+  final bool financeReviewPending;
   final ProductPromotionStatus status;
   final String? decisionNote;
 
@@ -30,6 +31,7 @@ class ProductPromotionRequest {
     required this.price,
     required this.requestedAt,
     this.paymentConfirmedByFinance = false,
+    this.financeReviewPending = false,
     this.status = ProductPromotionStatus.pending,
     this.decisionNote,
   });
@@ -38,6 +40,7 @@ class ProductPromotionRequest {
     ProductPromotionStatus? status,
     String? decisionNote,
     bool? paymentConfirmedByFinance,
+    bool? financeReviewPending,
   }) {
     return ProductPromotionRequest(
       id: id,
@@ -52,6 +55,7 @@ class ProductPromotionRequest {
       requestedAt: requestedAt,
       paymentConfirmedByFinance:
           paymentConfirmedByFinance ?? this.paymentConfirmedByFinance,
+      financeReviewPending: financeReviewPending ?? this.financeReviewPending,
       status: status ?? this.status,
       decisionNote: decisionNote ?? this.decisionNote,
     );
@@ -69,6 +73,7 @@ class ProductPromotionRequest {
         'price': price,
         'requestedAt': requestedAt.toIso8601String(),
         'paymentConfirmedByFinance': paymentConfirmedByFinance,
+        'financeReviewPending': financeReviewPending,
         'status': status.name,
         'decisionNote': decisionNote,
       };
@@ -88,6 +93,7 @@ class ProductPromotionRequest {
       requestedAt: DateTime.parse(_requiredString(json, 'requestedAt')),
       paymentConfirmedByFinance:
           _optionalBool(json, 'paymentConfirmedByFinance'),
+      financeReviewPending: _optionalBool(json, 'financeReviewPending'),
       status: ProductPromotionStatus.values.byName(statusName),
       decisionNote: _optionalString(json, 'decisionNote'),
     );
@@ -96,7 +102,8 @@ class ProductPromotionRequest {
   static String _requiredString(Map<String, dynamic> json, String key) {
     final value = json[key];
     if (value is! String || value.isEmpty) {
-      throw FormatException('Promotion field "$key" must be a non-empty string.');
+      throw FormatException(
+          'Promotion field "$key" must be a non-empty string.');
     }
     return value;
   }

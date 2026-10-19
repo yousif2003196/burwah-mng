@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../l10n/app_localizations.dart';
+import 'services_supervisor_wallet_screen.dart';
 
 class ServicesSupervisorAccountScreen extends StatefulWidget {
   final VoidCallback onLogout;
@@ -382,8 +383,16 @@ class _ServicesSupervisorAccountScreenState
                 Icons.account_balance_wallet_outlined,
                 color: AppColors.primaryDark,
               ),
-              title: Text(l10n.servicesAccountWalletUnavailable),
-              subtitle: Text(l10n.servicesAccountWalletUnavailableDetails),
+              title: Text(l10n.servicesProfileOpenWallet),
+              subtitle: Text(l10n.servicesProfileWalletDescription),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => const ServicesSupervisorWalletScreen(
+                    owner: SupervisorWalletOwner.services,
+                  ),
+                ),
+              ),
             ),
           ],
         ),

@@ -1488,7 +1488,7 @@ abstract class AppLocalizations {
   /// No description provided for @servicesCompletedToday.
   ///
   /// In ar, this message translates to:
-  /// **'المعتمد اليوم'**
+  /// **'الطلبات المعتمدة'**
   String get servicesCompletedToday;
 
   /// No description provided for @servicesAwaitingDecision.
@@ -4365,6 +4365,78 @@ abstract class AppLocalizations {
   /// **'الحساب التالي في قائمة الانتظار'**
   String get reconciliationNextAccount;
 
+  /// No description provided for @reconciliationQueueTitle.
+  ///
+  /// In ar, this message translates to:
+  /// **'قائمة طلبات المطابقة'**
+  String get reconciliationQueueTitle;
+
+  /// No description provided for @reconciliationSearchHint.
+  ///
+  /// In ar, this message translates to:
+  /// **'ابحث بالاسم أو رقم الطلب أو البنك أو الآيبان'**
+  String get reconciliationSearchHint;
+
+  /// No description provided for @reconciliationFilterAll.
+  ///
+  /// In ar, this message translates to:
+  /// **'الكل'**
+  String get reconciliationFilterAll;
+
+  /// No description provided for @reconciliationFilterAttention.
+  ///
+  /// In ar, this message translates to:
+  /// **'تحتاج إلى مراجعة'**
+  String get reconciliationFilterAttention;
+
+  /// No description provided for @reconciliationNeedsAttention.
+  ///
+  /// In ar, this message translates to:
+  /// **'مراجعة'**
+  String get reconciliationNeedsAttention;
+
+  /// No description provided for @reconciliationNoMatchingRequests.
+  ///
+  /// In ar, this message translates to:
+  /// **'لا توجد طلبات مطابقة لخيارات البحث.'**
+  String get reconciliationNoMatchingRequests;
+
+  /// No description provided for @reconciliationAwaitingManagement.
+  ///
+  /// In ar, this message translates to:
+  /// **'بانتظار اعتماد الإدارة'**
+  String get reconciliationAwaitingManagement;
+
+  /// No description provided for @reconciliationAwaitingCertificate.
+  ///
+  /// In ar, this message translates to:
+  /// **'بانتظار شهادة آيبان محدثة'**
+  String get reconciliationAwaitingCertificate;
+
+  /// No description provided for @reconciliationInProgressTab.
+  ///
+  /// In ar, this message translates to:
+  /// **'قيد الإجراء'**
+  String get reconciliationInProgressTab;
+
+  /// No description provided for @reconciliationArchiveTab.
+  ///
+  /// In ar, this message translates to:
+  /// **'الأرشيف'**
+  String get reconciliationArchiveTab;
+
+  /// No description provided for @reconciliationArchiveEmpty.
+  ///
+  /// In ar, this message translates to:
+  /// **'لا توجد طلبات في الأرشيف.'**
+  String get reconciliationArchiveEmpty;
+
+  /// No description provided for @reconciliationDecisionReason.
+  ///
+  /// In ar, this message translates to:
+  /// **'سبب القرار'**
+  String get reconciliationDecisionReason;
+
   /// No description provided for @reconciliationNextBusiness.
   ///
   /// In ar, this message translates to:
@@ -4524,7 +4596,7 @@ abstract class AppLocalizations {
   /// No description provided for @matrixLive.
   ///
   /// In ar, this message translates to:
-  /// **'مباشر'**
+  /// **'إعدادات محلية'**
   String get matrixLive;
 
   /// No description provided for @matrixCfoPermission.
@@ -4536,7 +4608,7 @@ abstract class AppLocalizations {
   /// No description provided for @matrixIntro.
   ///
   /// In ar, this message translates to:
-  /// **'تحديد النسب الرسمية لاقتطاعات المنصة التلقائية وتحديث محرك التسويات والرسوم اللوجستية لكافة العمليات المالية المعتمدة.'**
+  /// **'مراجعة نسب العمولات والرسوم وحفظ التعديلات محليًا للمراجعة.'**
   String get matrixIntro;
 
   /// No description provided for @matrixLastUpdate.
@@ -4998,19 +5070,19 @@ abstract class AppLocalizations {
   /// No description provided for @matrixLastUpdated.
   ///
   /// In ar, this message translates to:
-  /// **'آخر تحديث: 01 يناير 2025 بموجب قرار مجلس الإدارة رقم BOD-44/B'**
+  /// **'آخر حفظ:'**
   String get matrixLastUpdated;
 
   /// No description provided for @matrixCfoDescription.
   ///
   /// In ar, this message translates to:
-  /// **'تحديد النسب الرسمية لاقتطاعات المنصة التلقائية وتحديث محرك التسويات والرسوم اللوجستية لكافة العمليات المالية المعتمدة.'**
+  /// **'تعديل نسب العمولات المقترحة وحفظها محليًا للمراجعة؛ لا تُفعّل التغييرات على محرك الدفع من هذه الصفحة.'**
   String get matrixCfoDescription;
 
   /// No description provided for @matrixAppliedRate.
   ///
   /// In ar, this message translates to:
-  /// **'النسبة المطبقة حالياً'**
+  /// **'النسبة المحفوظة'**
   String get matrixAppliedRate;
 
   /// No description provided for @matrixTargetRate.
@@ -5112,25 +5184,25 @@ abstract class AppLocalizations {
   /// No description provided for @matrixNotifyUsers.
   ///
   /// In ar, this message translates to:
-  /// **'إشعار فوري لجميع التجار والمناديب والمشرفين بتحديث قائمة الأسعار قبل 7 أيام من موعد التطبيق الإلزامي.'**
+  /// **'تفضيل إشعار التجار والمناديب والمشرفين عند تطبيق تحديث للمصفوفة.'**
   String get matrixNotifyUsers;
 
   /// No description provided for @matrixSaveSuccess.
   ///
   /// In ar, this message translates to:
-  /// **'تم رفع التعديلات للسجل المالي بنجاح'**
+  /// **'تم حفظ تعديلات المصفوفة على هذا الجهاز.'**
   String get matrixSaveSuccess;
 
   /// No description provided for @matrixSaveAndSend.
   ///
   /// In ar, this message translates to:
-  /// **'حفظ وإرسال مصفوفة النسب رسمياً للإدارة'**
+  /// **'حفظ التعديلات'**
   String get matrixSaveAndSend;
 
   /// No description provided for @matrixAuditTrailNotice.
   ///
   /// In ar, this message translates to:
-  /// **'سيتم قيد هذا الإجراء تلقائياً في سجل التدقيق المالي المركزي SHA-256'**
+  /// **'تُحفظ التعديلات محلياً مع وقت الحفظ وسبب التعديل. اضغط لعرض السجل.'**
   String get matrixAuditTrailNotice;
 
   /// No description provided for @settlementsScreenTitle.
@@ -13005,6 +13077,84 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'يجب أن يوافق المشرف المالي على الطلب. تُسجل الموافقة في التطبيق ولا تتحرك الأموال قبل تكامل خدمة الدفع.'**
   String get financeWalletOperationNote;
+
+  /// No description provided for @departmentPendingAmount.
+  ///
+  /// In ar, this message translates to:
+  /// **'أرصدة معلقة'**
+  String get departmentPendingAmount;
+
+  /// No description provided for @departmentPendingOnlyFilter.
+  ///
+  /// In ar, this message translates to:
+  /// **'لديها مبالغ معلقة'**
+  String get departmentPendingOnlyFilter;
+
+  /// No description provided for @departmentNoPendingItems.
+  ///
+  /// In ar, this message translates to:
+  /// **'لا توجد محافظ بمبالغ معلقة.'**
+  String get departmentNoPendingItems;
+
+  /// No description provided for @departmentExportReport.
+  ///
+  /// In ar, this message translates to:
+  /// **'تصدير التقرير'**
+  String get departmentExportReport;
+
+  /// No description provided for @departmentExportExcel.
+  ///
+  /// In ar, this message translates to:
+  /// **'تصدير إلى Excel'**
+  String get departmentExportExcel;
+
+  /// No description provided for @departmentExportPdf.
+  ///
+  /// In ar, this message translates to:
+  /// **'طباعة أو حفظ PDF'**
+  String get departmentExportPdf;
+
+  /// No description provided for @departmentReportName.
+  ///
+  /// In ar, this message translates to:
+  /// **'الاسم'**
+  String get departmentReportName;
+
+  /// No description provided for @departmentReportReference.
+  ///
+  /// In ar, this message translates to:
+  /// **'المرجع'**
+  String get departmentReportReference;
+
+  /// No description provided for @departmentSearchHint.
+  ///
+  /// In ar, this message translates to:
+  /// **'ابحث بالاسم أو المرجع أو الحالة'**
+  String get departmentSearchHint;
+
+  /// No description provided for @departmentNoSearchResults.
+  ///
+  /// In ar, this message translates to:
+  /// **'لا توجد محافظ مطابقة لمعايير البحث.'**
+  String get departmentNoSearchResults;
+
+  /// No description provided for @departmentViewDetails.
+  ///
+  /// In ar, this message translates to:
+  /// **'عرض تفاصيل المحفظة'**
+  String get departmentViewDetails;
+
+  /// No description provided for @departmentStatusLabel.
+  ///
+  /// In ar, this message translates to:
+  /// **'حالة الحساب'**
+  String get departmentStatusLabel;
+
+  /// No description provided for @departmentOperationsCount.
+  ///
+  /// In ar, this message translates to:
+  /// **'عدد العمليات'**
+  String get departmentOperationsCount;
 
   /// No description provided for @merchantInfoAdRejected.
   ///

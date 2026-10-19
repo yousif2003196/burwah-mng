@@ -22,7 +22,25 @@ abstract class FinanceRemoteDataSource {
     required double amount,
     required String bankAccountId,
     required String reason,
+    String category = 'other',
+    String beneficiaryName = '',
     String? attachmentName,
+    String? attachmentPath,
+  });
+  Future<void> updateExpenseRequestStatus({
+    required String requestId,
+    required ExpenseRequestStatus status,
+    String? reason,
+  });
+  Future<ExpenseRequestEntity> editExpenseRequest({
+    required String requestId,
+    required double amount,
+    required String bankAccountId,
+    required String reason,
+    required String category,
+    required String beneficiaryName,
+    String? attachmentName,
+    String? attachmentPath,
   });
   Future<List<WithdrawalRequestEntity>> getMerchantWithdrawals();
   Future<WithdrawalRequestEntity> submitMerchantFinancialRequest({
@@ -74,6 +92,12 @@ abstract class FinanceRemoteDataSource {
   Future<void> restoreFrozenBankLinkRequest(String requestId);
   Future<void> rejectFrozenBankLinkRequest(String requestId, String reason);
   Future<List<SubscriptionRequestEntity>> getSubscriptions();
+  Future<void> updateSubscriptionDecision({
+    required String requestId,
+    required SubscriptionReviewDecision decision,
+    required String reason,
+  });
+  Future<void> restoreSubscriptionDecision(String requestId);
   Future<DepartmentWalletEntity> getDepartmentWallet(DepartmentType type);
   Future<void> approveWithdrawal(String requestId);
   Future<void> freezeWithdrawal(String requestId, String reason);

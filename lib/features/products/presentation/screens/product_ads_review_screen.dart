@@ -19,6 +19,7 @@ class ProductAdsReviewScreen extends StatefulWidget {
 
 class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
   final TextEditingController _searchController = TextEditingController();
+  bool _showArchive = false;
 
   @override
   void dispose() {
@@ -75,11 +76,29 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
             const SizedBox(height: 10),
             _buildCategoryFilters(context, state, l10n),
             const SizedBox(height: 14),
+            SegmentedButton<bool>(
+              segments: [
+                ButtonSegment(
+                  value: false,
+                  label: Text(isArabic ? 'قيد المراجعة' : 'Pending review'),
+                ),
+                ButtonSegment(
+                  value: true,
+                  label: Text(l10n.adsArchiveTitle),
+                ),
+              ],
+              selected: {_showArchive},
+              onSelectionChanged: (selection) =>
+                  setState(() => _showArchive = selection.first),
+            ),
+            const SizedBox(height: 14),
             Row(
               children: [
                 Expanded(
                   child: Text(
-                    l10n.productReviewListTitle,
+                    _showArchive
+                        ? l10n.adsArchiveTitle
+                        : l10n.productReviewListTitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -90,27 +109,41 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
                   ),
                 ),
                 _countBadge(
-                  state.pendingCount.toString(),
+                  state.reviews
+                      .where((review) =>
+                          (review.status != ProductReviewStatus.pending) ==
+                          _showArchive)
+                      .length
+                      .toString(),
                   const Color(0xFFD9E7FF),
                   AppColors.primaryDark,
                 ),
               ],
             ),
             const SizedBox(height: 10),
-            if (state.visibleReviews.isEmpty)
+            if (state.visibleReviews
+                .where((review) =>
+                    (review.status != ProductReviewStatus.pending) ==
+                    _showArchive)
+                .isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 42),
                 child: Text(
-                  l10n.productEmptyResults,
+                  _showArchive
+                      ? (isArabic
+                          ? 'لا توجد منتجات في الأرشيف.'
+                          : 'No archived products.')
+                      : l10n.productEmptyResults,
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: AppColors.textSecondary),
                 ),
               ),
-            for (var index = 0; index < state.visibleReviews.length; index++)
+            for (final product in state.visibleReviews.where((review) =>
+                (review.status != ProductReviewStatus.pending) == _showArchive))
               _buildProductCard(
                 context,
-                state.visibleReviews[index],
-                index + 1,
+                product,
+                state.visibleReviews.indexOf(product) + 1,
                 isArabic,
                 l10n,
               ),
@@ -629,9 +662,16 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
             ),
           ] else ...[
             const SizedBox(height: 7),
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: _statusTag(product.status, l10n),
+            Row(
+              children: [
+                _statusTag(product.status, l10n),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: () => _restoreProduct(context, product, l10n),
+                  icon: const Icon(Icons.restart_alt, size: 17),
+                  label: Text(isArabic ? 'إعادة للمراجعة' : 'Return to review'),
+                ),
+              ],
             ),
           ],
         ],
@@ -821,6 +861,28 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
     }
     AppSnackBar.showSuccess(context, l10n.productReviewActionSuccess);
     return true;
+  }
+
+  Future<void> _restoreProduct(
+    BuildContext context,
+    ProductReview product,
+    AppLocalizations l10n,
+  ) async {
+    final restored = await context.read<ProductReviewCubit>().updateStatus(
+          id: product.id,
+          status: ProductReviewStatus.pending,
+        );
+    if (!context.mounted) return;
+    if (restored) {
+      AppSnackBar.showSuccess(
+        context,
+        l10n.localeName.startsWith('ar')
+            ? 'أعيد المنتج إلى قائمة المراجعة'
+            : 'Product returned to the review queue',
+      );
+    } else {
+      AppSnackBar.showError(context, l10n.productReviewUpdateError);
+    }
   }
 
   Future<void> _openDetails(

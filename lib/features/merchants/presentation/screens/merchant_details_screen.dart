@@ -28,7 +28,9 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
   late final TextEditingController _commissionController;
   late double _commissionPercent;
   late bool _isSuspended;
+  bool _isSavingCommission = false;
   Map<String, MerchantAdvertisementStatus> _advertisementStatuses = {};
+  List<MerchantSupervisorAuditEvent> _merchantAuditEvents = const [];
 
   MerchantEntity get merchant => widget.merchant;
 
@@ -45,7 +47,10 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
     MerchantAdvertisementLocalStore.version.addListener(
       _refreshAdvertisementStatuses,
     );
+    MerchantSupervisorLocalStore.revision.addListener(_refreshMerchantAudit);
     _refreshAdvertisementStatuses();
+    _refreshCommission();
+    _refreshMerchantAudit();
   }
 
   @override
@@ -53,6 +58,7 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
     MerchantAdvertisementLocalStore.version.removeListener(
       _refreshAdvertisementStatuses,
     );
+    MerchantSupervisorLocalStore.revision.removeListener(_refreshMerchantAudit);
     _commissionController.dispose();
     super.dispose();
   }
@@ -72,6 +78,43 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
       if (mounted) {
         _showMessage(AppLocalizations.of(context)!.adsLoadFailed);
       }
+    }
+  }
+
+  Future<void> _refreshCommission() async {
+    try {
+      final overrides =
+          await MerchantSupervisorLocalStore.getCommissionOverrides();
+      final commission = overrides[merchant.id];
+      if (mounted && commission != null) {
+        setState(() {
+          _commissionPercent = commission;
+          _commissionController.text = commission.toStringAsFixed(1);
+        });
+      }
+    } on Object catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'merchant commission refresh',
+      ));
+    }
+  }
+
+  Future<void> _refreshMerchantAudit() async {
+    try {
+      final events = await MerchantSupervisorLocalStore.getAuditEvents();
+      final merchantNames = {merchant.name, merchant.nameEn};
+      final matching = events.where((event) =>
+          event.merchantId == merchant.id ||
+          (event.merchantId == null && merchantNames.contains(event.subject)));
+      if (mounted) setState(() => _merchantAuditEvents = matching.toList());
+    } on Object catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'merchant investigation history',
+      ));
     }
   }
 
@@ -158,6 +201,56 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
           _buildBusinessInfoCard(l10n, isArabic),
           const SizedBox(height: 18),
           _buildAdvertisementsCard(l10n, isArabic),
+          const SizedBox(height: 18),
+          _buildInvestigationHistoryCard(l10n, isArabic),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInvestigationHistoryCard(AppLocalizations l10n, bool isArabic) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: _cardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            isArabic
+                ? 'سجل التحقيقات والإجراءات'
+                : 'Investigation & action history',
+            style: const TextStyle(
+                fontWeight: FontWeight.bold, color: AppColors.primaryDark),
+          ),
+          const SizedBox(height: 8),
+          if (_merchantAuditEvents.isEmpty)
+            Text(
+              isArabic
+                  ? 'لا توجد إجراءات رقابية مسجلة لهذا التاجر حتى الآن.'
+                  : 'No supervisory actions have been recorded for this merchant yet.',
+              style:
+                  const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            )
+          else
+            ..._merchantAuditEvents.map((event) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.policy_outlined,
+                      color: AppColors.primaryDark),
+                  title: Text(event.action,
+                      style: const TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w600)),
+                  subtitle: Text(
+                      '${event.details}\n${MaterialLocalizations.of(context).formatMediumDate(event.occurredAt)} · ${MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(event.occurredAt))}'),
+                  isThreeLine: true,
+                )),
+          const SizedBox(height: 4),
+          Text(
+            isArabic
+                ? 'يعرض هذا السجل الإجراءات المحفوظة في التطبيق على هذا الجهاز.'
+                : 'This history includes actions saved locally on this device.',
+            style:
+                const TextStyle(color: AppColors.textSecondary, fontSize: 10),
+          ),
         ],
       ),
     );
@@ -579,7 +672,7 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
                   children: [
                     Expanded(
                       child: FilledButton.icon(
-                        onPressed: _saveCommission,
+                        onPressed: _isSavingCommission ? null : _saveCommission,
                         icon: const Icon(Icons.save_outlined, size: 15),
                         label: Text(l10n.merchantInfoSave),
                         style: FilledButton.styleFrom(
@@ -1086,20 +1179,28 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
         MerchantAdvertisementStatus.hidden => AppColors.textSecondary,
       };
 
-  void _saveCommission() {
+  Future<void> _saveCommission() async {
     final l10n = AppLocalizations.of(context)!;
     final updatedValue = double.tryParse(_commissionController.text);
-    if (updatedValue == null || updatedValue < 0 || updatedValue > 100) {
+    if (updatedValue == null ||
+        !updatedValue.isFinite ||
+        updatedValue < 0 ||
+        updatedValue > 100) {
       _showMessage(l10n.merchantInfoInvalidCommission);
       return;
     }
-    setState(() => _commissionPercent = updatedValue);
-    _showMessage(l10n.merchantInfoCommissionSaved);
-    MerchantSupervisorLocalStore.recordAction(
-      action: l10n.merchantAuditCommissionUpdated,
-      subject: merchant.getName(l10n.localeName.startsWith('ar')),
-      details: '${updatedValue.toStringAsFixed(1)}%',
-    ).catchError((Object error, StackTrace stackTrace) {
+    setState(() => _isSavingCommission = true);
+    try {
+      await MerchantSupervisorLocalStore.setMerchantCommission(
+        merchantId: merchant.id,
+        merchantName: merchant.getName(l10n.localeName.startsWith('ar')),
+        commissionPercent: updatedValue,
+        action: l10n.merchantAuditCommissionUpdated,
+      );
+      if (!mounted) return;
+      setState(() => _commissionPercent = updatedValue);
+      _showMessage(l10n.merchantInfoCommissionSaved);
+    } on Object catch (error, stackTrace) {
       FlutterError.reportError(
         FlutterErrorDetails(
           exception: error,
@@ -1108,9 +1209,11 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
         ),
       );
       if (mounted) {
-        AppSnackBar.showError(context, l10n.merchantAuditLoadError);
+        AppSnackBar.showError(context, l10n.merchantProfileSaveError);
       }
-    });
+    } finally {
+      if (mounted) setState(() => _isSavingCommission = false);
+    }
   }
 
   void _showMessage(String message) {

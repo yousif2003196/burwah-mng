@@ -4,12 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/di/injection_container.dart';
 import '../../../../core/widgets/app_snack_bar.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../../finance/domain/entities/withdrawal_request_entity.dart';
+import '../../../finance/domain/repositories/finance_repository.dart';
 import '../../data/merchant_advertisement_local_store.dart';
 import '../../data/merchant_supervisor_local_store.dart';
 import '../../domain/entities/merchant_entity.dart';
-import 'merchant_financial_request_events.dart';
 import 'advertisement_review_details_screen.dart';
 
 enum _AdCategory { vehicles, electronics, realEstate }
@@ -99,8 +101,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
   bool _newestFirst = true;
 
   static const _savedActionsKey = 'merchant_supervisor_ad_actions_v1';
-  static const _financialRequestsKey =
-      'merchant_supervisor_financial_requests_v1';
+  static const _deliveryFeesKey = 'merchant_ad_delivery_fees_v1';
 
   @override
   void initState() {
@@ -329,6 +330,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
             resultLabel,
             if (rejection?.guidance.isNotEmpty ?? false) rejection!.guidance,
           ].join(' · '),
+          merchantId: _merchantId(ad),
         );
       } on Object catch (error, stackTrace) {
         FlutterError.reportError(
@@ -383,35 +385,22 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
       return;
     }
     if (ad.isPremium) {
-      final preferences = await SharedPreferences.getInstance();
-      final stored = preferences.getString(_financialRequestsKey);
-      final requests =
-          stored == null ? <dynamic>[] : jsonDecode(stored) as List<dynamic>;
       final requestId = 'AD-FEE-${_adReference(ad)}';
-      if (!requests.any(
-        (request) => request is Map && request['id'] == requestId,
-      )) {
-        requests.add({
-          'id': requestId,
-          'type': 'packageFees',
-          'merchantName': _merchantName(l10n, ad),
-          'merchantNameEn': _merchantNameEn(ad),
-          'title': l10n.localeName.startsWith('ar')
-              ? 'رسوم الإعلان المميز ${_adReference(ad)}'
-              : 'Premium advertisement fee - ${_adReference(ad)}',
-          'titleAr': 'رسوم الإعلان المميز ${_adReference(ad)}',
-          'titleEn': 'Premium advertisement fee - ${_adReference(ad)}',
-          'amount': ad.premiumFee,
-          'createdAt': DateTime.now().toIso8601String(),
-        });
-        final saved = await preferences.setString(
-          _financialRequestsKey,
-          jsonEncode(requests),
-        );
-        if (!saved) {
-          throw StateError('Could not queue premium advertisement fee.');
-        }
-        merchantFinancialRequestsVersion.value++;
+      final requestTitle = l10n.localeName.startsWith('ar')
+          ? 'رسوم الإعلان المميز ${_adReference(ad)}'
+          : 'Premium advertisement fee - ${_adReference(ad)}';
+      final result =
+          await sl<FinanceRepository>().submitMerchantFinancialRequest(
+        beneficiaryName: _merchantName(l10n, ad),
+        requestTitle: requestTitle,
+        sourceAccount: requestId,
+        amount: ad.premiumFee,
+        operationType: FinancialOperationType.withdrawal,
+      );
+      final failure = result.fold((failure) => failure, (_) => null);
+      if (failure != null) {
+        _showMessage(l10n, failure.message);
+        return;
       }
       await _setAdState(l10n, ad, status: _AdStatus.awaitingFinance);
       if (!mounted) return;
@@ -423,12 +412,6 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
     _showMessage(l10n, l10n.adsApprovedStatus);
   }
 
-  String _merchantNameEn(_AdRecord ad) => switch (ad.id) {
-        1 => 'Al-Ufuq Car Trading Est.',
-        2 => 'Al-Safwa Electronics Store',
-        _ => 'Al-Yamama Contracting & Real Estate Co.',
-      };
-
   bool _isArchived(_AdRecord ad) =>
       _hiddenAds.contains(ad.id) ||
       (_statuses[ad.id] ?? _AdStatus.pending) != _AdStatus.pending;
@@ -437,6 +420,12 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
         1 => l10n.adsCarMerchant,
         2 => l10n.adsPhoneMerchant,
         _ => l10n.adsVillaMerchant,
+      };
+
+  String _merchantId(_AdRecord ad) => switch (ad.id) {
+        1 => 'MER-101',
+        2 => 'MER-102',
+        _ => 'MER-103',
       };
 
   String _merchantCategory(AppLocalizations l10n, _AdRecord ad) =>
@@ -999,7 +988,38 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
     );
   }
 
-  void _openAdDetails(AppLocalizations l10n, _AdRecord ad) {
+  Future<void> _openAdDetails(AppLocalizations l10n, _AdRecord ad) async {
+    var initialDeliveryFee = 150.0;
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      final encoded = preferences.getString(_deliveryFeesKey);
+      if (encoded != null) {
+        final decoded = jsonDecode(encoded);
+        if (decoded is! Map<String, dynamic>) {
+          throw const FormatException(
+              'Advertisement delivery fees are invalid.');
+        }
+        final savedFee = decoded[_adReference(ad)];
+        if (savedFee != null) {
+          if (savedFee is! num ||
+              !savedFee.toDouble().isFinite ||
+              savedFee < 0) {
+            throw const FormatException(
+                'Advertisement delivery fee is invalid.');
+          }
+          initialDeliveryFee = savedFee.toDouble();
+        }
+      }
+    } on Object catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'advertisement delivery fee',
+      ));
+      if (mounted) _showMessage(l10n, l10n.adsLoadFailed);
+      return;
+    }
+    if (!mounted) return;
     final details = _reviewDetails(l10n, ad);
     Navigator.of(context).push<void>(
       MaterialPageRoute(
@@ -1012,6 +1032,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
             _ => '1010332789',
           },
           adNumber: _adReference(ad),
+          initialDeliveryFee: initialDeliveryFee,
           submittedAt: ad.receivedMinutesAgo >= 120
               ? l10n.adsHoursAgo
               : l10n.adsMinutesAgo('${ad.receivedMinutesAgo}'),
@@ -1039,10 +1060,46 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
           onRequestEdit: (_) {
             _showMessage(l10n, l10n.adsRequestEditUnavailable);
           },
-          onFeeUpdated: (_) => _showMessage(l10n, l10n.adsFeeUpdated),
+          onFeeUpdated: (fee) => _saveDeliveryFee(l10n, ad, fee),
         ),
       ),
     );
+  }
+
+  Future<void> _saveDeliveryFee(
+    AppLocalizations l10n,
+    _AdRecord ad,
+    double fee,
+  ) async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      final encoded = preferences.getString(_deliveryFeesKey);
+      final decoded =
+          encoded == null ? <String, dynamic>{} : jsonDecode(encoded);
+      if (decoded is! Map<String, dynamic>) {
+        throw const FormatException('Advertisement delivery fees are invalid.');
+      }
+      decoded[_adReference(ad)] = fee;
+      final saved =
+          await preferences.setString(_deliveryFeesKey, jsonEncode(decoded));
+      if (!saved) {
+        throw StateError('Could not save advertisement delivery fee.');
+      }
+      await MerchantSupervisorLocalStore.recordAction(
+        action: l10n.merchantAuditAdModerated,
+        subject: _adTitle(l10n, ad),
+        details: '${l10n.adsDeliveryTitle}: ${fee.toStringAsFixed(0)}',
+        merchantId: _merchantId(ad),
+      );
+      if (mounted) _showMessage(l10n, l10n.adsFeeUpdated);
+    } on Object catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'advertisement delivery fee save',
+      ));
+      if (mounted) _showMessage(l10n, l10n.adsSaveFailed);
+    }
   }
 
   ({

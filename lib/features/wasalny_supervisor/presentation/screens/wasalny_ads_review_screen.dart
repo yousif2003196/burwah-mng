@@ -14,7 +14,7 @@ import '../../domain/entities/wasalny_ad.dart';
 import '../controllers/wasalny_ads_cubit.dart';
 import 'wasalny_ad_details_screen.dart';
 
-enum _WasalnyAdsFilter { all, pending, edit, approved }
+enum _WasalnyAdsFilter { all, pending, edit, approved, archived }
 
 class WasalnyAdsReviewScreen extends StatefulWidget {
   const WasalnyAdsReviewScreen({super.key});
@@ -25,6 +25,80 @@ class WasalnyAdsReviewScreen extends StatefulWidget {
 
 class _WasalnyAdsReviewScreenState extends State<WasalnyAdsReviewScreen> {
   _WasalnyAdsFilter _filter = _WasalnyAdsFilter.all;
+  bool _syncingFinance = false;
+  bool _financeSyncQueued = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WasalnyLocalEventStore.revision.addListener(_syncFinanceDecisions);
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _syncFinanceDecisions());
+  }
+
+  @override
+  void dispose() {
+    WasalnyLocalEventStore.revision.removeListener(_syncFinanceDecisions);
+    super.dispose();
+  }
+
+  Future<void> _syncFinanceDecisions() async {
+    if (!mounted) return;
+    if (_syncingFinance) {
+      _financeSyncQueued = true;
+      return;
+    }
+    final state = context.read<WasalnyAdsCubit>().state;
+    if (state is! WasalnyAdsLoaded) return;
+    final awaiting = state.ads
+        .where((ad) => ad.status == WasalnyAdStatus.awaitingApproval)
+        .toList();
+    if (awaiting.isEmpty) return;
+    _syncingFinance = true;
+    try {
+      final result = await sl<FinanceRepository>().getMerchantWithdrawals();
+      final requests = result.fold(
+        (failure) => throw StateError(failure.message),
+        (items) => items,
+      );
+      for (final ad in awaiting) {
+        final matches = requests
+            .where((item) =>
+                item.sourceAccount == ad.id &&
+                item.operationType == FinancialOperationType.promotion)
+            .toList();
+        final request = matches.isEmpty ? null : matches.first;
+        if (request?.status == RequestStatus.approved) {
+          await context.read<WasalnyAdsCubit>().decide(
+                id: ad.id,
+                status: WasalnyAdStatus.approved,
+              );
+        } else if (request?.status == RequestStatus.rejected) {
+          await context.read<WasalnyAdsCubit>().decide(
+                id: ad.id,
+                status: WasalnyAdStatus.rejected,
+                decisionNote: request?.alertNotice,
+              );
+        }
+      }
+    } catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'Wasalny ad review',
+          context:
+              ErrorDescription('while syncing promotion finance decisions'),
+        ),
+      );
+    } finally {
+      _syncingFinance = false;
+      if (_financeSyncQueued && mounted) {
+        _financeSyncQueued = false;
+        _syncFinanceDecisions();
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -51,6 +125,11 @@ class _WasalnyAdsReviewScreenState extends State<WasalnyAdsReviewScreen> {
           );
         }
         if (state is! WasalnyAdsLoaded) return const SizedBox.shrink();
+        if (state.ads
+            .any((ad) => ad.status == WasalnyAdStatus.awaitingApproval)) {
+          WidgetsBinding.instance
+              .addPostFrameCallback((_) => _syncFinanceDecisions());
+        }
 
         final pendingCount = state.ads
             .where((ad) =>
@@ -146,6 +225,8 @@ class _WasalnyAdsReviewScreenState extends State<WasalnyAdsReviewScreen> {
                     WasalnyAdStatus.suspended,
                     l10n,
                   ),
+                  onRestore: () => _decide(ad, WasalnyAdStatus.pending, l10n),
+                  onShowFinanceStatus: () => _showFinanceStatus(ad, l10n),
                   onOpen: () => _openDetails(ad, isArabic, l10n),
                 ),
                 const SizedBox(height: 12),
@@ -175,6 +256,10 @@ class _WasalnyAdsReviewScreenState extends State<WasalnyAdsReviewScreen> {
         _WasalnyAdsFilter.edit => ad.status == WasalnyAdStatus.rejected ||
             ad.status == WasalnyAdStatus.editRequested,
         _WasalnyAdsFilter.approved => ad.status == WasalnyAdStatus.approved,
+        _WasalnyAdsFilter.archived => ad.status == WasalnyAdStatus.hidden ||
+            ad.status == WasalnyAdStatus.rejected ||
+            ad.status == WasalnyAdStatus.suspended ||
+            ad.status == WasalnyAdStatus.editRequested,
       };
     }).toList()
       ..sort((a, b) {
@@ -194,6 +279,8 @@ class _WasalnyAdsReviewScreenState extends State<WasalnyAdsReviewScreen> {
         _WasalnyAdsFilter.pending => l10n.wasalnyAdsFilterPending,
         _WasalnyAdsFilter.edit => l10n.wasalnyAdsFilterEdit,
         _WasalnyAdsFilter.approved => l10n.wasalnyAdsFilterApproved,
+        _WasalnyAdsFilter.archived =>
+          l10n.localeName.startsWith('ar') ? 'الأرشيف' : 'Archive',
       };
 
   Future<bool> _askReason(
@@ -285,7 +372,8 @@ class _WasalnyAdsReviewScreenState extends State<WasalnyAdsReviewScreen> {
     }
 
     try {
-      final result = await sl<FinanceRepository>().submitMerchantFinancialRequest(
+      final result =
+          await sl<FinanceRepository>().submitMerchantFinancialRequest(
         beneficiaryName: ad.sellerNameAr,
         requestTitle: 'ترويج مدفوع لإعلان وصلني ${ad.reference} - باقة أسبوع',
         sourceAccount: ad.id,
@@ -332,6 +420,59 @@ class _WasalnyAdsReviewScreenState extends State<WasalnyAdsReviewScreen> {
         );
       }
       return false;
+    }
+  }
+
+  Future<void> _showFinanceStatus(
+    WasalnyAd ad,
+    AppLocalizations l10n,
+  ) async {
+    try {
+      final result = await sl<FinanceRepository>().getMerchantWithdrawals();
+      final requests = result.fold(
+        (failure) => throw StateError(failure.message),
+        (items) => items,
+      );
+      final matches = requests.where((item) =>
+          item.sourceAccount == ad.id &&
+          item.operationType == FinancialOperationType.promotion);
+      final request = matches.isEmpty ? null : matches.first;
+      final status = switch (request?.status) {
+        RequestStatus.approved => l10n.withdrawalDetailsStatusApproved,
+        RequestStatus.rejected => l10n.withdrawalDetailsStatusRejected,
+        RequestStatus.frozen => l10n.withdrawalDetailsStatusFrozen,
+        RequestStatus.underInvestigation =>
+          l10n.withdrawalDetailsStatusInvestigation,
+        _ => l10n.withdrawalDetailsStatusPending,
+      };
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(l10n.productPromotionViewPaymentStatus),
+          content: Text(status),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(l10n.cancelAction),
+            ),
+          ],
+        ),
+      );
+    } catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'Wasalny ad review',
+          context: ErrorDescription('while checking promotion finance status'),
+        ),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.productAuditSaveError)),
+        );
+      }
     }
   }
 
@@ -481,6 +622,8 @@ class _WasalnyAdCard extends StatelessWidget {
   final VoidCallback onHide;
   final VoidCallback onReject;
   final VoidCallback onSuspend;
+  final VoidCallback onRestore;
+  final VoidCallback onShowFinanceStatus;
   final VoidCallback onOpen;
 
   const _WasalnyAdCard({
@@ -491,6 +634,8 @@ class _WasalnyAdCard extends StatelessWidget {
     required this.onHide,
     required this.onReject,
     required this.onSuspend,
+    required this.onRestore,
+    required this.onShowFinanceStatus,
     required this.onOpen,
   });
 
@@ -641,7 +786,14 @@ class _WasalnyAdCard extends StatelessWidget {
                 ),
               ),
             ],
-            if (_isPending) ...[
+            if (ad.status == WasalnyAdStatus.awaitingApproval) ...[
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: onShowFinanceStatus,
+                icon: const Icon(Icons.payments_outlined, size: 17),
+                label: Text(l10n.productPromotionViewPaymentStatus),
+              ),
+            ] else if (_isPending) ...[
               const SizedBox(height: 12),
               Column(
                 children: [
@@ -693,6 +845,13 @@ class _WasalnyAdCard extends StatelessWidget {
                     ],
                   ),
                 ],
+              ),
+            ] else if (ad.status != WasalnyAdStatus.approved) ...[
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: onRestore,
+                icon: const Icon(Icons.restart_alt, size: 17),
+                label: Text(isArabic ? 'إعادة للمراجعة' : 'Return to review'),
               ),
             ],
           ],
@@ -825,7 +984,8 @@ class _PremiumCustomerBadge extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.workspace_premium, size: 13, color: Color(0xFF9A6B00)),
+            const Icon(Icons.workspace_premium,
+                size: 13, color: Color(0xFF9A6B00)),
             const SizedBox(width: 4),
             Text(
               l10n.wasalnyPremiumCustomer,

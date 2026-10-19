@@ -5,27 +5,36 @@ import '../../../../core/widgets/app_snack_bar.dart';
 import '../../../../l10n/app_localizations.dart';
 
 class NewSettlementBottomSheet extends StatefulWidget {
-  const NewSettlementBottomSheet({super.key});
+  final ValueChanged<SettlementSubmission>? onSubmitted;
 
-  static Future<void> show(BuildContext context) {
+  const NewSettlementBottomSheet({super.key, this.onSubmitted});
+
+  static Future<void> show(
+    BuildContext context, {
+    ValueChanged<SettlementSubmission>? onSubmitted,
+  }) {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => const NewSettlementBottomSheet(),
+      builder: (_) => NewSettlementBottomSheet(onSubmitted: onSubmitted),
     );
   }
 
   @override
-  State<NewSettlementBottomSheet> createState() => _NewSettlementBottomSheetState();
+  State<NewSettlementBottomSheet> createState() =>
+      _NewSettlementBottomSheetState();
 }
 
 class _NewSettlementBottomSheetState extends State<NewSettlementBottomSheet> {
-  final _amountController = TextEditingController(text: '1,200.00');
-  final _referenceController = TextEditingController(text: 'ORD-78190');
+  final _formKey = GlobalKey<FormState>();
+  final _amountController = TextEditingController();
+  final _referenceController = TextEditingController();
   final _descriptionController = TextEditingController();
 
   bool _isRefund = false;
+  String? _selectedBeneficiary;
+  bool _beneficiaryHasError = false;
 
   @override
   void dispose() {
@@ -60,168 +69,223 @@ class _NewSettlementBottomSheetState extends State<NewSettlementBottomSheet> {
               top: 12,
               bottom: MediaQuery.of(context).viewInsets.bottom + 12,
             ),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-              const Center(
-                child: SizedBox(
-                  width: 46,
-                  height: 4,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Color(0xFFD9DCE3),
-                      borderRadius: BorderRadius.all(Radius.circular(10)),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close, color: AppColors.primaryDark),
-                  ),
-                  Expanded(
-                    child: Text(
-                    l10n.settlementSheetTitle,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primaryDark,
-                    ),
-                    ),
-                  ),
-                  const SizedBox(width: 48),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceLight,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _ModeChip(
-                        label: l10n.settlementOffsetMode,
-                        selected: !_isRefund,
-                        onTap: () => setState(() => _isRefund = false),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _ModeChip(
-                        label: l10n.settlementRefundMode,
-                        selected: _isRefund,
-                        onTap: () => setState(() => _isRefund = true),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              _InfoField(
-                label: l10n.settlementTypeLabel,
-                value: l10n.settlementTypeInstant,
-                trailing: const Icon(Icons.keyboard_arrow_down_rounded),
-                onTap: () {},
-              ),
-              const SizedBox(height: 10),
-              _InfoField(
-                label: l10n.settlementBeneficiaryLabel,
-                value: l10n.settlementBeneficiaryAudit,
-                trailing: const Icon(Icons.person_outline_rounded),
-                onTap: () {},
-              ),
-              const SizedBox(height: 10),
-              _LabeledInput(
-                label: l10n.settlementAmountLabel,
-                controller: _amountController,
-                prefix: l10n.currencyEgy,
-                keyboardType: TextInputType.number,
-                isArabic: isArabic,
-              ),
-              const SizedBox(height: 10),
-              _LabeledInput(
-                label: l10n.settlementReferenceLabel,
-                controller: _referenceController,
-                prefix: '#',
-                isArabic: isArabic,
-              ),
-              const SizedBox(height: 10),
-              _LabeledInput(
-                label: l10n.settlementNotesLabel,
-                controller: _descriptionController,
-                minLines: 3,
-                maxLines: 4,
-                hintText: l10n.settlementNotesHint,
-                isArabic: isArabic,
-              ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.cardBorder),
-                ),
+            child: Form(
+              key: _formKey,
+              child: SingleChildScrollView(
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
-                      l10n.settlementPaymentDetailsTitle,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.primaryDark,
-                        fontWeight: FontWeight.bold,
+                    const Center(
+                      child: SizedBox(
+                        width: 46,
+                        height: 4,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Color(0xFFD9DCE3),
+                            borderRadius: BorderRadius.all(Radius.circular(10)),
+                          ),
+                        ),
                       ),
                     ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.close,
+                              color: AppColors.primaryDark),
+                        ),
+                        Expanded(
+                          child: Text(
+                            l10n.settlementSheetTitle,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primaryDark,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 48),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceLight,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _ModeChip(
+                              label: l10n.settlementOffsetMode,
+                              selected: !_isRefund,
+                              onTap: () => setState(() => _isRefund = false),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _ModeChip(
+                              label: l10n.settlementRefundMode,
+                              selected: _isRefund,
+                              onTap: () => setState(() => _isRefund = true),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _InfoField(
+                      label: l10n.settlementTypeLabel,
+                      value: _isRefund
+                          ? l10n.settlementRefundMode
+                          : l10n.settlementOffsetMode,
+                      trailing: const Icon(Icons.swap_horiz_rounded),
+                    ),
                     const SizedBox(height: 10),
-                    _DetailRow(
-                      label: l10n.settlementPaymentMethodLabel,
-                      value: l10n.settlementPaymentBankTransfer),
-                    const SizedBox(height: 8),
-                    _DetailRow(label: l10n.settlementDateLabel, value: '30/09/2026'),
-                    const SizedBox(height: 8),
-                    _DetailRow(
-                      label: l10n.settlementStatusLabel,
-                      value: l10n.settlementStatusUnderReview),
+                    _InfoField(
+                      label: l10n.settlementBeneficiaryLabel,
+                      value: _selectedBeneficiary ??
+                          l10n.settlementBeneficiaryAudit,
+                      trailing: const Icon(Icons.person_outline_rounded),
+                      onTap: () => _selectBeneficiary(context, l10n),
+                    ),
+                    if (_beneficiaryHasError) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        isArabic ? 'اختر المستفيد' : 'Select a beneficiary',
+                        textAlign: isArabic ? TextAlign.right : TextAlign.left,
+                        style: const TextStyle(
+                          color: AppColors.danger,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 10),
+                    _LabeledInput(
+                      label: l10n.settlementAmountLabel,
+                      controller: _amountController,
+                      prefix: l10n.currencyEgy,
+                      keyboardType: TextInputType.number,
+                      isArabic: isArabic,
+                      validator: (value) {
+                        final normalized =
+                            (value ?? '').replaceAll(',', '').trim();
+                        final amount = double.tryParse(normalized);
+                        if (amount == null || amount <= 0) {
+                          return isArabic
+                              ? 'أدخل مبلغاً صحيحاً أكبر من صفر'
+                              : 'Enter a valid amount greater than zero';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    _LabeledInput(
+                      label: l10n.settlementReferenceLabel,
+                      controller: _referenceController,
+                      prefix: '#',
+                      isArabic: isArabic,
+                      validator: (value) => (value ?? '').trim().isEmpty
+                          ? (isArabic
+                              ? 'أدخل مرجع التسوية'
+                              : 'Enter the settlement reference')
+                          : null,
+                    ),
+                    const SizedBox(height: 10),
+                    _LabeledInput(
+                      label: l10n.settlementNotesLabel,
+                      controller: _descriptionController,
+                      minLines: 3,
+                      maxLines: 4,
+                      hintText: l10n.settlementNotesHint,
+                      isArabic: isArabic,
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.cardBorder),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            l10n.settlementPaymentDetailsTitle,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.primaryDark,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          _DetailRow(
+                              label: l10n.settlementPaymentMethodLabel,
+                              value: l10n.settlementPaymentBankTransfer),
+                          const SizedBox(height: 8),
+                          _DetailRow(
+                            label: l10n.settlementDateLabel,
+                            value: _formattedToday(),
+                          ),
+                          const SizedBox(height: 8),
+                          _DetailRow(
+                              label: l10n.settlementStatusLabel,
+                              value: l10n.settlementStatusUnderReview),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    SizedBox(
+                      height: 52,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          if (!_formKey.currentState!.validate()) return;
+                          if (_selectedBeneficiary == null) {
+                            setState(() => _beneficiaryHasError = true);
+                            return;
+                          }
+                          widget.onSubmitted?.call(
+                            SettlementSubmission(
+                              isRefund: _isRefund,
+                              beneficiary: _selectedBeneficiary!,
+                              amount: double.parse(
+                                _amountController.text
+                                    .replaceAll(',', '')
+                                    .trim(),
+                              ),
+                              reference: _referenceController.text.trim(),
+                              notes: _descriptionController.text.trim(),
+                            ),
+                          );
+                          Navigator.pop(context);
+                          AppSnackBar.showSuccess(
+                              context, l10n.settlementSubmitSuccess);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryDark,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text(
+                          l10n.settlementSubmit,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 18),
-              SizedBox(
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    AppSnackBar.showSuccess(context, l10n.settlementSubmitSuccess);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryDark,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: Text(
-                    l10n.settlementSubmit,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-                ],
               ),
             ),
           ),
@@ -229,6 +293,67 @@ class _NewSettlementBottomSheetState extends State<NewSettlementBottomSheet> {
       ),
     );
   }
+
+  Future<void> _selectBeneficiary(
+    BuildContext context,
+    AppLocalizations l10n,
+  ) async {
+    final beneficiaries = [
+      l10n.settlementBeneficiaryTariq,
+      l10n.settlementBeneficiaryRealEstate,
+      l10n.settlementBeneficiaryKhalid,
+    ];
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          children: [
+            for (final beneficiary in beneficiaries)
+              ListTile(
+                leading: const Icon(Icons.person_outline,
+                    color: AppColors.primaryDark),
+                title: Text(beneficiary, textAlign: TextAlign.end),
+                onTap: () => Navigator.pop(sheetContext, beneficiary),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (selected != null && mounted) {
+      setState(() {
+        _selectedBeneficiary = selected;
+        _beneficiaryHasError = false;
+      });
+    }
+  }
+
+  String _formattedToday() {
+    final now = DateTime.now();
+    return '${now.day.toString().padLeft(2, '0')}/'
+        '${now.month.toString().padLeft(2, '0')}/${now.year}';
+  }
+}
+
+class SettlementSubmission {
+  final bool isRefund;
+  final String beneficiary;
+  final double amount;
+  final String reference;
+  final String notes;
+
+  const SettlementSubmission({
+    required this.isRefund,
+    required this.beneficiary,
+    required this.amount,
+    required this.reference,
+    required this.notes,
+  });
 }
 
 class _ModeChip extends StatelessWidget {
@@ -337,6 +462,7 @@ class _LabeledInput extends StatelessWidget {
   final int maxLines;
   final String? hintText;
   final bool isArabic;
+  final String? Function(String?)? validator;
 
   const _LabeledInput({
     required this.label,
@@ -347,6 +473,7 @@ class _LabeledInput extends StatelessWidget {
     this.maxLines = 1,
     this.hintText,
     this.isArabic = true,
+    this.validator,
   });
 
   @override
@@ -364,8 +491,9 @@ class _LabeledInput extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 6),
-        TextField(
+        TextFormField(
           controller: controller,
+          validator: validator,
           keyboardType: keyboardType,
           minLines: minLines,
           maxLines: maxLines,
@@ -394,7 +522,8 @@ class _LabeledInput extends StatelessWidget {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.primaryDark, width: 1),
+              borderSide:
+                  const BorderSide(color: AppColors.primaryDark, width: 1),
             ),
           ),
         ),

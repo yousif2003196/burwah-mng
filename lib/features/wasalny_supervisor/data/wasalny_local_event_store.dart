@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class WasalnyLocalEvent {
@@ -66,6 +67,7 @@ class WasalnyLocalEvent {
 
 class WasalnyLocalEventStore {
   static const _storageKey = 'wasalny_local_events_v1';
+  static final ValueNotifier<int> revision = ValueNotifier<int>(0);
 
   Future<List<WasalnyLocalEvent>> getEvents(String recipient) async {
     final preferences = await SharedPreferences.getInstance();
@@ -75,12 +77,15 @@ class WasalnyLocalEventStore {
     if (decoded is! List<dynamic>) {
       throw const FormatException('Invalid Wasalny event list.');
     }
-    return decoded.map((value) {
-      if (value is! Map<String, dynamic>) {
-        throw const FormatException('Invalid Wasalny event.');
-      }
-      return WasalnyLocalEvent.fromJson(value);
-    }).where((event) => event.recipient == recipient).toList()
+    return decoded
+        .map((value) {
+          if (value is! Map<String, dynamic>) {
+            throw const FormatException('Invalid Wasalny event.');
+          }
+          return WasalnyLocalEvent.fromJson(value);
+        })
+        .where((event) => event.recipient == recipient)
+        .toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
   }
 
@@ -93,6 +98,7 @@ class WasalnyLocalEventStore {
       _storageKey,
       jsonEncode(events.map((item) => item.toJson()).toList()),
     );
+    revision.value++;
   }
 
   Future<void> markRead(String recipient, String id) async {
@@ -107,6 +113,7 @@ class WasalnyLocalEventStore {
       _storageKey,
       jsonEncode(events.map((item) => item.toJson()).toList()),
     );
+    revision.value++;
   }
 
   Future<List<WasalnyLocalEvent>> _getAll(

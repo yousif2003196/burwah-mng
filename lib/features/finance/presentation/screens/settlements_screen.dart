@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/widgets/app_snack_bar.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../data/finance_audit_store.dart';
 import '../widgets/finance_navigation.dart';
 import '../widgets/new_settlement_bottom_sheet.dart';
 import 'settlement_details_screen.dart';
@@ -16,9 +18,16 @@ class SettlementsScreen extends StatefulWidget {
 
 class _SettlementsScreenState extends State<SettlementsScreen>
     with AutomaticKeepAliveClientMixin<SettlementsScreen> {
-  static const _filters = ['الكل', 'قيد المراجعة', 'معتمدة', 'قيد نزاع'];
+  static const _filters = [
+    'الكل',
+    'قيد المراجعة',
+    'معتمدة',
+    'قيد نزاع',
+    'مجمدة',
+    'مرفوض',
+  ];
 
-  static const _requests = [
+  static const _seedRequests = [
     _SettlementRequest(
       id: '#SETTL-2024-098',
       name: 'د. طارق العمري',
@@ -63,6 +72,8 @@ class _SettlementsScreenState extends State<SettlementsScreen>
     ),
   ];
 
+  late final List<_SettlementRequest> _requests = List.of(_seedRequests);
+
   static const _recentSettlements = [
     _RecentSettlement(
       title: 'استرداد بنكي',
@@ -81,12 +92,75 @@ class _SettlementsScreenState extends State<SettlementsScreen>
   ];
 
   String _selectedFilter = _filters.first;
+  bool _showArchive = false;
+  String _searchQuery = '';
 
   List<_SettlementRequest> get _filteredRequests {
-    if (_selectedFilter == 'الكل') return _requests;
-    return _requests
-        .where((request) => request.status == _selectedFilter)
-        .toList();
+    final query = _searchQuery.trim().toLowerCase();
+    return _requests.where((request) {
+      final isArchived = request.status != 'قيد المراجعة';
+      if (isArchived != _showArchive) return false;
+      if (_selectedFilter != 'الكل' && request.status != _selectedFilter) {
+        return false;
+      }
+      if (query.isEmpty) return true;
+      return '${request.id} ${request.name} ${request.description} '
+              '${request.reference} ${request.referenceTitle}'
+          .toLowerCase()
+          .contains(query);
+    }).toList(growable: false);
+  }
+
+  Future<void> _handleSettlementAction(String requestId, String action) async {
+    final index = _requests.indexWhere((request) => request.id == requestId);
+    if (index == -1) return;
+    final status = switch (action) {
+      'approved' => 'معتمدة',
+      'frozen' => 'مجمدة',
+      'rejected' => 'مرفوض',
+      'restored' => 'قيد المراجعة',
+      _ => null,
+    };
+    if (status == null) return;
+
+    final request = _requests[index];
+    final occurredAt = DateTime.now();
+    try {
+      await FinanceAuditStore().record(FinanceAuditEntry(
+        id: 'settlement_$action-${occurredAt.microsecondsSinceEpoch}',
+        actionKey: 'settlement_$action',
+        titleAr: 'تحديث حالة طلب تسوية',
+        titleEn: 'Settlement request status updated',
+        detailsAr: '${request.name} · ${request.amount} · $status',
+        detailsEn: '${request.name} · ${request.amount} · $status',
+        reference: request.id,
+        actor: 'finance',
+        occurredAt: occurredAt,
+      ));
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'settlement audit recording',
+      ));
+    }
+
+    setState(() {
+      _requests[index] = _requests[index].copyWith(status: status);
+      _showArchive = false;
+      _selectedFilter = 'الكل';
+      _searchQuery = '';
+    });
+
+    Navigator.of(context).pop();
+    final l10n = AppLocalizations.of(context)!;
+    final message = switch (action) {
+      'approved' => l10n.settlementSubmitSuccess,
+      'frozen' => l10n.frozenPrecautionaryStatus,
+      'rejected' => l10n.reconciliationRejectTransfer,
+      _ => l10n.frozenBankLinkRestoreSuccess,
+    };
+    AppSnackBar.showSuccess(context, message);
   }
 
   @override
@@ -163,7 +237,26 @@ class _SettlementsScreenState extends State<SettlementsScreen>
               const SizedBox(height: 16),
               _buildRequestsHeader(),
               const SizedBox(height: 8),
-              ..._filteredRequests.map(_buildRequestCard),
+              if (_filteredRequests.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  child: Center(
+                    child: Text(
+                      _showArchive
+                          ? (_searchQuery.isEmpty
+                              ? l10n.financeRequestsArchiveEmpty
+                              : l10n.financeRequestsArchiveNoResults)
+                          : l10n.financeRequestsInProgressEmpty,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                )
+              else
+                ..._filteredRequests.map(_buildRequestCard),
               const SizedBox(height: 14),
               _buildRecentSettlementsHeader(),
               const SizedBox(height: 8),
@@ -347,7 +440,38 @@ class _SettlementsScreenState extends State<SettlementsScreen>
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: () {
-          NewSettlementBottomSheet.show(context);
+          NewSettlementBottomSheet.show(
+            context,
+            onSubmitted: (submission) {
+              final l10n = AppLocalizations.of(context)!;
+              setState(() {
+                _requests.insert(
+                  0,
+                  _SettlementRequest(
+                    id: '#SETTL-${DateTime.now().millisecondsSinceEpoch}',
+                    name: submission.beneficiary,
+                    description: submission.notes.isEmpty
+                        ? l10n.settlementPaymentBankTransfer
+                        : submission.notes,
+                    amount: submission.amount.toStringAsFixed(2),
+                    reference: submission.reference,
+                    referenceTitle: l10n.settlementTypeLabel,
+                    badge: submission.isRefund
+                        ? l10n.settlementRefundMode
+                        : l10n.settlementOffsetMode,
+                    status: 'قيد المراجعة',
+                    initials: submission.beneficiary.substring(0, 1),
+                    age: l10n.localeName.startsWith('ar') ? 'الآن' : 'Just now',
+                    color: const Color(0xFFE8F0FF),
+                    badgeColor: AppColors.info,
+                  ),
+                );
+                _showArchive = false;
+                _selectedFilter = 'الكل';
+                _searchQuery = '';
+              });
+            },
+          );
         },
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
@@ -387,35 +511,150 @@ class _SettlementsScreenState extends State<SettlementsScreen>
 
   Widget _buildFilters() {
     final l10n = AppLocalizations.of(context)!;
-    final labels = {
+    final filters = _showArchive
+        ? const ['الكل', 'معتمدة', 'قيد نزاع', 'مجمدة', 'مرفوض']
+        : const ['الكل', 'قيد المراجعة'];
+    final labels = <String, String>{
       'الكل': l10n.filterAll,
       'قيد المراجعة': l10n.filterInReview,
       'معتمدة': l10n.filterApproved,
       'قيد نزاع': l10n.filterDisputed,
+      'مجمدة': l10n.localeName.startsWith('ar') ? 'مجمدة' : 'Frozen',
+      'مرفوض': l10n.localeName.startsWith('ar') ? 'مرفوض' : 'Rejected',
     };
-    return Wrap(
-      spacing: 7,
-      runSpacing: 7,
-      alignment: WrapAlignment.start,
-      children: _filters.map((filter) {
-        final isSelected = filter == _selectedFilter;
-        return ChoiceChip(
-          label: Text(labels[filter]!),
-          selected: isSelected,
-          onSelected: (_) => setState(() => _selectedFilter = filter),
-          labelStyle: TextStyle(
-            color: isSelected ? Colors.white : AppColors.textSecondary,
-            fontSize: 9,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _buildRequestsTab(
+                label: l10n.financeRequestsInProgressTab,
+                count:
+                    _requests.where((r) => r.status == 'قيد المراجعة').length,
+                selected: !_showArchive,
+                onTap: () => setState(() {
+                  _showArchive = false;
+                  _selectedFilter = 'الكل';
+                  _searchQuery = '';
+                }),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildRequestsTab(
+                label: l10n.financeRequestsArchiveTab,
+                count:
+                    _requests.where((r) => r.status != 'قيد المراجعة').length,
+                selected: _showArchive,
+                onTap: () => setState(() {
+                  _showArchive = true;
+                  _selectedFilter = 'الكل';
+                  _searchQuery = '';
+                }),
+              ),
+            ),
+          ],
+        ),
+        if (_showArchive) ...[
+          const SizedBox(height: 10),
+          TextField(
+            onChanged: (value) => setState(() => _searchQuery = value),
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              hintText: l10n.financeRequestsArchiveSearchHint,
+              prefixIcon: const Icon(Icons.search, size: 19),
+              filled: true,
+              fillColor: AppColors.surfaceLight,
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(vertical: 11),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+            ),
           ),
-          backgroundColor: AppColors.surfaceLight,
-          selectedColor: AppColors.primaryDark,
-          side: BorderSide.none,
-          visualDensity: VisualDensity.compact,
-          showCheckmark: false,
-          padding: const EdgeInsets.symmetric(horizontal: 5),
-        );
-      }).toList(),
+        ],
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 7,
+          runSpacing: 7,
+          alignment: WrapAlignment.start,
+          children: filters.map((filter) {
+            final isSelected = filter == _selectedFilter;
+            return ChoiceChip(
+              label: Text(labels[filter]!),
+              selected: isSelected,
+              onSelected: (_) => setState(() => _selectedFilter = filter),
+              labelStyle: TextStyle(
+                color: isSelected ? Colors.white : AppColors.textSecondary,
+                fontSize: 9,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+              backgroundColor: AppColors.surfaceLight,
+              selectedColor: AppColors.primaryDark,
+              side: BorderSide.none,
+              visualDensity: VisualDensity.compact,
+              showCheckmark: false,
+              padding: const EdgeInsets.symmetric(horizontal: 5),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRequestsTab({
+    required String label,
+    required int count,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: selected ? AppColors.primaryDark : AppColors.surfaceLight,
+      borderRadius: BorderRadius.circular(11),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(11),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: selected ? Colors.white : AppColors.textSecondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? Colors.white.withValues(alpha: 0.16)
+                      : Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$count',
+                  style: TextStyle(
+                    color: selected ? Colors.white : AppColors.primaryDark,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -427,7 +666,9 @@ class _SettlementsScreenState extends State<SettlementsScreen>
         const SizedBox(width: 6),
         Expanded(
           child: Text(
-            l10n.pendingSettlementRequests,
+            _showArchive
+                ? l10n.financeRequestsArchiveTab
+                : l10n.pendingSettlementRequests,
             textAlign: TextAlign.end,
             style: const TextStyle(
                 fontSize: 13,
@@ -461,7 +702,7 @@ class _SettlementsScreenState extends State<SettlementsScreen>
           name: l10n.settlementBeneficiaryTariq,
           referenceTitle: l10n.settlementMaintenanceDispute,
           badge: l10n.settlementFullRefund,
-          status: l10n.filterInReview,
+          status: _localizedSettlementStatus(request.status, l10n),
           initials: l10n.settlementInitialTariq,
           age: l10n.settlementAge35Minutes,
         ),
@@ -470,7 +711,7 @@ class _SettlementsScreenState extends State<SettlementsScreen>
           name: l10n.settlementBeneficiaryRealEstate,
           referenceTitle: l10n.settlementCommissionCorrection,
           badge: l10n.settlementCommissionSettlement,
-          status: l10n.filterApproved,
+          status: _localizedSettlementStatus(request.status, l10n),
           initials: l10n.settlementInitialRealEstate,
           age: l10n.settlementAgeTwoHours,
         ),
@@ -479,7 +720,7 @@ class _SettlementsScreenState extends State<SettlementsScreen>
           name: l10n.settlementBeneficiaryKhalid,
           referenceTitle: l10n.settlementMediationDelivery,
           badge: l10n.settlementPenaltyDeduction,
-          status: l10n.filterDisputed,
+          status: _localizedSettlementStatus(request.status, l10n),
           initials: l10n.settlementInitialKhalid,
           age: l10n.settlementAgeToday,
         ),
@@ -488,12 +729,22 @@ class _SettlementsScreenState extends State<SettlementsScreen>
           name: request.name,
           referenceTitle: request.referenceTitle,
           badge: request.badge,
-          status: request.status,
+          status: _localizedSettlementStatus(request.status, l10n),
           initials: request.initials,
           age: request.age,
         ),
     };
   }
+
+  String _localizedSettlementStatus(String status, AppLocalizations l10n) =>
+      switch (status) {
+        'قيد المراجعة' => l10n.filterInReview,
+        'معتمدة' => l10n.filterApproved,
+        'قيد نزاع' => l10n.filterDisputed,
+        'مجمدة' => l10n.localeName.startsWith('ar') ? 'مجمدة' : 'Frozen',
+        'مرفوض' => l10n.localeName.startsWith('ar') ? 'مرفوض' : 'Rejected',
+        _ => status,
+      };
 
   ({String title, String description, String time}) _localizedRecentLabels(
     _RecentSettlement settlement,
@@ -544,6 +795,8 @@ class _SettlementsScreenState extends State<SettlementsScreen>
                 color: request.color,
                 badgeColor: request.badgeColor,
                 linkedBank: l10n.settlementsLinkedRajhiEscrow,
+                onAction: (action) =>
+                    _handleSettlementAction(request.id, action),
               ),
             ),
           );
@@ -635,8 +888,8 @@ class _SettlementsScreenState extends State<SettlementsScreen>
                         ],
                       ),
                       Text(labels.age,
-                          style:
-                              const TextStyle(fontSize: 8, color: AppColors.info)),
+                          style: const TextStyle(
+                              fontSize: 8, color: AppColors.info)),
                     ],
                   ),
                 ],
@@ -805,6 +1058,21 @@ class _SettlementRequest {
     required this.color,
     required this.badgeColor,
   });
+
+  _SettlementRequest copyWith({String? status}) => _SettlementRequest(
+        id: id,
+        name: name,
+        description: description,
+        amount: amount,
+        reference: reference,
+        referenceTitle: referenceTitle,
+        badge: badge,
+        status: status ?? this.status,
+        initials: initials,
+        age: age,
+        color: color,
+        badgeColor: badgeColor,
+      );
 }
 
 class _RecentSettlement {

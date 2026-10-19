@@ -449,6 +449,27 @@ class _ProductSupervisorWalletScreenState
             ],
           ),
           const SizedBox(height: 7),
+          if (_operationType == FinancialOperationType.withdrawal) ...[
+            Wrap(
+              spacing: 7,
+              children: [25, 50, 75, 100].map((percent) {
+                return ActionChip(
+                  label: Text(percent == 100
+                      ? (l10n.localeName.startsWith('ar')
+                          ? 'كامل الرصيد'
+                          : 'All')
+                      : '$percent%'),
+                  onPressed: _isSubmitting
+                      ? null
+                      : () {
+                          final amount = (8450 * percent / 100).round();
+                          _amountController.text = amount.toString();
+                        },
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 7),
+          ],
           TextField(
             controller: _amountController,
             keyboardType: TextInputType.number,

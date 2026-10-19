@@ -10,7 +10,6 @@ import '../../domain/entities/merchant_entity.dart';
 import '../../domain/entities/supervisor_stats_entity.dart';
 import '../controllers/merchants_cubit.dart';
 import '../controllers/merchants_state.dart';
-import 'merchant_conversation_screen.dart';
 import 'merchant_details_screen.dart';
 
 class SupervisedMerchantsScreen extends StatelessWidget {
@@ -92,56 +91,6 @@ class _SupervisedMerchantsContentState
     }
 
     cubit.setFilterStatus(status, index);
-  }
-
-  Future<void> _liftSuspension(
-    BuildContext context,
-    MerchantEntity merchant,
-    AppLocalizations l10n,
-  ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(l10n.merchantUnsuspendAction),
-        content: Text(l10n.merchantUnsuspendConfirm),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(l10n.cancelAction),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(l10n.merchantUnsuspendAction),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !context.mounted) return;
-
-    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
-    try {
-      await MerchantSupervisorLocalStore.setMerchantSuspended(
-        merchantId: merchant.id,
-        merchantName: merchant.getName(isArabic),
-        isSuspended: false,
-        action: l10n.merchantAuditUnsuspended,
-        details: l10n.merchantUnsuspendSuccess,
-      );
-      if (context.mounted) {
-        AppSnackBar.showSuccess(context, l10n.merchantUnsuspendSuccess);
-      }
-    } on Object catch (error, stackTrace) {
-      FlutterError.reportError(
-        FlutterErrorDetails(
-          exception: error,
-          stack: stackTrace,
-          library: 'merchant suspension status',
-        ),
-      );
-      if (context.mounted) {
-        AppSnackBar.showError(context, l10n.merchantSuspensionSaveError);
-      }
-    }
   }
 
   void _showAddMerchantSheet(BuildContext context) {
@@ -289,87 +238,6 @@ class _SupervisedMerchantsContentState
           ),
         );
       },
-    );
-  }
-
-  void _showSummonDialog(BuildContext context, MerchantEntity merchant) {
-    final l10n = AppLocalizations.of(context)!;
-    showDialog<void>(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            const Icon(Icons.gavel_outlined, color: AppColors.primaryDark),
-            const SizedBox(width: 10),
-            Text(l10n.summonAction),
-          ],
-        ),
-        content: Text(
-          'هل ترغب في توجيه استدعاء رسمي للمفوض (${merchant.getDelegateName(true)}) للحضور ومطابقة الشروط؟',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogCtx).pop(),
-            child: Text(l10n.matrixCancel),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(dialogCtx).pop();
-              AppSnackBar.showInfo(
-                context,
-                'تم إرسال إشعار الاستدعاء الرسمي للتاجر ${merchant.getName(true)}',
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryDark,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('تأكيد الاستدعاء'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showReviewViolationDialog(
-      BuildContext context, MerchantEntity merchant) {
-    final l10n = AppLocalizations.of(context)!;
-    showDialog<void>(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            const Icon(Icons.verified_outlined, color: AppColors.infoDark),
-            const SizedBox(width: 10),
-            Text(l10n.reviewViolationAndUnfreeze),
-          ],
-        ),
-        content: const Text(
-          'سيتم مراجعة تقرير المخالفة VR3-858 والتحقق من تعديل الإعلانات المخالفة لإلغاء التعليق المؤقت.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogCtx).pop(),
-            child: Text(l10n.matrixCancel),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(dialogCtx).pop();
-              AppSnackBar.showInfo(
-                context,
-                'تم فتح محضر مراجعة المخالفة للمتجر ${merchant.getName(true)}',
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.infoDark,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('بدء المراجعة'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -1301,131 +1169,36 @@ class _SupervisedMerchantsContentState
             ],
           ),
           const SizedBox(height: 16),
-          if (isSuspended) ...[
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => _liftSuspension(context, merchant, l10n),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.successDark,
-                      side: const BorderSide(color: Color(0xFFBBE8D1)),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    child: Text(
-                      l10n.merchantUnsuspendAction,
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.bold,
-                      ),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => MerchantDetailsScreen(
+                      merchant: merchant,
+                      isLocallySuspended: _suspensionOverrides[merchant.id],
                     ),
                   ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryDark,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => _showSummonDialog(context, merchant),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFFB45309),
-                      side: const BorderSide(color: Color(0xFFFDE68A)),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    child: Text(
-                      l10n.summonAction,
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 7),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () => _showReviewViolationDialog(context, merchant),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFFDC2626),
-                  side: const BorderSide(color: Color(0xFFFECACA)),
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                child: Text(
-                  l10n.reviewViolationAndUnfreeze,
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.bold,
-                  ),
+                elevation: 0,
+              ),
+              child: Text(
+                isArabic ? 'سجل التاجر' : 'Merchant record',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ),
-            const SizedBox(height: 8),
-          ],
-          Row(
-            children: [
-              _buildIconButton(
-                icon: Icons.phone_outlined,
-                onTap: () {
-                  AppSnackBar.showInfo(
-                    context,
-                    'الاتصال بالتاجر: ${merchant.contactPhone ?? "+966 50 123 4567"}',
-                  );
-                },
-              ),
-              const SizedBox(width: 8),
-              _buildIconButton(
-                icon: Icons.chat_bubble_outline,
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          MerchantConversationScreen(merchant: merchant),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => MerchantDetailsScreen(
-                          merchant: merchant,
-                          isLocallySuspended: _suspensionOverrides[merchant.id],
-                        ),
-                      ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryDark,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 11),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: Text(
-                    l10n.viewProfileAndControl,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            ],
           ),
         ],
       ),
@@ -1549,33 +1322,6 @@ class _SupervisedMerchantsContentState
             overflow: TextOverflow.ellipsis,
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildIconButton({
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: const Color(0xFFCBD5E1)),
-          ),
-          child: Icon(
-            icon,
-            color: const Color(0xFF334155),
-            size: 20,
-          ),
-        ),
       ),
     );
   }

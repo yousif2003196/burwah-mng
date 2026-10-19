@@ -7,20 +7,23 @@ class MerchantCard extends StatelessWidget {
   final MerchantEntity merchant;
   final VoidCallback? onTap;
   final VoidCallback? onActionTap;
+  final bool? isLocallySuspended;
 
   const MerchantCard({
     super.key,
     required this.merchant,
     this.onTap,
     this.onActionTap,
+    this.isLocallySuspended,
   });
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final isArabic = l10n.localeName.startsWith('ar');
-    final isSuspended = merchant.isSuspended ||
-        merchant.status == MerchantStatus.temporarilySuspended;
+    final isSuspended = isLocallySuspended ??
+        (merchant.isSuspended ||
+            merchant.status == MerchantStatus.temporarilySuspended);
 
     return GestureDetector(
       onTap: onTap,
@@ -271,7 +274,7 @@ class MerchantCard extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 4, vertical: 2),
                       child: Text(
-                        merchant.getActionButtonText(isArabic),
+                        isArabic ? 'سجل التاجر' : 'Merchant record',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
@@ -328,37 +331,51 @@ class MerchantCard extends StatelessWidget {
     IconData icon;
     String label;
 
-    switch (merchant.status) {
-      case MerchantStatus.active:
-        bgColor = const Color(0xFFE7F8F1);
-        textColor = AppColors.success;
-        icon = Icons.check_circle_outline;
-        label = l10n.merchantInfoStatusActive;
-        break;
-      case MerchantStatus.activeVerified:
-        bgColor = const Color(0xFFEBF5FB);
-        textColor = const Color(0xFF1B6FB2);
-        icon = Icons.verified_outlined;
-        label = l10n.merchantInfoStatusActiveVerified;
-        break;
-      case MerchantStatus.underAudit:
-        bgColor = const Color(0xFFEBF3FC);
-        textColor = const Color(0xFF2869A9);
-        icon = Icons.assignment_late_outlined;
-        label = l10n.merchantInfoStatusUnderAudit;
-        break;
-      case MerchantStatus.updateRequired:
-        bgColor = const Color(0xFFF1F3F5);
-        textColor = const Color(0xFF555F6D);
-        icon = Icons.notifications_active_outlined;
-        label = l10n.merchantInfoStatusUpdateRequired;
-        break;
-      case MerchantStatus.temporarilySuspended:
-        bgColor = const Color(0xFFFDE8E8);
-        textColor = const Color(0xFFC53030);
-        icon = Icons.pause_circle_outline;
-        label = l10n.merchantInfoStatusSuspended;
-        break;
+    if (isLocallySuspended == true) {
+      bgColor = const Color(0xFFFDE8E8);
+      textColor = const Color(0xFFC53030);
+      icon = Icons.pause_circle_outline;
+      label = l10n.merchantInfoStatusSuspended;
+    } else {
+      switch (merchant.status) {
+        case MerchantStatus.active:
+          bgColor = const Color(0xFFE7F8F1);
+          textColor = AppColors.success;
+          icon = Icons.check_circle_outline;
+          label = l10n.merchantInfoStatusActive;
+          break;
+        case MerchantStatus.activeVerified:
+          bgColor = const Color(0xFFEBF5FB);
+          textColor = const Color(0xFF1B6FB2);
+          icon = Icons.verified_outlined;
+          label = l10n.merchantInfoStatusActiveVerified;
+          break;
+        case MerchantStatus.underAudit:
+          bgColor = const Color(0xFFEBF3FC);
+          textColor = const Color(0xFF2869A9);
+          icon = Icons.assignment_late_outlined;
+          label = l10n.merchantInfoStatusUnderAudit;
+          break;
+        case MerchantStatus.updateRequired:
+          bgColor = const Color(0xFFF1F3F5);
+          textColor = const Color(0xFF555F6D);
+          icon = Icons.notifications_active_outlined;
+          label = l10n.merchantInfoStatusUpdateRequired;
+          break;
+        case MerchantStatus.temporarilySuspended:
+          if (isLocallySuspended == false) {
+            bgColor = const Color(0xFFE7F8F1);
+            textColor = AppColors.success;
+            icon = Icons.check_circle_outline;
+            label = l10n.merchantInfoStatusActive;
+          } else {
+            bgColor = const Color(0xFFFDE8E8);
+            textColor = const Color(0xFFC53030);
+            icon = Icons.pause_circle_outline;
+            label = l10n.merchantInfoStatusSuspended;
+          }
+          break;
+      }
     }
 
     return ConstrainedBox(

@@ -11,6 +11,8 @@ import '../controllers/bank_reconciliation/bank_reconciliation_state.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../widgets/finance_navigation.dart';
 
+enum _ReconciliationFilter { all, needsAttention }
+
 class BankReconciliationScreen extends StatefulWidget {
   final int currentIndex;
   final bool showBottomNavigation;
@@ -28,6 +30,10 @@ class BankReconciliationScreen extends StatefulWidget {
 
 class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
   int _activeRequestIndex = 0;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  _ReconciliationFilter _filter = _ReconciliationFilter.all;
+  bool _showArchive = false;
   late final BankReconciliationCubit _cubit = BankReconciliationCubit(
     getRequestsUseCase: sl(),
     approveRequestUseCase: sl(),
@@ -38,27 +44,57 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
     rejectFrozenRequestUseCase: sl(),
   )..loadRequests();
 
-  List<BankLinkRequestEntity> get _requests => _cubit.state.requests;
+  List<BankLinkRequestEntity> get _requests =>
+      _showArchive ? _cubit.state.archiveRequests : _cubit.state.requests;
+  List<BankLinkRequestEntity> get _visibleRequests {
+    final query = _searchQuery.trim().toLowerCase();
+    final results = _requests.where((request) {
+      final matchesSearch = query.isEmpty ||
+          [
+            request.id,
+            request.commercialName,
+            request.commercialNameEn ?? '',
+            request.beneficiaryName,
+            request.beneficiaryNameEn ?? '',
+            request.iban,
+            request.bankName,
+            request.bankNameEn ?? '',
+            request.crNumber,
+          ].join(' ').toLowerCase().contains(query);
+      final matchesFilter = _filter == _ReconciliationFilter.all ||
+          request.warningNote.trim().isNotEmpty ||
+          (request.decisionReason?.trim().isNotEmpty ?? false);
+      return matchesSearch && matchesFilter;
+    }).toList(growable: false);
+    if (_filter == _ReconciliationFilter.all) {
+      results.sort((a, b) =>
+          (_hasReviewNote(b) ? 1 : 0).compareTo(_hasReviewNote(a) ? 1 : 0));
+    }
+    return results;
+  }
+
+  bool _hasReviewNote(BankLinkRequestEntity request) =>
+      request.warningNote.trim().isNotEmpty ||
+      (request.decisionReason?.trim().isNotEmpty ?? false);
+
   BankLinkRequestEntity get _currentRequest =>
-      _requests[_activeRequestIndex % _requests.length];
-  BankLinkRequestEntity get _nextRequest =>
-      _requests[(_activeRequestIndex + 1) % _requests.length];
+      _visibleRequests[_activeRequestIndex % _visibleRequests.length];
+
+  void _advanceToNextRequest() {
+    final count = _visibleRequests.length;
+    final nextIndex = count == 0 ? 0 : _activeRequestIndex.clamp(0, count - 1);
+    setState(() => _activeRequestIndex = nextIndex);
+  }
 
   @override
   void dispose() {
+    _searchController.dispose();
     _cubit.close();
     super.dispose();
   }
 
   void _showActionMessage(String message) {
     AppSnackBar.showInfo(context, message);
-  }
-
-  void _advanceToNextRequest() {
-    if (_requests.length < 2) return;
-    setState(() {
-      _activeRequestIndex = (_activeRequestIndex + 1) % _requests.length;
-    });
   }
 
   Future<void> _handleApprove() async {
@@ -79,11 +115,13 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
     if (confirmed && mounted) {
       final result = await _cubit.approveRequest(item.id);
       if (!mounted) return;
+      if (result.isRight()) await _cubit.loadRequests();
+      if (!mounted) return;
       _showActionMessage(result.fold(
         (_) => AppLocalizations.of(context)!.reconciliationActionFailed,
         (_) => AppLocalizations.of(context)!.reconciliationApproveSuccess,
       ));
-      _activeRequestIndex = 0;
+      if (result.isRight()) _advanceToNextRequest();
     }
   }
 
@@ -91,11 +129,13 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
     final item = _currentRequest;
     final result = await _cubit.requestIbanCertificate(item.id);
     if (!mounted) return;
+    if (result.isRight()) await _cubit.loadRequests();
+    if (!mounted) return;
     _showActionMessage(result.fold(
       (_) => AppLocalizations.of(context)!.reconciliationActionFailed,
       (_) => AppLocalizations.of(context)!.reconciliationIbanRequestSent,
     ));
-    _activeRequestIndex = 0;
+    if (result.isRight()) _advanceToNextRequest();
   }
 
   Future<void> _handleFreeze() async {
@@ -122,7 +162,7 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
         (_) => AppLocalizations.of(context)!.reconciliationActionFailed,
         (_) => AppLocalizations.of(context)!.reconciliationFreezeSuccess,
       ));
-      _activeRequestIndex = 0;
+      if (result.isRight()) _advanceToNextRequest();
     }
   }
 
@@ -142,12 +182,38 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
     if (reason != null && mounted) {
       final result = await _cubit.rejectRequest(item.id, reason);
       if (!mounted) return;
+      if (result.isRight()) await _cubit.loadRequests();
+      if (!mounted) return;
       _showActionMessage(result.fold(
         (_) => AppLocalizations.of(context)!.reconciliationActionFailed,
         (_) => AppLocalizations.of(context)!.reconciliationRejectSuccess,
       ));
-      _activeRequestIndex = 0;
+      if (result.isRight()) _advanceToNextRequest();
     }
+  }
+
+  Future<void> _restoreFrozenRequest(BankLinkRequestEntity item) async {
+    final l10n = AppLocalizations.of(context)!;
+    final confirmed = await FinanceDialogs.showApprovalDialog(
+      context,
+      title: l10n.frozenBankLinkRestoreDialogTitle,
+      description: l10n.frozenBankLinkRestoreDialogDescription,
+      confirmText: l10n.frozenBankLinkRestoreConfirm,
+    );
+    if (!confirmed || !mounted) return;
+
+    final result = await _cubit.restoreFrozenRequest(item.id);
+    if (!mounted) return;
+    result.fold(
+      (_) => AppSnackBar.showError(context, l10n.reconciliationActionFailed),
+      (_) {
+        setState(() {
+          _showArchive = false;
+          _activeRequestIndex = 0;
+        });
+        AppSnackBar.showSuccess(context, l10n.frozenBankLinkRestoreSuccess);
+      },
+    );
   }
 
   void _previewDocument(BankLinkRequestEntity item) {
@@ -297,10 +363,14 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
                 : null,
             body: BlocBuilder<BankReconciliationCubit, BankReconciliationState>(
               builder: (context, state) {
-                if (state.isLoading && state.requests.isEmpty) {
+                if (state.isLoading &&
+                    state.requests.isEmpty &&
+                    state.archiveRequests.isEmpty) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                if (state.errorMessage != null && state.requests.isEmpty) {
+                if (state.errorMessage != null &&
+                    state.requests.isEmpty &&
+                    state.archiveRequests.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -315,7 +385,7 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
                     ),
                   );
                 }
-                if (state.requests.isEmpty && state.frozenRequests.isEmpty) {
+                if (state.requests.isEmpty && state.archiveRequests.isEmpty) {
                   return Center(
                     child: Text(l10n.reconciliationNoPendingRequests),
                   );
@@ -329,24 +399,21 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
                     const SizedBox(height: 12),
                     _buildGovernmentConnection(context),
                     const SizedBox(height: 14),
-                    if (state.requests.isEmpty)
+                    _buildRequestQueue(context),
+                    const SizedBox(height: 14),
+                    if (_visibleRequests.isEmpty)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 20),
                         child: Center(
-                          child: Text(l10n.reconciliationNoPendingRequests),
+                          child: Text(_requests.isEmpty
+                              ? (_showArchive
+                                  ? l10n.reconciliationArchiveEmpty
+                                  : l10n.reconciliationNoPendingRequests)
+                              : l10n.reconciliationNoMatchingRequests),
                         ),
                       )
-                    else ...[
+                    else
                       _buildAccountCard(context),
-                      if (state.requests.length > 1) ...[
-                        const SizedBox(height: 14),
-                        _buildNextAccountCard(context),
-                      ],
-                    ],
-                    if (state.frozenRequests.isNotEmpty) ...[
-                      const SizedBox(height: 14),
-                      _buildFrozenRequests(context, state.frozenRequests),
-                    ],
                   ],
                 );
               },
@@ -356,53 +423,6 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
                 : null,
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildFrozenRequests(
-    BuildContext context,
-    List<BankLinkRequestEntity> requests,
-  ) {
-    final l10n = AppLocalizations.of(context)!;
-    final isArabic = l10n.localeName.startsWith('ar');
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.warning.withValues(alpha: 0.5)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            l10n.reconciliationFrozenRequestsTitle,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              color: AppColors.primaryDark,
-            ),
-          ),
-          const SizedBox(height: 8),
-          for (final request in requests) ...[
-            if (request != requests.first) const Divider(height: 16),
-            Text(
-              '${request.id} · ${request.getCommercialName(isArabic)}',
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            if (request.decisionReason != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                '${l10n.reconciliationFreezeReasonLabel} ${request.decisionReason}',
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 12,
-                ),
-              ),
-            ],
-          ],
-        ],
       ),
     );
   }
@@ -557,6 +577,7 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
     final l10n = AppLocalizations.of(context)!;
     final item = _currentRequest;
     final isArabic = l10n.localeName.startsWith('ar');
+    final isProcessing = _cubit.state.processingRequestId != null;
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -574,6 +595,10 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
           _buildAccountIdentity(context, item),
           const SizedBox(height: 14),
           _buildComplianceScore(context, item),
+          if (_hasReviewNote(item)) ...[
+            const SizedBox(height: 8),
+            _buildWarningNotice(context, item),
+          ],
           const SizedBox(height: 14),
           Row(
             children: [
@@ -612,97 +637,123 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
           const SizedBox(height: 7),
           _buildDocumentRow(context, item),
           const SizedBox(height: 14),
-          Text(
-            l10n.reconciliationFinalActions,
-            textAlign: isArabic ? TextAlign.right : TextAlign.left,
-            style: const TextStyle(fontSize: 8, color: AppColors.textSecondary),
-          ),
-          const SizedBox(height: 6),
-          // Action 1: اعتماد وإرسال للإدارة للمصادقة
-          SizedBox(
-            height: 44,
-            child: ElevatedButton.icon(
-              onPressed: _handleApprove,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryDark,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-              ),
-              icon: const Icon(Icons.verified_outlined, size: 18),
-              label: Text(
-                l10n.reconciliationApproveAccount,
-                style:
-                    const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+          if (item.status == BankLinkRequestStatus.pending) ...[
+            Text(
+              l10n.reconciliationFinalActions,
+              textAlign: isArabic ? TextAlign.right : TextAlign.left,
+              style:
+                  const TextStyle(fontSize: 8, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 6),
+            // Action 1: اعتماد وإرسال للإدارة للمصادقة
+            SizedBox(
+              height: 44,
+              child: ElevatedButton.icon(
+                onPressed: isProcessing ? null : _handleApprove,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryDark,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: const Icon(Icons.verified_outlined, size: 18),
+                label: Text(
+                  l10n.reconciliationApproveAccount,
+                  style: const TextStyle(
+                      fontSize: 11, fontWeight: FontWeight.bold),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 6),
-          // Action 2: طلب شهادة آيبان حديثة
-          SizedBox(
-            height: 40,
-            child: OutlinedButton.icon(
-              onPressed: _handleRequestIban,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primaryDark,
-                backgroundColor: const Color(0xFFEFF1F3),
-                side: BorderSide.none,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
+            const SizedBox(height: 6),
+            // Action 2: طلب شهادة آيبان حديثة
+            SizedBox(
+              height: 40,
+              child: OutlinedButton.icon(
+                onPressed: isProcessing ? null : _handleRequestIban,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primaryDark,
+                  backgroundColor: const Color(0xFFEFF1F3),
+                  side: BorderSide.none,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: const Icon(Icons.edit_document, size: 16),
+                label: Text(l10n.reconciliationRequestIban,
+                    style: const TextStyle(fontSize: 10)),
               ),
-              icon: const Icon(Icons.edit_document, size: 16),
-              label: Text(l10n.reconciliationRequestIban,
-                  style: const TextStyle(fontSize: 10)),
             ),
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              // Action 3: تجميد الطلب مؤقتاً
-              Expanded(
-                child: SizedBox(
-                  height: 40,
-                  child: OutlinedButton.icon(
-                    onPressed: _handleFreeze,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.warning,
-                      backgroundColor: const Color(0xFFFFF9E6),
-                      side: const BorderSide(
-                          color: AppColors.warning, width: 0.8),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
-                    ),
-                    icon: const Icon(Icons.pause_circle_outline, size: 15),
-                    label: Text(
-                      isArabic ? 'تجميد الطلب' : 'Freeze Request',
-                      style: const TextStyle(
-                          fontSize: 10, fontWeight: FontWeight.bold),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                // Action 3: تجميد الطلب مؤقتاً
+                Expanded(
+                  child: SizedBox(
+                    height: 40,
+                    child: OutlinedButton.icon(
+                      onPressed: isProcessing ? null : _handleFreeze,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.warning,
+                        backgroundColor: const Color(0xFFFFF9E6),
+                        side: const BorderSide(
+                            color: AppColors.warning, width: 0.8),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                      ),
+                      icon: const Icon(Icons.pause_circle_outline, size: 15),
+                      label: Text(
+                        isArabic ? 'تجميد الطلب' : 'Freeze Request',
+                        style: const TextStyle(
+                            fontSize: 10, fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 6),
-              // Action 4: رفض الطلب مع ذكر السبب
-              Expanded(
-                child: SizedBox(
-                  height: 40,
-                  child: TextButton.icon(
-                    onPressed: _handleReject,
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.dangerDark,
-                      backgroundColor: const Color(0xFFFFE0DE),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
+                const SizedBox(width: 6),
+                // Action 4: رفض الطلب مع ذكر السبب
+                Expanded(
+                  child: SizedBox(
+                    height: 40,
+                    child: TextButton.icon(
+                      onPressed: isProcessing ? null : _handleReject,
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.dangerDark,
+                        backgroundColor: const Color(0xFFFFE0DE),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                      ),
+                      icon: const Icon(Icons.block, size: 15),
+                      label: Text(l10n.reconciliationRejectTransfer,
+                          style: const TextStyle(
+                              fontSize: 10, fontWeight: FontWeight.bold)),
                     ),
-                    icon: const Icon(Icons.block, size: 15),
-                    label: Text(l10n.reconciliationRejectTransfer,
-                        style: const TextStyle(
-                            fontSize: 10, fontWeight: FontWeight.bold)),
                   ),
+                ),
+              ],
+            ),
+          ] else ...[
+            const SizedBox(height: 12),
+            _statusPill(
+              _requestStatusLabel(l10n, item.status),
+              const Color(0xFFE4ECFF),
+              AppColors.infoDark,
+            ),
+            if (item.status == BankLinkRequestStatus.frozen ||
+                item.status == BankLinkRequestStatus.rejected) ...[
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed:
+                    isProcessing ? null : () => _restoreFrozenRequest(item),
+                icon: const Icon(Icons.restore_outlined, size: 17),
+                label: Text(l10n.frozenBankLinkRestore),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primaryDark,
+                  side: const BorderSide(color: AppColors.cardBorder),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
                 ),
               ),
             ],
-          ),
+          ],
         ],
       ),
     );
@@ -718,7 +769,7 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
       children: [
         Row(
           children: [
-            _statusPill(l10n.reconciliationComplianceReview,
+            _statusPill(_requestStatusLabel(l10n, item.status),
                 const Color(0xFFE4ECFF), AppColors.infoDark),
             const Spacer(),
             _statusPill(item.id, AppColors.primaryDark, Colors.white),
@@ -762,10 +813,26 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
     );
   }
 
+  String _requestStatusLabel(
+    AppLocalizations l10n,
+    BankLinkRequestStatus status,
+  ) {
+    return switch (status) {
+      BankLinkRequestStatus.pending => l10n.reconciliationComplianceReview,
+      BankLinkRequestStatus.pendingManagementApproval =>
+        l10n.reconciliationAwaitingManagement,
+      BankLinkRequestStatus.ibanCertificateRequested =>
+        l10n.reconciliationAwaitingCertificate,
+      BankLinkRequestStatus.frozen => l10n.reconciliationFrozenRequestsTitle,
+      BankLinkRequestStatus.rejected => l10n.reconciliationRejectTransfer,
+    };
+  }
+
   Widget _buildComplianceScore(
       BuildContext context, BankLinkRequestEntity item) {
     final l10n = AppLocalizations.of(context)!;
     final isArabic = l10n.localeName.startsWith('ar');
+    final score = double.tryParse(item.amlScore.replaceAll('%', '').trim());
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -798,16 +865,18 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
                       color: AppColors.primaryDark)),
             ],
           ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: const LinearProgressIndicator(
-              value: 1,
-              minHeight: 9,
-              backgroundColor: Colors.white,
-              color: AppColors.primaryDark,
+          if (score != null) ...[
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: LinearProgressIndicator(
+                value: (score / 100).clamp(0, 1),
+                minHeight: 9,
+                backgroundColor: Colors.white,
+                color: AppColors.primaryDark,
+              ),
             ),
-          ),
+          ],
           const SizedBox(height: 7),
           Row(
             children: [
@@ -829,6 +898,54 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
     );
   }
 
+  Widget _buildWarningNotice(BuildContext context, BankLinkRequestEntity item) {
+    final l10n = AppLocalizations.of(context)!;
+    final isArabic = l10n.localeName.startsWith('ar');
+    final hasWarningNote = item.warningNote.trim().isNotEmpty;
+    final message = hasWarningNote
+        ? item.getWarningNote(isArabic)
+        : item.decisionReason ?? '';
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF9E6),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.warning.withValues(alpha: .45)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.warning_amber_rounded,
+              size: 17, color: AppColors.warning),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Column(
+              crossAxisAlignment:
+                  isArabic ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              children: [
+                Text(
+                    hasWarningNote
+                        ? l10n.reconciliationAuditAlert
+                        : l10n.reconciliationDecisionReason,
+                    style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primaryDark)),
+                const SizedBox(height: 3),
+                Text(message,
+                    textAlign: isArabic ? TextAlign.right : TextAlign.left,
+                    style: const TextStyle(
+                        fontSize: 10,
+                        height: 1.4,
+                        color: AppColors.textPrimary)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildMatchedName(
     BuildContext context, {
     required String index,
@@ -843,25 +960,12 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Flexible(
-                child: _statusPill(
-                    AppLocalizations.of(context)!.reconciliationMatchVerified,
-                    const Color(0xFFDDE3E8),
-                    AppColors.infoDark),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text('$index. $title',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.end,
-                    style: const TextStyle(
-                        fontSize: 8, color: AppColors.textSecondary)),
-              ),
-            ],
-          ),
+          Text('$index. $title',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.end,
+              style:
+                  const TextStyle(fontSize: 8, color: AppColors.textSecondary)),
           const SizedBox(height: 5),
           Text(value,
               textAlign: TextAlign.end,
@@ -1027,118 +1131,230 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
     );
   }
 
-  Widget _buildNextAccountCard(BuildContext context) {
+  Widget _buildRequestQueue(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final item = _nextRequest;
     final isArabic = l10n.localeName.startsWith('ar');
+    final visible = _visibleRequests;
+    final selectedId = visible.isEmpty
+        ? null
+        : visible[_activeRequestIndex % visible.length].id;
 
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-          color: Colors.white, borderRadius: BorderRadius.circular(14)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
               const Icon(Icons.pending_actions,
-                  color: AppColors.textSecondary, size: 17),
+                  color: AppColors.primaryDark, size: 17),
               const SizedBox(width: 6),
               Expanded(
-                child: Text(l10n.reconciliationNextAccount,
+                child: Text(
+                    '${l10n.reconciliationQueueTitle} (${_requests.length})',
                     textAlign: isArabic ? TextAlign.right : TextAlign.left,
                     style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
                         color: AppColors.primaryDark)),
               ),
-              _statusPill(
-                  item.id, const Color(0xFFE8EAEC), AppColors.textSecondary),
+              _statusPill('${visible.length}', const Color(0xFFE8EAEC),
+                  AppColors.textSecondary),
             ],
           ),
-          const SizedBox(height: 9),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-                color: const Color(0xFFF0F2F4),
-                borderRadius: BorderRadius.circular(10)),
-            child: Row(
-              children: [
-                const Icon(Icons.info_outline, color: AppColors.info, size: 16),
-                const SizedBox(width: 7),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: isArabic
-                        ? CrossAxisAlignment.end
-                        : CrossAxisAlignment.start,
-                    children: [
-                      Text(item.getCommercialName(isArabic),
-                          textAlign:
-                              isArabic ? TextAlign.right : TextAlign.left,
-                          style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primaryDark)),
-                      const SizedBox(height: 4),
-                      Text('${item.getBankName(isArabic)} - ${item.iban}',
-                          textAlign:
-                              isArabic ? TextAlign.right : TextAlign.left,
-                          style: const TextStyle(
-                              fontSize: 8, color: AppColors.textSecondary)),
-                      const SizedBox(height: 5),
-                      Text(item.getMatchDescription(isArabic),
-                          textAlign:
-                              isArabic ? TextAlign.right : TextAlign.left,
-                          style: const TextStyle(
-                              fontSize: 8,
-                              color: AppColors.textSecondary,
-                              height: 1.4)),
-                    ],
-                  ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            children: [
+              ChoiceChip(
+                label: Text(
+                    '${l10n.reconciliationInProgressTab} (${_cubit.state.requests.length})'),
+                selected: !_showArchive,
+                onSelected: (_) => setState(() {
+                  _showArchive = false;
+                  _activeRequestIndex = 0;
+                }),
+                selectedColor: AppColors.primaryDark,
+                labelStyle: TextStyle(
+                  color: !_showArchive ? Colors.white : AppColors.textSecondary,
+                  fontSize: 10,
                 ),
-                const SizedBox(width: 6),
-                _statusPill(l10n.reconciliationAuditAlert,
-                    const Color(0xFFFFE0DE), AppColors.dangerDark),
-              ],
-            ),
+              ),
+              ChoiceChip(
+                label: Text(
+                    '${l10n.reconciliationArchiveTab} (${_cubit.state.archiveRequests.length})'),
+                selected: _showArchive,
+                onSelected: (_) => setState(() {
+                  _showArchive = true;
+                  _activeRequestIndex = 0;
+                }),
+                selectedColor: AppColors.primaryDark,
+                labelStyle: TextStyle(
+                  color: _showArchive ? Colors.white : AppColors.textSecondary,
+                  fontSize: 10,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 7),
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(9),
-              onTap: _advanceToNextRequest,
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(vertical: 9, horizontal: 10),
-                decoration: BoxDecoration(
-                    color: const Color(0xFFE9ECEF),
-                    borderRadius: BorderRadius.circular(9)),
-                child: Row(
-                  children: [
-                    Icon(
-                      isArabic ? Icons.arrow_back : Icons.arrow_forward,
-                      size: 14,
-                      color: AppColors.primaryDark,
+          const SizedBox(height: 10),
+          TextField(
+            controller: _searchController,
+            onChanged: (value) => setState(() {
+              _searchQuery = value;
+              _activeRequestIndex = 0;
+            }),
+            decoration: InputDecoration(
+              hintText: l10n.reconciliationSearchHint,
+              prefixIcon: const Icon(Icons.search, size: 19),
+              suffixIcon: _searchQuery.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip:
+                          MaterialLocalizations.of(context).deleteButtonTooltip,
+                      onPressed: () => setState(() {
+                        _searchQuery = '';
+                        _activeRequestIndex = 0;
+                        _searchController.clear();
+                      }),
+                      icon: const Icon(Icons.close),
                     ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        isArabic
-                            ? 'الانتقال إلى تدقيق هذا الطلب الآن'
-                            : 'Switch to this request now',
-                        textAlign: isArabic ? TextAlign.right : TextAlign.left,
-                        style: const TextStyle(
-                            fontSize: 9,
-                            color: AppColors.primaryDark,
-                            fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ],
-                ),
+              isDense: true,
+              filled: true,
+              fillColor: const Color(0xFFF4F6F8),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide.none,
               ),
             ),
           ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            children: [
+              ChoiceChip(
+                label: Text(l10n.reconciliationFilterAll),
+                selected: _filter == _ReconciliationFilter.all,
+                onSelected: (_) => setState(() {
+                  _filter = _ReconciliationFilter.all;
+                  _activeRequestIndex = 0;
+                }),
+                selectedColor: AppColors.primaryDark,
+                labelStyle: TextStyle(
+                  color: _filter == _ReconciliationFilter.all
+                      ? Colors.white
+                      : AppColors.textSecondary,
+                  fontSize: 10,
+                ),
+              ),
+              ChoiceChip(
+                label: Text(l10n.reconciliationFilterAttention),
+                selected: _filter == _ReconciliationFilter.needsAttention,
+                onSelected: (_) => setState(() {
+                  _filter = _ReconciliationFilter.needsAttention;
+                  _activeRequestIndex = 0;
+                }),
+                selectedColor: AppColors.primaryDark,
+                labelStyle: TextStyle(
+                  color: _filter == _ReconciliationFilter.needsAttention
+                      ? Colors.white
+                      : AppColors.textSecondary,
+                  fontSize: 10,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          if (visible.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                  _requests.isEmpty
+                      ? (_showArchive
+                          ? l10n.reconciliationArchiveEmpty
+                          : l10n.reconciliationNoPendingRequests)
+                      : l10n.reconciliationNoMatchingRequests,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      fontSize: 11, color: AppColors.textSecondary)),
+            )
+          else
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 220),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: visible.length,
+                separatorBuilder: (_, __) =>
+                    const Divider(height: 1, indent: 8, endIndent: 8),
+                itemBuilder: (context, index) {
+                  final request = visible[index];
+                  final selected = request.id == selectedId;
+                  final needsAttention = _hasReviewNote(request);
+                  return Material(
+                    color:
+                        selected ? AppColors.surfaceLight : Colors.transparent,
+                    child: InkWell(
+                      onTap: () => setState(() => _activeRequestIndex = index),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 9),
+                        child: Row(
+                          children: [
+                            Icon(
+                              needsAttention
+                                  ? Icons.warning_amber_rounded
+                                  : Icons.account_balance_outlined,
+                              size: 17,
+                              color: needsAttention
+                                  ? AppColors.warning
+                                  : AppColors.textSecondary,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: isArabic
+                                    ? CrossAxisAlignment.end
+                                    : CrossAxisAlignment.start,
+                                children: [
+                                  Text(request.getCommercialName(isArabic),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.primaryDark)),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    '${request.id} · ${request.getBankName(isArabic)}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                        fontSize: 9,
+                                        color: AppColors.textSecondary),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (needsAttention) ...[
+                              const SizedBox(width: 6),
+                              _statusPill(
+                                l10n.reconciliationNeedsAttention,
+                                const Color(0xFFFFF2D5),
+                                AppColors.warning,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
         ],
       ),
     );

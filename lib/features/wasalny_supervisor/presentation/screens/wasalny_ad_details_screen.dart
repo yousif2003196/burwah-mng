@@ -27,8 +27,7 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
     final title = isArabic ? ad.titleAr : ad.titleEn;
     final seller = isArabic ? ad.sellerNameAr : ad.sellerNameEn;
     final description = isArabic ? ad.descriptionAr : ad.descriptionEn;
-    final canTakeAction = ad.status == WasalnyAdStatus.pending ||
-        ad.status == WasalnyAdStatus.awaitingApproval;
+    final canTakeAction = ad.status == WasalnyAdStatus.pending;
     final statusLabel = switch (ad.status) {
       WasalnyAdStatus.pending => l10n.wasalnyAdsPendingStatus,
       WasalnyAdStatus.approved => l10n.wasalnyAdsApprovedStatus,
@@ -70,7 +69,8 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
           children: [
             _PermissionBanner(
-              text: canTakeAction ? l10n.wasalnyAdDetailsPermission : statusLabel,
+              text:
+                  canTakeAction ? l10n.wasalnyAdDetailsPermission : statusLabel,
             ),
             const SizedBox(height: 12),
             _SellerCard(
@@ -178,8 +178,7 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
                 icon: Icons.forum_outlined,
                 background: const Color(0xFF1E293B),
                 foreground: Colors.white,
-                onPressed: () =>
-                    _showContactOptions(context, ad, seller, l10n),
+                onPressed: () => _showContactOptions(context, ad, seller, l10n),
               ),
               const SizedBox(height: 8),
               _DetailActionButton(
@@ -195,7 +194,8 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
                 icon: Icons.edit_note_outlined,
                 background: AppColors.primaryDark,
                 foreground: Colors.white,
-                onPressed: () => _submit(context, WasalnyAdStatus.editRequested),
+                onPressed: () =>
+                    _submit(context, WasalnyAdStatus.editRequested),
               ),
               const SizedBox(height: 8),
               _DetailActionButton(
@@ -421,8 +421,8 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
                 ),
                 title: Text(
                   l10n.wasalnyChatWithSeller,
-                  style:
-                      const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 13),
                 ),
                 subtitle: Text(
                   seller,
@@ -449,8 +449,8 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
                 ),
                 title: Text(
                   l10n.wasalnyCallSeller,
-                  style:
-                      const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 13),
                 ),
                 subtitle: Text(
                   ad.sellerPhone,
@@ -612,8 +612,8 @@ class _SellerCard extends StatelessWidget {
                   children: [
                     const CircleAvatar(
                       backgroundColor: Colors.white,
-                      child:
-                          Icon(Icons.person_outline, color: AppColors.primaryDark),
+                      child: Icon(Icons.person_outline,
+                          color: AppColors.primaryDark),
                     ),
                     const SizedBox(height: 5),
                     Text(

@@ -34,6 +34,7 @@ class AdvertisementReviewDetailsScreen extends StatefulWidget {
   final String merchantCategory;
   final String merchantRegistrationNumber;
   final String adNumber;
+  final double initialDeliveryFee;
   final String submittedAt;
   final String title;
   final String description;
@@ -55,6 +56,7 @@ class AdvertisementReviewDetailsScreen extends StatefulWidget {
     required this.merchantCategory,
     required this.merchantRegistrationNumber,
     required this.adNumber,
+    this.initialDeliveryFee = 150,
     required this.submittedAt,
     required this.title,
     required this.description,
@@ -86,7 +88,9 @@ class _AdvertisementReviewDetailsScreenState
   @override
   void initState() {
     super.initState();
-    _feeController = TextEditingController(text: '150');
+    _feeController = TextEditingController(
+      text: widget.initialDeliveryFee.toStringAsFixed(0),
+    );
   }
 
   @override
@@ -562,7 +566,7 @@ class _AdvertisementReviewDetailsScreenState
               FilledButton.icon(
                 onPressed: () {
                   final fee = double.tryParse(_feeController.text);
-                  if (fee == null || fee < 0) {
+                  if (fee == null || !fee.isFinite || fee < 0) {
                     setState(() => _feeError = true);
                     return;
                   }

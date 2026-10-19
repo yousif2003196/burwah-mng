@@ -61,6 +61,8 @@ class _MerchantFinancialRequestsScreenState
   final Map<String, String> _rejectionReasons = {};
   final Set<String> _processingRequests = {};
   final List<_FinancialRequest> _queuedRequests = [];
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
   bool _isLoadingActions = true;
   Object? _loadError;
   bool _hasStartedLoading = false;
@@ -82,6 +84,7 @@ class _MerchantFinancialRequestsScreenState
   @override
   void dispose() {
     merchantFinancialRequestsVersion.removeListener(_onRequestsChanged);
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -370,9 +373,14 @@ class _MerchantFinancialRequestsScreenState
       ];
 
   List<_FinancialRequest> _visibleRequests(AppLocalizations l10n) {
-    final requests = _requests(l10n);
-    if (_selectedType == null) return requests;
-    return requests.where((request) => request.type == _selectedType).toList();
+    final query = _searchQuery.trim().toLowerCase();
+    return _requests(l10n).where((request) {
+      final matchesType = _selectedType == null || request.type == _selectedType;
+      final matchesSearch = query.isEmpty ||
+          [request.id, request.merchantName, request.title, request.amount]
+              .any((value) => value.toLowerCase().contains(query));
+      return matchesType && matchesSearch;
+    }).toList();
   }
 
   int _actionableRequestCount(AppLocalizations l10n) => _requests(l10n)
@@ -451,6 +459,43 @@ class _MerchantFinancialRequestsScreenState
               ),
               const Icon(Icons.history, size: 13, color: AppColors.textMuted),
             ],
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _searchController,
+            onChanged: (value) => setState(() => _searchQuery = value),
+            textDirection: l10n.localeName.startsWith('ar')
+                ? TextDirection.rtl
+                : TextDirection.ltr,
+            decoration: InputDecoration(
+              hintText: l10n.localeName.startsWith('ar')
+                  ? 'ابحث باسم التاجر أو رقم الطلب'
+                  : 'Search merchant or request number',
+              prefixIcon: const Icon(Icons.search_rounded, size: 19),
+              suffixIcon: _searchQuery.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: l10n.localeName.startsWith('ar')
+                          ? 'مسح البحث'
+                          : 'Clear search',
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _searchQuery = '');
+                      },
+                      icon: const Icon(Icons.close_rounded, size: 18),
+                    ),
+              filled: true,
+              fillColor: Colors.white,
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+            ),
           ),
           const SizedBox(height: 10),
           _buildFilters(l10n),

@@ -2,18 +2,21 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../wasalny_supervisor/data/wasalny_local_event_store.dart';
 
 class MerchantSupervisorAuditEvent {
   final String action;
   final String subject;
   final String details;
   final DateTime occurredAt;
+  final String? merchantId;
 
   const MerchantSupervisorAuditEvent({
     required this.action,
     required this.subject,
     required this.details,
     required this.occurredAt,
+    this.merchantId,
   });
 }
 
@@ -22,6 +25,7 @@ class MerchantSupervisorLocalStore {
 
   static const _storageKey = 'merchant_supervisor_local_operations_v1';
   static final ValueNotifier<int> revision = ValueNotifier<int>(0);
+  static final WasalnyLocalEventStore _eventStore = WasalnyLocalEventStore();
 
   static Future<Set<String>> getSuspendedMerchantIds() async {
     final state = await _readState();
@@ -48,6 +52,56 @@ class MerchantSupervisorLocalStore {
     };
   }
 
+  static Future<Map<String, double>> getCommissionOverrides() async {
+    final state = await _readState();
+    final merchants = state['merchants'] as Map<String, dynamic>;
+    return {
+      for (final entry in merchants.entries)
+        if (entry.value is Map<String, dynamic> &&
+            (entry.value as Map<String, dynamic>)['commissionPercent'] is num)
+          entry.key: ((entry.value as Map<String, dynamic>)['commissionPercent']
+                  as num)
+              .toDouble(),
+    };
+  }
+
+  static Future<void> setMerchantCommission({
+    required String merchantId,
+    required String merchantName,
+    required double commissionPercent,
+    required String action,
+  }) async {
+    if (!commissionPercent.isFinite ||
+        commissionPercent < 0 ||
+        commissionPercent > 100) {
+      throw ArgumentError.value(commissionPercent, 'commissionPercent');
+    }
+    final state = await _readState();
+    final merchants = state['merchants'] as Map<String, dynamic>;
+    final existing = merchants[merchantId];
+    final merchant = existing is Map<String, dynamic>
+        ? Map<String, dynamic>.from(existing)
+        : <String, dynamic>{};
+    merchant['name'] = merchantName;
+    merchant['commissionPercent'] = commissionPercent;
+    merchant['commissionUpdatedAt'] = DateTime.now().toIso8601String();
+    merchants[merchantId] = merchant;
+    _appendAuditEvent(
+      state,
+      action: action,
+      subject: merchantName,
+      details: '${commissionPercent.toStringAsFixed(1)}%',
+      merchantId: merchantId,
+    );
+    await _writeState(state);
+    await _publishMerchantNotice(
+      action: action,
+      subject: merchantName,
+      details: '${commissionPercent.toStringAsFixed(1)}%',
+      merchantId: merchantId,
+    );
+  }
+
   static Future<List<MerchantSupervisorAuditEvent>> getAuditEvents() async {
     final state = await _readState();
     final events = state['events'];
@@ -67,6 +121,7 @@ class MerchantSupervisorLocalStore {
         subject: value['subject'] as String,
         details: value['details'] as String,
         occurredAt: DateTime.parse(value['occurredAt'] as String),
+        merchantId: value['merchantId'] as String?,
       );
     }).toList(growable: false);
   }
@@ -80,25 +135,38 @@ class MerchantSupervisorLocalStore {
   }) async {
     final state = await _readState();
     final merchants = state['merchants'] as Map<String, dynamic>;
-    merchants[merchantId] = {
+    final existing = merchants[merchantId];
+    final merchant = existing is Map<String, dynamic>
+        ? Map<String, dynamic>.from(existing)
+        : <String, dynamic>{};
+    merchant.addAll({
       'name': merchantName,
       'details': details,
       'suspended': isSuspended,
       'occurredAt': DateTime.now().toIso8601String(),
-    };
+    });
+    merchants[merchantId] = merchant;
     _appendAuditEvent(
       state,
       action: action,
       subject: merchantName,
       details: details,
+      merchantId: merchantId,
     );
     await _writeState(state);
+    await _publishMerchantNotice(
+      action: action,
+      subject: merchantName,
+      details: details,
+      merchantId: merchantId,
+    );
   }
 
   static Future<void> recordAction({
     required String action,
     required String subject,
     required String details,
+    String? merchantId,
   }) async {
     final state = await _readState();
     _appendAuditEvent(
@@ -106,8 +174,48 @@ class MerchantSupervisorLocalStore {
       action: action,
       subject: subject,
       details: details,
+      merchantId: merchantId,
     );
     await _writeState(state);
+    await _publishMerchantNotice(
+      action: action,
+      subject: subject,
+      details: details,
+      merchantId: merchantId,
+    );
+  }
+
+  static Future<void> _publishMerchantNotice({
+    required String action,
+    required String subject,
+    required String details,
+    String? merchantId,
+  }) async {
+    final occurredAt = DateTime.now();
+    final suffix = merchantId == null ? '' : ' · $merchantId';
+    final message = '$action: $details$suffix';
+    try {
+      await _eventStore.publish(
+        WasalnyLocalEvent(
+          id: 'merchant-action-${occurredAt.microsecondsSinceEpoch}',
+          recipient: 'merchant',
+          source: 'merchants',
+          titleAr: 'تحديث على حساب التاجر',
+          titleEn: 'Merchant account update',
+          messageAr: '$subject — $message',
+          messageEn: '$subject — $message',
+          createdAt: occurredAt,
+        ),
+      );
+    } on Object catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'merchant action notifications',
+        ),
+      );
+    }
   }
 
   static void _appendAuditEvent(
@@ -115,15 +223,16 @@ class MerchantSupervisorLocalStore {
     required String action,
     required String subject,
     required String details,
+    String? merchantId,
   }) {
     final events = state['events'] as List<dynamic>;
     events.insert(0, {
       'action': action,
       'subject': subject,
       'details': details,
+      if (merchantId != null) 'merchantId': merchantId,
       'occurredAt': DateTime.now().toIso8601String(),
     });
-    if (events.length > 100) events.removeRange(100, events.length);
   }
 
   static Future<Map<String, dynamic>> _readState() async {

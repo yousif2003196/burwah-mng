@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_colors.dart';
-import '../../../../features/merchants/presentation/screens/merchant_conversation_screen.dart';
+import '../../../../core/widgets/account_conversations_screen.dart';
 import '../../../../l10n/app_localizations.dart';
 
 class ProductSupervisorSupportScreen extends StatelessWidget {
@@ -48,7 +48,7 @@ class ProductSupervisorSupportScreen extends StatelessWidget {
             title: l10n.productHeadSupervisorName,
             subtitle: l10n.productHeadSupervisorRole,
             actionLabel: l10n.productSupportOpenChat,
-            onTap: () => _openChat(context, l10n.productHeadSupervisorName),
+            onTap: () => _openChat(context),
           ),
           const SizedBox(height: 8),
           _ContactTile(
@@ -56,7 +56,7 @@ class ProductSupervisorSupportScreen extends StatelessWidget {
             title: l10n.productTechnicalSupportName,
             subtitle: l10n.productTechnicalSupportHours,
             actionLabel: l10n.productSupportOpenChat,
-            onTap: () => _openChat(context, l10n.productTechnicalSupportName),
+            onTap: () => _openChat(context),
           ),
           const SizedBox(height: 18),
           Container(
@@ -84,10 +84,10 @@ class ProductSupervisorSupportScreen extends StatelessWidget {
     );
   }
 
-  void _openChat(BuildContext context, String title) {
+  void _openChat(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => MerchantConversationScreen(conversationTitle: title),
+        builder: (_) => const AccountConversationsScreen(accountId: 'products'),
       ),
     );
   }

@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
 import '../../core/widgets/local_event_inbox_screen.dart';
+import '../../core/widgets/account_conversations_screen.dart';
+import '../../features/wasalny_supervisor/data/wasalny_local_event_store.dart';
 import '../../l10n/app_localizations.dart';
 
-import '../../features/finance/presentation/screens/audit_screen.dart';
+import '../../features/finance/presentation/screens/financial_activity_log_screen.dart';
 import '../../features/finance/presentation/screens/bank_reconciliation_screen.dart';
 import '../../features/finance/presentation/screens/commissions_screen.dart';
 import '../../features/finance/presentation/screens/finance_dashboard_screen.dart';
@@ -22,12 +24,13 @@ class FinanceTabsShell extends StatefulWidget {
 }
 
 class _FinanceTabsShellState extends State<FinanceTabsShell> {
+  final WasalnyLocalEventStore _eventStore = WasalnyLocalEventStore();
   late final PageController _pageController = PageController(initialPage: 4);
   int _currentIndex = 4;
   bool _isBarsVisible = true;
 
   late final _pages = <Widget>[
-    const AuditScreen(showBottomNavigation: false),
+    const FinancialActivityLogScreen(showBottomNavigation: false),
     const CommissionsScreen(showBottomNavigation: false),
     const SettlementsScreen(showBottomNavigation: false),
     const BankReconciliationScreen(showBottomNavigation: false),
@@ -96,6 +99,15 @@ class _FinanceTabsShellState extends State<FinanceTabsShell> {
                 ),
                 additionalActions: [
                   IconButton(
+                    tooltip: l10n.productChatsTitle,
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const AccountConversationsScreen(accountId: 'finance'),
+                      ),
+                    ),
+                    icon: const Icon(Icons.chat_bubble_outline),
+                  ),
+                  IconButton(
                     tooltip: l10n.productNotificationsTitle,
                     onPressed: () => Navigator.of(context).push(
                       MaterialPageRoute<void>(
@@ -105,7 +117,53 @@ class _FinanceTabsShellState extends State<FinanceTabsShell> {
                         ),
                       ),
                     ),
-                    icon: const Icon(Icons.notifications_none_outlined),
+                    icon: ValueListenableBuilder<int>(
+                      valueListenable: WasalnyLocalEventStore.revision,
+                      builder: (context, revision, _) => FutureBuilder(
+                        future: _eventStore.getEvents('finance'),
+                        builder: (context, snapshot) {
+                          final unreadCount = snapshot.data
+                                  ?.where((event) => !event.isRead)
+                                  .length ??
+                              0;
+                          return Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              const Icon(Icons.notifications_none_outlined),
+                              if (unreadCount > 0)
+                                Positioned(
+                                  top: -7,
+                                  right: -9,
+                                  child: Container(
+                                    constraints: const BoxConstraints(
+                                      minWidth: 17,
+                                      minHeight: 17,
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                    ),
+                                    alignment: Alignment.center,
+                                    decoration: const BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Text(
+                                      unreadCount > 99
+                                          ? '99+'
+                                          : '$unreadCount',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
                   ),
                 ],
               ),

@@ -86,10 +86,8 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
             source: 'wasalny',
             titleAr: 'طلب ترويج منتج جديد',
             titleEn: 'New product promotion request',
-            messageAr:
-                '${request.productNameAr} من ${request.merchantNameAr}',
-            messageEn:
-                '${request.productNameEn} by ${request.merchantNameEn}',
+            messageAr: '${request.productNameAr} من ${request.merchantNameAr}',
+            messageEn: '${request.productNameEn} by ${request.merchantNameEn}',
             createdAt: request.requestedAt,
           ),
         );
@@ -109,8 +107,7 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
   Future<void> _refreshFinanceDecisions() async {
     try {
       final result = await sl<FinanceRepository>().getMerchantWithdrawals();
-      final financialRequests =
-          result.fold(
+      final financialRequests = result.fold(
         (failure) => throw StateError(failure.message),
         (items) => items,
       );
@@ -122,24 +119,56 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
             item.sourceAccount!: item,
       };
       var changed = false;
+      final financeNotices =
+          <({ProductPromotionRequest request, RequestStatus status})>[];
       final updatedRequests = _requests.map((request) {
         final decision = financeBySource[request.id];
         if (decision?.status == RequestStatus.approved &&
-            !request.paymentConfirmedByFinance) {
+            (!request.paymentConfirmedByFinance ||
+                request.financeReviewPending)) {
           changed = true;
-          return request.copyWith(paymentConfirmedByFinance: true);
+          financeNotices
+              .add((request: request, status: RequestStatus.approved));
+          return request.copyWith(
+            paymentConfirmedByFinance: true,
+            financeReviewPending: false,
+          );
         }
         if (decision?.status == RequestStatus.rejected &&
             request.status != ProductPromotionStatus.rejected) {
           changed = true;
+          financeNotices
+              .add((request: request, status: RequestStatus.rejected));
           return request.copyWith(
             status: ProductPromotionStatus.rejected,
             decisionNote: decision?.alertNotice,
+            financeReviewPending: false,
           );
         }
         return request;
       }).toList();
       if (changed) await _saveRequests(updatedRequests);
+      for (final notice in financeNotices) {
+        final approved = notice.status == RequestStatus.approved;
+        await WasalnyLocalEventStore().publish(
+          WasalnyLocalEvent(
+            id: 'product-finance-decision-${notice.request.id}-${notice.status.name}',
+            recipient: 'products',
+            source: 'finance',
+            titleAr: approved
+                ? 'تم اعتماد الدفع لطلب الترويج'
+                : 'تم رفض دفع طلب الترويج',
+            titleEn: approved
+                ? 'Promotion payment approved'
+                : 'Promotion payment rejected',
+            messageAr:
+                '${notice.request.productNameAr} - ${notice.request.adReference}',
+            messageEn:
+                '${notice.request.productNameEn} - ${notice.request.adReference}',
+            createdAt: DateTime.now(),
+          ),
+        );
+      }
       if (!mounted) return;
       setState(() {
         _requests = updatedRequests;
@@ -275,6 +304,7 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
           request.status == ProductPromotionStatus.active,
         _PromotionFilter.completed =>
           request.status == ProductPromotionStatus.rejected ||
+              request.status == ProductPromotionStatus.suspended ||
               request.status == ProductPromotionStatus.expired,
       };
     }).toList();
@@ -306,115 +336,127 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
           : ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               children: [
-          _buildIntro(l10n),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _SummaryCard(
-                  label: l10n.productPromotionPending,
-                  value: pendingCount.toString(),
-                  icon: Icons.pending_actions_outlined,
-                  tint: const Color(0xFFFFF3D6),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _SummaryCard(
-                  label: l10n.productPromotionActive,
-                  value: activeCount.toString(),
-                  icon: Icons.bolt_rounded,
-                  tint: const Color(0xFFE4F6EF),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _SummaryCard(
-                  label: l10n.productPromotionTotal,
-                  value: _requests.length.toString(),
-                  icon: Icons.campaign_outlined,
-                  tint: const Color(0xFFEAF0FF),
-                ),
-              ),
+                _buildIntro(l10n),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _SummaryCard(
+                        label: l10n.productPromotionPending,
+                        value: pendingCount.toString(),
+                        icon: Icons.pending_actions_outlined,
+                        tint: const Color(0xFFFFF3D6),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _SummaryCard(
+                        label: l10n.productPromotionActive,
+                        value: activeCount.toString(),
+                        icon: Icons.bolt_rounded,
+                        tint: const Color(0xFFE4F6EF),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _SummaryCard(
+                        label: l10n.productPromotionTotal,
+                        value: _requests.length.toString(),
+                        icon: Icons.campaign_outlined,
+                        tint: const Color(0xFFEAF0FF),
+                      ),
+                    ),
                   ],
                 ),
-          const SizedBox(height: 16),
-          _buildPlanInfo(l10n),
-          const SizedBox(height: 18),
-          Text(
-            l10n.productPromotionRequests,
-            style: const TextStyle(
-              color: AppColors.primaryDark,
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
+                const SizedBox(height: 16),
+                _buildPlanInfo(l10n),
+                const SizedBox(height: 18),
+                Text(
+                  l10n.productPromotionRequests,
+                  style: const TextStyle(
+                    color: AppColors.primaryDark,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: _PromotionFilter.values
+                        .map((filter) => Padding(
+                              padding: const EdgeInsetsDirectional.only(end: 7),
+                              child: ChoiceChip(
+                                label: Text(_filterLabel(filter, l10n)),
+                                selected: _filter == filter,
+                                onSelected: (_) =>
+                                    setState(() => _filter = filter),
+                                selectedColor: AppColors.primaryDark,
+                                labelStyle: TextStyle(
+                                  color: _filter == filter
+                                      ? Colors.white
+                                      : AppColors.textSecondary,
+                                  fontSize: 11,
+                                ),
+                                side: BorderSide.none,
+                              ),
+                            ))
+                        .toList(),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                if (visibleRequests.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 36),
+                    child: Text(
+                      l10n.productPromotionEmpty,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: AppColors.textSecondary),
+                    ),
+                  ),
+                for (final request in visibleRequests) ...[
+                  _PromotionRequestCard(
+                    request: request,
+                    isArabic: isArabic,
+                    isSaving: _isSaving,
+                    l10n: l10n,
+                    onApprove: () => _decide(
+                      request,
+                      ProductPromotionStatus.active,
+                      l10n,
+                    ),
+                    canRequestFinanceReview: true,
+                    onShowPaymentStatus: () => _showPaymentStatus(
+                      request,
+                      l10n,
+                      allowApproval: false,
+                    ),
+                    onReject: () => _reject(request, l10n),
+                    onSuspend: () => _decide(
+                      request,
+                      ProductPromotionStatus.suspended,
+                      l10n,
+                    ),
+                    onReactivate: () => _decide(
+                      request,
+                      ProductPromotionStatus.active,
+                      l10n,
+                    ),
+                    onTap: () => _showPromotionDetails(request, l10n),
+                  ),
+                  const SizedBox(height: 9),
+                ],
+                const SizedBox(height: 8),
+                Text(
+                  l10n.productPromotionDisclaimer,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 10,
+                  ),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 10),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: _PromotionFilter.values
-                  .map((filter) => Padding(
-                        padding: const EdgeInsetsDirectional.only(end: 7),
-                        child: ChoiceChip(
-                          label: Text(_filterLabel(filter, l10n)),
-                          selected: _filter == filter,
-                          onSelected: (_) => setState(() => _filter = filter),
-                          selectedColor: AppColors.primaryDark,
-                          labelStyle: TextStyle(
-                            color: _filter == filter
-                                ? Colors.white
-                                : AppColors.textSecondary,
-                            fontSize: 11,
-                          ),
-                          side: BorderSide.none,
-                        ),
-                      ))
-                  .toList(),
-            ),
-          ),
-          const SizedBox(height: 10),
-          if (visibleRequests.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 36),
-              child: Text(
-                l10n.productPromotionEmpty,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.textSecondary),
-              ),
-            ),
-          for (final request in visibleRequests) ...[
-            _PromotionRequestCard(
-              request: request,
-              isArabic: isArabic,
-              isSaving: _isSaving,
-              l10n: l10n,
-              onApprove: () => _decide(
-                request,
-                ProductPromotionStatus.active,
-                l10n,
-              ),
-              canRequestFinanceReview: true,
-              onShowPaymentStatus: () => _showPaymentStatus(
-                request,
-                l10n,
-                allowApproval: false,
-              ),
-              onReject: () => _reject(request, l10n),
-            ),
-            const SizedBox(height: 9),
-          ],
-          const SizedBox(height: 8),
-          Text(
-            l10n.productPromotionDisclaimer,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColors.textMuted,
-              fontSize: 10,
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -495,7 +537,8 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
         _PromotionFilter.all => l10n.productPromotionFilterAll,
         _PromotionFilter.pending => l10n.productPromotionPending,
         _PromotionFilter.active => l10n.productPromotionActive,
-        _PromotionFilter.completed => l10n.productPromotionCompleted,
+        _PromotionFilter.completed =>
+          l10n.localeName.startsWith('ar') ? 'الأرشيف' : 'Archive',
       };
 
   Future<void> _reject(
@@ -515,6 +558,61 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
     );
   }
 
+  Future<void> _showPromotionDetails(
+    ProductPromotionRequest request,
+    AppLocalizations l10n,
+  ) =>
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        builder: (sheetContext) {
+          final isArabic = l10n.localeName.startsWith('ar');
+          return Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  height: 180,
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceLight,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(Icons.inventory_2_outlined,
+                      color: AppColors.primaryDark, size: 76),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  isArabic ? request.productNameAr : request.productNameEn,
+                  style: const TextStyle(
+                    color: AppColors.primaryDark,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                    '${l10n.productSellerLabel} ${isArabic ? request.merchantNameAr : request.merchantNameEn}'),
+                Text(
+                    '${l10n.productPromotionPaymentStatusTitle}: ${request.adReference}'),
+                Text(
+                    '${l10n.productPromotionPlanInfo}: ${request.packageKey == 'premium' ? l10n.productPromotionPremiumPlan : l10n.productPromotionFeaturedPlan}'),
+                Text(
+                    '${l10n.productDetailsPrice}: ${request.price} ${l10n.productWalletCurrency}'),
+                Text('${request.durationDays} ${l10n.productPromotionDays}'),
+                const SizedBox(height: 12),
+                OutlinedButton(
+                  onPressed: () => Navigator.pop(sheetContext),
+                  child: Text(l10n.productBackToReview),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
   Future<void> _decide(
     ProductPromotionRequest request,
     ProductPromotionStatus status,
@@ -524,13 +622,16 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
     if (_isSaving) return;
     if (status == ProductPromotionStatus.active &&
         !request.paymentConfirmedByFinance) {
+      if (request.financeReviewPending) {
+        await _showPaymentStatus(request, l10n, allowApproval: false);
+        return;
+      }
       setState(() => _isSaving = true);
       try {
-        final result = await sl<FinanceRepository>()
-            .submitMerchantFinancialRequest(
+        final result =
+            await sl<FinanceRepository>().submitMerchantFinancialRequest(
           beneficiaryName: request.merchantNameAr,
-          requestTitle:
-              'طلب ترويج ${widget.isWasalny ? 'وصلني' : 'المنتجات'} '
+          requestTitle: 'طلب ترويج ${widget.isWasalny ? 'وصلني' : 'المنتجات'} '
               '${request.adReference} لمدة ${request.durationDays} يوم',
           sourceAccount: request.id,
           amount: request.price.toDouble(),
@@ -541,6 +642,13 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
           (failure) => throw StateError(failure.message),
           (item) => item,
         );
+        final updatedRequests = _requests
+            .map((item) => item.id == request.id
+                ? item.copyWith(financeReviewPending: true)
+                : item)
+            .toList();
+        await _saveRequests(updatedRequests);
+        if (mounted) setState(() => _requests = updatedRequests);
         await WasalnyLocalEventStore().publish(
           WasalnyLocalEvent(
             id: 'finance-promotion-${financialRequest.id}',
@@ -603,9 +711,13 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
           id: DateTime.now().microsecondsSinceEpoch.toString(),
           actionKey: [
             if (widget.isWasalny) 'wasalny_',
-            status == ProductPromotionStatus.active
-                ? 'promotion_approved'
-                : 'promotion_rejected',
+            switch (status) {
+              ProductPromotionStatus.active => 'promotion_approved',
+              ProductPromotionStatus.rejected => 'promotion_rejected',
+              ProductPromotionStatus.suspended => 'promotion_suspended',
+              ProductPromotionStatus.pending => 'promotion_restored',
+              ProductPromotionStatus.expired => 'promotion_expired',
+            },
           ].join(),
           subject: _title(request, l10n.localeName.startsWith('ar')),
           details: [
@@ -617,21 +729,30 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
         ),
       );
       final updatedRequests = _requests
-            .map(
-              (item) => item.id == request.id
-                  ? item.copyWith(status: status, decisionNote: note)
-                  : item,
-            )
-            .toList();
+          .map(
+            (item) => item.id == request.id
+                ? item.copyWith(status: status, decisionNote: note)
+                : item,
+          )
+          .toList();
       await _saveRequests(updatedRequests);
       if (!mounted) return;
       setState(() => _requests = updatedRequests);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            status == ProductPromotionStatus.active
-                ? l10n.productPromotionApproved
-                : l10n.productPromotionRejected,
+            switch (status) {
+              ProductPromotionStatus.active => l10n.productPromotionApproved,
+              ProductPromotionStatus.rejected => l10n.productPromotionRejected,
+              ProductPromotionStatus.suspended =>
+                l10n.localeName.startsWith('ar')
+                    ? 'تم تعليق الترويج'
+                    : 'Promotion suspended',
+              ProductPromotionStatus.pending => l10n.localeName.startsWith('ar')
+                  ? 'أعيد طلب الترويج'
+                  : 'Promotion restored',
+              ProductPromotionStatus.expired => l10n.productPromotionExpired,
+            },
           ),
         ),
       );
@@ -847,6 +968,9 @@ class _PromotionRequestCard extends StatelessWidget {
   final bool canRequestFinanceReview;
   final VoidCallback onShowPaymentStatus;
   final VoidCallback onReject;
+  final VoidCallback onSuspend;
+  final VoidCallback onReactivate;
+  final VoidCallback onTap;
 
   const _PromotionRequestCard({
     required this.request,
@@ -857,139 +981,170 @@ class _PromotionRequestCard extends StatelessWidget {
     this.canRequestFinanceReview = false,
     required this.onShowPaymentStatus,
     required this.onReject,
+    required this.onSuspend,
+    required this.onReactivate,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final isPending = request.status == ProductPromotionStatus.pending;
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: AppColors.cardBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              const CircleAvatar(
-                backgroundColor: Color(0xFFEAF0FF),
-                child:
-                    Icon(Icons.campaign_outlined, color: AppColors.primaryDark),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      isArabic ? request.productNameAr : request.productNameEn,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.primaryDark,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      '${l10n.productSellerLabel} ${isArabic ? request.merchantNameAr : request.merchantNameEn}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          color: AppColors.textSecondary, fontSize: 10),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 5),
-              _StatusBadge(status: request.status, l10n: l10n),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              _DetailBadge(
-                icon: Icons.tag,
-                text: request.adReference,
-              ),
-              _DetailBadge(
-                icon: Icons.workspace_premium_outlined,
-                text: request.packageKey == 'premium'
-                    ? l10n.productPromotionPremiumPlan
-                    : l10n.productPromotionFeaturedPlan,
-              ),
-              _DetailBadge(
-                icon: Icons.schedule,
-                text: '${request.durationDays} ${l10n.productPromotionDays}',
-              ),
-              _DetailBadge(
-                icon: Icons.payments_outlined,
-                text: '${request.price} ${l10n.productWalletCurrency}',
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '${l10n.productPromotionRequestedAt} ${DateFormat('yyyy/MM/dd  HH:mm').format(request.requestedAt)}',
-            textDirection: ui.TextDirection.ltr,
-            textAlign: TextAlign.start,
-            style: const TextStyle(color: AppColors.textMuted, fontSize: 10),
-          ),
-          if (request.decisionNote != null) ...[
-            const SizedBox(height: 6),
-            Text(
-              '${l10n.productPromotionDecisionNote}: ${request.decisionNote}',
-              style: const TextStyle(color: AppColors.dangerDark, fontSize: 10),
-            ),
-          ],
-          if (isPending) ...[
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: isSaving ? null : onShowPaymentStatus,
-              icon: const Icon(Icons.payments_outlined, size: 17),
-              label: Text(l10n.productPromotionViewPaymentStatus),
-            ),
-            const SizedBox(height: 8),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(15),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: AppColors.cardBorder),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
             Row(
               children: [
+                const CircleAvatar(
+                  backgroundColor: Color(0xFFEAF0FF),
+                  child: Icon(Icons.campaign_outlined,
+                      color: AppColors.primaryDark),
+                ),
+                const SizedBox(width: 10),
                 Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: isSaving ? null : onReject,
-                    icon: const Icon(Icons.close, size: 17),
-                    label: Text(l10n.productPromotionReject),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.dangerDark,
-                      side: const BorderSide(color: AppColors.dangerBorder),
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isArabic
+                            ? request.productNameAr
+                            : request.productNameEn,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.primaryDark,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '${l10n.productSellerLabel} ${isArabic ? request.merchantNameAr : request.merchantNameEn}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            color: AppColors.textSecondary, fontSize: 10),
+                      ),
+                    ],
                   ),
                 ),
-                if (request.paymentConfirmedByFinance ||
-                    canRequestFinanceReview) ...[
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: isSaving ? null : onApprove,
-                      icon: const Icon(Icons.check, size: 17),
-                      label: Text(
-                        request.paymentConfirmedByFinance
-                            ? l10n.productPromotionApprove
-                            : l10n.wasalnyPromotionSendToFinance,
-                      ),
-                      style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.primaryDark),
-                    ),
-                  ),
-                ],
+                const SizedBox(width: 5),
+                _StatusBadge(status: request.status, l10n: l10n),
               ],
             ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                _DetailBadge(
+                  icon: Icons.tag,
+                  text: request.adReference,
+                ),
+                _DetailBadge(
+                  icon: Icons.workspace_premium_outlined,
+                  text: request.packageKey == 'premium'
+                      ? l10n.productPromotionPremiumPlan
+                      : l10n.productPromotionFeaturedPlan,
+                ),
+                _DetailBadge(
+                  icon: Icons.schedule,
+                  text: '${request.durationDays} ${l10n.productPromotionDays}',
+                ),
+                _DetailBadge(
+                  icon: Icons.payments_outlined,
+                  text: '${request.price} ${l10n.productWalletCurrency}',
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${l10n.productPromotionRequestedAt} ${DateFormat('yyyy/MM/dd  HH:mm').format(request.requestedAt)}',
+              textDirection: ui.TextDirection.ltr,
+              textAlign: TextAlign.start,
+              style: const TextStyle(color: AppColors.textMuted, fontSize: 10),
+            ),
+            if (request.decisionNote != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                '${l10n.productPromotionDecisionNote}: ${request.decisionNote}',
+                style:
+                    const TextStyle(color: AppColors.dangerDark, fontSize: 10),
+              ),
+            ],
+            if (isPending && request.financeReviewPending) ...[
+              const SizedBox(height: 12),
+              FilledButton.tonalIcon(
+                onPressed: isSaving ? null : onShowPaymentStatus,
+                icon: const Icon(Icons.hourglass_top, size: 17),
+                label: Text(l10n.productPromotionViewPaymentStatus),
+              ),
+            ] else if (isPending) ...[
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: isSaving ? null : onShowPaymentStatus,
+                icon: const Icon(Icons.payments_outlined, size: 17),
+                label: Text(l10n.productPromotionViewPaymentStatus),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: isSaving ? null : onReject,
+                      icon: const Icon(Icons.close, size: 17),
+                      label: Text(l10n.productPromotionReject),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.dangerDark,
+                        side: const BorderSide(color: AppColors.dangerBorder),
+                      ),
+                    ),
+                  ),
+                  if (request.paymentConfirmedByFinance ||
+                      canRequestFinanceReview) ...[
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: isSaving ? null : onApprove,
+                        icon: const Icon(Icons.check, size: 17),
+                        label: Text(
+                          request.paymentConfirmedByFinance
+                              ? l10n.productPromotionApprove
+                              : l10n.wasalnyPromotionSendToFinance,
+                        ),
+                        style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.primaryDark),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ] else if (request.status == ProductPromotionStatus.active) ...[
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: isSaving ? null : onSuspend,
+                icon: const Icon(Icons.pause_circle_outline, size: 17),
+                label: Text(isArabic ? 'تعليق الترويج' : 'Suspend promotion'),
+              ),
+            ] else ...[
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: isSaving ? null : onReactivate,
+                icon: const Icon(Icons.restart_alt, size: 17),
+                label: Text(isArabic ? 'إعادة التفعيل' : 'Reactivate'),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -1023,6 +1178,11 @@ class _StatusBadge extends StatelessWidget {
           l10n.productPromotionExpired,
           AppColors.textSecondary,
           AppColors.surfaceLight,
+        ),
+      ProductPromotionStatus.suspended => (
+          l10n.localeName.startsWith('ar') ? 'معلّق' : 'Suspended',
+          AppColors.warningDark,
+          AppColors.warningLight,
         ),
     };
     return Container(

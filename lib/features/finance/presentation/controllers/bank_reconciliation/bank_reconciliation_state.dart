@@ -2,14 +2,14 @@ import '../../../domain/entities/bank_link_request_entity.dart';
 
 class BankReconciliationState {
   final List<BankLinkRequestEntity> requests;
-  final List<BankLinkRequestEntity> frozenRequests;
+  final List<BankLinkRequestEntity> archiveRequests;
   final bool isLoading;
   final String? errorMessage;
   final String? processingRequestId;
 
   const BankReconciliationState({
     this.requests = const [],
-    this.frozenRequests = const [],
+    this.archiveRequests = const [],
     this.isLoading = false,
     this.errorMessage,
     this.processingRequestId,
@@ -17,7 +17,7 @@ class BankReconciliationState {
 
   BankReconciliationState copyWith({
     List<BankLinkRequestEntity>? requests,
-    List<BankLinkRequestEntity>? frozenRequests,
+    List<BankLinkRequestEntity>? archiveRequests,
     bool? isLoading,
     String? errorMessage,
     bool clearError = false,
@@ -26,7 +26,7 @@ class BankReconciliationState {
   }) =>
       BankReconciliationState(
         requests: requests ?? this.requests,
-        frozenRequests: frozenRequests ?? this.frozenRequests,
+        archiveRequests: archiveRequests ?? this.archiveRequests,
         isLoading: isLoading ?? this.isLoading,
         errorMessage: clearError ? null : errorMessage ?? this.errorMessage,
         processingRequestId: clearProcessingRequestId

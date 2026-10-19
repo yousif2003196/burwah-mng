@@ -856,6 +856,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
   }
 
   Widget _buildAuditHistory(AppLocalizations l10n) {
+    final latestEvent = _auditEvents.isEmpty ? null : _auditEvents.first;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
@@ -892,7 +893,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                 ),
               ),
             ),
-          if (_data.activities.isEmpty && _auditEvents.isEmpty)
+          if (_data.activities.isEmpty && latestEvent == null)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 14),
               child: Text(
@@ -903,33 +904,129 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                 ),
               ),
             ),
-          for (final activity in _data.activities) ...[
+          if (latestEvent != null) ...[
+            const Divider(height: 1, color: Color(0xFFE3E7EB)),
+            InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () => _showAllAuditEvents(l10n),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: _activity(
+                  icon: Icons.fact_check_outlined,
+                  title: latestEvent.action,
+                  subtitle: [
+                    latestEvent.subject,
+                    if (latestEvent.details.isNotEmpty) latestEvent.details,
+                  ].join(' · '),
+                  time: intl.DateFormat.yMd(l10n.localeName)
+                      .add_jm()
+                      .format(latestEvent.occurredAt),
+                ),
+              ),
+            ),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: TextButton.icon(
+                onPressed: () => _showAllAuditEvents(l10n),
+                icon: const Icon(Icons.history, size: 16),
+                label: Text(l10n.localeName.startsWith('ar')
+                    ? 'عرض كل الحركات'
+                    : 'View all activity'),
+              ),
+            ),
+          ],
+          if (_data.activities.isNotEmpty) ...[
             const Divider(height: 1, color: Color(0xFFE3E7EB)),
             _activity(
               icon: Icons.settings_outlined,
               title: l10n.merchantProfilePreferenceUpdated,
               subtitle:
-                  '${activity.setting == 'fieldAvailability' ? l10n.merchantProfileAvailability : l10n.merchantProfileDirectNotifications} · ${activity.enabled ? l10n.merchantProfileEnabled : l10n.merchantProfileDisabled}',
+                  '${_data.activities.first.setting == 'fieldAvailability' ? l10n.merchantProfileAvailability : l10n.merchantProfileDirectNotifications} · ${_data.activities.first.enabled ? l10n.merchantProfileEnabled : l10n.merchantProfileDisabled}',
               time: intl.DateFormat.yMd(l10n.localeName)
                   .add_jm()
-                  .format(activity.occurredAt),
-            ),
-          ],
-          for (final activity in _auditEvents.take(20)) ...[
-            const Divider(height: 1, color: Color(0xFFE3E7EB)),
-            _activity(
-              icon: Icons.fact_check_outlined,
-              title: activity.action,
-              subtitle: [
-                activity.subject,
-                if (activity.details.isNotEmpty) activity.details,
-              ].join(' · '),
-              time: intl.DateFormat.yMd(l10n.localeName)
-                  .add_jm()
-                  .format(activity.occurredAt),
+                  .format(_data.activities.first.occurredAt),
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  Future<void> _showAllAuditEvents(AppLocalizations l10n) async {
+    final isArabic = l10n.localeName.startsWith('ar');
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.72,
+        minChildSize: 0.4,
+        maxChildSize: 0.94,
+        builder: (context, scrollController) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+          ),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 16, 12, 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        isArabic
+                            ? 'كل العمليات الرقابية'
+                            : 'All supervisory activity',
+                        style: const TextStyle(
+                          color: AppColors.primaryDark,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(sheetContext),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: _auditEvents.isEmpty
+                    ? Center(
+                        child: Text(isArabic
+                            ? 'لا توجد عمليات رقابية مسجلة.'
+                            : 'No supervisory activity recorded.'),
+                      )
+                    : ListView.separated(
+                        controller: scrollController,
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                        itemCount: _auditEvents.length,
+                        separatorBuilder: (_, __) =>
+                            const Divider(height: 1, color: Color(0xFFE3E7EB)),
+                        itemBuilder: (context, index) {
+                          final activity = _auditEvents[index];
+                          return _activity(
+                            icon: Icons.fact_check_outlined,
+                            title: activity.action,
+                            subtitle: [
+                              activity.subject,
+                              if (activity.details.isNotEmpty) activity.details,
+                            ].join(' · '),
+                            time: intl.DateFormat.yMd(l10n.localeName)
+                                .add_jm()
+                                .format(activity.occurredAt),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

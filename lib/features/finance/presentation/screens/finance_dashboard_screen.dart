@@ -9,8 +9,7 @@ import '../../domain/entities/department_wallet_entity.dart';
 import '../controllers/dashboard/finance_dashboard_cubit.dart';
 import '../controllers/dashboard/finance_dashboard_state.dart';
 import 'bank_accounts_screen.dart';
-import 'merchant_withdrawals_screen.dart';
-import 'supervisor_withdrawals_screen.dart';
+import 'withdrawal_requests_screen.dart';
 import 'subscriptions_screen.dart';
 import 'expenses_management_screen.dart';
 import 'frozen_requests_screen.dart';
@@ -443,47 +442,24 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen>
                               const SizedBox(height: 14),
 
                               // =========================
-                              // 4. طلبات سحب التجار والمستخدمين
+                              // 4. جميع الطلبات المالية
                               // =========================
                               _buildNavigationCard(
                                 context,
-                                title: l10n.pendingMerchantWithdrawalsTitle,
+                                title: l10n.navWithdrawalOrders,
                                 countText:
-                                    '${data.pendingMerchantWithdrawalsCount} ${l10n.ordersUnit}',
+                                    '${data.pendingMerchantWithdrawalsCount + data.pendingSupervisorWithdrawalsCount} ${l10n.ordersUnit}',
                                 amountText: CurrencyFormatter.format(
-                                  data.pendingMerchantWithdrawalsAmount,
+                                  data.pendingMerchantWithdrawalsAmount +
+                                      data.pendingSupervisorWithdrawalsAmount,
                                 ),
                                 subtitle: l10n.auditInvoiceNote,
-                                icon: Icons.storefront_outlined,
+                                icon: Icons.account_balance_wallet_outlined,
                                 onTap: () => Navigator.push(
                                   context,
                                   MaterialPageRoute(
                                     builder: (_) =>
-                                        const MerchantWithdrawalsScreen(),
-                                  ),
-                                ),
-                              ),
-
-                              const SizedBox(height: 10),
-
-                              // =========================
-                              // 5. طلبات سحب المشرفين والمساعدين
-                              // =========================
-                              _buildNavigationCard(
-                                context,
-                                title: l10n.pendingSupervisorWithdrawalsTitle,
-                                countText:
-                                    '${data.pendingSupervisorWithdrawalsCount} ${l10n.ordersUnit}',
-                                amountText: CurrencyFormatter.format(
-                                  data.pendingSupervisorWithdrawalsAmount,
-                                ),
-                                subtitle: l10n.auditInvoiceNote,
-                                icon: Icons.supervisor_account_outlined,
-                                onTap: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        const SupervisorWithdrawalsScreen(),
+                                        const WithdrawalRequestsScreen(),
                                   ),
                                 ),
                               ),
@@ -505,12 +481,21 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen>
                                 icon: Icons.subscriptions_outlined,
                                 actionButtonText:
                                     '${l10n.reviewSubscriptionsAction} (${data.pendingSubscriptionsCount})',
-                                onTap: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const SubscriptionsScreen(),
-                                  ),
-                                ),
+                                onTap: () {
+                                  Navigator.push<void>(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          const SubscriptionsScreen(),
+                                    ),
+                                  ).then((_) {
+                                    if (context.mounted) {
+                                      context
+                                          .read<FinanceDashboardCubit>()
+                                          .loadDashboardData();
+                                    }
+                                  });
+                                },
                               ),
 
                               const SizedBox(height: 14),
@@ -1315,7 +1300,7 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen>
                                     context,
                                     MaterialPageRoute(
                                       builder: (_) =>
-                                          const MerchantWithdrawalsScreen(),
+                                          const WithdrawalRequestsScreen(),
                                     ),
                                   ),
                                   label: Text(
@@ -1360,6 +1345,39 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen>
 
                               const SizedBox(height: 30),
                             ],
+                          ),
+                        );
+                      }
+
+                      if (state is FinanceDashboardError) {
+                        return Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.cloud_off_outlined,
+                                  size: 44,
+                                  color: AppColors.textSecondary,
+                                ),
+                                const SizedBox(height: 10),
+                                Text(
+                                  l10n.localeName.startsWith('ar')
+                                      ? 'تعذر تحميل بيانات لوحة المعلومات المالية'
+                                      : 'Could not load the finance dashboard',
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 10),
+                                OutlinedButton.icon(
+                                  onPressed: context
+                                      .read<FinanceDashboardCubit>()
+                                      .loadDashboardData,
+                                  icon: const Icon(Icons.refresh),
+                                  label: Text(l10n.frozenRefresh),
+                                ),
+                              ],
+                            ),
                           ),
                         );
                       }

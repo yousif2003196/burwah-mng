@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart' as intl;
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/utils/currency_formatter.dart';
@@ -155,6 +156,61 @@ class _WithdrawalRequestDetailsSheet extends StatelessWidget {
                             ? l10n.withdrawalDetailsNoValue
                             : request.dateText,
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _DetailsCard(
+                    children: [
+                      Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: Text(
+                          l10n.localeName.startsWith('ar')
+                              ? 'سجل حالة الطلب'
+                              : 'Request status history',
+                          style: const TextStyle(
+                            color: AppColors.primaryDark,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      if (request.history.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          child: Align(
+                            alignment: AlignmentDirectional.centerStart,
+                            child: Text(
+                              l10n.localeName.startsWith('ar')
+                                  ? 'لا توجد تغييرات حالة سابقة مسجلة.'
+                                  : 'No previous status changes recorded.',
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        )
+                      else
+                        ...request.history.reversed.map((event) => ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              dense: true,
+                              leading: Icon(
+                                Icons.circle,
+                                size: 10,
+                                color: _statusColor(event.status),
+                              ),
+                              title: Text(
+                                _statusLabel(l10n, event.status),
+                                style: const TextStyle(
+                                  color: AppColors.primaryDark,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              subtitle: Text(
+                                '${event.note}\n${intl.DateFormat.yMd(l10n.localeName).add_jm().format(event.occurredAt)}',
+                              ),
+                              isThreeLine: true,
+                            )),
                     ],
                   ),
                   const SizedBox(height: 12),

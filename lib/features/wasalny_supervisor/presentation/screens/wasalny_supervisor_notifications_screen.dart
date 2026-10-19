@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/widgets/account_conversations_screen.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../data/wasalny_local_event_store.dart';
 
@@ -151,6 +152,18 @@ class _WasalnyEventInboxState extends State<_WasalnyEventInbox> {
           foregroundColor: AppColors.primaryDark,
           title: Text(widget.title),
           actions: [
+            if (widget.recipient == 'head')
+              IconButton(
+                tooltip: isArabic ? 'المحادثات' : 'Conversations',
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const AccountConversationsScreen(
+                      accountId: 'head',
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.chat_bubble_outline),
+              ),
             if (widget.onLogout != null)
               IconButton(
                 tooltip: l10n.logout,

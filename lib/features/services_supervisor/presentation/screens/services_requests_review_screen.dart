@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/widgets/app_snack_bar.dart';
@@ -133,19 +136,142 @@ class ServicesRequestsReviewScreen extends StatefulWidget {
 
 class _ServicesRequestsReviewScreenState
     extends State<ServicesRequestsReviewScreen> {
+  static const _storageKey = 'services_supervisor_review_state_v1';
   _ServiceCategory? _selectedCategory;
+  final TextEditingController _searchController = TextEditingController();
   final Set<String> _resolvedRequestIds = {};
   final Map<String, List<String>> _requestComments = {};
   final Map<String, ServiceProvider> _assignedProviders = {};
+  final Map<String, ({bool approved, String? reason})> _decisions = {};
+  bool _isLoading = true;
+  bool _showArchive = false;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadReviewState();
+  }
+
+  Future<void> _loadReviewState() async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      final encoded = preferences.getString(_storageKey);
+      if (encoded != null) {
+        final state = jsonDecode(encoded) as Map<String, dynamic>;
+        final decisions = state['decisions'] as Map<String, dynamic>? ?? {};
+        for (final entry in decisions.entries) {
+          final value = entry.value as Map<String, dynamic>;
+          _decisions[entry.key] = (
+            approved: value['approved'] as bool? ?? false,
+            reason: value['reason'] as String?,
+          );
+          _resolvedRequestIds.add(entry.key);
+        }
+        final comments = state['comments'] as Map<String, dynamic>? ?? {};
+        for (final entry in comments.entries) {
+          _requestComments[entry.key] = (entry.value as List).cast<String>();
+        }
+        final assigned = state['assignments'] as Map<String, dynamic>? ?? {};
+        for (final entry in assigned.entries) {
+          for (final provider in serviceProviders) {
+            if (provider.id == entry.value) {
+              _assignedProviders[entry.key] = provider;
+              break;
+            }
+          }
+        }
+      }
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'services request review',
+        context: ErrorDescription('while loading saved review decisions'),
+      ));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _saveReviewState() async {
+    final preferences = await SharedPreferences.getInstance();
+    final saved = await preferences.setString(
+      _storageKey,
+      jsonEncode({
+        'decisions': {
+          for (final entry in _decisions.entries)
+            entry.key: {'approved': entry.value.approved, 'reason': entry.value.reason},
+        },
+        'comments': _requestComments,
+        'assignments': {
+          for (final entry in _assignedProviders.entries)
+            entry.key: entry.value.id,
+        },
+      }),
+    );
+    if (!saved) throw StateError('Could not save services review data.');
+  }
+
+  Future<void> _restoreRequest(_ServiceRequest request) async {
+    final decision = _decisions[request.id];
+    setState(() {
+      _resolvedRequestIds.remove(request.id);
+      _decisions.remove(request.id);
+      _showArchive = false;
+    });
+    try {
+      await _saveReviewState();
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'services request review',
+        context: ErrorDescription('while restoring a reviewed request'),
+      ));
+      if (mounted) {
+        setState(() {
+          _resolvedRequestIds.add(request.id);
+          if (decision != null) _decisions[request.id] = decision;
+          _showArchive = true;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final isArabic = l10n.localeName.startsWith('ar');
+    if (_isLoading) return const Center(child: CircularProgressIndicator());
     final pendingRequests = _serviceRequests
         .where((request) => !_resolvedRequestIds.contains(request.id))
         .toList();
-    final requests = pendingRequests
+    final archiveRequests = _serviceRequests
+        .where((request) => _resolvedRequestIds.contains(request.id))
+        .toList();
+    final query = _searchController.text.trim().toLowerCase();
+    final sourceRequests = (_showArchive ? archiveRequests : pendingRequests)
+        .where((request) {
+          if (query.isEmpty) return true;
+          final searchableText = [
+            request.id,
+            request.serviceAr,
+            request.serviceEn,
+            request.providerAr,
+            request.providerEn,
+            request.locationAr,
+            request.locationEn,
+          ].join(' ').toLowerCase();
+          return searchableText.contains(query);
+        })
+        .toList();
+    final requests = sourceRequests
         .where((request) =>
             _selectedCategory == null || request.category == _selectedCategory)
         .toList();
@@ -156,8 +282,61 @@ class _ServicesRequestsReviewScreenState
         _buildHeading(l10n, pendingRequests.length),
         const SizedBox(height: 14),
         _buildSummary(l10n, pendingRequests.length),
+        const SizedBox(height: 10),
+        SegmentedButton<bool>(
+          segments: [
+            ButtonSegment(
+              value: false,
+              label: Text(l10n.servicesReviewTitle),
+              icon: const Icon(Icons.pending_actions_outlined),
+            ),
+            ButtonSegment(
+              value: true,
+              label: Text(
+                l10n.localeName.startsWith('ar') ? 'الأرشيف' : 'Archive',
+              ),
+              icon: const Icon(Icons.archive_outlined),
+            ),
+          ],
+          selected: {_showArchive},
+          onSelectionChanged: (selection) =>
+              setState(() => _showArchive = selection.first),
+        ),
         const SizedBox(height: 14),
-        _buildCategoryFilters(l10n, pendingRequests),
+        TextField(
+          controller: _searchController,
+          onChanged: (_) => setState(() {}),
+          textInputAction: TextInputAction.search,
+          decoration: InputDecoration(
+            hintText: isArabic
+                ? 'ابحث برقم الطلب أو الخدمة أو مقدمها'
+                : 'Search request number, service, or provider',
+            prefixIcon: const Icon(Icons.search_rounded),
+            suffixIcon: _searchController.text.isEmpty
+                ? null
+                : IconButton(
+                    tooltip: isArabic ? 'مسح البحث' : 'Clear search',
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() {});
+                    },
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(vertical: 10),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: AppColors.cardBorder),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: AppColors.cardBorder),
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        _buildCategoryFilters(l10n, sourceRequests),
         const SizedBox(height: 14),
         if (requests.isEmpty)
           Padding(
@@ -180,6 +359,15 @@ class _ServicesRequestsReviewScreenState
               onDetails: () => _showDetails(request, isArabic, l10n),
               commentCount: _requestComments[request.id]?.length ?? 0,
               onComment: () => _addComment(request, l10n),
+              archived: _showArchive,
+              decisionLabel: _decisions[request.id]?.approved == true
+                  ? l10n.servicesRequestApproved
+                  : _decisions[request.id]?.reason == null
+                      ? l10n.servicesRequestRejected
+                      : l10n.servicesRequestRejectedWithReason(
+                          _decisions[request.id]!.reason!,
+                        ),
+              onRestore: () => _restoreRequest(request),
             ),
             const SizedBox(height: 14),
           ],
@@ -250,7 +438,7 @@ class _ServicesRequestsReviewScreenState
         children: [
           Expanded(
             child: _SummaryMetric(
-              value: '28',
+              value: '${_decisions.values.where((decision) => decision.approved).length}',
               label: l10n.servicesCompletedToday,
               icon: Icons.task_alt_outlined,
               iconColor: AppColors.info,
@@ -365,20 +553,71 @@ class _ServicesRequestsReviewScreenState
       ),
     );
     if (comment == null || !mounted) return;
+    final previousComments = List<String>.from(
+      _requestComments[request.id] ?? const [],
+    );
     setState(() {
       _requestComments.putIfAbsent(request.id, () => []).add(comment);
     });
+    try {
+      await _saveReviewState();
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'services request review',
+        context: ErrorDescription('while saving a request comment'),
+      ));
+      if (mounted) {
+        setState(() {
+          if (previousComments.isEmpty) {
+            _requestComments.remove(request.id);
+          } else {
+            _requestComments[request.id] = previousComments;
+          }
+        });
+        AppSnackBar.showError(
+          context,
+          l10n.servicesAccountSaveError('$error'),
+        );
+      }
+      return;
+    }
     AppSnackBar.showSuccess(context, l10n.servicesCommentSaved);
   }
 
-  bool _applyDecision(
+  Future<bool> _applyDecision(
     _ServiceRequest request, {
     required bool approved,
     String? rejectionReason,
     required AppLocalizations l10n,
-  }) {
+  }) async {
     if (!mounted) return false;
-    setState(() => _resolvedRequestIds.add(request.id));
+    setState(() {
+      _resolvedRequestIds.add(request.id);
+      _decisions[request.id] = (approved: approved, reason: rejectionReason);
+    });
+    try {
+      await _saveReviewState();
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'services request review',
+        context: ErrorDescription('while saving a review decision'),
+      ));
+      if (mounted) {
+        setState(() {
+          _resolvedRequestIds.remove(request.id);
+          _decisions.remove(request.id);
+        });
+        AppSnackBar.showError(
+          context,
+          l10n.servicesAccountSaveError('$error'),
+        );
+      }
+      return false;
+    }
     AppSnackBar.showSuccess(
       context,
       approved
@@ -413,8 +652,34 @@ class _ServicesRequestsReviewScreenState
           workFee: request.workFee,
           icon: request.icon,
           photoUrls: request.photoUrls,
-          onAssign: (provider) {
+          onAssign: (provider) async {
+            final previousProvider = _assignedProviders[request.id];
             setState(() => _assignedProviders[request.id] = provider);
+            try {
+              await _saveReviewState();
+              return true;
+            } catch (error, stackTrace) {
+              FlutterError.reportError(FlutterErrorDetails(
+                exception: error,
+                stack: stackTrace,
+                library: 'services request review',
+                context: ErrorDescription('while saving provider assignment'),
+              ));
+              if (mounted) {
+                setState(() {
+                  if (previousProvider == null) {
+                    _assignedProviders.remove(request.id);
+                  } else {
+                    _assignedProviders[request.id] = previousProvider;
+                  }
+                });
+                AppSnackBar.showError(
+                  context,
+                  l10n.servicesAccountSaveError('$error'),
+                );
+              }
+              return false;
+            }
           },
           assignedProvider: _assignedProviders[request.id],
           initialCategory: request.category.name,
@@ -839,6 +1104,9 @@ class _ServiceRequestCard extends StatelessWidget {
   final VoidCallback onDetails;
   final int commentCount;
   final VoidCallback onComment;
+  final bool archived;
+  final String decisionLabel;
+  final VoidCallback onRestore;
 
   const _ServiceRequestCard({
     required this.request,
@@ -848,6 +1116,9 @@ class _ServiceRequestCard extends StatelessWidget {
     required this.onDetails,
     required this.commentCount,
     required this.onComment,
+    required this.archived,
+    required this.decisionLabel,
+    required this.onRestore,
   });
 
   @override
@@ -920,10 +1191,12 @@ class _ServiceRequestCard extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               _StatusBadge(
-                label: request.urgent
-                    ? l10n.servicesUrgent
-                    : l10n.servicesUnderReview,
-                urgent: request.urgent,
+                label: archived
+                    ? decisionLabel
+                    : request.urgent
+                        ? l10n.servicesUrgent
+                        : l10n.servicesUnderReview,
+                urgent: archived ? false : request.urgent,
               ),
             ],
           ),
@@ -1031,6 +1304,21 @@ class _ServiceRequestCard extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 12),
+          if (archived) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: onRestore,
+                icon: const Icon(Icons.restart_alt),
+                label: Text(
+                  l10n.localeName.startsWith('ar')
+                      ? 'إعادة إلى المراجعة'
+                      : 'Return to review',
+                ),
+              ),
+            ),
+          ] else ...[
           Row(
             children: [
               Expanded(
@@ -1097,6 +1385,7 @@ class _ServiceRequestCard extends StatelessWidget {
               ),
             ],
           ),
+          ],
         ],
       ),
     );

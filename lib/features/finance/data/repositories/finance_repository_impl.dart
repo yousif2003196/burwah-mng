@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:dartz/dartz.dart';
 import '../../../../core/errors/failures.dart';
 import '../../domain/entities/bank_account_edit_request_entity.dart';
@@ -10,11 +11,42 @@ import '../../domain/entities/subscription_request_entity.dart';
 import '../../domain/entities/withdrawal_request_entity.dart';
 import '../../domain/repositories/finance_repository.dart';
 import '../datasources/finance_remote_data_source.dart';
+import '../finance_audit_store.dart';
 
 class FinanceRepositoryImpl implements FinanceRepository {
   final FinanceRemoteDataSource remoteDataSource;
 
   FinanceRepositoryImpl({required this.remoteDataSource});
+
+  Future<void> _recordAudit({
+    required String actionKey,
+    required String titleAr,
+    required String titleEn,
+    required String reference,
+    String detailsAr = '',
+    String detailsEn = '',
+  }) async {
+    final occurredAt = DateTime.now();
+    try {
+      await FinanceAuditStore().record(FinanceAuditEntry(
+        id: '$actionKey-${occurredAt.microsecondsSinceEpoch}',
+        actionKey: actionKey,
+        titleAr: titleAr,
+        titleEn: titleEn,
+        detailsAr: detailsAr,
+        detailsEn: detailsEn,
+        reference: reference,
+        actor: 'finance',
+        occurredAt: occurredAt,
+      ));
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'finance audit recording',
+      ));
+    }
+  }
 
   @override
   Future<Either<Failure, FinanceSummaryEntity>> getFinanceSummary() async {
@@ -87,18 +119,94 @@ class FinanceRepositoryImpl implements FinanceRepository {
     required double amount,
     required String bankAccountId,
     required String reason,
+    String category = 'other',
+    String beneficiaryName = '',
     String? attachmentName,
+    String? attachmentPath,
   }) async {
     try {
       final request = await remoteDataSource.submitExpenseRequest(
         amount: amount,
         bankAccountId: bankAccountId,
         reason: reason,
+        category: category,
+        beneficiaryName: beneficiaryName,
         attachmentName: attachmentName,
+        attachmentPath: attachmentPath,
+      );
+      await _recordAudit(
+        actionKey: 'expense_submitted',
+        titleAr: 'إرسال طلب مصروف',
+        titleEn: 'Expense request submitted',
+        reference: request.id,
+        detailsAr: '${request.amount} · ${request.reason}',
+        detailsEn: '${request.amount} · ${request.reason}',
       );
       return Right(request);
     } on ArgumentError catch (error) {
       return Left(ServerFailure(error.message.toString()));
+    } catch (error) {
+      return Left(ServerFailure(error.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> updateExpenseRequestStatus({
+    required String requestId,
+    required ExpenseRequestStatus status,
+    String? reason,
+  }) async {
+    try {
+      await remoteDataSource.updateExpenseRequestStatus(
+        requestId: requestId,
+        status: status,
+        reason: reason,
+      );
+      await _recordAudit(
+        actionKey: 'expense_${status.name}',
+        titleAr: 'تغيير حالة طلب مصروف',
+        titleEn: 'Expense request status changed',
+        reference: requestId,
+        detailsAr: reason ?? status.name,
+        detailsEn: reason ?? status.name,
+      );
+      return const Right(null);
+    } catch (error) {
+      return Left(ServerFailure(error.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, ExpenseRequestEntity>> editExpenseRequest({
+    required String requestId,
+    required double amount,
+    required String bankAccountId,
+    required String reason,
+    required String category,
+    required String beneficiaryName,
+    String? attachmentName,
+    String? attachmentPath,
+  }) async {
+    try {
+      final request = await remoteDataSource.editExpenseRequest(
+        requestId: requestId,
+        amount: amount,
+        bankAccountId: bankAccountId,
+        reason: reason,
+        category: category,
+        beneficiaryName: beneficiaryName,
+        attachmentName: attachmentName,
+        attachmentPath: attachmentPath,
+      );
+      await _recordAudit(
+        actionKey: 'expense_edited',
+        titleAr: 'تعديل طلب مصروف',
+        titleEn: 'Expense request edited',
+        reference: request.id,
+        detailsAr: '${request.amount} · ${request.reason}',
+        detailsEn: '${request.amount} · ${request.reason}',
+      );
+      return Right(request);
     } catch (error) {
       return Left(ServerFailure(error.toString()));
     }
@@ -145,6 +253,12 @@ class FinanceRepositoryImpl implements FinanceRepository {
   ) async {
     try {
       await remoteDataSource.approveMerchantFinancialRequest(requestId);
+      await _recordAudit(
+        actionKey: 'merchant_request_approved',
+        titleAr: 'اعتماد طلب مالي لتاجر',
+        titleEn: 'Merchant financial request approved',
+        reference: requestId,
+      );
       return const Right(null);
     } catch (error) {
       return Left(ServerFailure(error.toString()));
@@ -158,6 +272,14 @@ class FinanceRepositoryImpl implements FinanceRepository {
   ) async {
     try {
       await remoteDataSource.freezeMerchantFinancialRequest(requestId, reason);
+      await _recordAudit(
+        actionKey: 'merchant_request_frozen',
+        titleAr: 'تجميد طلب مالي لتاجر',
+        titleEn: 'Merchant financial request frozen',
+        reference: requestId,
+        detailsAr: reason,
+        detailsEn: reason,
+      );
       return const Right(null);
     } catch (error) {
       return Left(ServerFailure(error.toString()));
@@ -171,6 +293,14 @@ class FinanceRepositoryImpl implements FinanceRepository {
   ) async {
     try {
       await remoteDataSource.rejectMerchantFinancialRequest(requestId, reason);
+      await _recordAudit(
+        actionKey: 'merchant_request_rejected',
+        titleAr: 'رفض طلب مالي لتاجر',
+        titleEn: 'Merchant financial request rejected',
+        reference: requestId,
+        detailsAr: reason,
+        detailsEn: reason,
+      );
       return const Right(null);
     } catch (error) {
       return Left(ServerFailure(error.toString()));
@@ -267,6 +397,12 @@ class FinanceRepositoryImpl implements FinanceRepository {
     try {
       await remoteDataSource.restoreFrozenWithdrawal(
           requestId, beneficiaryType);
+      await _recordAudit(
+        actionKey: 'withdrawal_restored',
+        titleAr: 'إعادة طلب سحب للمراجعة',
+        titleEn: 'Withdrawal restored for review',
+        reference: requestId,
+      );
       return const Right(null);
     } catch (error) {
       return Left(ServerFailure(error.toString()));
@@ -284,6 +420,14 @@ class FinanceRepositoryImpl implements FinanceRepository {
         requestId,
         beneficiaryType,
         reason,
+      );
+      await _recordAudit(
+        actionKey: 'withdrawal_forfeited',
+        titleAr: 'رفض ومصادرة طلب سحب',
+        titleEn: 'Withdrawal rejected and forfeited',
+        reference: requestId,
+        detailsAr: reason,
+        detailsEn: reason,
       );
       return const Right(null);
     } catch (error) {
@@ -305,6 +449,12 @@ class FinanceRepositoryImpl implements FinanceRepository {
   Future<Either<Failure, void>> approveBankLinkRequest(String requestId) async {
     try {
       await remoteDataSource.approveBankLinkRequest(requestId);
+      await _recordAudit(
+        actionKey: 'bank_link_approved',
+        titleAr: 'اعتماد ربط حساب بنكي',
+        titleEn: 'Bank account link approved',
+        reference: requestId,
+      );
       return const Right(null);
     } catch (error) {
       return Left(ServerFailure(error.toString()));
@@ -315,6 +465,12 @@ class FinanceRepositoryImpl implements FinanceRepository {
   Future<Either<Failure, void>> requestIbanCertificate(String requestId) async {
     try {
       await remoteDataSource.requestIbanCertificate(requestId);
+      await _recordAudit(
+        actionKey: 'iban_certificate_requested',
+        titleAr: 'طلب شهادة آيبان',
+        titleEn: 'IBAN certificate requested',
+        reference: requestId,
+      );
       return const Right(null);
     } catch (error) {
       return Left(ServerFailure(error.toString()));
@@ -328,6 +484,14 @@ class FinanceRepositoryImpl implements FinanceRepository {
   ) async {
     try {
       await remoteDataSource.freezeBankLinkRequest(requestId, reason);
+      await _recordAudit(
+        actionKey: 'bank_link_frozen',
+        titleAr: 'تجميد طلب ربط حساب',
+        titleEn: 'Bank link request frozen',
+        reference: requestId,
+        detailsAr: reason,
+        detailsEn: reason,
+      );
       return const Right(null);
     } catch (error) {
       return Left(ServerFailure(error.toString()));
@@ -341,6 +505,14 @@ class FinanceRepositoryImpl implements FinanceRepository {
   ) async {
     try {
       await remoteDataSource.rejectBankLinkRequest(requestId, reason);
+      await _recordAudit(
+        actionKey: 'bank_link_rejected',
+        titleAr: 'رفض طلب ربط حساب',
+        titleEn: 'Bank link request rejected',
+        reference: requestId,
+        detailsAr: reason,
+        detailsEn: reason,
+      );
       return const Right(null);
     } catch (error) {
       return Left(ServerFailure(error.toString()));
@@ -352,6 +524,12 @@ class FinanceRepositoryImpl implements FinanceRepository {
       String requestId) async {
     try {
       await remoteDataSource.restoreFrozenBankLinkRequest(requestId);
+      await _recordAudit(
+        actionKey: 'bank_link_restored',
+        titleAr: 'إعادة طلب ربط حساب للمراجعة',
+        titleEn: 'Bank link restored for review',
+        reference: requestId,
+      );
       return const Right(null);
     } catch (error) {
       return Left(ServerFailure(error.toString()));
@@ -365,6 +543,14 @@ class FinanceRepositoryImpl implements FinanceRepository {
   ) async {
     try {
       await remoteDataSource.rejectFrozenBankLinkRequest(requestId, reason);
+      await _recordAudit(
+        actionKey: 'frozen_bank_link_rejected',
+        titleAr: 'رفض طلب ربط حساب مجمد',
+        titleEn: 'Frozen bank link request rejected',
+        reference: requestId,
+        detailsAr: reason,
+        detailsEn: reason,
+      );
       return const Right(null);
     } catch (error) {
       return Left(ServerFailure(error.toString()));
@@ -383,6 +569,54 @@ class FinanceRepositoryImpl implements FinanceRepository {
   }
 
   @override
+  Future<Either<Failure, void>> updateSubscriptionDecision({
+    required String requestId,
+    required SubscriptionReviewDecision decision,
+    required String reason,
+  }) async {
+    try {
+      await remoteDataSource.updateSubscriptionDecision(
+        requestId: requestId,
+        decision: decision,
+        reason: reason,
+      );
+      await _recordAudit(
+        actionKey: 'subscription_${decision.name}',
+        titleAr: 'تحديث قرار طلب اشتراك',
+        titleEn: 'Subscription request decision updated',
+        reference: requestId,
+        detailsAr: reason,
+        detailsEn: reason,
+      );
+      return const Right(null);
+    } on StateError catch (error) {
+      return Left(ServerFailure(error.message));
+    } catch (error) {
+      return Left(ServerFailure(error.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> restoreSubscriptionDecision(
+    String requestId,
+  ) async {
+    try {
+      await remoteDataSource.restoreSubscriptionDecision(requestId);
+      await _recordAudit(
+        actionKey: 'subscription_decision_restored',
+        titleAr: 'إعادة طلب اشتراك للمراجعة',
+        titleEn: 'Subscription request restored for review',
+        reference: requestId,
+      );
+      return const Right(null);
+    } on StateError catch (error) {
+      return Left(ServerFailure(error.message));
+    } catch (error) {
+      return Left(ServerFailure(error.toString()));
+    }
+  }
+
+  @override
   Future<Either<Failure, DepartmentWalletEntity>> getDepartmentWallet(
       DepartmentType type) async {
     try {
@@ -397,6 +631,12 @@ class FinanceRepositoryImpl implements FinanceRepository {
   Future<Either<Failure, void>> approveWithdrawal(String requestId) async {
     try {
       await remoteDataSource.approveWithdrawal(requestId);
+      await _recordAudit(
+        actionKey: 'withdrawal_approved',
+        titleAr: 'اعتماد طلب سحب',
+        titleEn: 'Withdrawal request approved',
+        reference: requestId,
+      );
       return const Right(null);
     } catch (e) {
       return const Left(ServerFailure());
@@ -410,6 +650,14 @@ class FinanceRepositoryImpl implements FinanceRepository {
   ) async {
     try {
       await remoteDataSource.rejectWithdrawal(requestId, reason);
+      await _recordAudit(
+        actionKey: 'withdrawal_rejected',
+        titleAr: 'رفض طلب سحب',
+        titleEn: 'Withdrawal request rejected',
+        reference: requestId,
+        detailsAr: reason,
+        detailsEn: reason,
+      );
       return const Right(null);
     } on ArgumentError catch (error) {
       return Left(ServerFailure(error.message.toString()));
@@ -425,6 +673,14 @@ class FinanceRepositoryImpl implements FinanceRepository {
       String requestId, String reason) async {
     try {
       await remoteDataSource.freezeWithdrawal(requestId, reason);
+      await _recordAudit(
+        actionKey: 'withdrawal_frozen',
+        titleAr: 'تعليق طلب سحب للمراجعة',
+        titleEn: 'Withdrawal request suspended for review',
+        reference: requestId,
+        detailsAr: reason,
+        detailsEn: reason,
+      );
       return const Right(null);
     } catch (e) {
       return const Left(ServerFailure());

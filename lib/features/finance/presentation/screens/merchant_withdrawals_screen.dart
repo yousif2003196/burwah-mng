@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart' as intl;
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection_container.dart';
@@ -25,6 +26,7 @@ class MerchantWithdrawalsScreen extends StatefulWidget {
 }
 
 class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
+  final TextEditingController _searchController = TextEditingController();
   List<WithdrawalRequestEntity> _requests = [];
   bool _isLoading = true;
   String _selectedFilter = 'الكل'; // تغيير الفلتر الافتراضي
@@ -33,12 +35,17 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
   bool _isPromotionRequest(WithdrawalRequestEntity request) =>
       request.operationType == FinancialOperationType.promotion;
   bool _showArchive = false;
+  String _searchQuery = '';
+  RequestStatus? _statusFilter;
+  DateTimeRange? _dateRange;
 
   String _promotionRecipient(WithdrawalRequestEntity request) =>
-      request.sourceOfFunds?.contains('وصلني') == true ||
-              request.sourceAccount?.startsWith('wasalny-') == true
-          ? 'wasalny'
-          : 'products';
+      request.sourceAccount?.startsWith('UPG-') == true
+          ? 'merchant'
+          : request.sourceOfFunds?.contains('وصلني') == true ||
+                  request.sourceAccount?.startsWith('wasalny-') == true
+              ? 'wasalny'
+              : 'products';
 
   // دوال الفلترة والحساب الديناميكي
   List<WithdrawalRequestEntity> get _categoryRequests =>
@@ -52,11 +59,53 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
         _ => _requests,
       };
 
-  List<WithdrawalRequestEntity> get _filteredRequests => _categoryRequests
-      .where((request) => _showArchive
+  List<WithdrawalRequestEntity> get _filteredRequests {
+    final query = _searchQuery.trim().toLowerCase();
+    final results = _categoryRequests.where((request) {
+      final inQueue = _showArchive
           ? request.status != RequestStatus.pending
-          : request.status == RequestStatus.pending)
-      .toList(growable: false);
+          : request.status == RequestStatus.pending;
+      final date = _requestDate(request);
+      final inDateRange = _dateRange == null ||
+          (date != null &&
+              !date.isBefore(_dateRange!.start) &&
+              !date.isAfter(DateTime(
+                _dateRange!.end.year,
+                _dateRange!.end.month,
+                _dateRange!.end.day,
+                23,
+                59,
+                59,
+              )));
+      final searchable = [
+        request.beneficiaryName,
+        request.requestNumber,
+        request.sourceAccount ?? '',
+        request.sourceOfFunds ?? '',
+      ].join(' ').toLowerCase();
+      return inQueue &&
+          (_statusFilter == null || request.status == _statusFilter) &&
+          inDateRange &&
+          (query.isEmpty || searchable.contains(query));
+    }).toList();
+    results.sort((a, b) => (_requestDate(a) ?? DateTime(9999))
+        .compareTo(_requestDate(b) ?? DateTime(9999)));
+    return results;
+  }
+
+  DateTime? _requestDate(WithdrawalRequestEntity request) =>
+      DateTime.tryParse(request.dateText);
+
+  Future<void> _selectDateRange() async {
+    final now = DateTime.now();
+    final range = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(now.year + 1, 12, 31),
+      initialDateRange: _dateRange,
+    );
+    if (range != null && mounted) setState(() => _dateRange = range);
+  }
 
   int get _pendingCount =>
       _categoryRequests.where((r) => r.status == RequestStatus.pending).length;
@@ -104,6 +153,12 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
     _loadData();
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadData() async {
     final result = await sl<GetMerchantWithdrawalsUseCase>()();
     result.fold(
@@ -118,24 +173,35 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
   Future<void> _notifyPromotionDecision(
     WithdrawalRequestEntity request, {
     required bool approved,
+    bool isOnHold = false,
     String? reason,
   }) async {
     try {
       await WasalnyLocalEventStore().publish(
         WasalnyLocalEvent(
-          id: 'finance-${approved ? 'approved' : 'rejected'}-${request.id}',
+          id: 'finance-${approved ? 'approved' : isOnHold ? 'on-hold' : 'rejected'}-${request.id}',
           recipient: _promotionRecipient(request),
           source: 'finance',
-          titleAr: approved ? 'تم اعتماد طلب الترويج' : 'تم رفض طلب الترويج',
+          titleAr: approved
+              ? 'تم اعتماد طلب الترويج'
+              : isOnHold
+                  ? 'تم تعليق طلب الترويج للمراجعة'
+                  : 'تم رفض طلب الترويج',
           titleEn: approved
               ? 'Promotion request approved'
-              : 'Promotion request rejected',
+              : isOnHold
+                  ? 'Promotion request on hold'
+                  : 'Promotion request rejected',
           messageAr: approved
               ? 'اعتمد المشرف المالي طلب الترويج ${request.beneficiaryName} وأحاله للإدارة للخصم.'
-              : 'رفض المشرف المالي طلب الترويج ${request.beneficiaryName}: ${reason ?? ''}',
+              : isOnHold
+                  ? 'علّق المشرف المالي طلب الترويج ${request.beneficiaryName} للمراجعة: ${reason ?? ''}'
+                  : 'رفض المشرف المالي طلب الترويج ${request.beneficiaryName}: ${reason ?? ''}',
           messageEn: approved
               ? 'Finance approved ${request.beneficiaryName}\'s promotion and forwarded it to management for deduction.'
-              : 'Finance rejected ${request.beneficiaryName}\'s promotion: ${reason ?? ''}',
+              : isOnHold
+                  ? 'Finance put ${request.beneficiaryName}\'s promotion on hold: ${reason ?? ''}'
+                  : 'Finance rejected ${request.beneficiaryName}\'s promotion: ${reason ?? ''}',
           createdAt: DateTime.now(),
         ),
       );
@@ -202,7 +268,10 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
     AppLocalizations l10n,
     WithdrawalRequestEntity request,
   ) async {
-    if (_processingRequests.contains(request.id)) return;
+    if (request.status != RequestStatus.pending ||
+        _processingRequests.contains(request.id)) {
+      return;
+    }
     setState(() => _processingRequests.add(request.id));
     try {
       final result =
@@ -223,7 +292,10 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
         await _notifyPromotionDecision(request, approved: true);
       }
       if (!mounted) return;
-      _replaceRequest(request.copyWith(status: RequestStatus.approved));
+      _replaceRequest(request.copyWith(
+        status: RequestStatus.approved,
+        historyNote: 'تم اعتماد الطلب من المشرف المالي',
+      ));
       AppSnackBar.showSuccess(context, l10n.financeRequestApproved);
     } catch (error, stackTrace) {
       FlutterError.reportError(
@@ -252,6 +324,7 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
     );
     if (reason == null ||
         !mounted ||
+        request.status != RequestStatus.pending ||
         _processingRequests.contains(request.id)) {
       return;
     }
@@ -304,7 +377,10 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
     AppLocalizations l10n,
     WithdrawalRequestEntity request,
   ) async {
-    if (_processingRequests.contains(request.id)) return;
+    if (request.status != RequestStatus.pending ||
+        _processingRequests.contains(request.id)) {
+      return;
+    }
     final confirmed = await FinanceDialogs.showFreezeDialog(
       context,
       requestTitle: FinanceLocalizer.localizeWithdrawalText(
@@ -324,6 +400,15 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
         AppSnackBar.showError(context, failure.message);
         return;
       }
+      if (_isPromotionRequest(request)) {
+        await _notifyPromotionDecision(
+          request,
+          approved: false,
+          isOnHold: true,
+          reason: reason,
+        );
+      }
+      if (!mounted) return;
       _replaceRequest(
         request.copyWith(
           status: RequestStatus.underInvestigation,
@@ -472,6 +557,77 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                           _buildFilterChip('المستخدمين'),
                         ],
                       ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          DropdownButton<RequestStatus?>(
+                            value: _statusFilter,
+                            hint: Text(l10n.localeName.startsWith('ar')
+                                ? 'كل الحالات'
+                                : 'All statuses'),
+                            items: [
+                              DropdownMenuItem<RequestStatus?>(
+                                value: null,
+                                child: Text(l10n.localeName.startsWith('ar')
+                                    ? 'كل الحالات'
+                                    : 'All statuses'),
+                              ),
+                              for (final status in RequestStatus.values)
+                                DropdownMenuItem<RequestStatus?>(
+                                  value: status,
+                                  child: Text(_statusLabel(l10n, status)),
+                                ),
+                            ],
+                            onChanged: (value) =>
+                                setState(() => _statusFilter = value),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _selectDateRange,
+                            icon: const Icon(Icons.date_range_outlined),
+                            label: Text(_dateRange == null
+                                ? (l10n.localeName.startsWith('ar')
+                                    ? 'تصفية بالتاريخ'
+                                    : 'Filter by date')
+                                : '${intl.DateFormat.yMd(l10n.localeName).format(_dateRange!.start)} – ${intl.DateFormat.yMd(l10n.localeName).format(_dateRange!.end)}'),
+                          ),
+                          if (_dateRange != null)
+                            IconButton(
+                              tooltip: l10n.localeName.startsWith('ar')
+                                  ? 'مسح التاريخ'
+                                  : 'Clear date filter',
+                              onPressed: () =>
+                                  setState(() => _dateRange = null),
+                              icon: const Icon(Icons.close),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _searchController,
+                        onChanged: (value) =>
+                            setState(() => _searchQuery = value),
+                        decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.search),
+                          hintText: l10n.localeName.startsWith('ar')
+                              ? 'ابحث باسم المستفيد أو رقم الطلب'
+                              : 'Search beneficiary or request number',
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                const BorderSide(color: AppColors.cardBorder),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                const BorderSide(color: AppColors.cardBorder),
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 20),
 
                       // 5. List of requests
@@ -608,6 +764,16 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
       ),
     );
   }
+
+  String _statusLabel(AppLocalizations l10n, RequestStatus status) =>
+      switch (status) {
+        RequestStatus.pending => l10n.withdrawalDetailsStatusPending,
+        RequestStatus.underInvestigation =>
+          l10n.withdrawalDetailsStatusInvestigation,
+        RequestStatus.approved => l10n.withdrawalDetailsStatusApproved,
+        RequestStatus.frozen => l10n.withdrawalDetailsStatusFrozen,
+        RequestStatus.rejected => l10n.withdrawalDetailsStatusRejected,
+      };
 
   Widget _buildQueueChip(String label, bool archive) {
     final selected = _showArchive == archive;
@@ -1187,14 +1353,10 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                                     ? 'اعتماد طلب السحب'
                                     : 'Approve Withdrawal Request',
                             description: _isPromotionRequest(req)
-                                ? l10n
-                                    .wasalnyPromotionFinanceApprovalConfirmation(
-                                    req.beneficiaryName,
-                                    CurrencyFormatter.format(req.netAmount),
-                                  )
+                                ? '${l10n.wasalnyPromotionFinanceApprovalConfirmation(req.beneficiaryName, CurrencyFormatter.format(req.netAmount))}\n\n${isArabic ? 'الإجمالي' : 'Gross'}: ${CurrencyFormatter.format(req.grossAmount)}\n${isArabic ? 'الرسوم' : 'Fees'}: ${CurrencyFormatter.format(req.platformFeeAmount)} (${req.platformFeePercentage.toStringAsFixed(1)}%)\n${isArabic ? 'الصافي' : 'Net'}: ${CurrencyFormatter.format(req.netAmount)}'
                                 : isArabic
-                                    ? 'هل تريد اعتماد طلب سحب ${req.beneficiaryName} بقيمة ${CurrencyFormatter.format(req.netAmount)} وإرساله للإدارة للموافقة؟'
-                                    : 'Do you want to approve the withdrawal request for ${FinanceLocalizer.localizeWithdrawalText(context, req.beneficiaryName)} (${CurrencyFormatter.format(req.netAmount)}) and send it to management?',
+                                    ? 'هل تريد اعتماد الطلب المالي لـ ${req.beneficiaryName} وإرساله للإدارة؟\n\nالإجمالي: ${CurrencyFormatter.format(req.grossAmount)}\nالرسوم: ${CurrencyFormatter.format(req.platformFeeAmount)} (${req.platformFeePercentage.toStringAsFixed(1)}%)\nالصافي: ${CurrencyFormatter.format(req.netAmount)}'
+                                    : 'Approve the financial request for ${FinanceLocalizer.localizeWithdrawalText(context, req.beneficiaryName)} and send it to management?\n\nGross: ${CurrencyFormatter.format(req.grossAmount)}\nFees: ${CurrencyFormatter.format(req.platformFeeAmount)} (${req.platformFeePercentage.toStringAsFixed(1)}%)\nNet: ${CurrencyFormatter.format(req.netAmount)}',
                           );
                           if (confirmed && mounted && context.mounted) {
                             await _approveRequest(l10n, req);

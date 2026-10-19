@@ -1,13 +1,22 @@
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/widgets/app_snack_bar.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../data/finance_audit_store.dart';
 import 'widgets/withdraw_bottom_sheet.dart';
-import 'bank_accounts_screen.dart';
+import 'personal_withdrawal_methods_screen.dart';
 import 'edit_matrix_screen.dart';
+import 'financial_activity_log_screen.dart';
 import '../widgets/finance_navigation.dart';
+import '../utils/finance_profile_report_exporter.dart';
+import '../utils/finance_commission_matrix_store.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   final VoidCallback onLogout;
 
   const ProfileScreen({
@@ -16,12 +25,86 @@ class ProfileScreen extends StatelessWidget {
   });
 
   @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  FinanceCommissionMatrix _commissionMatrix =
+      const FinanceCommissionMatrix.defaults();
+  List<FinanceAuditEntry> _auditEntries = [];
+  bool _auditLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    FinanceAuditStore.revision.addListener(_loadAuditEntries);
+    _loadCommissionMatrix();
+    _loadAuditEntries();
+  }
+
+  @override
+  void dispose() {
+    FinanceAuditStore.revision.removeListener(_loadAuditEntries);
+    super.dispose();
+  }
+
+  Future<void> _loadAuditEntries() async {
+    try {
+      final entries = await FinanceAuditStore().getRecent(limit: 4);
+      if (mounted) {
+        setState(() {
+          _auditEntries = entries;
+          _auditLoading = false;
+        });
+      }
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'financial profile audit timeline',
+      ));
+      if (mounted) setState(() => _auditLoading = false);
+    }
+  }
+
+  String _auditTime(DateTime value, bool isArabic) {
+    final date = value.toLocal();
+    final now = DateTime.now();
+    final time = '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    if (date.year == now.year && date.month == now.month && date.day == now.day) {
+      return isArabic ? 'اليوم · $time' : 'Today · $time';
+    }
+    return '${date.year}/${date.month}/${date.day} · $time';
+  }
+
+  Future<void> _loadCommissionMatrix() async {
+    try {
+      final matrix = await FinanceCommissionMatrix.load();
+      if (mounted) setState(() => _commissionMatrix = matrix);
+    } catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'finance commission matrix',
+          context: ErrorDescription('while loading profile commission rates'),
+        ),
+      );
+    }
+  }
+
+  String _formatRate(double value) =>
+      value == value.roundToDouble() ? value.toStringAsFixed(0) : value.toString();
+
+  @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final isArabic = l10n.localeName.startsWith('ar');
 
     return Directionality(
-      textDirection:
-          l10n.localeName.startsWith('ar') ? TextDirection.rtl : TextDirection.ltr,
+      textDirection: l10n.localeName.startsWith('ar')
+          ? TextDirection.rtl
+          : TextDirection.ltr,
       child: Scaffold(
         backgroundColor: AppColors.backgroundLight,
         appBar: FinancePageAppBar(
@@ -36,7 +119,10 @@ class ProfileScreen extends StatelessWidget {
           child: Column(
             children: [
               // Security Banner
-              Container(
+              InkWell(
+                onTap: () => _showSecurityDetails(context, l10n),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
@@ -105,6 +191,7 @@ class ProfileScreen extends StatelessWidget {
                     ),
                   ],
                 ),
+                ),
               ),
               const SizedBox(height: 16),
 
@@ -170,41 +257,7 @@ class ProfileScreen extends StatelessWidget {
                           Stack(
                             alignment: Alignment.bottomRight,
                             children: [
-                              GestureDetector(
-                                onTap: () {
-                                  // Upload profile image action
-                                },
-                                child: Container(
-                                  width: 60,
-                                  height: 60,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.surfaceLight,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Stack(
-                                    alignment: Alignment.center,
-                                    children: [
-                                      ClipRRect(
-                                        borderRadius: BorderRadius.circular(12),
-                                        child: const Icon(Icons.account_circle,
-                                            size: 60, color: Colors.grey),
-                                      ),
-                                      Container(
-                                        width: double.infinity,
-                                        height: double.infinity,
-                                        decoration: BoxDecoration(
-                                          color: Colors.black
-                                              .withValues(alpha: 0.3),
-                                          borderRadius:
-                                              BorderRadius.circular(12),
-                                        ),
-                                        child: const Icon(Icons.camera_alt,
-                                            color: Colors.white, size: 24),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
+                              const _ProfileAvatar(),
                               Positioned(
                                 bottom: -4,
                                 right: -4,
@@ -330,7 +383,8 @@ class ProfileScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                        color: AppColors.primaryExtraDark.withValues(alpha: 0.2),
+                        color:
+                            AppColors.primaryExtraDark.withValues(alpha: 0.2),
                         blurRadius: 10,
                         offset: const Offset(0, 4)),
                   ],
@@ -451,7 +505,8 @@ class ProfileScreen extends StatelessWidget {
                                     mainAxisAlignment: MainAxisAlignment.end,
                                     children: [
                                       Flexible(
-                                        child: Text(l10n.pendingRegulatoryBalance,
+                                        child: Text(
+                                            l10n.pendingRegulatoryBalance,
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                             style: const TextStyle(
@@ -507,7 +562,8 @@ class ProfileScreen extends StatelessWidget {
                                     mainAxisAlignment: MainAxisAlignment.end,
                                     children: [
                                       Flexible(
-                                        child: Text(l10n.readyForInstantDisbursement,
+                                        child: Text(
+                                            l10n.readyForInstantDisbursement,
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                             style: const TextStyle(
@@ -573,14 +629,15 @@ class ProfileScreen extends StatelessWidget {
                                     style: const TextStyle(
                                         color: Colors.white60, fontSize: 9)),
                                 const Text('SA44 8000 0001 **** 3456',
-                                  style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 1.2),
-                                  textDirection: TextDirection.ltr),
-                            ],
-                          ),),
+                                    style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 1.2),
+                                    textDirection: TextDirection.ltr),
+                              ],
+                            ),
+                          ),
                           const SizedBox(width: 12),
                           Container(
                             padding: const EdgeInsets.symmetric(
@@ -595,8 +652,7 @@ class ProfileScreen extends StatelessWidget {
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold)),
                           ),
-                      
-                      ],
+                        ],
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -608,7 +664,8 @@ class ProfileScreen extends StatelessWidget {
                             width: double.infinity,
                             child: ElevatedButton.icon(
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white.withValues(alpha: 0.15),
+                                backgroundColor:
+                                    Colors.white.withValues(alpha: 0.15),
                                 foregroundColor: Colors.white,
                                 elevation: 0,
                                 shape: RoundedRectangleBorder(
@@ -632,7 +689,8 @@ class ProfileScreen extends StatelessWidget {
                             width: double.infinity,
                             child: ElevatedButton.icon(
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white.withValues(alpha: 0.15),
+                                backgroundColor:
+                                    Colors.white.withValues(alpha: 0.15),
                                 foregroundColor: Colors.white,
                                 elevation: 0,
                                 shape: RoundedRectangleBorder(
@@ -645,7 +703,9 @@ class ProfileScreen extends StatelessWidget {
                               onPressed: () => Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                    builder: (_) => const BankAccountsScreen()),
+                                  builder: (_) =>
+                                      const PersonalWithdrawalMethodsScreen(),
+                                ),
                               ),
                               label: Text(l10n.editWithdrawalInformation,
                                   style: const TextStyle(
@@ -715,12 +775,15 @@ class ProfileScreen extends StatelessWidget {
                               borderRadius: BorderRadius.circular(10)),
                         ),
                         icon: const Icon(Icons.edit, size: 14),
-                        onPressed: () {
-                          Navigator.push(
+                        onPressed: () async {
+                          final updatedMatrix =
+                              await Navigator.push<FinanceCommissionMatrix>(
                             context,
                             MaterialPageRoute(
                                 builder: (_) => const EditMatrixScreen()),
                           );
+                          if (!mounted || updatedMatrix == null) return;
+                          setState(() => _commissionMatrix = updatedMatrix);
                         },
                         label: Text(l10n.editMatrix,
                             style: const TextStyle(
@@ -742,7 +805,8 @@ class ProfileScreen extends StatelessWidget {
                                   height: 1.2),
                               textAlign: TextAlign.end),
                           const SizedBox(height: 4),
-                          Text('1.25%',
+                          Text(
+                              '${_formatRate(_commissionMatrix.settlementPercentage)}%',
                               style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
@@ -759,14 +823,18 @@ class ProfileScreen extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          Text(l10n.currentBaseCommission,
+                          Text(
+                              l10n.localeName.startsWith('ar')
+                                  ? 'العمولة الأساسية المحفوظة'
+                                  : 'Saved base commission',
                               style: const TextStyle(
                                   fontSize: 9,
                                   color: AppColors.textSecondary,
                                   height: 1.2),
                               textAlign: TextAlign.end),
                           const SizedBox(height: 4),
-                          const Text('4.50%',
+                          Text(
+                              '${_formatRate(_commissionMatrix.salesPercentage)}%',
                               style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
@@ -797,7 +865,7 @@ class ProfileScreen extends StatelessWidget {
                               borderRadius: BorderRadius.circular(10)),
                         ),
                         icon: const Icon(Icons.grid_on_outlined, size: 16),
-                        onPressed: () {},
+                        onPressed: () => _exportDetailedReport(context, l10n),
                         label: Text(l10n.exportDetailedExcel,
                             style: const TextStyle(
                                 fontSize: 11, fontWeight: FontWeight.bold)),
@@ -816,7 +884,7 @@ class ProfileScreen extends StatelessWidget {
                         ),
                         icon:
                             const Icon(Icons.picture_as_pdf_outlined, size: 16),
-                        onPressed: () {},
+                        onPressed: () => _exportApprovedReport(context, l10n),
                         label: Text(l10n.exportApprovedPdf,
                             style: const TextStyle(
                                 fontSize: 11, fontWeight: FontWeight.bold)),
@@ -866,187 +934,59 @@ class ProfileScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
 
-              // 7. Timeline List
-              _buildTimelineItem(
-                context: context,
-                title: l10n.ownerDisputeSettlementApproval,
-                time: l10n.todayAtEleven,
-                description: l10n.approveDisputeSettlement,
-                icon: Icons.verified_user_outlined,
-                iconColor: AppColors.primaryDark,
-                bgColor: Colors.blue.shade50,
-                bottomWidget: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Flexible(
-                      child: Text('${l10n.referenceCode} #SIG-9082',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 9, color: AppColors.textSecondary)),),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 4),
-                        decoration: BoxDecoration(
-                            color: AppColors.surfaceLight,
-                            borderRadius: BorderRadius.circular(4)),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Flexible(
-                              child: Text(l10n.validDigitalSignature,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                      fontSize: 9,
-                                      color: Colors.blue.shade700,
-                                      fontWeight: FontWeight.bold)),
-                            ),
-                            const SizedBox(width: 4),
-                            Icon(Icons.key,
-                                size: 10, color: Colors.blue.shade700),
-                          ],
-                        ),
-                      ),
+              // Recent actions are loaded from the finance audit store.
+              if (_auditLoading)
+                const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (_auditEntries.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  child: Center(
+                    child: Text(
+                      isArabic ? 'لا توجد حركات مسجلة بعد.' : 'No recorded activity yet.',
+                      style: const TextStyle(color: AppColors.textSecondary),
                     ),
-                  ],
-                ),
-              ),
-              _buildTimelineItem(
-                context: context,
-                title: l10n.aggregatedProfitWithdrawal,
-                time: l10n.todayAtNineThirty,
-                description: l10n.periodicMerchantTransfers,
-                icon: Icons.payments_outlined,
-                iconColor: AppColors.textPrimary,
-                bgColor: AppColors.surfaceLight,
-                bottomWidget: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Flexible(
-                      child: Text(l10n.alRajhiBank,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 9, color: AppColors.textSecondary)),),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 4),
-                        decoration: BoxDecoration(
-                            color: Colors.white,
-                            border: Border.all(color: Colors.grey.shade300),
-                            borderRadius: BorderRadius.circular(4)),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Flexible(
-                              child: Text(l10n.executedAndPosted,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                      fontSize: 9, color: AppColors.textPrimary)),
+                  ),
+                )
+              else
+                ..._auditEntries.asMap().entries.map((item) {
+                  final entry = item.value;
+                  final warning = entry.actionKey.contains('freeze') ||
+                      entry.actionKey.contains('reject') ||
+                      entry.actionKey.contains('forfeit');
+                  final title = isArabic ? entry.titleAr : entry.titleEn;
+                  final details = isArabic ? entry.detailsAr : entry.detailsEn;
+                  return _buildTimelineItem(
+                    context: context,
+                    title: title,
+                    time: _auditTime(entry.occurredAt, isArabic),
+                    description: details.isEmpty ? title : details,
+                    icon: warning
+                        ? Icons.warning_amber_rounded
+                        : Icons.fact_check_outlined,
+                    iconColor: warning ? AppColors.danger : AppColors.primaryDark,
+                    bgColor: warning ? AppColors.dangerLight : AppColors.surfaceLight,
+                    isLast: item.key == _auditEntries.length - 1,
+                    bottomWidget: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            '${isArabic ? 'المرجع' : 'Reference'}: ${entry.reference} · ${isArabic ? 'المنفذ' : 'By'}: ${isArabic ? 'المشرف المالي' : 'Finance supervisor'}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 9,
+                              color: AppColors.textSecondary,
                             ),
-                            const SizedBox(width: 4),
-                            const Icon(Icons.check_circle_outline,
-                                size: 10, color: AppColors.success),
-                          ],
+                          ),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-              _buildTimelineItem(
-                context: context,
-                title: l10n.precautionaryWalletFreeze,
-                time: l10n.yesterdayAtFourFifteen,
-                description: l10n.suspendMerchantDisbursement,
-                icon: Icons.lock_outline,
-                iconColor: AppColors.danger,
-                bgColor: AppColors.dangerLight,
-                bottomWidget: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Flexible(
-                      child: Text(l10n.auditNoticeReference,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 9, color: AppColors.textSecondary)),),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 4),
-                        decoration: BoxDecoration(
-                            color: AppColors.dangerLight,
-                            border: Border.all(color: AppColors.dangerBorder),
-                            borderRadius: BorderRadius.circular(4)),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Flexible(
-                              child: Text(l10n.underInvestigation,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                      fontSize: 9,
-                                      color: AppColors.danger,
-                                      fontWeight: FontWeight.bold)),
-                            ),
-                            const SizedBox(width: 4),
-                            const Icon(Icons.gavel,
-                                size: 10, color: AppColors.danger),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              _buildTimelineItem(
-                context: context,
-                title: l10n.maintenanceCommissionUpdate,
-                time: l10n.yesterdayAtOneTwenty,
-                description: l10n.commissionUpdatedByBoard,
-                icon: Icons.percent,
-                iconColor: Colors.blue.shade700,
-                bgColor: Colors.blue.shade50,
-                isLast: true,
-                bottomWidget: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Flexible(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 4),
-                        decoration: BoxDecoration(
-                            color: AppColors.surfaceLight,
-                            borderRadius: BorderRadius.circular(4)),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Flexible(
-                              child: Text(l10n.activeSystemUpdate,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                      fontSize: 9, color: AppColors.textPrimary)),
-                            ),
-                            const SizedBox(width: 4),
-                            const Icon(Icons.check_box_outlined,
-                                size: 10, color: AppColors.textPrimary),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+                  );
+                }),
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
@@ -1060,7 +1000,13 @@ class ProfileScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(10)),
                   ),
                   icon: const Icon(Icons.arrow_back, size: 18),
-                  onPressed: () {},
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const FinancialActivityLogScreen(
+                        showBottomNavigation: false,
+                      ),
+                    ),
+                  ),
                   label: Text(l10n.viewFullAuditActivity,
                       style: const TextStyle(
                           fontSize: 12, fontWeight: FontWeight.bold)),
@@ -1088,6 +1034,77 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _showSecurityDetails(
+      BuildContext context, AppLocalizations l10n) async {
+    final isArabic = l10n.localeName.startsWith('ar');
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: AppColors.backgroundLight,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              isArabic ? 'حالة الجلسة والأمان' : 'Session and security status',
+              style: const TextStyle(
+                color: AppColors.primaryDark,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+            _securityDetailRow(
+              Icons.verified_user_outlined,
+              isArabic ? 'حالة الجلسة' : 'Session status',
+              l10n.secureApprovedSession,
+            ),
+            const SizedBox(height: 10),
+            _securityDetailRow(
+              Icons.lock_outline_rounded,
+              isArabic ? 'التشفير' : 'Encryption',
+              l10n.encryptedBit256,
+            ),
+            const SizedBox(height: 10),
+            _securityDetailRow(
+              Icons.fingerprint_rounded,
+              isArabic ? 'التحقق' : 'Verification',
+              l10n.enabledNafath,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _securityDetailRow(IconData icon, String title, String value) => Row(
+        children: [
+          Icon(icon, color: AppColors.info, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: 10)),
+                const SizedBox(height: 2),
+                Text(value,
+                    style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12)),
+              ],
+            ),
+          ),
+        ],
+      );
+
   Future<void> _confirmSignOut(
       BuildContext context, AppLocalizations l10n) async {
     final confirmed = await showDialog<bool>(
@@ -1110,7 +1127,7 @@ class ProfileScreen extends StatelessWidget {
     );
 
     if (confirmed != true || !context.mounted) return;
-    onLogout();
+    widget.onLogout();
   }
 
   Widget _buildContactBox(
@@ -1288,6 +1305,179 @@ class ProfileScreen extends StatelessWidget {
       ),
     );
   }
+
+  Future<void> _exportDetailedReport(
+    BuildContext context,
+    AppLocalizations l10n,
+  ) async {
+    try {
+      final renderBox = context.findRenderObject() as RenderBox?;
+      final exportStarted = await FinanceProfileReportExporter.shareExcel(
+        rows: await _buildAuditReportRows(),
+        fileName: 'finance_operations.xlsx',
+        shareText: l10n.comprehensivePaymentsReports,
+        sharePositionOrigin: renderBox != null && renderBox.hasSize
+            ? renderBox.localToGlobal(Offset.zero) & renderBox.size
+            : Offset.zero & MediaQuery.sizeOf(context),
+      );
+      if (!context.mounted || !exportStarted) return;
+      AppSnackBar.showSuccess(context, l10n.accountsExportSuccess);
+    } catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'finance reports',
+          context: ErrorDescription('while exporting the detailed report'),
+        ),
+      );
+      if (!context.mounted) return;
+      AppSnackBar.showError(context, l10n.financeRequestDecisionFailed);
+    }
+  }
+
+  Future<void> _exportApprovedReport(
+    BuildContext context,
+    AppLocalizations l10n,
+  ) async {
+    try {
+      final exported = await FinanceProfileReportExporter.printPdf(
+        fileName: 'approved_finance_operations.pdf',
+        title: 'Approved finance operations',
+        rows: await _buildAuditReportRows(approvedOnly: true),
+      );
+      if (!context.mounted || !exported) return;
+      AppSnackBar.showSuccess(context, l10n.accountsExportSuccess);
+    } catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'finance reports',
+          context: ErrorDescription('while exporting the approved report'),
+        ),
+      );
+      if (!context.mounted) return;
+      AppSnackBar.showError(context, l10n.financeRequestDecisionFailed);
+    }
+  }
+
+  Future<List<List<String>>> _buildAuditReportRows({
+    bool approvedOnly = false,
+  }) async {
+    final entries = await FinanceAuditStore().getRecent();
+    final filtered = approvedOnly
+        ? entries.where((entry) => entry.actionKey.contains('approved'))
+        : entries;
+    return [
+      ['Date/time', 'Operation', 'Details', 'Reference', 'Actor'],
+      ...filtered.map((entry) {
+        final localDate = entry.occurredAt.toLocal();
+        final timestamp = '${localDate.year.toString().padLeft(4, '0')}-'
+            '${localDate.month.toString().padLeft(2, '0')}-'
+            '${localDate.day.toString().padLeft(2, '0')} '
+            '${localDate.hour.toString().padLeft(2, '0')}:'
+            '${localDate.minute.toString().padLeft(2, '0')}';
+        return [
+          timestamp,
+          entry.titleEn,
+          entry.detailsEn,
+          entry.reference,
+          entry.actor,
+        ];
+      }),
+    ];
+  }
+}
+
+class _ProfileAvatar extends StatefulWidget {
+  const _ProfileAvatar();
+
+  @override
+  State<_ProfileAvatar> createState() => _ProfileAvatarState();
+}
+
+class _ProfileAvatarState extends State<_ProfileAvatar> {
+  Uint8List? _imageBytes;
+
+  Future<void> _selectImage() async {
+    try {
+      final file = await FilePicker.pickFile(
+        type: FileType.image,
+      );
+      if (!mounted || file == null) return;
+      final imageBytes = await file.readAsBytes();
+      if (!mounted) return;
+      if (imageBytes.isEmpty) {
+        AppSnackBar.showError(
+          context,
+          AppLocalizations.of(context)!.localeName.startsWith('ar')
+              ? 'تعذر تحميل الصورة المحددة.'
+              : 'Could not load the selected image.',
+        );
+        return;
+      }
+      setState(() => _imageBytes = imageBytes);
+    } catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'profile image picker',
+          context: ErrorDescription('while selecting a profile image'),
+        ),
+      );
+      if (!mounted) return;
+      AppSnackBar.showError(
+        context,
+        AppLocalizations.of(context)!.localeName.startsWith('ar')
+            ? 'تعذر اختيار الصورة.'
+            : 'Could not select the image.',
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _selectImage,
+      child: Container(
+        width: 60,
+        height: 60,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceLight,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: _imageBytes == null
+                  ? const Icon(Icons.account_circle,
+                      size: 60, color: Colors.grey)
+                  : Image.memory(
+                      _imageBytes!,
+                      width: 60,
+                      height: 60,
+                      fit: BoxFit.cover,
+                    ),
+            ),
+            Container(
+              width: double.infinity,
+              height: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.camera_alt,
+                  color: Colors.white, size: 24),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _ObscureContactBox extends StatefulWidget {
@@ -1367,10 +1557,57 @@ class _ObscureContactBoxState extends State<_ObscureContactBox> {
               ),
             ),
             const SizedBox(width: 8),
-            Icon(widget.icon, size: 18, color: AppColors.textPrimary),
+            IconButton(
+              tooltip: widget.value.contains('@')
+                  ? (AppLocalizations.of(context)!.localeName.startsWith('ar')
+                      ? 'إرسال بريد إلكتروني'
+                      : 'Send email')
+                  : (AppLocalizations.of(context)!.localeName.startsWith('ar')
+                      ? 'اتصال هاتفي'
+                      : 'Call phone'),
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints.tightFor(width: 34, height: 34),
+              padding: EdgeInsets.zero,
+              onPressed: _openContact,
+              icon: Icon(widget.icon,
+                  size: 18, color: AppColors.textPrimary),
+            ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _openContact() async {
+    final uri = widget.value.contains('@')
+        ? Uri(scheme: 'mailto', path: widget.value)
+        : Uri(scheme: 'tel', path: widget.value);
+    try {
+      final launched = await launchUrl(uri);
+      if (!launched && mounted) {
+        AppSnackBar.showInfo(
+          context,
+          AppLocalizations.of(context)!.localeName.startsWith('ar')
+              ? 'لا يتوفر تطبيق لفتح جهة الاتصال.'
+              : 'No app is available to open this contact.',
+        );
+      }
+    } catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'profile contact actions',
+          context: ErrorDescription('while opening a contact action'),
+        ),
+      );
+      if (!mounted) return;
+      AppSnackBar.showError(
+        context,
+        AppLocalizations.of(context)!.localeName.startsWith('ar')
+            ? 'تعذر فتح تطبيق الاتصال أو البريد.'
+            : 'Could not open the phone or email app.',
+      );
+    }
   }
 }

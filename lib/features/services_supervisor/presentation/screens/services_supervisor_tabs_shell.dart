@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
+import '../../../../core/constants/app_colors.dart';
+import '../../../../core/widgets/account_conversations_screen.dart';
 import '../../../../core/widgets/local_event_inbox_screen.dart';
-import '../../../../features/merchants/presentation/screens/merchant_conversation_screen.dart';
+import '../../../../features/wasalny_supervisor/data/wasalny_local_event_store.dart';
 import '../../../../features/finance/presentation/widgets/finance_navigation.dart';
 import '../../../../l10n/app_localizations.dart';
 import 'services_complaints_screen.dart';
@@ -24,10 +26,43 @@ class _ServicesSupervisorTabsShellState
     extends State<ServicesSupervisorTabsShell> {
   late final PageController _pageController = PageController(initialPage: 3);
   int _currentIndex = 3;
+  int _unreadNotifications = 0;
   bool _isBarsVisible = true;
 
   @override
+  void initState() {
+    super.initState();
+    WasalnyLocalEventStore.revision.addListener(_refreshUnreadNotifications);
+    _refreshUnreadNotifications();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _refreshUnreadNotifications();
+  }
+
+  Future<void> _refreshUnreadNotifications() async {
+    try {
+      final events = await WasalnyLocalEventStore().getEvents('services');
+      if (!mounted) return;
+      final unread = events.where((event) => !event.isRead).length;
+      if (unread != _unreadNotifications) {
+        setState(() => _unreadNotifications = unread);
+      }
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'services supervisor navigation',
+        context: ErrorDescription('while refreshing notification count'),
+      ));
+    }
+  }
+
+  @override
   void dispose() {
+    WasalnyLocalEventStore.revision.removeListener(_refreshUnreadNotifications);
     _pageController.dispose();
     super.dispose();
   }
@@ -104,9 +139,7 @@ class _ServicesSupervisorTabsShellState
                           tooltip: l10n.servicesChatsTitle,
                           onPressed: () => Navigator.of(context).push(
                             MaterialPageRoute<void>(
-                              builder: (_) => MerchantConversationScreen(
-                                conversationTitle: l10n.servicesChatsTitle,
-                              ),
+                              builder: (_) => const AccountConversationsScreen(accountId: 'services'),
                             ),
                           ),
                           icon: const Icon(Icons.chat_bubble_outline),
@@ -114,7 +147,9 @@ class _ServicesSupervisorTabsShellState
                         IconButton(
                           tooltip: l10n.servicesNotificationsTitle,
                           onPressed: () => _showNotices(context, l10n),
-                          icon: const Icon(Icons.notifications_none_outlined),
+                          icon: _ServicesNotificationBell(
+                            unreadCount: _unreadNotifications,
+                          ),
                         ),
                       ]
                     : const [],
@@ -172,6 +207,47 @@ class _ServicesSupervisorTabsShellState
           title: l10n.servicesNotificationsTitle,
         ),
       ),
-    );
+    ).then((_) => _refreshUnreadNotifications());
   }
+}
+
+class _ServicesNotificationBell extends StatelessWidget {
+  final int unreadCount;
+
+  const _ServicesNotificationBell({required this.unreadCount});
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: 28,
+        height: 28,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            const Center(child: Icon(Icons.notifications_none_outlined)),
+            if (unreadCount > 0)
+              Positioned(
+                top: -5,
+                right: -9,
+                child: Container(
+                  constraints:
+                      const BoxConstraints(minWidth: 17, minHeight: 17),
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  decoration: const BoxDecoration(
+                    color: AppColors.danger,
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    unreadCount > 99 ? '99+' : '$unreadCount',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
 }

@@ -3,13 +3,16 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../core/di/injection_container.dart';
+import '../../core/widgets/account_conversations_screen.dart';
 import '../../core/widgets/local_event_inbox_screen.dart';
 import '../../features/finance/presentation/widgets/finance_navigation.dart';
 import '../../features/merchants/presentation/controllers/merchants_cubit.dart';
 import '../../features/merchants/presentation/screens/ads_management_screen.dart';
 import '../../features/merchants/presentation/screens/merchant_financial_requests_screen.dart';
 import '../../features/merchants/presentation/screens/merchant_profile_screen.dart';
+import '../../features/merchants/presentation/screens/merchant_upgrade_requests_screen.dart';
 import '../../features/merchants/presentation/screens/merchants_dashboard_screen.dart';
+import '../../features/wasalny_supervisor/data/wasalny_local_event_store.dart';
 import '../../l10n/app_localizations.dart';
 
 class MerchantsTabsShell extends StatefulWidget {
@@ -22,6 +25,7 @@ class MerchantsTabsShell extends StatefulWidget {
 }
 
 class _MerchantsTabsShellState extends State<MerchantsTabsShell> {
+  final WasalnyLocalEventStore _eventStore = WasalnyLocalEventStore();
   late final PageController _pageController = PageController();
   int _currentIndex = 0;
   bool _isBarsVisible = true;
@@ -57,12 +61,19 @@ class _MerchantsTabsShellState extends State<MerchantsTabsShell> {
         icon: Icons.receipt_long_outlined,
         label: l10n.navFinancialRequests,
       ),
+      FinanceNavigationItem(
+        icon: Icons.upgrade,
+        label: l10n.localeName.startsWith('ar')
+            ? 'طلبات الترقيات'
+            : 'Upgrade requests',
+      ),
       FinanceNavigationItem(icon: Icons.person_outline, label: l10n.navAccount),
     ];
     final titles = [
       l10n.navMerchants,
       l10n.navAds,
       l10n.navFinancialRequests,
+      l10n.localeName.startsWith('ar') ? 'طلبات الترقيات' : 'Upgrade requests',
       l10n.navAccount,
     ];
     final pages = [
@@ -70,11 +81,12 @@ class _MerchantsTabsShellState extends State<MerchantsTabsShell> {
         create: (_) => sl<MerchantsCubit>()..loadMerchants(),
         child: MerchantsDashboardScreen(
           showAppBar: false,
-          onProfileTap: () => _selectPage(3),
+          onProfileTap: () => _selectPage(4),
         ),
       ),
       const AdsManagementScreen(),
       const MerchantFinancialRequestsScreen(),
+      const MerchantUpgradeRequestsScreen(),
       MerchantProfileScreen(
         onLogout: widget.onLogout,
         onSupervisedMerchantsTap: () => _selectPage(0),
@@ -102,6 +114,15 @@ class _MerchantsTabsShellState extends State<MerchantsTabsShell> {
                 onProfilePressed: () => _selectPage(3),
                 additionalActions: [
                   IconButton(
+                    tooltip: l10n.productChatsTitle,
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const AccountConversationsScreen(accountId: 'merchant'),
+                      ),
+                    ),
+                    icon: const Icon(Icons.chat_bubble_outline),
+                  ),
+                  IconButton(
                     tooltip: l10n.productNotificationsTitle,
                     onPressed: () => Navigator.of(context).push(
                       MaterialPageRoute<void>(
@@ -111,7 +132,51 @@ class _MerchantsTabsShellState extends State<MerchantsTabsShell> {
                         ),
                       ),
                     ),
-                    icon: const Icon(Icons.notifications_none_outlined),
+                    icon: ValueListenableBuilder<int>(
+                      valueListenable: WasalnyLocalEventStore.revision,
+                      builder: (context, revision, _) => FutureBuilder(
+                        future: _eventStore.getEvents('merchant'),
+                        builder: (context, snapshot) {
+                          final unreadCount = snapshot.data
+                                  ?.where((event) => !event.isRead)
+                                  .length ??
+                              0;
+                          return Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              const Icon(Icons.notifications_none_outlined),
+                              if (unreadCount > 0)
+                                Positioned(
+                                  top: -7,
+                                  right: -9,
+                                  child: Container(
+                                    constraints: const BoxConstraints(
+                                      minWidth: 17,
+                                      minHeight: 17,
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                    ),
+                                    alignment: Alignment.center,
+                                    decoration: const BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Text(
+                                      unreadCount > 99 ? '99+' : '$unreadCount',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
                   ),
                 ],
               ),

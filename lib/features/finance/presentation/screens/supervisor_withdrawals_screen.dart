@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:dartz/dartz.dart' as dartz;
+import 'package:intl/intl.dart' as intl;
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection_container.dart';
@@ -26,11 +27,15 @@ class SupervisorWithdrawalsScreen extends StatefulWidget {
 
 class _SupervisorWithdrawalsScreenState
     extends State<SupervisorWithdrawalsScreen> {
+  final TextEditingController _searchController = TextEditingController();
   List<WithdrawalRequestEntity> _requests = [];
   bool _isLoading = true;
   String? _processingRequestId;
   String _selectedFilter = 'الكل';
   bool _showArchive = false;
+  String _searchQuery = '';
+  RequestStatus? _statusFilter;
+  DateTimeRange? _dateRange;
 
   List<WithdrawalRequestEntity> get _categoryRequests =>
       switch (_selectedFilter) {
@@ -43,11 +48,42 @@ class _SupervisorWithdrawalsScreenState
         _ => _requests,
       };
 
-  List<WithdrawalRequestEntity> get _filteredRequests => _categoryRequests
-      .where((request) => _showArchive
+  bool _isPromotionRequest(WithdrawalRequestEntity request) =>
+      request.operationType == FinancialOperationType.promotion;
+
+  List<WithdrawalRequestEntity> get _filteredRequests {
+    final query = _searchQuery.trim().toLowerCase();
+    final results = _categoryRequests.where((request) {
+      final inQueue = _showArchive
           ? request.status != RequestStatus.pending
-          : request.status == RequestStatus.pending)
-      .toList(growable: false);
+          : request.status == RequestStatus.pending;
+      final date = DateTime.tryParse(request.dateText);
+      final inDateRange = _dateRange == null ||
+          (date != null &&
+              !date.isBefore(_dateRange!.start) &&
+              !date.isAfter(DateTime(
+                _dateRange!.end.year,
+                _dateRange!.end.month,
+                _dateRange!.end.day,
+                23,
+                59,
+                59,
+              )));
+      final searchable = [
+        request.beneficiaryName,
+        request.requestNumber,
+        request.sourceAccount ?? '',
+        request.sourceOfFunds ?? '',
+      ].join(' ').toLowerCase();
+      return inQueue &&
+          (_statusFilter == null || request.status == _statusFilter) &&
+          inDateRange &&
+          (query.isEmpty || searchable.contains(query));
+    }).toList();
+    results.sort((a, b) => (DateTime.tryParse(a.dateText) ?? DateTime(9999))
+        .compareTo(DateTime.tryParse(b.dateText) ?? DateTime(9999)));
+    return results;
+  }
 
   int get _pendingCount =>
       _categoryRequests.where((r) => r.status == RequestStatus.pending).length;
@@ -95,6 +131,23 @@ class _SupervisorWithdrawalsScreenState
     _loadData();
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _selectDateRange() async {
+    final now = DateTime.now();
+    final range = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(now.year + 1, 12, 31),
+      initialDateRange: _dateRange,
+    );
+    if (range != null && mounted) setState(() => _dateRange = range);
+  }
+
   Future<void> _loadData() async {
     final result = await sl<GetSupervisorWithdrawalsUseCase>()();
     result.fold(
@@ -113,6 +166,10 @@ class _SupervisorWithdrawalsScreenState
     required String successMessage,
     String? reason,
   }) async {
+    if (request.status != RequestStatus.pending ||
+        _processingRequestId != null) {
+      return;
+    }
     setState(() => _processingRequestId = request.id);
     try {
       final result = await save();
@@ -158,15 +215,21 @@ class _SupervisorWithdrawalsScreenState
     required RequestStatus decisionStatus,
     String? reason,
   }) async {
-    final source = switch (request.sourceAccount) {
-      'product' => 'products',
-      'merchant' ||
-      'products' ||
-      'services' ||
-      'wasalny' =>
-        request.sourceAccount!,
-      _ => null,
-    };
+    final sourceAccount = request.sourceAccount;
+    final source = sourceAccount?.startsWith('wasalny-') == true
+        ? 'wasalny'
+        : _isPromotionRequest(request) &&
+                sourceAccount?.startsWith('UPG-') == true
+            ? 'merchant'
+            : switch (sourceAccount) {
+                'product' => 'products',
+                'merchant' ||
+                'products' ||
+                'services' ||
+                'wasalny' =>
+                  sourceAccount!,
+                _ => null,
+              };
     if (source == null) return;
 
     final approved = decisionStatus == RequestStatus.approved;
@@ -289,7 +352,7 @@ class _SupervisorWithdrawalsScreenState
                         style:
                             const TextStyle(fontSize: 12, color: Colors.grey),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 16),
 
                       // 3. Metric Cards
                       Row(
@@ -318,7 +381,7 @@ class _SupervisorWithdrawalsScreenState
                           ),
                         ],
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 16),
 
                       // 4. Filters
                       Wrap(
@@ -345,6 +408,77 @@ class _SupervisorWithdrawalsScreenState
                           _buildFilterChip('مقدمي الخدمة',
                               icon: Icons.build_circle),
                         ],
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          DropdownButton<RequestStatus?>(
+                            value: _statusFilter,
+                            hint: Text(l10n.localeName.startsWith('ar')
+                                ? 'كل الحالات'
+                                : 'All statuses'),
+                            items: [
+                              DropdownMenuItem<RequestStatus?>(
+                                value: null,
+                                child: Text(l10n.localeName.startsWith('ar')
+                                    ? 'كل الحالات'
+                                    : 'All statuses'),
+                              ),
+                              for (final status in RequestStatus.values)
+                                DropdownMenuItem<RequestStatus?>(
+                                  value: status,
+                                  child: Text(_statusLabel(l10n, status)),
+                                ),
+                            ],
+                            onChanged: (value) =>
+                                setState(() => _statusFilter = value),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _selectDateRange,
+                            icon: const Icon(Icons.date_range_outlined),
+                            label: Text(_dateRange == null
+                                ? (l10n.localeName.startsWith('ar')
+                                    ? 'تصفية بالتاريخ'
+                                    : 'Filter by date')
+                                : '${intl.DateFormat.yMd(l10n.localeName).format(_dateRange!.start)} – ${intl.DateFormat.yMd(l10n.localeName).format(_dateRange!.end)}'),
+                          ),
+                          if (_dateRange != null)
+                            IconButton(
+                              tooltip: l10n.localeName.startsWith('ar')
+                                  ? 'مسح التاريخ'
+                                  : 'Clear date filter',
+                              onPressed: () =>
+                                  setState(() => _dateRange = null),
+                              icon: const Icon(Icons.close),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _searchController,
+                        onChanged: (value) =>
+                            setState(() => _searchQuery = value),
+                        decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.search),
+                          hintText: l10n.localeName.startsWith('ar')
+                              ? 'ابحث باسم المستفيد أو رقم الطلب'
+                              : 'Search beneficiary or request number',
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                const BorderSide(color: AppColors.cardBorder),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                const BorderSide(color: AppColors.cardBorder),
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 20),
 
@@ -546,6 +680,16 @@ class _SupervisorWithdrawalsScreenState
       ),
     );
   }
+
+  String _statusLabel(AppLocalizations l10n, RequestStatus status) =>
+      switch (status) {
+        RequestStatus.pending => l10n.withdrawalDetailsStatusPending,
+        RequestStatus.underInvestigation =>
+          l10n.withdrawalDetailsStatusInvestigation,
+        RequestStatus.approved => l10n.withdrawalDetailsStatusApproved,
+        RequestStatus.frozen => l10n.withdrawalDetailsStatusFrozen,
+        RequestStatus.rejected => l10n.withdrawalDetailsStatusRejected,
+      };
 
   Widget _buildMetricMiniCard(
       {required String title,
@@ -1153,14 +1297,7 @@ class _SupervisorWithdrawalsScreenState
                             context,
                             title: l10n.financeRequestApprovalTitle,
                             description:
-                                l10n.financeRequestApprovalConfirmation(
-                              operation,
-                              FinanceLocalizer.localizeWithdrawalText(
-                                context,
-                                req.beneficiaryName,
-                              ),
-                              CurrencyFormatter.format(req.netAmount),
-                            ),
+                                '${l10n.financeRequestApprovalConfirmation(operation, FinanceLocalizer.localizeWithdrawalText(context, req.beneficiaryName), CurrencyFormatter.format(req.netAmount))}\n\n${l10n.localeName.startsWith('ar') ? 'الإجمالي' : 'Gross'}: ${CurrencyFormatter.format(req.grossAmount)}\n${l10n.localeName.startsWith('ar') ? 'الرسوم' : 'Fees'}: ${CurrencyFormatter.format(req.platformFeeAmount)} (${req.platformFeePercentage.toStringAsFixed(1)}%)\n${l10n.localeName.startsWith('ar') ? 'الصافي' : 'Net'}: ${CurrencyFormatter.format(req.netAmount)}',
                           );
                           if (confirmed && mounted && context.mounted) {
                             await _saveDecision(

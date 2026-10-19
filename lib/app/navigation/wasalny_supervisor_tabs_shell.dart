@@ -4,8 +4,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/di/injection_container.dart';
+import '../../core/widgets/account_conversations_screen.dart';
 import '../../features/finance/presentation/widgets/finance_navigation.dart';
 import '../../features/wasalny_supervisor/data/datasources/wasalny_ads_mock_data_source.dart';
+import '../../features/wasalny_supervisor/data/wasalny_local_event_store.dart';
 import '../../features/wasalny_supervisor/data/repositories/wasalny_ads_repository_impl.dart';
 import '../../features/wasalny_supervisor/domain/usecases/get_wasalny_ads_usecase.dart';
 import '../../features/wasalny_supervisor/domain/usecases/update_wasalny_ad_status_usecase.dart';
@@ -16,7 +18,6 @@ import '../../features/wasalny_supervisor/presentation/screens/wasalny_requests_
 import '../../features/wasalny_supervisor/presentation/screens/wasalny_complaints_screen.dart';
 import '../../features/wasalny_supervisor/presentation/screens/wasalny_reports_screen.dart';
 import '../../features/wasalny_supervisor/presentation/screens/wasalny_supervisor_notifications_screen.dart';
-import '../../features/products/presentation/screens/product_supervisor_chats_screen.dart';
 import '../../features/products/presentation/screens/product_supervisor_profile_screen.dart';
 import '../../features/products/presentation/screens/product_promotions_screen.dart';
 import '../../l10n/app_localizations.dart';
@@ -38,10 +39,45 @@ class _WasalnySupervisorTabsShellState
     dataSource: WasalnyAdsMockDataSource(),
   );
   int _currentIndex = 3;
+  int _unreadNotifications = 0;
   bool _isBarsVisible = true;
 
   @override
+  void initState() {
+    super.initState();
+    WasalnyLocalEventStore.revision.addListener(_refreshUnreadNotifications);
+    _refreshUnreadNotifications();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _refreshUnreadNotifications();
+  }
+
+  Future<void> _refreshUnreadNotifications() async {
+    try {
+      final events = await WasalnyLocalEventStore().getEvents('wasalny');
+      if (!mounted) return;
+      final unread = events.where((event) => !event.isRead).length;
+      if (unread != _unreadNotifications) {
+        setState(() => _unreadNotifications = unread);
+      }
+    } catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'Wasalny navigation',
+          context: ErrorDescription('while refreshing notification count'),
+        ),
+      );
+    }
+  }
+
+  @override
   void dispose() {
+    WasalnyLocalEventStore.revision.removeListener(_refreshUnreadNotifications);
     _pageController.dispose();
     super.dispose();
   }
@@ -85,6 +121,8 @@ class _WasalnySupervisorTabsShellState
       ProductSupervisorProfileScreen(
         onLogout: widget.onLogout,
         auditActionKeyPrefix: 'wasalny_',
+        showGenericComplaintsShortcut: false,
+        conversationsAccountId: 'wasalny',
         additionalOperations: [
           _AccountShortcut(
             icon: Icons.report_gmailerrorred_outlined,
@@ -139,7 +177,7 @@ class _WasalnySupervisorTabsShellState
                         IconButton(
                           tooltip: l10n.productChatsTitle,
                           onPressed: () =>
-                              _openPage(const ProductSupervisorChatsScreen()),
+                              _openPage(const AccountConversationsScreen(accountId: 'wasalny')),
                           icon: const Icon(Icons.chat_bubble_outline),
                         ),
                         IconButton(
@@ -147,7 +185,9 @@ class _WasalnySupervisorTabsShellState
                           onPressed: () => _openPage(
                             const WasalnySupervisorNotificationsScreen(),
                           ),
-                          icon: const Icon(Icons.notifications_none_outlined),
+                          icon: _NotificationBell(
+                            unreadCount: _unreadNotifications,
+                          ),
                         ),
                       ]
                     : const [],
@@ -223,6 +263,47 @@ class _AccountShortcut extends StatelessWidget {
           title: Text(title),
           trailing: const Icon(Icons.arrow_forward_ios, size: 15),
           onTap: onTap,
+        ),
+      );
+}
+
+class _NotificationBell extends StatelessWidget {
+  final int unreadCount;
+
+  const _NotificationBell({required this.unreadCount});
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: 28,
+        height: 28,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            const Center(child: Icon(Icons.notifications_none_outlined)),
+            if (unreadCount > 0)
+              Positioned(
+                top: -5,
+                right: -9,
+                child: Container(
+                  constraints:
+                      const BoxConstraints(minWidth: 17, minHeight: 17),
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  decoration: const BoxDecoration(
+                    color: AppColors.danger,
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    unreadCount > 99 ? '99+' : '$unreadCount',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       );
 }

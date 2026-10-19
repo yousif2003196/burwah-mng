@@ -13,13 +13,19 @@ class SubmitExpenseRequestUseCase {
     required double amount,
     required String bankAccountId,
     required String reason,
+    String category = 'other',
+    String beneficiaryName = '',
     String? attachmentName,
+    String? attachmentPath,
   }) {
     return repository.submitExpenseRequest(
       amount: amount,
       bankAccountId: bankAccountId,
       reason: reason,
+      category: category,
+      beneficiaryName: beneficiaryName,
       attachmentName: attachmentName,
+      attachmentPath: attachmentPath,
     );
   }
 }

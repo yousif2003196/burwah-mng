@@ -14,7 +14,12 @@ import 'transaction_history_screen.dart';
 import '../widgets/finance_navigation.dart';
 
 class BankAccountsScreen extends StatelessWidget {
-  const BankAccountsScreen({super.key});
+  final int initialCategoryIndex;
+
+  const BankAccountsScreen({
+    super.key,
+    this.initialCategoryIndex = 0,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +29,9 @@ class BankAccountsScreen extends StatelessWidget {
         getBankAccountEditRequestsUseCase: sl(),
         submitBankAccountEditRequestUseCase: sl(),
       )..loadBankAccounts(),
-      child: const _BankAccountsScreenContent(),
+      child: _BankAccountsScreenContent(
+        initialCategoryIndex: initialCategoryIndex,
+      ),
     );
   }
 }
@@ -232,7 +239,9 @@ class _BankAccountEditFormState extends State<_BankAccountEditForm> {
 }
 
 class _BankAccountsScreenContent extends StatefulWidget {
-  const _BankAccountsScreenContent();
+  final int initialCategoryIndex;
+
+  const _BankAccountsScreenContent({required this.initialCategoryIndex});
 
   @override
   State<_BankAccountsScreenContent> createState() =>
@@ -241,34 +250,57 @@ class _BankAccountsScreenContent extends StatefulWidget {
 
 class _BankAccountsScreenContentState
     extends State<_BankAccountsScreenContent> {
-  int _selectedCategoryIndex = 0;
+  late int _selectedCategoryIndex;
+  String _searchQuery = '';
+  String _selectedVerification = 'all';
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedCategoryIndex = widget.initialCategoryIndex.clamp(0, 4).toInt();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   // فلترة الحسابات حسب التصنيف المختار
   List<BankAccountEntity> _filterAccounts(List<BankAccountEntity> accounts) {
-    if (_selectedCategoryIndex == 0) return accounts;
-    if (_selectedCategoryIndex == 1) {
-      return accounts.where((a) => a.accountType.contains("تشغيلي")).toList();
+    final query = _searchQuery.trim().toLowerCase();
+    return accounts.where((account) {
+      final matchesCategory = _matchesCategory(account, _selectedCategoryIndex);
+      final matchesStatus = _selectedVerification == 'all' ||
+          (_selectedVerification == 'verified' && account.isVerified) ||
+          (_selectedVerification == 'unverified' && !account.isVerified);
+      final matchesSearch = query.isEmpty ||
+          [account.bankName, account.accountType, account.accountRole, account.iban]
+              .any((value) => value.toLowerCase().contains(query));
+      return matchesCategory && matchesStatus && matchesSearch;
+    }).toList();
+  }
+
+  bool _matchesCategory(BankAccountEntity account, int index) {
+    switch (index) {
+      case 1:
+        return account.accountType.contains('تشغيلي') ||
+            account.accountType.toLowerCase().contains('operational');
+      case 2:
+        return account.accountType.contains('ضمان') ||
+            account.accountType.toLowerCase().contains('escrow');
+      case 3:
+        return account.accountType.contains('بوابة') ||
+            account.accountType.contains('مدى') ||
+            account.accountType.toLowerCase().contains('gateway');
+      case 4:
+        return account.accountType.contains('محفظة') ||
+            account.accountType.toLowerCase().contains('wallet') ||
+            account.accountType.toLowerCase().contains('pay');
+      default:
+        return true;
     }
-    if (_selectedCategoryIndex == 2) {
-      return accounts
-          .where((a) =>
-              a.accountType.contains("ضمان") ||
-              a.accountType.contains("Escrow"))
-          .toList();
-    }
-    if (_selectedCategoryIndex == 3) {
-      return accounts
-          .where((a) =>
-              a.accountType.contains("بوابة") || a.accountType.contains("مدى"))
-          .toList();
-    }
-    if (_selectedCategoryIndex == 4) {
-      return accounts
-          .where((a) =>
-              a.accountType.contains("محفظة") || a.accountType.contains("Pay"))
-          .toList();
-    }
-    return accounts;
   }
 
   @override
@@ -281,7 +313,9 @@ class _BankAccountsScreenContentState
       child: Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
         appBar: FinancePageAppBar(
-          title: l10n.officialBankAccountsAndIban,
+          title: _selectedCategoryIndex == 1
+              ? l10n.operationalAccountsFilter
+              : l10n.officialBankAccountsAndIban,
           subtitle: l10n.bankAccountsScreenSubtitle,
           showBackButton: true,
           onBackPressed: () => Navigator.pop(context),
@@ -305,13 +339,11 @@ class _BankAccountsScreenContentState
             } else if (state is BankAccountsLoaded) {
               final allAccounts = state.accounts;
 
-              // حساب إجمالي السيولة تلقائياً من مجموع أرصدة الحسابات
-              final double calculatedTotalLiquidity = allAccounts.fold(
-                0.0,
+              final filteredAccounts = _filterAccounts(allAccounts);
+              final calculatedTotalLiquidity = filteredAccounts.fold<double>(
+                0,
                 (sum, account) => sum + account.balance,
               );
-
-              final filteredAccounts = _filterAccounts(allAccounts);
 
               return SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
@@ -333,10 +365,14 @@ class _BankAccountsScreenContentState
                     _buildDailyTransactionsButton(
                         context, calculatedTotalLiquidity),
                     const SizedBox(height: 14),
+                    _buildSearchField(isArabic),
+                    const SizedBox(height: 10),
 
                     // 4. شريط اختيار التصنيف
-                    _buildCategoryChips(allAccounts.length),
+                    _buildCategoryChips(allAccounts),
                     const SizedBox(height: 16),
+                    _buildVerificationChips(isArabic, allAccounts),
+                    const SizedBox(height: 10),
 
                     // 5. قائمة الحسابات البنكية المقسمة
                     if (filteredAccounts.isEmpty)
@@ -527,6 +563,17 @@ class _BankAccountsScreenContentState
   Widget _buildDailyTransactionsButton(
       BuildContext context, double availableBalance) {
     final l10n = AppLocalizations.of(context)!;
+    final categoryTitles = [
+      l10n.officialBankAccountsAndIban,
+      l10n.operationalAccountsFilter,
+      l10n.escrowAccountsFilter,
+      l10n.paymentGatewaysFilter,
+      l10n.digitalWalletsFilter,
+    ];
+    final categoryTitle = categoryTitles[_selectedCategoryIndex];
+    final categoryId = _selectedCategoryIndex == 0
+        ? 'ALL-ACCOUNTS'
+        : 'CATEGORY-${_selectedCategoryIndex}';
 
     return InkWell(
       onTap: () {
@@ -534,8 +581,8 @@ class _BankAccountsScreenContentState
           context,
           MaterialPageRoute(
             builder: (_) => TransactionHistoryScreen(
-              title: l10n.officialBankAccountsAndIban,
-              id: 'ALL-ACCOUNTS',
+              title: categoryTitle,
+              id: categoryId,
               availableBalance: availableBalance,
             ),
           ),
@@ -599,8 +646,101 @@ class _BankAccountsScreenContentState
     );
   }
 
-  // شريط الفلاتر
-  Widget _buildCategoryChips(int totalCount) {
+  Widget _buildSearchField(bool isArabic) {
+    return TextField(
+      controller: _searchController,
+      onChanged: (value) => setState(() => _searchQuery = value),
+      textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
+      decoration: InputDecoration(
+        hintText: isArabic
+            ? 'ابحث باسم البنك أو الآيبان'
+            : 'Search bank name or IBAN',
+        prefixIcon: const Icon(Icons.search_rounded, size: 19),
+        suffixIcon: _searchQuery.isEmpty
+            ? null
+            : IconButton(
+                tooltip: isArabic ? 'مسح البحث' : 'Clear search',
+                onPressed: () {
+                  _searchController.clear();
+                  setState(() => _searchQuery = '');
+                },
+                icon: const Icon(Icons.close_rounded, size: 18),
+              ),
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(vertical: 10),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVerificationChips(
+      bool isArabic, List<BankAccountEntity> accounts) {
+    final base = accounts.where((account) {
+      final query = _searchQuery.trim().toLowerCase();
+      return _matchesCategory(account, _selectedCategoryIndex) &&
+          (query.isEmpty ||
+              [account.bankName, account.accountType, account.accountRole,
+                      account.iban]
+                  .any((value) => value.toLowerCase().contains(query)));
+    }).toList();
+    final verifiedCount = base.where((account) => account.isVerified).length;
+    final filters = [
+      (
+        'all',
+        isArabic ? 'كل الحالات (${base.length})' : 'All statuses (${base.length})',
+      ),
+      (
+        'verified',
+        isArabic ? 'موثق (${verifiedCount})' : 'Verified ($verifiedCount)',
+      ),
+      (
+        'unverified',
+        isArabic
+            ? 'بانتظار التحقق (${base.length - verifiedCount})'
+            : 'Pending verification (${base.length - verifiedCount})',
+      ),
+    ];
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: filters.map((filter) {
+          final selected = _selectedVerification == filter.$1;
+          return Padding(
+            padding: const EdgeInsetsDirectional.only(end: 7),
+            child: ChoiceChip(
+              label: Text(filter.$2),
+              selected: selected,
+              showCheckmark: false,
+              onSelected: (_) => setState(() => _selectedVerification = filter.$1),
+              labelStyle: TextStyle(
+                fontSize: 10,
+                color: selected ? Colors.white : Colors.black87,
+              ),
+              selectedColor: AppColors.primaryDark,
+              backgroundColor: Colors.white,
+              side: BorderSide(
+                color: selected
+                    ? AppColors.primaryDark
+                    : Colors.grey.shade300,
+              ),
+              visualDensity: VisualDensity.compact,
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  // Category filters
+  Widget _buildCategoryChips(List<BankAccountEntity> accounts) {
     final l10n = AppLocalizations.of(context)!;
     final categories = [
       l10n.allTab,
@@ -619,8 +759,12 @@ class _BankAccountsScreenContentState
         separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
           final isSelected = _selectedCategoryIndex == index;
-          final title =
-              index == 0 ? "${l10n.allTab} ($totalCount)" : categories[index];
+          final count = index == 0
+              ? accounts.length
+              : accounts
+                  .where((account) => _matchesCategory(account, index))
+                  .length;
+          final title = '${categories[index]} ($count)';
           return ChoiceChip(
             label: Text(
               title,
@@ -795,21 +939,37 @@ class _BankAccountsScreenContentState
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.green.shade50,
+                    color: account.isVerified
+                        ? Colors.green.shade50
+                        : Colors.amber.shade50,
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.bolt, size: 14, color: Colors.green.shade700),
+                      Icon(
+                        account.isVerified
+                            ? Icons.verified_outlined
+                            : Icons.hourglass_top_rounded,
+                        size: 14,
+                        color: account.isVerified
+                            ? Colors.green.shade700
+                            : Colors.amber.shade900,
+                      ),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
-                          l10n.connectedReconciledViaSarie,
+                          account.isVerified
+                              ? l10n.verifiedIban
+                              : (l10n.localeName.startsWith('ar')
+                                  ? 'بانتظار التحقق'
+                                  : 'Pending verification'),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                              color: Colors.green.shade700,
+                              color: account.isVerified
+                                  ? Colors.green.shade700
+                                  : Colors.amber.shade900,
                               fontSize: 10,
                               fontWeight: FontWeight.bold),
                         ),

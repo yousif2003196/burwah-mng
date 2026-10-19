@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../domain/entities/merchant_entity.dart';
 import '../models/merchant_model.dart';
@@ -1036,7 +1039,72 @@ class MerchantsMockDataSource implements MerchantsDataSource {
   @override
   Future<List<MerchantModel>> getMerchants() async {
     await Future<void>.delayed(const Duration(milliseconds: 150));
-    return _merchants;
+    return [..._merchants, ...await _loadLinkedMerchants()];
+  }
+
+  Future<List<MerchantModel>> _loadLinkedMerchants() async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      final encoded = preferences.getString('merchant_linked_merchants_v1');
+      if (encoded == null || encoded.trim().isEmpty) return const [];
+
+      final decoded = jsonDecode(encoded);
+      if (decoded is! List) {
+        await preferences.remove('merchant_linked_merchants_v1');
+        return const [];
+      }
+
+      final merchants = <MerchantModel>[];
+      for (final value in decoded) {
+        if (value is! Map) {
+          continue;
+        }
+
+        final record = Map<String, dynamic>.from(value);
+        final id = record['id'];
+        final merchantName = record['merchantName'];
+        final phone = record['phone'];
+        if (id is! String || merchantName is! String || phone is! String) {
+          continue;
+        }
+
+        final commercialRegistration =
+            record['commercialRegistration'] as String? ?? '';
+        merchants.add(
+          MerchantModel(
+            id: id,
+            code: id,
+            name: merchantName,
+            nameEn: merchantName,
+            category: 'متجر جديد',
+            categoryEn: 'New merchant',
+            categoryIcon: Icons.storefront_outlined,
+            crNumber: commercialRegistration.isEmpty
+                ? '—'
+                : commercialRegistration,
+            status: MerchantStatus.activeVerified,
+            adsCount: 0,
+            adsCountLabel: '0 إعلان',
+            adsCountLabelEn: '0 ads',
+            adsSectionTitle: 'الإعلانات المعروضة',
+            adsSectionTitleEn: 'Displayed ads',
+            adsIcon: Icons.campaign_outlined,
+            activityNote: 'تمت إضافته للإشراف',
+            activityNoteEn: 'Recently added to supervision',
+            footerStatusText: 'تحت الإشراف',
+            footerStatusTextEn: 'Under supervision',
+            footerStatusIcon: Icons.verified_user_outlined,
+            actionButtonText: 'سجل التاجر',
+            actionButtonTextEn: 'Merchant record',
+            contactPhone: phone,
+          ),
+        );
+      }
+
+      return merchants;
+    } catch (_) {
+      return const [];
+    }
   }
 
   @override

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart' show NumberFormat;
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../widgets/finance_navigation.dart';
+import 'bank_reconciliation_screen.dart';
 
 class CommissionsScreen extends StatelessWidget {
   final bool showBottomNavigation;
@@ -681,6 +683,9 @@ class _CommissionsDashboardState extends State<_CommissionsDashboard>
     with AutomaticKeepAliveClientMixin<_CommissionsDashboard> {
   int _periodIndex = 0;
   String _selectedFilter = 'all';
+  String _selectedStatus = 'all';
+  String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
 
   static const _revenuePeriods = [
     _RevenuePeriodData(
@@ -702,10 +707,16 @@ class _CommissionsDashboardState extends State<_CommissionsDashboard>
   ];
 
   static const _filters = [
-    ('all', 'الكل (3,420)', 'All (3,420)'),
-    ('merchants', 'متاجر وتجار (1,840)', 'Merchants (1,840)'),
-    ('providers', 'مزودو خدمات (890)', 'Service providers (890)'),
+    ('all', 'الكل', 'All'),
+    ('merchants', 'متاجر وتجار', 'Merchants'),
+    ('providers', 'مزودو خدمات', 'Service providers'),
     ('requests', 'طلبات', 'Requests'),
+  ];
+
+  static const _statusFilters = [
+    ('all', 'كل الحالات', 'All statuses'),
+    ('collected', 'محصلة', 'Collected'),
+    ('reconciled', 'مطابقة', 'Reconciled'),
   ];
 
   static const _transactions = [
@@ -713,8 +724,10 @@ class _CommissionsDashboardState extends State<_CommissionsDashboard>
       amount: '+ 350.00',
       code: '#TX-COMM-9945',
       filterKey: 'requests',
-      status: 'اشتراك وثيقة',
-      statusEn: 'Subscription',
+      statusKey: 'collected',
+      periodIndex: 0,
+      status: 'محصلة',
+      statusEn: 'Collected',
       title: 'اشتراك الباقة الذهبية - مؤسسة سهم للتجارة',
       titleEn: 'Gold plan subscription - Sahm Trading',
       description:
@@ -732,8 +745,10 @@ class _CommissionsDashboardState extends State<_CommissionsDashboard>
       amount: '+ 1,200.00',
       code: '#TX-COMM-9941',
       filterKey: 'merchants',
-      status: 'متجر موثق',
-      statusEn: 'Verified store',
+      statusKey: 'collected',
+      periodIndex: 0,
+      status: 'محصلة',
+      statusEn: 'Collected',
       title: 'مؤسسة الأفق للأجهزة الكهربائية',
       titleEn: 'Al-Ofuq Electrical Appliances',
       description: 'عمولة مبيعات منتجات (2.5% من إجمالي مبيعات 48,000 ج.م)',
@@ -749,8 +764,10 @@ class _CommissionsDashboardState extends State<_CommissionsDashboard>
       amount: '+ 175.00',
       code: '#TX-COMM-9938',
       filterKey: 'providers',
-      status: 'خدمات وصيانة',
-      statusEn: 'Services & maintenance',
+      statusKey: 'reconciled',
+      periodIndex: 0,
+      status: 'مطابقة',
+      statusEn: 'Reconciled',
       title: 'مؤسسة التبريد المتقن',
       titleEn: 'Al-Tabreed Al-Mutqan',
       description:
@@ -768,8 +785,10 @@ class _CommissionsDashboardState extends State<_CommissionsDashboard>
       amount: '+ 15.00',
       code: '#TX-COMM-9925',
       filterKey: 'providers',
-      status: 'لوجستي وتوصيل',
-      statusEn: 'Delivery & logistics',
+      statusKey: 'collected',
+      periodIndex: 0,
+      status: 'محصلة',
+      statusEn: 'Collected',
       title: 'مندوب معتمد: فيصل الشهري',
       titleEn: 'Verified courier: Faisal Al-Shehri',
       description:
@@ -788,8 +807,10 @@ class _CommissionsDashboardState extends State<_CommissionsDashboard>
       amount: '+ 210.00',
       code: '#TX-COMM-9924',
       filterKey: 'merchants',
-      status: 'ضمان وأمان',
-      statusEn: 'Escrow & protection',
+      statusKey: 'reconciled',
+      periodIndex: 1,
+      status: 'مطابقة',
+      statusEn: 'Reconciled',
       title: 'صفقة مستعملة - كاميرا كانون احترافية',
       titleEn: 'Used item sale - Canon professional camera',
       description: 'رسوم وساطة وفحص وضمان وصيانة (5% من قيمة الصفقة 4,200 ج.م)',
@@ -806,10 +827,28 @@ class _CommissionsDashboardState extends State<_CommissionsDashboard>
   ];
 
   List<_CommissionTransaction> get _visibleTransactions {
-    if (_selectedFilter == 'all') return _transactions;
-    return _transactions
-        .where((item) => item.filterKey == _selectedFilter)
-        .toList();
+    return _periodTransactions.where((item) {
+      final matchesCategory =
+          _selectedFilter == 'all' || item.filterKey == _selectedFilter;
+      final matchesStatus =
+          _selectedStatus == 'all' || item.statusKey == _selectedStatus;
+      final query = _searchQuery.trim().toLowerCase();
+      final matchesSearch = query.isEmpty ||
+          [item.code, item.title, item.titleEn, item.description,
+                  item.descriptionEn]
+              .any((value) => value.toLowerCase().contains(query));
+      return matchesCategory && matchesStatus && matchesSearch;
+    }).toList();
+  }
+
+  List<_CommissionTransaction> get _periodTransactions => _periodIndex == 0
+      ? _transactions.where((item) => item.periodIndex == 0).toList()
+      : _transactions;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   String _text(String arabic, String english) =>
@@ -817,6 +856,158 @@ class _CommissionsDashboardState extends State<_CommissionsDashboard>
 
   _RevenuePeriodData get _selectedRevenuePeriod =>
       _revenuePeriods[_periodIndex];
+
+  int _reconciledPercent() {
+    if (_periodTransactions.isEmpty) return 0;
+    final reconciled =
+        _periodTransactions.where((item) => item.statusKey == 'reconciled').length;
+    return (reconciled * 100 / _periodTransactions.length).round();
+  }
+
+  Widget _buildStatusFilters(bool isArabic) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      reverse: isArabic,
+      child: Row(
+        children: _statusFilters.map((filter) {
+          final selected = filter.$1 == _selectedStatus;
+          return Padding(
+            padding: const EdgeInsetsDirectional.only(end: 6),
+            child: ChoiceChip(
+              label: Text(isArabic ? filter.$2 : filter.$3),
+              selected: selected,
+              showCheckmark: false,
+              onSelected: (_) => setState(() => _selectedStatus = filter.$1),
+              labelStyle: TextStyle(
+                fontSize: 9,
+                color: selected ? Colors.white : AppColors.textSecondary,
+              ),
+              backgroundColor: Colors.white,
+              selectedColor: AppColors.primaryDark,
+              side: BorderSide(
+                color: selected ? AppColors.primaryDark : const Color(0xFFE6EAF0),
+              ),
+              visualDensity: VisualDensity.compact,
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildSearchField(bool isArabic) {
+    return TextField(
+      controller: _searchController,
+      onChanged: (value) => setState(() => _searchQuery = value),
+      textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
+      decoration: InputDecoration(
+        hintText: _text('ابحث برقم العملية أو الاسم', 'Search code or name'),
+        prefixIcon: const Icon(Icons.search_rounded, size: 19),
+        suffixIcon: _searchQuery.isEmpty
+            ? null
+            : IconButton(
+                tooltip: _text('مسح البحث', 'Clear search'),
+                onPressed: () {
+                  _searchController.clear();
+                  setState(() => _searchQuery = '');
+                },
+                icon: const Icon(Icons.close_rounded, size: 18),
+              ),
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(vertical: 10),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFE6EAF0)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFE6EAF0)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyTransactions(bool isArabic) => Container(
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFE9EDF2)),
+        ),
+        child: Column(
+          children: [
+            const Icon(Icons.search_off_rounded,
+                color: AppColors.textSecondary, size: 26),
+            const SizedBox(height: 8),
+            Text(
+              _text('لا توجد عمليات مطابقة للفلاتر',
+                  'No transactions match these filters'),
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: 11),
+            ),
+          ],
+        ),
+      );
+
+  Future<void> _showTransactionDetails(
+      _CommissionTransaction transaction, bool isArabic) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: const Color(0xFFF5F7F9),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(isArabic ? transaction.title : transaction.titleEn,
+                style: const TextStyle(
+                    color: AppColors.primaryDark,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16)),
+            const SizedBox(height: 6),
+            Text(transaction.code,
+                style: const TextStyle(
+                    color: AppColors.textSecondary, fontSize: 11)),
+            const Divider(height: 22),
+            Text(isArabic ? transaction.description : transaction.descriptionEn,
+                style: const TextStyle(height: 1.5, fontSize: 12)),
+            const SizedBox(height: 10),
+            Text(isArabic ? transaction.detail : transaction.detailEn,
+                style: const TextStyle(
+                    color: AppColors.textSecondary, fontSize: 11)),
+            const SizedBox(height: 14),
+            Text('${transaction.amount} ${isArabic ? 'ج.م' : 'Egy'}',
+                textAlign: TextAlign.end,
+                style: const TextStyle(
+                    color: Color(0xFF00865F),
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _copyCommissionStatement(bool isArabic) async {
+    final rows = <String>[
+      'Code,Title,Amount,Status',
+      ..._visibleTransactions.map((item) =>
+          '"${item.code}","${(isArabic ? item.title : item.titleEn).replaceAll('"', '""')}","${item.amount}","${isArabic ? item.status : item.statusEn}"'),
+    ];
+    await Clipboard.setData(ClipboardData(text: rows.join('\n')));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(_text('تم نسخ كشف العمولات بصيغة CSV',
+          'Commission statement copied as CSV')),
+      behavior: SnackBarBehavior.floating,
+    ));
+  }
 
   String _formatRevenue(double value) =>
       NumberFormat('#,##0', 'en_US').format(value);
@@ -875,11 +1066,16 @@ class _CommissionsDashboardState extends State<_CommissionsDashboard>
                 _buildSectionTitle(
                     _text('توزيع الإيراد الرقابي حسب القطاع',
                         'Controlled revenue by sector'),
-                    _text('معدل الامتثال 100%', '100% compliance')),
+                    _text('مطابقة ${_reconciledPercent()}%',
+                        '${_reconciledPercent()}% reconciled')),
                 const SizedBox(height: 10),
                 _buildSectors(isArabic),
                 const SizedBox(height: 20),
                 _buildFilters(isArabic),
+                const SizedBox(height: 10),
+                _buildStatusFilters(isArabic),
+                const SizedBox(height: 10),
+                _buildSearchField(isArabic),
                 const SizedBox(height: 22),
                 Row(
                   children: [
@@ -900,11 +1096,16 @@ class _CommissionsDashboardState extends State<_CommissionsDashboard>
                   ],
                 ),
                 const SizedBox(height: 10),
+                if (_visibleTransactions.isEmpty)
+                  _buildEmptyTransactions(isArabic),
                 ..._visibleTransactions.map(
                   (transaction) => Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: _TransactionCard(
-                        transaction: transaction, isArabic: isArabic),
+                      transaction: transaction,
+                      isArabic: isArabic,
+                      onAction: () => _showTransactionDetails(transaction, isArabic),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -1109,8 +1310,8 @@ class _CommissionsDashboardState extends State<_CommissionsDashboard>
               Expanded(
                 child: Text(
                   isArabic
-                      ? '3,420 عملية استقطاع موثقة'
-                      : '3,420 verified deductions',
+                      ? '${_periodTransactions.length} عمليات ضمن البيانات المعروضة'
+                      : '${_periodTransactions.length} operations in displayed data',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 9, color: Color(0xFF91A9C3)),
@@ -1152,6 +1353,13 @@ class _CommissionsDashboardState extends State<_CommissionsDashboard>
 
   Widget _buildSectors(bool isArabic) {
     final currency = isArabic ? 'ج.م' : 'Egy';
+    const weights = [142600.0, 78350.0, 39150.0, 24800.0, 31900.0];
+    const weightTotal = 316800.0;
+    final total = _selectedRevenuePeriod.total;
+    final values = weights.map((weight) => total * weight / weightTotal).toList();
+    final percentages = weights.map((weight) => weight / weightTotal * 100).toList();
+    String amount(int index) => _formatRevenue(values[index]);
+    String percent(int index) => '${percentages[index].toStringAsFixed(1)}%';
     return Column(
       children: [
         Row(children: [
@@ -1160,8 +1368,8 @@ class _CommissionsDashboardState extends State<_CommissionsDashboard>
                   title: isArabic
                       ? 'عمولات التجار والمتاجر'
                       : 'Merchant & store commissions',
-                  value: '142,600',
-                  percentage: '50.1%',
+                  value: amount(0),
+                  percentage: percent(0),
                   icon: Icons.storefront_outlined,
                   color: const Color(0xFF173C78),
                   currency: currency)),
@@ -1171,8 +1379,8 @@ class _CommissionsDashboardState extends State<_CommissionsDashboard>
                   title: isArabic
                       ? 'عمولات الصيانة والخدمات'
                       : 'Maintenance & service commissions',
-                  value: '78,350',
-                  percentage: '27.5%',
+                  value: amount(1),
+                  percentage: percent(1),
                   icon: Icons.home_repair_service_outlined,
                   color: const Color(0xFF315A9A),
                   currency: currency)),
@@ -1184,8 +1392,8 @@ class _CommissionsDashboardState extends State<_CommissionsDashboard>
                   title: isArabic
                       ? 'حسابات المستفيدين ووطن'
                       : 'Beneficiary accounts & Watan',
-                  value: '39,150',
-                  percentage: '13.7%',
+                  value: amount(2),
+                  percentage: percent(2),
                   icon: Icons.handshake_outlined,
                   color: const Color(0xFF8B27C9),
                   currency: currency)),
@@ -1195,8 +1403,8 @@ class _CommissionsDashboardState extends State<_CommissionsDashboard>
                   title: isArabic
                       ? 'مندوب التوصيل واللوجستيات'
                       : 'Courier & logistics',
-                  value: '24,800',
-                  percentage: '8.7%',
+                  value: amount(3),
+                  percentage: percent(3),
                   icon: Icons.local_shipping_outlined,
                   color: const Color(0xFFB45309),
                   currency: currency)),
@@ -1206,8 +1414,8 @@ class _CommissionsDashboardState extends State<_CommissionsDashboard>
             title: isArabic
                 ? 'اشتراكات الحسابات والترقيات'
                 : 'Subscriptions & account upgrades',
-            value: '31,900',
-            percentage: '11.2%',
+            value: amount(4),
+            percentage: percent(4),
             icon: Icons.workspace_premium_outlined,
             color: const Color(0xFF059669),
             wide: true,
@@ -1262,10 +1470,13 @@ class _CommissionsDashboardState extends State<_CommissionsDashboard>
       child: Row(
         children: _filters.map((filter) {
           final selected = filter.$1 == _selectedFilter;
+          final count = filter.$1 == 'all'
+              ? _periodTransactions.length
+              : _periodTransactions.where((item) => item.filterKey == filter.$1).length;
           return Padding(
             padding: const EdgeInsetsDirectional.only(start: 6),
             child: ChoiceChip(
-              label: Text(isArabic ? filter.$2 : filter.$3,
+              label: Text('${isArabic ? filter.$2 : filter.$3} ($count)',
                   style: TextStyle(
                       fontSize: 10,
                       color:
@@ -1331,11 +1542,11 @@ class _CommissionsDashboardState extends State<_CommissionsDashboard>
                   fontSize: 10, height: 1.6, color: AppColors.textSecondary)),
           const SizedBox(height: 14),
           ElevatedButton.icon(
-            onPressed: () {},
+            onPressed: () => _copyCommissionStatement(isArabic),
             icon: const Icon(Icons.download_rounded, size: 17),
             label: Text(isArabic
-                ? 'تصدير كشف العمولات الرقابي (Excel / PDF)'
-                : 'Export commission statement (Excel / PDF)'),
+                ? 'نسخ كشف العمولات بصيغة CSV'
+                : 'Copy commission statement as CSV'),
             style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primaryDark,
                 foregroundColor: Colors.white,
@@ -1347,7 +1558,11 @@ class _CommissionsDashboardState extends State<_CommissionsDashboard>
           ),
           const SizedBox(height: 8),
           OutlinedButton.icon(
-            onPressed: () {},
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
+              builder: (_) => const BankReconciliationScreen(
+                showBottomNavigation: false,
+              ),
+            )),
             icon: const Icon(Icons.compare_arrows_rounded, size: 18),
             label: Text(isArabic
                 ? 'مطابقة الحساب البنكي المباشر'
@@ -1464,6 +1679,8 @@ class _CommissionTransaction {
   final String amount;
   final String code;
   final String filterKey;
+  final String statusKey;
+  final int periodIndex;
   final String status;
   final String statusEn;
   final String title;
@@ -1481,6 +1698,8 @@ class _CommissionTransaction {
       {required this.amount,
       required this.code,
       required this.filterKey,
+      required this.statusKey,
+      required this.periodIndex,
       required this.status,
       required this.statusEn,
       required this.title,
@@ -1498,8 +1717,13 @@ class _CommissionTransaction {
 class _TransactionCard extends StatelessWidget {
   final _CommissionTransaction transaction;
   final bool isArabic;
+  final VoidCallback onAction;
 
-  const _TransactionCard({required this.transaction, required this.isArabic});
+  const _TransactionCard({
+    required this.transaction,
+    required this.isArabic,
+    required this.onAction,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1585,7 +1809,7 @@ class _TransactionCard extends StatelessWidget {
             child: SizedBox(
               height: 28,
               child: ElevatedButton.icon(
-                onPressed: () {},
+                onPressed: onAction,
                 icon: const Icon(Icons.receipt_long_outlined, size: 13),
                 label: Text(
                     isArabic ? transaction.action : transaction.actionEn,

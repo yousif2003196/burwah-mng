@@ -118,87 +118,116 @@ class _ProductAdFullDetailsScreenState
           _finalDecisionNotice(l10n),
         ],
       ),
-      bottomNavigationBar: isPending
-          ? SafeArea(
+      bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: SizedBox(
-                    height: 48,
+          children: isPending
+              ? [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SizedBox(
+                          height: 48,
+                          child: FilledButton.icon(
+                            onPressed: _isSubmitting
+                                ? null
+                                : () => _submit(ProductReviewStatus.rejected),
+                            icon: const Icon(Icons.cancel_outlined, size: 17),
+                            label: Text(l10n.productRejectAction),
+                            style: FilledButton.styleFrom(
+                              foregroundColor: const Color(0xFFB42318),
+                              backgroundColor: const Color(0xFFFFD9D5),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(13),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: SizedBox(
+                          height: 48,
+                          child: OutlinedButton.icon(
+                            onPressed: _isSubmitting
+                                ? null
+                                : () => _submit(ProductReviewStatus.hidden),
+                            icon: const Icon(Icons.visibility_off_outlined,
+                                size: 17),
+                            label: Text(l10n.productHideAction),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: 2,
+                        child: SizedBox(
+                          height: 48,
+                          child: FilledButton.icon(
+                            onPressed: _isSubmitting
+                                ? null
+                                : () => _submit(ProductReviewStatus.suspended),
+                            icon: const Icon(Icons.pause_circle_outline,
+                                size: 18),
+                            label: Text(l10n.productSuspendAction),
+                            style: FilledButton.styleFrom(
+                              foregroundColor: const Color(0xFF885D00),
+                              backgroundColor: const Color(0xFFFFF1D6),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(13),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 50,
+                    width: double.infinity,
                     child: FilledButton.icon(
                       onPressed: _isSubmitting
                           ? null
-                          : () => _submit(ProductReviewStatus.rejected),
-                      icon: const Icon(Icons.cancel_outlined, size: 17),
-                      label: Text(l10n.productRejectAction),
+                          : () => _submit(ProductReviewStatus.approved),
+                      icon: _isSubmitting
+                          ? const SizedBox.square(
+                              dimension: 17,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.check_circle, size: 19),
+                      label: Text(l10n.productApproveAndPublishNow),
                       style: FilledButton.styleFrom(
-                        foregroundColor: const Color(0xFFB42318),
-                        backgroundColor: const Color(0xFFFFD9D5),
+                        backgroundColor: AppColors.primaryDark,
+                        foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(13),
                         ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  flex: 2,
-                  child: SizedBox(
-                    height: 48,
+                ]
+              : [
+                  SizedBox(
+                    height: 50,
+                    width: double.infinity,
                     child: FilledButton.icon(
                       onPressed: _isSubmitting
                           ? null
-                          : () => _submit(ProductReviewStatus.suspended),
-                      icon: const Icon(Icons.pause_circle_outline, size: 18),
-                      label: Text(l10n.productSuspendAction),
-                      style: FilledButton.styleFrom(
-                        foregroundColor: const Color(0xFF885D00),
-                        backgroundColor: const Color(0xFFFFF1D6),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(13),
-                        ),
-                      ),
+                          : () => _submit(ProductReviewStatus.pending),
+                      icon: const Icon(Icons.restart_alt),
+                      label: Text(widget.isArabic
+                          ? 'إعادة للمراجعة'
+                          : 'Return to review'),
                     ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: 50,
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: _isSubmitting
-                    ? null
-                    : () => _submit(ProductReviewStatus.approved),
-                icon: _isSubmitting
-                    ? const SizedBox.square(
-                        dimension: 17,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.check_circle, size: 19),
-                label: Text(l10n.productApproveAndPublishNow),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.primaryDark,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(13),
-                  ),
-                ),
-              ),
-            ),
-          ],
+                ],
         ),
-      )
-          : null,
+      ),
     );
   }
 

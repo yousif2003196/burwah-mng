@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/widgets/app_snack_bar.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../data/merchant_supervisor_local_store.dart';
 import '../../../auth/presentation/controllers/auth_cubit.dart';
 import '../../../auth/presentation/controllers/auth_state.dart';
 import '../controllers/merchants_cubit.dart';
@@ -15,6 +16,7 @@ import '../widgets/merchant_card.dart';
 import '../widgets/merchant_search_filter_bar.dart';
 import '../widgets/supervisor_app_bar.dart';
 import '../widgets/supervisor_header_card.dart';
+import '../../../wasalny_supervisor/data/wasalny_local_event_store.dart';
 
 class MerchantsDashboardScreen extends StatefulWidget {
   final bool showAppBar;
@@ -37,6 +39,36 @@ class MerchantsDashboardScreen extends StatefulWidget {
 
 class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
   final TextEditingController _searchController = TextEditingController();
+  Map<String, bool> _suspensionOverrides = const {};
+
+  @override
+  void initState() {
+    super.initState();
+    MerchantSupervisorLocalStore.revision.addListener(_loadSuspensionOverrides);
+    _loadSuspensionOverrides();
+  }
+
+  @override
+  void dispose() {
+    MerchantSupervisorLocalStore.revision
+        .removeListener(_loadSuspensionOverrides);
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadSuspensionOverrides() async {
+    try {
+      final overrides =
+          await MerchantSupervisorLocalStore.getSuspensionOverrides();
+      if (mounted) setState(() => _suspensionOverrides = overrides);
+    } on Object catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'merchant suspension status refresh',
+      ));
+    }
+  }
 
   void _showAddMerchantSheet(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -216,6 +248,8 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
                                 ? <dynamic>[]
                                 : jsonDecode(existing) as List<dynamic>;
                             records.add({
+                              'id':
+                                  'MER-LINK-${DateTime.now().microsecondsSinceEpoch}',
                               'merchantName': currentName,
                               'commercialRegistration':
                                   hasCommercialRegister ? currentCr : null,
@@ -231,8 +265,47 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
                                 'Could not save the merchant link request.',
                               );
                             }
+                            final linkedMerchants = preferences
+                                .getString('merchant_linked_merchants_v1');
+                            final linkedRecords = linkedMerchants == null
+                                ? <dynamic>[]
+                                : jsonDecode(linkedMerchants) as List<dynamic>;
+                            linkedRecords.add(records.last);
+                            final linkedSaved = await preferences.setString(
+                              'merchant_linked_merchants_v1',
+                              jsonEncode(linkedRecords),
+                            );
+                            if (!linkedSaved) {
+                              throw StateError(
+                                  'Could not add the merchant to the supervised list.');
+                            }
+                            try {
+                              await WasalnyLocalEventStore().publish(
+                                WasalnyLocalEvent(
+                                  id: 'merchant-linked-${records.last['id']}',
+                                  recipient: 'merchant',
+                                  source: 'merchants',
+                                  titleAr: 'تم ربط حسابك بالإشراف',
+                                  titleEn: 'Your account is now supervised',
+                                  messageAr:
+                                      'تمت إضافة $currentName إلى قائمة التجار الخاضعين للإشراف. رقم الطلب: ${records.last['id']}',
+                                  messageEn:
+                                      '$currentName was added to the supervised merchants list. Request: ${records.last['id']}',
+                                  createdAt: DateTime.now(),
+                                ),
+                              );
+                            } on Object catch (error, stackTrace) {
+                              FlutterError.reportError(
+                                FlutterErrorDetails(
+                                  exception: error,
+                                  stack: stackTrace,
+                                  library: 'merchant linking notification',
+                                ),
+                              );
+                            }
                             if (!sheetContext.mounted) return;
                             Navigator.of(sheetContext).pop();
+                            context.read<MerchantsCubit>().loadMerchants();
                             AppSnackBar.showInfo(
                               context,
                               l10n.merchantLinkSavedLocally,
@@ -283,12 +356,6 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
       crController.dispose();
       phoneController.dispose();
     });
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
   }
 
   @override
@@ -481,19 +548,24 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
                       ...loadedState.filteredMerchants.map(
                         (merchant) => MerchantCard(
                           merchant: merchant,
+                          isLocallySuspended: _suspensionOverrides[merchant.id],
                           onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => MerchantDetailsScreen(
+                                  merchant: merchant,
+                                  isLocallySuspended:
+                                      _suspensionOverrides[merchant.id],
+                                ),
+                              ),
+                            );
+                          },
+                          onActionTap: () {
                             Navigator.of(context).push(
                               MaterialPageRoute<void>(
                                 builder: (_) =>
                                     MerchantDetailsScreen(merchant: merchant),
                               ),
-                            );
-                          },
-                          onActionTap: () {
-                            AppSnackBar.showInfo(
-                              context,
-                              'إجراء: ${merchant.actionButtonText} لـ ${merchant.name}',
-                              duration: const Duration(seconds: 1),
                             );
                           },
                         ),
