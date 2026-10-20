@@ -488,6 +488,41 @@ class _WasalnyAdsReviewScreenState extends State<WasalnyAdsReviewScreen> {
           decisionNote: note,
         );
     if (!mounted) return false;
+    if (success &&
+        (status == WasalnyAdStatus.rejected ||
+            status == WasalnyAdStatus.suspended)) {
+      final isFrozen = status == WasalnyAdStatus.suspended;
+      final reason = note?.trim().isNotEmpty == true
+          ? note!.trim()
+          : ad.decisionNote?.trim().isNotEmpty == true
+              ? ad.decisionNote!.trim()
+              : 'لم يسجل المشرف سبباً إضافياً';
+      try {
+        await WasalnyLocalEventStore().publish(
+          WasalnyLocalEvent(
+            id: 'head-wasalny-ad-${ad.id}-${status.name}-${DateTime.now().millisecondsSinceEpoch}',
+            recipient: 'head',
+            source: 'wasalny',
+            titleAr: isFrozen ? 'قرار المشرف: تجميد إعلان' : 'قرار المشرف: رفض إعلان',
+            titleEn: isFrozen ? 'Supervisor decision: ad frozen' : 'Supervisor decision: ad rejected',
+            messageAr:
+                '${ad.reference}: ${ad.titleAr} — القرار: ${isFrozen ? 'مجمّد' : 'مرفوض'}. السبب: $reason',
+            messageEn:
+                '${ad.reference}: ${ad.titleEn} — Decision: ${isFrozen ? 'frozen' : 'rejected'}. Reason: $reason',
+            createdAt: DateTime.now(),
+          ),
+        );
+      } catch (error, stackTrace) {
+        FlutterError.reportError(
+          FlutterErrorDetails(
+            exception: error,
+            stack: stackTrace,
+            library: 'Wasalny ad review',
+            context: ErrorDescription('while notifying the head supervisor'),
+          ),
+        );
+      }
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter/scheduler.dart' show TickerCanceled;
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/utils/app_locale_controller.dart';
@@ -10,6 +11,8 @@ import '../../domain/entities/user_entity.dart';
 import '../../domain/entities/user_role.dart';
 import '../controllers/auth_cubit.dart';
 import '../controllers/auth_state.dart';
+import 'forgot_password_screen.dart';
+import 'login_animations.dart';
 
 class LoginScreen extends StatefulWidget {
   final VoidCallback onFinancialLogin;
@@ -33,15 +36,23 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen>
+    with SingleTickerProviderStateMixin {
   final _emailController = TextEditingController(text: 'finance@barwah.com');
   final _passwordController = TextEditingController(text: '••••••••••••');
+  late final AnimationController _successController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 850),
+  );
   bool _obscurePassword = true;
+  bool _showSuccessOverlay = false;
+  bool _successTransitionRunning = false;
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _successController.dispose();
     super.dispose();
   }
 
@@ -56,26 +67,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return BlocConsumer<AuthCubit, AuthState>(
       listener: (context, state) {
         if (state is AuthSuccess) {
-          if (state.user.role == UserRole.headOfSupervisors &&
-              widget.onHeadSupervisorLogin != null) {
-            widget.onHeadSupervisorLogin!();
-          } else if (state.user.role == UserRole.financialSupervisor) {
-            widget.onFinancialLogin();
-          } else if (state.user.role == UserRole.merchantSupervisor &&
-              widget.onMerchantLogin != null) {
-            widget.onMerchantLogin!();
-          } else if (state.user.role == UserRole.productSupervisor &&
-              widget.onProductLogin != null) {
-            widget.onProductLogin!();
-          } else if (state.user.role == UserRole.wasalnySupervisor &&
-              widget.onWasalnyLogin != null) {
-            widget.onWasalnyLogin!();
-          } else if (state.user.role == UserRole.servicesSupervisor &&
-              widget.onServicesLogin != null) {
-            widget.onServicesLogin!();
-          } else {
-            AppSnackBar.showInfo(context, _workspacePendingMessage(state.user));
-          }
+          _playSuccessTransition(context, state.user);
         } else if (state is AuthError) {
           AppSnackBar.showError(context, state.message);
         }
@@ -86,8 +78,12 @@ class _LoginScreenState extends State<LoginScreen> {
         return Directionality(
           textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
           child: Scaffold(
-            backgroundColor: const Color(0xFFF1F5F9),
-            body: SafeArea(
+            backgroundColor: const Color(0xFFF4F7FB),
+            body: Stack(
+              fit: StackFit.expand,
+              children: [
+                const LoginAnimatedBackdrop(),
+                SafeArea(
               child: Center(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(
@@ -203,21 +199,31 @@ class _LoginScreenState extends State<LoginScreen> {
 
                       // بطاقة الحقول
                       Container(
-                        padding: const EdgeInsets.all(22),
                         decoration: BoxDecoration(
-                          color: Colors.white,
                           borderRadius: BorderRadius.circular(24),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.03),
-                              blurRadius: 20,
-                              offset: const Offset(0, 8),
+                              color: Colors.black.withValues(alpha: .08),
+                              blurRadius: 28,
+                              offset: const Offset(0, 12),
                             ),
                           ],
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(24),
+                          child: Container(
+                              padding: const EdgeInsets.all(22),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: .42),
+                                borderRadius: BorderRadius.circular(24),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: .78),
+                                  width: 1.4,
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
                             // حقل البريد
                             Align(
                               alignment: Alignment.centerRight,
@@ -246,7 +252,9 @@ class _LoginScreenState extends State<LoginScreen> {
                               textAlign: TextAlign.left,
                               decoration: InputDecoration(
                                 filled: true,
-                                fillColor: const Color(0xFFF8FAFC),
+                                fillColor: const Color(0xFFF8FAFC).withValues(
+                                  alpha: .78,
+                                ),
                                 prefixIcon: const Icon(
                                   Icons.badge_outlined,
                                   color: AppColors.textSecondary,
@@ -288,7 +296,9 @@ class _LoginScreenState extends State<LoginScreen> {
                               textAlign: TextAlign.left,
                               decoration: InputDecoration(
                                 filled: true,
-                                fillColor: const Color(0xFFF8FAFC),
+                                fillColor: const Color(0xFFF8FAFC).withValues(
+                                  alpha: .78,
+                                ),
                                 prefixIcon: IconButton(
                                   icon: Icon(
                                     _obscurePassword
@@ -348,15 +358,40 @@ class _LoginScreenState extends State<LoginScreen> {
                                     borderRadius: BorderRadius.circular(14),
                                   ),
                                 ),
-                                onPressed: state is AuthLoading
+                                onPressed:
+                                    state is AuthLoading ||
+                                        _successTransitionRunning
                                     ? null
                                     : () => context.read<AuthCubit>().login(
                                           _emailController.text,
                                           _passwordController.text,
                                         ),
                                 child: state is AuthLoading
-                                    ? const CircularProgressIndicator(
-                                        color: Colors.white,
+                                    ? Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const SizedBox(
+                                            width: 20,
+                                            height: 20,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2.4,
+                                              valueColor:
+                                                  AlwaysStoppedAnimation<Color>(
+                                                Colors.white,
+                                              ),
+                            ),
+                          ),
+                                          const SizedBox(width: 10),
+                                          Text(
+                                            isArabic
+                                                ? 'جارٍ تسجيل الدخول...'
+                                                : 'Signing in...',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                        ],
                                       )
                                     : Row(
                                         mainAxisAlignment:
@@ -383,17 +418,44 @@ class _LoginScreenState extends State<LoginScreen> {
 
                             // استعادة الوصول
                             Center(
-                              child: Text(
-                                '${l10n.forgotPassword}\n${l10n.requestAccessReset}',
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.info,
-                                  height: 1.4,
-                                ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute<void>(
+                                          builder: (_) => ForgotPasswordScreen(
+                                            initialEmail:
+                                                _emailController.text.trim(),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    child: Text(
+                                      l10n.forgotPassword,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        color: AppColors.info,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                  Text(
+                                    l10n.requestAccessReset,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: AppColors.textSecondary,
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                          ],
+                                ],
+                              ),
+                            ),
                         ),
                       ),
                       const SizedBox(height: 24),
@@ -434,10 +496,59 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
+                ),
+                if (_showSuccessOverlay)
+                  LoginSuccessOverlay(
+                    animation: _successController,
+                    isArabic: isArabic,
+                  ),
+              ],
             ),
           ),
         );
       },
     );
   }
+
+  Future<void> _playSuccessTransition(
+    BuildContext context,
+    UserEntity user,
+  ) async {
+    if (_successTransitionRunning) return;
+    _successTransitionRunning = true;
+    setState(() => _showSuccessOverlay = true);
+
+    try {
+      await _successController.forward(from: 0);
+      await Future<void>.delayed(const Duration(milliseconds: 220));
+    } on TickerCanceled {
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() => _showSuccessOverlay = false);
+    _successTransitionRunning = false;
+
+    if (user.role == UserRole.headOfSupervisors &&
+        widget.onHeadSupervisorLogin != null) {
+      widget.onHeadSupervisorLogin!();
+    } else if (user.role == UserRole.financialSupervisor) {
+      widget.onFinancialLogin();
+    } else if (user.role == UserRole.merchantSupervisor &&
+        widget.onMerchantLogin != null) {
+      widget.onMerchantLogin!();
+    } else if (user.role == UserRole.productSupervisor &&
+        widget.onProductLogin != null) {
+      widget.onProductLogin!();
+    } else if (user.role == UserRole.wasalnySupervisor &&
+        widget.onWasalnyLogin != null) {
+      widget.onWasalnyLogin!();
+    } else if (user.role == UserRole.servicesSupervisor &&
+        widget.onServicesLogin != null) {
+      widget.onServicesLogin!();
+    } else {
+      AppSnackBar.showInfo(context, _workspacePendingMessage(user));
+    }
+  }
+
 }

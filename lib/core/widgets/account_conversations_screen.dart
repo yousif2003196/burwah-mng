@@ -7,6 +7,8 @@ import '../constants/app_colors.dart';
 import '../../features/wasalny_supervisor/data/wasalny_local_event_store.dart';
 
 class AccountConversationsScreen extends StatefulWidget {
+  static final ValueNotifier<int> unreadRevision = ValueNotifier<int>(0);
+
   final String accountId;
 
   const AccountConversationsScreen({
@@ -14,9 +16,87 @@ class AccountConversationsScreen extends StatefulWidget {
     required this.accountId,
   });
 
+  static Future<int> unreadCountFor(String accountId) =>
+      _ConversationStore.instance.unreadCountFor(accountId);
+
+  static Future<void> openDirectConversation({
+    required BuildContext context,
+    required String firstAccountId,
+    required String otherAccountId,
+    required String requestId,
+    required String initialMessage,
+  }) async {
+    final conversation = await _ConversationStore.instance.openConversation(
+      firstAccountId,
+      otherAccountId,
+      requestId,
+    );
+    if (initialMessage.trim().isNotEmpty) {
+      await _ConversationStore.instance.sendMessage(
+        conversation.id,
+        firstAccountId,
+        initialMessage.trim(),
+      );
+    }
+    if (!context.mounted) return;
+    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => _ConversationThreadScreen(
+          conversationId: conversation.id,
+          accountId: firstAccountId,
+          title: _accountName(otherAccountId, isArabic),
+        ),
+      ),
+    );
+  }
+
   @override
   State<AccountConversationsScreen> createState() =>
       _AccountConversationsScreenState();
+}
+
+class AccountChatUnreadBadge extends StatelessWidget {
+  final String accountId;
+  final Widget child;
+
+  const AccountChatUnreadBadge({
+    super.key,
+    required this.accountId,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<int>(
+        valueListenable: AccountConversationsScreen.unreadRevision,
+        builder: (context, revision, _) => FutureBuilder<int>(
+          future: AccountConversationsScreen.unreadCountFor(accountId),
+          builder: (context, snapshot) {
+            final unread = snapshot.data ?? 0;
+            return Stack(
+              clipBehavior: Clip.none,
+              children: [
+                child,
+                if (unread > 0)
+                  PositionedDirectional(
+                    top: -7,
+                    end: -9,
+                    child: Container(
+                      constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      alignment: Alignment.center,
+                      decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                      child: Text(
+                        unread > 99 ? '99+' : '$unread',
+                        style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+      );
 }
 
 class _AccountConversationsScreenState
@@ -469,6 +549,15 @@ class _ConversationStore {
   static final instance = _ConversationStore._();
   static const _storageKey = 'account_conversations_v1';
 
+  Future<int> unreadCountFor(String accountId) async {
+    final conversations = await forAccount(accountId);
+    return conversations.fold<int>(
+      0,
+      (total, conversation) => total + conversation.messages.where((message) =>
+          message.senderId != accountId && !message.readBy.contains(accountId)).length,
+    );
+  }
+
   Future<List<_Conversation>> forAccount(String accountId) async {
     final all = await _readAll();
     return all.where((item) => item.participants.contains(accountId)).toList()
@@ -592,6 +681,7 @@ class _ConversationStore {
       jsonEncode(all.map((item) => item.toJson()).toList()),
     );
     if (!saved) throw StateError('Could not save conversations.');
+    AccountConversationsScreen.unreadRevision.value++;
   }
 }
 

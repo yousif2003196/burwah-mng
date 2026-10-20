@@ -140,7 +140,7 @@ class _ProductSupervisorTabsShellState
                                   const AccountConversationsScreen(accountId: 'products'),
                             ),
                           ),
-                          icon: const Icon(Icons.chat_bubble_outline),
+                          icon: AccountChatUnreadBadge(accountId: 'products', child: const Icon(Icons.chat_bubble_outline)),
                         ),
                         IconButton(
                           tooltip: l10n.productNotificationsTitle,

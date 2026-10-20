@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../head_supervisor/data/head_supervisor_roster_store.dart';
 import '../../domain/entities/user_entity.dart';
 import '../../domain/entities/user_role.dart';
 import 'auth_state.dart';
@@ -38,6 +39,31 @@ class AuthCubit extends Cubit<AuthState> {
       return;
     }
 
+    final roster = await HeadSupervisorRosterStore().getAll();
+    final matchingSupervisors = roster.where((supervisor) =>
+        supervisor.email.trim().toLowerCase() == normalizedEmail);
+    final registeredSupervisor =
+        matchingSupervisors.isEmpty ? null : matchingSupervisors.first;
+    if (registeredSupervisor != null) {
+      if (registeredSupervisor.suspended || registeredSupervisor.deletionPending) {
+        emit(const AuthError('هذا الحساب موقوف أو قيد الحذف، يرجى التواصل مع رئيس المشرفين.'));
+        return;
+      }
+      final account = _accountForId(registeredSupervisor.accountId);
+      if (account == null) {
+        emit(const AuthError('تعذر تحديد قسم هذا الحساب. يرجى التواصل مع رئيس المشرفين.'));
+        return;
+      }
+      emit(AuthSuccess(UserEntity(
+        id: registeredSupervisor.id,
+        name: registeredSupervisor.name,
+        email: normalizedEmail,
+        role: account.role,
+        roleBadgeCode: registeredSupervisor.id,
+      )));
+      return;
+    }
+
     final account = _accounts[emailParts.first];
     if (account == null) {
       emit(const AuthError(
@@ -53,6 +79,15 @@ class AuthCubit extends Cubit<AuthState> {
       roleBadgeCode: account.badgeCode,
     )));
   }
+
+  _RoleAccount? _accountForId(String accountId) => switch (accountId) {
+        'merchant' => _accounts['merchant'],
+        'wasalny' => _accounts['wasalny'],
+        'products' => _accounts['products'],
+        'services' => _accounts['services'],
+        'finance' => _accounts['finance'],
+        _ => null,
+      };
 }
 
 class _RoleAccount {

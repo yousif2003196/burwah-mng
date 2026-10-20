@@ -57,7 +57,14 @@ class _WasalnyEventInboxState extends State<_WasalnyEventInbox> {
   @override
   void initState() {
     super.initState();
+    WasalnyLocalEventStore.revision.addListener(_load);
     _load();
+  }
+
+  @override
+  void dispose() {
+    WasalnyLocalEventStore.revision.removeListener(_load);
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -162,12 +169,15 @@ class _WasalnyEventInboxState extends State<_WasalnyEventInbox> {
                     ),
                   ),
                 ),
-                icon: const Icon(Icons.chat_bubble_outline),
+                icon: AccountChatUnreadBadge(
+                  accountId: 'head',
+                  child: const Icon(Icons.chat_bubble_outline),
+                ),
               ),
             if (widget.onLogout != null)
               IconButton(
                 tooltip: l10n.logout,
-                onPressed: widget.onLogout,
+                onPressed: () => _confirmLogout(l10n),
                 icon: const Icon(Icons.logout),
               ),
             TextButton(
@@ -294,6 +304,27 @@ class _WasalnyEventInboxState extends State<_WasalnyEventInbox> {
                       ),
       ),
     );
+  }
+
+  Future<void> _confirmLogout(AppLocalizations l10n) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.logoutConfirmTitle),
+        content: Text(l10n.logoutConfirmMessage),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(l10n.logoutCancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(l10n.logoutConfirm),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) widget.onLogout?.call();
   }
 
   Color _sourceColor(String source) => switch (source) {

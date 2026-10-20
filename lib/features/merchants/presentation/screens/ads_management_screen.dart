@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/widgets/app_snack_bar.dart';
+import '../../../wasalny_supervisor/data/wasalny_local_event_store.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../finance/domain/entities/withdrawal_request_entity.dart';
 import '../../../finance/domain/repositories/finance_repository.dart';
@@ -312,6 +313,43 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
           hidden: hidden ?? _hiddenAds.contains(ad.id),
         ),
       );
+      if (status == _AdStatus.rejected || status == _AdStatus.suspended) {
+        final isFrozen = status == _AdStatus.suspended;
+        final reason = rejection?.guidance ??
+            _rejections[ad.id]?.guidance ??
+            (isFrozen
+                ? 'تم تجميد الإعلان للمراجعة الرقابية.'
+                : 'لم يسجل المشرف سبباً إضافياً.');
+        try {
+          await WasalnyLocalEventStore().publish(
+            WasalnyLocalEvent(
+              id: 'head-merchant-ad-${ad.id}-${status!.name}-${DateTime.now().millisecondsSinceEpoch}',
+              recipient: 'head',
+              source: 'merchant',
+              titleAr: isFrozen
+                  ? 'قرار المشرف: تجميد إعلان تاجر'
+                  : 'قرار المشرف: رفض إعلان تاجر',
+              titleEn: isFrozen
+                  ? 'Supervisor decision: merchant ad frozen'
+                  : 'Supervisor decision: merchant ad rejected',
+              messageAr:
+                  '${_adReference(ad)}: ${_adTitle(l10n, ad)} — القرار: ${isFrozen ? 'مجمّد' : 'مرفوض'} من مشرف التجار. السبب: $reason',
+              messageEn:
+                  '${_adReference(ad)}: ${_adTitle(l10n, ad)} — Decision: ${isFrozen ? 'frozen' : 'rejected'} by the merchants supervisor. Reason: $reason',
+              createdAt: DateTime.now(),
+            ),
+          );
+        } catch (error, stackTrace) {
+          FlutterError.reportError(
+            FlutterErrorDetails(
+              exception: error,
+              stack: stackTrace,
+              library: 'merchant advertisement review',
+              context: ErrorDescription('while notifying the head supervisor'),
+            ),
+          );
+        }
+      }
       try {
         final resultLabel = switch (status) {
           _AdStatus.approved => l10n.adsApprovedStatus,

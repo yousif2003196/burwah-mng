@@ -7,9 +7,9 @@ import '../core/widgets/app_launch_splash.dart';
 import '../features/auth/presentation/controllers/auth_cubit.dart';
 import '../features/auth/presentation/screens/login_screen.dart';
 import '../features/services_supervisor/presentation/screens/services_supervisor_tabs_shell.dart';
-import '../features/wasalny_supervisor/presentation/screens/wasalny_supervisor_notifications_screen.dart';
 import '../l10n/app_localizations.dart';
 import 'navigation/finance_tabs_shell.dart';
+import 'navigation/head_supervisor_tabs_shell.dart';
 import 'navigation/merchants_tabs_shell.dart';
 import 'navigation/product_supervisor_tabs_shell.dart';
 import 'navigation/wasalny_supervisor_tabs_shell.dart';
@@ -68,7 +68,7 @@ class _BarwahAppState extends State<BarwahApp> {
   void _openHeadSupervisor(BuildContext context) {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
-        builder: (_) => WasalnyHeadEscalationsScreen(onLogout: _logout),
+        builder: (_) => HeadSupervisorTabsShell(onLogout: _logout),
       ),
     );
   }

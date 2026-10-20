@@ -12,6 +12,7 @@ class FinancePageAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final String? subtitle;
   final bool showProfileButton;
+  final bool showLanguageToggle;
   final VoidCallback? onProfilePressed;
   final bool showBackButton;
   final VoidCallback? onBackPressed;
@@ -22,6 +23,7 @@ class FinancePageAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.title,
     this.subtitle,
     this.showProfileButton = false,
+    this.showLanguageToggle = true,
     this.onProfilePressed,
     this.showBackButton = false,
     this.onBackPressed,
@@ -72,7 +74,7 @@ class FinancePageAppBar extends StatelessWidget implements PreferredSizeWidget {
         ],
       ),
       actions: [
-        Padding(
+        if (showLanguageToggle) Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
           child: InkWell(
             borderRadius: BorderRadius.circular(20),
