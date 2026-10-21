@@ -203,7 +203,7 @@ class _HeadSupervisorBroadcastSheetState
                 if (!_sendToAll) ...[
                   const SizedBox(height: 11),
                   DropdownButtonFormField<String>(
-                    value: _selectedSupervisorId,
+                    initialValue: _selectedSupervisorId,
                     decoration: InputDecoration(
                       labelText: headSupervisorText(context, arabic: 'المشرف المستلم', english: 'Recipient supervisor'),
                       labelStyle: const TextStyle(fontSize: 10),

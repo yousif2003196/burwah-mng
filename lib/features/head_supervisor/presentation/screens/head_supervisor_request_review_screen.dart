@@ -62,7 +62,7 @@ class _HeadSupervisorRequestReviewScreenState
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(headSupervisorText(context, arabic: 'إعادة مراجعة القرار', english: 'Review decision'),
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
         centerTitle: true,
         leading: IconButton(
           tooltip: headSupervisorText(context, arabic: 'رجوع', english: 'Back'),
@@ -173,7 +173,7 @@ class _HeadSupervisorRequestReviewScreenState
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(headSupervisorText(context, arabic: 'سجل توجيهات المشرف السابقة', english: 'Previous supervisor instructions'),
-                          style: TextStyle(
+                          style: const TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
                               color: AppColors.primaryDark)),
@@ -230,7 +230,7 @@ class _HeadSupervisorRequestReviewScreenState
                     borderRadius: BorderRadius.circular(12)),
               ),
               child: Text(headSupervisorText(context, arabic: 'إلغاء والتراجع', english: 'Cancel'),
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
             ),
           ),
         ],
@@ -261,7 +261,7 @@ class _ReviewSessionCard extends StatelessWidget {
             const Spacer(),
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
               Text(headSupervisorText(context, arabic: 'رقم الجلسة الرقابية', english: 'Oversight session ID'),
-                  style: TextStyle(fontSize: 8, color: AppColors.textSecondary)),
+                  style: const TextStyle(fontSize: 8, color: AppColors.textSecondary)),
               Text('REV-${requestId.hashCode.abs() % 90000 + 10000}#',
                   style: const TextStyle(
                       fontSize: 13,
@@ -347,7 +347,7 @@ class _SupervisorDecisionCard extends StatelessWidget {
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Row(mainAxisAlignment: MainAxisAlignment.end, children: [
                 Text(headSupervisorText(context, arabic: 'مسوغ المشرف للقرار', english: 'Supervisor rationale'),
-                    style: TextStyle(
+                    style: const TextStyle(
                         fontSize: 9,
                         fontWeight: FontWeight.bold,
                         color: AppColors.textPrimary)),
@@ -384,15 +384,15 @@ class _RequestDetailsCard extends StatelessWidget {
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Text(headSupervisorText(context, arabic: 'تفاصيل الطلب / الإعلان', english: 'Request / ad details'),
               textAlign: TextAlign.right,
-              style: TextStyle(
+              style: const TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF315E9A))),
+                  color: Color(0xFF315E9A))),
           const SizedBox(height: 8),
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(headSupervisorText(context, arabic: 'القسم', english: 'Department'),
-                  style: TextStyle(fontSize: 8, color: AppColors.textSecondary)),
+                  style: const TextStyle(fontSize: 8, color: AppColors.textSecondary)),
               Text(department,
                   style: const TextStyle(
                       fontSize: 10, fontWeight: FontWeight.bold)),
@@ -420,7 +420,7 @@ class _RequestDetailsCard extends StatelessWidget {
                 color: const Color(0xFFD8EAFE),
                 borderRadius: BorderRadius.circular(11)),
             child: Row(children: [
-              Icon(Icons.radar, color: AppColors.primaryDark, size: 18),
+              const Icon(Icons.radar, color: AppColors.primaryDark, size: 18),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(

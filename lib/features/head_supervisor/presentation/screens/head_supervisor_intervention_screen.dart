@@ -156,7 +156,7 @@ class _HeadSupervisorInterventionScreenState
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(headSupervisorText(context, arabic: 'التدخل الرقابي', english: 'Oversight intervention'),
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
         centerTitle: true,
         leading: IconButton(
           onPressed: () => Navigator.of(context).pop(),
@@ -191,7 +191,7 @@ class _HeadSupervisorInterventionScreenState
           const SizedBox(height: 14),
           Text(headSupervisorText(context, arabic: 'قرارات الحسم الرقابي الفوري', english: 'Immediate oversight decisions'),
               textAlign: TextAlign.right,
-              style: TextStyle(
+              style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
                   color: AppColors.primaryDark)),
@@ -218,7 +218,7 @@ class _HeadSupervisorInterventionScreenState
               onPressed: _submit,
               icon: const Icon(Icons.gavel_outlined, size: 18),
               label: Text(headSupervisorText(context, arabic: 'اعتماد قرار حسم النزاع وإنهاء البلاغ فوراً', english: 'Approve dispute resolution and close the report'),
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.primaryDark,
                 shape: RoundedRectangleBorder(
@@ -230,7 +230,7 @@ class _HeadSupervisorInterventionScreenState
           Text(
             headSupervisorText(context, arabic: 'قرار الحسم يصدر بموجب صلاحيات رئيس هيئة المشرفين المختصين، ويُرسل للطرفين فوراً.', english: 'The decision is issued under the Head Supervisor’s authority and sent to both parties.'),
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 8, color: AppColors.textSecondary),
+            style: const TextStyle(fontSize: 8, color: AppColors.textSecondary),
           ),
         ],
       ),
@@ -256,7 +256,7 @@ class _UrgencyBanner extends StatelessWidget {
                   fontSize: 9,
                   color: urgent ? AppColors.dangerDark : AppColors.primaryDark,
                   fontWeight: FontWeight.bold)),
-          SizedBox(width: 6),
+          const SizedBox(width: 6),
           Icon(urgent ? Icons.warning_amber_rounded : Icons.shield_outlined,
               size: 16, color: urgent ? AppColors.dangerDark : AppColors.primaryDark),
         ]),
@@ -308,9 +308,9 @@ class _DisputeSummaryCard extends StatelessWidget {
             const Spacer(),
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
               Text(headSupervisorText(context, arabic: 'المبلغ المتنازع عليه', english: 'Disputed amount'),
-                  style: TextStyle(fontSize: 8, color: Color(0xFFB8C9DE))),
+                  style: const TextStyle(fontSize: 8, color: const Color(0xFFB8C9DE))),
               Text(amount,
-                  style: TextStyle(
+                  style: const TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.bold,
                       color: Colors.white)),
@@ -349,7 +349,7 @@ class _ComplaintDetailsCard extends StatelessWidget {
           const SizedBox(height: 10),
           Text(headSupervisorText(context, arabic: 'المرفقات والأدلة (نماذج توضيحية)', english: 'Attachments and evidence (samples)'),
               textAlign: TextAlign.right,
-              style: TextStyle(fontSize: 8, color: AppColors.textSecondary)),
+              style: const TextStyle(fontSize: 8, color: AppColors.textSecondary)),
           const SizedBox(height: 6),
           const Row(children: [
             Expanded(child: _AttachmentTile(icon: Icons.article_outlined, label: 'سجل المراسلات')),
@@ -390,7 +390,7 @@ class _SupervisorGuidanceCard extends StatelessWidget {
                 color: Color(0xFF315E9A), size: 18),
             const Spacer(),
             Text(headSupervisorText(context, arabic: 'توجيه إداري مباشر وموثق للمشرف', english: 'Direct documented instruction to supervisor'),
-                style: TextStyle(
+                style: const TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
                     color: AppColors.primaryDark)),

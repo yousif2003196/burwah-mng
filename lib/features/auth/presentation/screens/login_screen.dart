@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter/scheduler.dart' show TickerCanceled;
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/utils/app_locale_controller.dart';

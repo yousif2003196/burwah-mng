@@ -169,9 +169,9 @@ class _WasalnyEventInboxState extends State<_WasalnyEventInbox> {
                     ),
                   ),
                 ),
-                icon: AccountChatUnreadBadge(
+                icon: const AccountChatUnreadBadge(
                   accountId: 'head',
-                  child: const Icon(Icons.chat_bubble_outline),
+                  child: Icon(Icons.chat_bubble_outline),
                 ),
               ),
             if (widget.onLogout != null)

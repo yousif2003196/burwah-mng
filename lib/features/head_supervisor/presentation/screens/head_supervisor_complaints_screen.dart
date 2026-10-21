@@ -351,7 +351,7 @@ class _HeadSupervisorComplaintsScreenState
           ],
           if (!_loading && complaints.isEmpty)
             Padding(
-              padding: EdgeInsets.symmetric(vertical: 42),
+              padding: const EdgeInsets.symmetric(vertical: 42),
               child: Center(
                 child: Text(headSupervisorText(context, arabic: 'لا توجد شكاوى ضمن هذا التصنيف', english: 'No complaints in this category'),
                     style: const TextStyle(
@@ -527,7 +527,7 @@ class HeadSupervisorComplaintCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onReopen;
   const HeadSupervisorComplaintCard(
-      {required this.complaint,
+      {super.key, required this.complaint,
       required this.handled,
       required this.onTap,
       required this.onReopen});
@@ -683,7 +683,7 @@ class HeadSupervisorComplaintDetailsScreen extends StatefulWidget {
   final HeadSupervisorComplaint complaint;
   final bool alreadyHandled;
   const HeadSupervisorComplaintDetailsScreen(
-      {required this.complaint, required this.alreadyHandled});
+      {super.key, required this.complaint, required this.alreadyHandled});
 
   @override
   State<HeadSupervisorComplaintDetailsScreen> createState() =>
@@ -1032,7 +1032,7 @@ class HeadSupervisorComplaintDetailsScreenState
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(headSupervisorText(context, arabic: 'تفاصيل شكوى التاجر', english: 'Merchant complaint details'),
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
         centerTitle: true,
         leading: IconButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -1100,7 +1100,7 @@ class HeadSupervisorComplaintDetailsScreenState
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Text(headSupervisorText(context, arabic: 'ملخص التحقيق والضرر', english: 'Investigation and impact summary'),
                   textAlign: TextAlign.right,
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
               const SizedBox(height: 8),
               Text(complaint.description,
                   textAlign: TextAlign.right,
@@ -1157,7 +1157,7 @@ class HeadSupervisorComplaintDetailsScreenState
           else ...[
             Text(headSupervisorText(context, arabic: 'الإجراءات الرقابية المتاحة', english: 'Available oversight actions'),
                 textAlign: TextAlign.right,
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
             const SizedBox(height: 8),
             for (final action in complaint.actions) ...[
               HeadSupervisorComplaintActionButton(
@@ -1594,8 +1594,8 @@ class _SummonSupervisorSheetState extends State<_SummonSupervisorSheet> {
                             size: 8, color: Color(0xFF13AA7A)),
                         const SizedBox(width: 5),
                         Text(headSupervisorText(context, arabic: 'متصل الآن (نشط في الميدان)', english: 'Online now (active in field)'),
-                            style: TextStyle(
-                                fontSize: 8, color: Color(0xFF13805E))),
+                            style: const TextStyle(
+                                fontSize: 8, color: const Color(0xFF13805E))),
                         const Spacer(),
                         Text(
                             'الشكوى المرتبطة: ${complaint.id} (${complaint.merchant})',
@@ -1608,7 +1608,7 @@ class _SummonSupervisorSheetState extends State<_SummonSupervisorSheet> {
                   const SizedBox(height: 14),
                   Text(headSupervisorText(context, arabic: 'موضوع الاستدعاء والتوجيه الرقابي', english: 'Summons topic and oversight instruction'),
                       textAlign: TextAlign.right,
-                      style: TextStyle(
+                      style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
                           color: AppColors.primaryDark)),
@@ -1625,11 +1625,11 @@ class _SummonSupervisorSheetState extends State<_SummonSupervisorSheet> {
                   const SizedBox(height: 6),
                   Row(children: [
                     Text(headSupervisorText(context, arabic: 'قناة محادثة مسجلة', english: 'Recorded communication channel'),
-                        style: TextStyle(
+                        style: const TextStyle(
                             fontSize: 8, color: AppColors.textMuted)),
                     const Spacer(),
                     Text(headSupervisorText(context, arabic: 'رسالة الاستدعاء الأولية للمشرف', english: 'Initial summons message to supervisor'),
-                        style: TextStyle(
+                        style: const TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
                             color: AppColors.primaryDark)),
@@ -1690,7 +1690,7 @@ class _SummonSupervisorSheetState extends State<_SummonSupervisorSheet> {
                     onPressed: _submit,
                     icon: const Icon(Icons.send, size: 17),
                     label: Text(headSupervisorText(context, arabic: 'بدء المحادثة الفورية مع المشرف الآن', english: 'Start an immediate conversation with supervisor'),
-                        style: TextStyle(
+                        style: const TextStyle(
                             fontSize: 10, fontWeight: FontWeight.bold)),
                     style: FilledButton.styleFrom(
                         backgroundColor: AppColors.primaryDark,
@@ -1903,7 +1903,7 @@ class _UnblockInvestigationSheetState
                   const SizedBox(height: 14),
                   Text(headSupervisorText(context, arabic: 'التدابير التنفيذية المحددة:', english: 'Selected enforcement measures:'),
                       textAlign: TextAlign.right,
-                      style: TextStyle(
+                      style: const TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
                           color: AppColors.textPrimary)),
@@ -1937,7 +1937,7 @@ class _UnblockInvestigationSheetState
                   const SizedBox(height: 12),
                   Text(headSupervisorText(context, arabic: 'مسوغات القرار الرقابي والتوجيه الإداري', english: 'Decision rationale and administrative instruction'),
                       textAlign: TextAlign.right,
-                      style: TextStyle(
+                      style: const TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
                           color: AppColors.primaryDark)),
@@ -1975,7 +1975,7 @@ class _UnblockInvestigationSheetState
                     onPressed: _submit,
                     icon: const Icon(Icons.check_circle_outline, size: 18),
                     label: Text(headSupervisorText(context, arabic: 'تأكيد فك الحظر وبدء التحقيق فوراً', english: 'Confirm restriction removal and start investigation'),
-                        style: TextStyle(
+                        style: const TextStyle(
                             fontSize: 10, fontWeight: FontWeight.bold)),
                     style: FilledButton.styleFrom(
                         backgroundColor: AppColors.primaryDark,
@@ -2075,7 +2075,7 @@ class HeadSupervisorComplaintActionButton extends StatelessWidget {
   final bool busy;
   final bool primary;
   final VoidCallback onPressed;
-  const HeadSupervisorComplaintActionButton({required this.action, required this.busy, required this.primary, required this.onPressed});
+  const HeadSupervisorComplaintActionButton({super.key, required this.action, required this.busy, required this.primary, required this.onPressed});
 
   @override
   Widget build(BuildContext context) => SizedBox(

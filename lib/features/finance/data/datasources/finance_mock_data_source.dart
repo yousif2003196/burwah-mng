@@ -377,9 +377,10 @@ class FinanceMockDataSource implements FinanceRemoteDataSource {
     await getExpenseRequests();
     final index =
         _expenseRequests.indexWhere((request) => request.id == requestId);
-    if (index < 0)
+    if (index < 0) {
       throw ArgumentError.value(
           requestId, 'requestId', 'Expense request not found.');
+    }
     final current = _expenseRequests[index];
     if (current.status != ExpenseRequestStatus.pendingAdminApproval) {
       throw StateError('Only pending expense requests can be updated.');
@@ -431,9 +432,10 @@ class FinanceMockDataSource implements FinanceRemoteDataSource {
     }
     final index =
         _expenseRequests.indexWhere((request) => request.id == requestId);
-    if (index < 0)
+    if (index < 0) {
       throw ArgumentError.value(
           requestId, 'requestId', 'Expense request not found.');
+    }
     final current = _expenseRequests[index];
     if (current.status != ExpenseRequestStatus.pendingAdminApproval) {
       throw StateError('Only pending expense requests can be edited.');

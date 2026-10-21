@@ -291,6 +291,6 @@ class _SecurityWarning extends StatelessWidget {
   Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: const Color(0xFFFFF0EF), borderRadius: BorderRadius.circular(14)), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(headSupervisorText(context, arabic: 'تنبيه رقابي مشدد', english: 'Important oversight notice'), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.dangerDark)), const SizedBox(height: 5), Text(headSupervisorText(context, arabic: 'لا يملك رئيس المشرفين صلاحية منح صلاحيات مالية مباشرة أو الحسابات الحساسة للمستخدمين، والتجار يخضعون للائحة الحوكمة والسياسات المالية للمنصة.', english: 'The Head Supervisor cannot grant direct financial or sensitive account access. Merchants remain subject to platform governance and financial policies.'), textAlign: TextAlign.right, style: const TextStyle(fontSize: 9, height: 1.5, color: AppColors.dangerDark))])),
         const SizedBox(width: 8),
-        CircleAvatar(radius: 15, backgroundColor: Color(0xFFFFD9D6), child: Icon(Icons.shield_outlined, size: 16, color: AppColors.dangerDark)),
+        const CircleAvatar(radius: 15, backgroundColor: const Color(0xFFFFD9D6), child: const Icon(Icons.shield_outlined, size: 16, color: AppColors.dangerDark)),
       ]));
 }

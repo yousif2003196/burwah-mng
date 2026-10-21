@@ -142,7 +142,7 @@ class _HeadSupervisorWalletScreenState extends State<HeadSupervisorWalletScreen>
           icon: const Icon(Icons.arrow_forward),
         ),
         title: Text(headSupervisorText(context, arabic: 'محفظة رئيس المشرفين', english: 'Supervisor Wallet'),
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
         centerTitle: true,
         actions: const [
           Padding(

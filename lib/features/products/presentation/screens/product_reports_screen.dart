@@ -25,8 +25,7 @@ class _ReportMetrics {
     required this.declined,
     required this.approvalRate,
     required this.averageMinutes,
-    this.change = '—',
-  });
+  }) : change = '—';
 
   String get declinedRate =>
       reviewed == 0 ? '0%' : '${(declined * 100 / reviewed).round()}%';

@@ -320,10 +320,10 @@ class _RecoveryBackdrop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
+    return const Stack(
       fit: StackFit.expand,
       children: [
-        const DecoratedBox(
+        DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
@@ -332,15 +332,15 @@ class _RecoveryBackdrop extends StatelessWidget {
             ),
           ),
         ),
-        Positioned(
+        const Positioned(
           top: -90,
           right: -70,
-          child: _GlassOrb(size: 260, opacity: .26),
+          child: const _GlassOrb(size: 260, opacity: .26),
         ),
-        Positioned(
+        const Positioned(
           bottom: -110,
           left: -70,
-          child: _GlassOrb(size: 310, opacity: .20),
+          child: const _GlassOrb(size: 310, opacity: .20),
         ),
       ],
     );

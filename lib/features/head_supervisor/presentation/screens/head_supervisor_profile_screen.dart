@@ -174,9 +174,9 @@ class _HeadSupervisorProfileScreenState extends State<HeadSupervisorProfileScree
           const SizedBox(height: 8),
           Row(children: [
             Expanded(child: _MetricCard(value: '18', label: _profileText(context, 'مشرفاً تحت الإدارة', 'Supervisors managed'), icon: Icons.groups_outlined)),
-            SizedBox(width: 8),
-            Expanded(child: _MetricCard(value: '98.4%', label: _profileText(context, 'معيار الحوكمة', 'Governance score'), icon: Icons.verified_outlined, valueColor: Color(0xFF315F9A))),
-            SizedBox(width: 8),
+            const SizedBox(width: 8),
+            Expanded(child: _MetricCard(value: '98.4%', label: _profileText(context, 'معيار الحوكمة', 'Governance score'), icon: Icons.verified_outlined, valueColor: const Color(0xFF315F9A))),
+            const SizedBox(width: 8),
             Expanded(child: _MetricCard(value: '342', label: _profileText(context, 'تدخل رقابي معتمد', 'Approved interventions'), icon: Icons.gavel_outlined)),
           ]),
           const SizedBox(height: 14),
@@ -194,8 +194,8 @@ class _HeadSupervisorProfileScreenState extends State<HeadSupervisorProfileScree
               onPressed: () => _confirmLogout(context, widget.onLogout),
               icon: const Icon(Icons.logout, color: Color(0xFFB91C1C), size: 18),
               label: Text(_profileText(context, 'إنهاء الجلسة الإدارية وإغلاق التطبيق', 'End the admin session and sign out'),
-                  style: TextStyle(
-                      color: Color(0xFFB91C1C),
+                  style: const TextStyle(
+                      color: const Color(0xFFB91C1C),
                       fontSize: 11,
                       fontWeight: FontWeight.bold)),
               style: OutlinedButton.styleFrom(
@@ -355,9 +355,9 @@ class _ProfileCard extends StatelessWidget {
             decoration: BoxDecoration(color: const Color(0xFFF2F4F6), borderRadius: BorderRadius.circular(12)),
             child: Column(children: [
               _ProfileInfo(icon: Icons.mail_outline, text: 'adel.alshammari@almazouri.sa', tag: _profileText(context, 'رسمي', 'Official')),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               _ProfileInfo(icon: Icons.phone_iphone, text: '+966 50 ••• 8821', tag: _profileText(context, 'نفاذ موثق', 'Verified')),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               _ProfileInfo(icon: Icons.location_city_outlined, text: _profileText(context, 'نطاق الإشراف: الرياض، الغربية، الشرقية، الشمالي (4 قطاعات)', 'Coverage: Riyadh, West, East and North (4 sectors)')),
             ]),
           ),

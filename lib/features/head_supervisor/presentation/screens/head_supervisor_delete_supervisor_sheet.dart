@@ -173,7 +173,7 @@ class _GovernanceWarning extends StatelessWidget {
   Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: const Color(0xFFFFDAD7), borderRadius: BorderRadius.circular(14)), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(headSupervisorText(context, arabic: 'تنبيه رقابي مشدد وفق لائحة الحوكمة (م-14)', english: 'Governance notice under policy M-14'), textAlign: TextAlign.right, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.dangerDark)), const SizedBox(height: 5), Text(headSupervisorText(context, arabic: 'حذف المشرف نهائياً يلزم النظام بإخطار الإدارة العامة للرقابة الميدانية ومكتب التفتيش المركزي فوراً، وتجمد كافة الاعتمادات المعلقة ولا يمكن استرجاع الحساب إلا بعد المصادقة.', english: 'Permanent deletion immediately notifies central oversight and freezes pending approvals. The account cannot be restored without authorization.'), textAlign: TextAlign.right, style: const TextStyle(fontSize: 9, height: 1.55, color: AppColors.dangerDark))])),
         const SizedBox(width: 8),
-        Icon(Icons.warning_amber_rounded, color: AppColors.dangerDark, size: 19),
+        const Icon(Icons.warning_amber_rounded, color: AppColors.dangerDark, size: 19),
       ]));
 }
 

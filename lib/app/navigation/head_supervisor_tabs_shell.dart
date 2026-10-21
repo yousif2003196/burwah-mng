@@ -107,9 +107,9 @@ class _HeadSupervisorTabsShellState extends State<HeadSupervisorTabsShell> {
                         ),
                       ),
                     ),
-                    icon: AccountChatUnreadBadge(
+                    icon: const AccountChatUnreadBadge(
                       accountId: 'head',
-                      child: const Icon(Icons.chat_bubble_outline),
+                      child: Icon(Icons.chat_bubble_outline),
                     ),
                   ),
                   IconButton(

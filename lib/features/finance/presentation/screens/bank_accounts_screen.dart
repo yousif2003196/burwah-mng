@@ -573,7 +573,7 @@ class _BankAccountsScreenContentState
     final categoryTitle = categoryTitles[_selectedCategoryIndex];
     final categoryId = _selectedCategoryIndex == 0
         ? 'ALL-ACCOUNTS'
-        : 'CATEGORY-${_selectedCategoryIndex}';
+        : 'CATEGORY-$_selectedCategoryIndex';
 
     return InkWell(
       onTap: () {
@@ -699,7 +699,7 @@ class _BankAccountsScreenContentState
       ),
       (
         'verified',
-        isArabic ? 'موثق (${verifiedCount})' : 'Verified ($verifiedCount)',
+        isArabic ? 'موثق ($verifiedCount)' : 'Verified ($verifiedCount)',
       ),
       (
         'unverified',

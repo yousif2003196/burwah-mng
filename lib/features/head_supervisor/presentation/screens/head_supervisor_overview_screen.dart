@@ -332,32 +332,32 @@ class _WelcomeCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(children: [
-              Icon(Icons.waving_hand_rounded,
-                  color: Color(0xFFFFC94A), size: 20),
-              SizedBox(width: 6),
+              const Icon(Icons.waving_hand_rounded,
+                  color: const Color(0xFFFFC94A), size: 20),
+              const SizedBox(width: 6),
               Expanded(
                 child: Text(title,
-                    style: TextStyle(
+                    style: const TextStyle(
                         color: Colors.white,
                         fontSize: 17,
                         fontWeight: FontWeight.bold)),
               ),
-              Icon(Icons.circle, color: Color(0xFF8DBBFF), size: 8),
-              SizedBox(width: 5),
+              const Icon(Icons.circle, color: const Color(0xFF8DBBFF), size: 8),
+              const SizedBox(width: 5),
               Text(badge,
-                  style: TextStyle(color: Colors.white, fontSize: 10)),
+                  style: const TextStyle(color: Colors.white, fontSize: 10)),
             ]),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Text(subtitle,
-                style: TextStyle(
-                    color: Color(0xFFB9C8DB), fontSize: 11, height: 1.5)),
+                style: const TextStyle(
+                    color: const Color(0xFFB9C8DB), fontSize: 11, height: 1.5)),
             const SizedBox(height: 9),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               decoration: BoxDecoration(
                   color: const Color(0xFF172B43),
                   borderRadius: BorderRadius.circular(9)),
-              child: Row(children: const [
+              child: const Row(children: [
                 Icon(Icons.verified_user_outlined,
                     size: 13, color: Color(0xFFBFD2EF)),
                 SizedBox(width: 5),
@@ -485,7 +485,7 @@ class _SnapshotStrip extends StatelessWidget {
         decoration: BoxDecoration(
             color: Colors.white, borderRadius: BorderRadius.circular(14)),
         child: Row(children: [
-          _SnapshotTile(value: '4', label: 'الأقسام الأساسية', icon: Icons.dashboard_outlined),
+          const _SnapshotTile(value: '4', label: 'الأقسام الأساسية', icon: Icons.dashboard_outlined),
           _SnapshotTile(value: '$todayActions', label: 'إجراءات اليوم', icon: Icons.check_circle_outline),
           _SnapshotTile(value: '$pendingRequests', label: 'طلبات معلقة', icon: Icons.hourglass_bottom),
         ]),
@@ -977,7 +977,7 @@ class _FinanceNoticeCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            Row(children: const [
+            const Row(children: [
               Text('البروتوكول رقم 402',
                   style: TextStyle(fontSize: 8, color: Color(0xFF555B63))),
               Spacer(),

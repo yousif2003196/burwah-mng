@@ -75,10 +75,12 @@ class _AuditScreenState extends State<AuditScreen>
           isWarning: isFreeze,
         );
       }).toList();
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _events = events;
         _loading = false;
       });
+      }
     } catch (error, stackTrace) {
       FlutterError.reportError(FlutterErrorDetails(
         exception: error,
