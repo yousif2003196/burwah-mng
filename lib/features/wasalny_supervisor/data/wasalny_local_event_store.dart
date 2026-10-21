@@ -90,14 +90,28 @@ class WasalnyLocalEventStore {
   }
 
   Future<void> publish(WasalnyLocalEvent event) async {
+    await publishAll([event]);
+  }
+
+  Future<void> publishAll(Iterable<WasalnyLocalEvent> newEvents) async {
+    final incoming = newEvents.toList(growable: false);
+    if (incoming.isEmpty) return;
     final preferences = await SharedPreferences.getInstance();
     final events = await _getAll(preferences);
-    if (events.any((existing) => existing.id == event.id)) return;
-    events.insert(0, event);
-    await preferences.setString(
+    final existingIds = events.map((event) => event.id).toSet();
+    var addedAny = false;
+    for (final event in incoming.reversed) {
+      if (existingIds.add(event.id)) {
+        events.insert(0, event);
+        addedAny = true;
+      }
+    }
+    if (!addedAny) return;
+    final saved = await preferences.setString(
       _storageKey,
       jsonEncode(events.map((item) => item.toJson()).toList()),
     );
+    if (!saved) throw StateError('Could not save local notification events.');
     revision.value++;
   }
 

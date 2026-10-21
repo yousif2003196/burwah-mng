@@ -27,7 +27,14 @@ class _LocalEventInboxScreenState extends State<LocalEventInboxScreen> {
   @override
   void initState() {
     super.initState();
+    WasalnyLocalEventStore.revision.addListener(_load);
     _load();
+  }
+
+  @override
+  void dispose() {
+    WasalnyLocalEventStore.revision.removeListener(_load);
+    super.dispose();
   }
 
   Future<void> _load() async {

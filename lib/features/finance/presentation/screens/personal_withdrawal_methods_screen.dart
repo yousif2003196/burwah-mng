@@ -159,7 +159,7 @@ class _PersonalWithdrawalMethodsScreenState
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     DropdownButtonFormField<_WithdrawalMethodType>(
-                      value: type,
+                      initialValue: type,
                       decoration: InputDecoration(
                         labelText: _copy('نوع الوسيلة', 'Method type'),
                       ),

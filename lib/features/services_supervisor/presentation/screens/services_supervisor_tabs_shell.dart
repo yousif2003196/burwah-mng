@@ -142,7 +142,7 @@ class _ServicesSupervisorTabsShellState
                               builder: (_) => const AccountConversationsScreen(accountId: 'services'),
                             ),
                           ),
-                          icon: const Icon(Icons.chat_bubble_outline),
+                          icon: const AccountChatUnreadBadge(accountId: 'services', child: Icon(Icons.chat_bubble_outline)),
                         ),
                         IconButton(
                           tooltip: l10n.servicesNotificationsTitle,

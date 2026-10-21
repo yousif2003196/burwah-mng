@@ -111,7 +111,7 @@ class _MerchantsTabsShellState extends State<MerchantsTabsShell> {
                 title: titles[_currentIndex],
                 subtitle: l10n.merchantSupervisorRoleBadge,
                 showProfileButton: _currentIndex == 0,
-                onProfilePressed: () => _selectPage(3),
+                onProfilePressed: () => _selectPage(4),
                 additionalActions: [
                   IconButton(
                     tooltip: l10n.productChatsTitle,
@@ -120,7 +120,7 @@ class _MerchantsTabsShellState extends State<MerchantsTabsShell> {
                         builder: (_) => const AccountConversationsScreen(accountId: 'merchant'),
                       ),
                     ),
-                    icon: const Icon(Icons.chat_bubble_outline),
+                    icon: const AccountChatUnreadBadge(accountId: 'merchant', child: Icon(Icons.chat_bubble_outline)),
                   ),
                   IconButton(
                     tooltip: l10n.productNotificationsTitle,

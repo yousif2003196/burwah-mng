@@ -1,0 +1,439 @@
+import 'package:flutter/material.dart';
+
+import '../../../../core/constants/app_colors.dart';
+import '../../data/head_supervisor_audit_store.dart';
+import '../../../wasalny_supervisor/data/wasalny_local_event_store.dart';
+import 'head_supervisor_request_decision_sheet.dart';
+import 'head_supervisor_intervention_screen.dart';
+import 'head_supervisor_request_review_screen.dart';
+import '../head_supervisor_text.dart';
+
+class HeadSupervisorRequestsScreen extends StatefulWidget {
+  const HeadSupervisorRequestsScreen({super.key});
+
+  @override
+  State<HeadSupervisorRequestsScreen> createState() =>
+      _HeadSupervisorRequestsScreenState();
+}
+
+class _HeadSupervisorRequestsScreenState
+    extends State<HeadSupervisorRequestsScreen> {
+  final _store = WasalnyLocalEventStore();
+  final _search = TextEditingController();
+  List<WasalnyLocalEvent> _events = const [];
+  bool _loading = true;
+  Object? _error;
+  String _query = '';
+  String _filter = 'الكل';
+
+  @override
+  void initState() {
+    super.initState();
+    WasalnyLocalEventStore.revision.addListener(_load);
+    _search.addListener(() => setState(() => _query = _search.text.trim()));
+    _load();
+  }
+
+  @override
+  void dispose() {
+    WasalnyLocalEventStore.revision.removeListener(_load);
+    _search.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    try {
+      var events = await _store.getEvents('head');
+      final legacyDemoEvents = events.where(
+        (event) => event.id.startsWith('demo-') && !event.isRead,
+      );
+      for (final event in legacyDemoEvents) {
+        await _store.markRead('head', event.id);
+      }
+      if (legacyDemoEvents.isNotEmpty) {
+        events = await _store.getEvents('head');
+      }
+      if (!mounted) return;
+      setState(() {
+        _events = events.where(_isReviewRequest).toList();
+        _loading = false;
+        _error = null;
+      });
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'Head supervisor requests',
+      ));
+      if (!mounted) return;
+      setState(() {
+        _error = error;
+        _loading = false;
+      });
+    }
+  }
+
+  bool _isReviewRequest(WasalnyLocalEvent event) =>
+      !event.id.startsWith('demo-') &&
+      const {'merchant', 'products', 'wasalny', 'services'}
+          .contains(event.source);
+
+  List<WasalnyLocalEvent> get _pending {
+    return _events.where((event) {
+      if (event.isRead) return false;
+      final text = '${event.id} ${event.titleAr} ${event.titleEn} ${event.messageAr} ${event.messageEn}'.toLowerCase();
+      final matchesQuery = _query.isEmpty || text.contains(_query.toLowerCase());
+      final matchesFilter = switch (_filter) {
+        'مرفوض' => event.titleAr.contains('رفض'),
+        'مجمّد' => event.titleAr.contains('تجميد'),
+        'التجار' => event.source == 'merchant',
+        'وصلني' => event.source == 'wasalny',
+        'الخدمات' => event.source == 'services',
+        'المنتجات' => event.source == 'products',
+        _ => true,
+      };
+      return matchesQuery && matchesFilter;
+    }).toList();
+  }
+
+  Map<String, int> get _counts {
+    final pending = _events.where((event) => !event.isRead).toList();
+    return {
+      'الكل': pending.length,
+      'مرفوض': pending.where((event) => event.titleAr.contains('رفض')).length,
+      'مجمّد': pending.where((event) => event.titleAr.contains('تجميد')).length,
+      'التجار': pending.where((event) => event.source == 'merchant').length,
+      'وصلني': pending.where((event) => event.source == 'wasalny').length,
+      'الخدمات': pending.where((event) => event.source == 'services').length,
+      'المنتجات': pending.where((event) => event.source == 'products').length,
+    };
+  }
+
+  Future<void> _decide(
+    WasalnyLocalEvent event, {
+    bool intervention = false,
+  }) async {
+    final request = _Request.fromEvent(event, context);
+    final decision = await Navigator.of(context).push<HeadSupervisorDecisionDraft>(
+      MaterialPageRoute(
+        builder: (_) => intervention
+            ? HeadSupervisorInterventionScreen(
+                eventId: event.id,
+                requestId: request.id,
+                title: request.title,
+                department: request.department,
+                supervisor: request.supervisor,
+                reason: request.reason,
+                supervisorDecision: request.supervisorDecision,
+                recipient: event.source,
+                createdAt: event.createdAt,
+              )
+            : HeadSupervisorRequestReviewScreen(
+                requestId: request.id,
+                title: request.title,
+                department: request.department,
+                supervisor: request.supervisor,
+                reason: request.reason,
+                supervisorDecision: request.supervisorDecision,
+                createdAt: event.createdAt,
+              ),
+      ),
+    );
+    if (!mounted || decision == null) return;
+
+    try {
+      final source = _sourceLabel(event.source, context);
+      final id = 'head-decision-${event.id}-${DateTime.now().millisecondsSinceEpoch}';
+      final isArabic = Localizations.localeOf(context).languageCode == 'ar';
+      final actionLabel = isArabic
+          ? decision.action.labelAr
+          : decision.action.labelEn;
+      final actionTitle = headSupervisorText(context,
+          arabic: 'توجيه رئيس المشرفين: $actionLabel',
+          english: 'Head supervisor decision: $actionLabel');
+      final actionDetailsAr =
+          'تم اتخاذ قرار ${decision.action.labelAr} بشأن الطلب ${request.id} المحال من ${_sourceLabel(event.source, context)}. ${decision.note}';
+      final actionDetailsEn =
+          'Decision: ${decision.action.labelEn} for request ${request.id}, referred by ${_sourceLabelEnglish(event.source)}. ${decision.note}';
+      final actionDetails = isArabic ? actionDetailsAr : actionDetailsEn;
+      await HeadSupervisorAuditStore().record(
+        HeadSupervisorAuditRecord(
+          id: id,
+          subjectId: request.id,
+          kind: 'request',
+          title: actionTitle,
+          details: actionDetails,
+          department: request.department,
+          occurredAt: DateTime.now(),
+        ),
+      );
+      await _store.publish(WasalnyLocalEvent(
+        id: id,
+        recipient: event.source,
+        source: 'head',
+        titleAr: actionTitle,
+        titleEn: 'Head supervisor decision: ${decision.action.labelEn}',
+        messageAr: actionDetailsAr,
+        messageEn: actionDetailsEn,
+        createdAt: DateTime.now(),
+      ));
+      if (decision.action.closesRequest) await _store.markRead('head', event.id);
+      await _load();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(headSupervisorText(context, arabic: 'تم إرسال القرار وإشعار $source.', english: 'Decision sent and $source notified.'))));
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(exception: error, stack: stackTrace, library: 'Head supervisor decision'));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(headSupervisorText(context, arabic: 'تعذر إرسال القرار. حاول مرة أخرى.', english: 'Could not send the decision. Please try again.'))));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final requests = _pending;
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null) return Center(child: Text(headSupervisorText(context, arabic: 'تعذر تحميل الطلبات: $_error', english: 'Could not load requests: $_error')));
+    return ColoredBox(
+      color: AppColors.background,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        children: [
+          _SearchBar(controller: _search),
+          const SizedBox(height: 10),
+          _FilterBar(selected: _filter, counts: _counts, onChanged: (value) => setState(() => _filter = value)),
+          const SizedBox(height: 12),
+          _Summary(count: _events.where((event) => !event.isRead).length),
+          const SizedBox(height: 12),
+          if (requests.isEmpty)
+            const _EmptyQueue()
+          else
+            for (final event in requests) ...[
+              _RequestCard(
+                event: event,
+                request: _Request.fromEvent(event, context),
+                onDecide: () => _decide(event),
+                onIntervene: () => _decide(event, intervention: true),
+              ),
+              const SizedBox(height: 12),
+            ],
+          const _GovernanceFooter(),
+        ],
+      ),
+    );
+  }
+}
+
+String _sourceLabel(String source, BuildContext context) {
+  final (arabic, english) = switch (source) {
+    'merchant' => ('مشرف التجار', 'Merchants supervisor'),
+    'wasalny' => ('مشرف وصلني', 'Wasalny supervisor'),
+    'services' => ('مشرف الخدمات', 'Services supervisor'),
+    'products' => ('مشرف المنتجات', 'Products supervisor'),
+    _ => ('المشرف المحيل', 'Referring supervisor'),
+  };
+  return headSupervisorText(context, arabic: arabic, english: english);
+}
+
+String _sourceLabelEnglish(String source) => switch (source) {
+      'merchant' => 'the merchants supervisor',
+      'wasalny' => 'the Wasalny supervisor',
+      'services' => 'the services supervisor',
+      'products' => 'the products supervisor',
+      _ => 'the referring supervisor',
+    };
+
+class _Request {
+  final String source;
+  final String id;
+  final String title;
+  final String reason;
+  final String supervisor;
+  final String supervisorCode;
+  final String department;
+  final IconData icon;
+  final Color color;
+  final String supervisorDecision;
+  final bool urgent;
+
+  const _Request({required this.source, required this.id, required this.title, required this.reason, required this.supervisor, required this.supervisorCode, required this.department, required this.icon, required this.color, required this.supervisorDecision, required this.urgent});
+
+  factory _Request.fromEvent(WasalnyLocalEvent event, BuildContext context) {
+    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
+    final raw = isArabic ? event.messageAr : event.messageEn;
+    final idAndTitle = raw.split(' — ').first.trim();
+    final fullReason = raw.contains(' — ')
+        ? raw.split(' — ').skip(1).join(' — ').trim()
+        : '';
+    final reasonMarker = isArabic ? 'السبب:' : 'Reason:';
+    final reason = fullReason.contains(reasonMarker)
+        ? fullReason.split(reasonMarker).skip(1).join(reasonMarker).trim()
+        : fullReason;
+    String id;
+    String title;
+    if (idAndTitle.contains(': ')) {
+      final parts = idAndTitle.split(': ');
+      id = parts.first.trim();
+      title = parts.skip(1).join(': ').trim();
+    } else if (idAndTitle.contains(' · ')) {
+      final parts = idAndTitle.split(' · ');
+      id = parts.first.trim();
+      title = parts.skip(1).join(' · ').trim();
+    } else {
+      id = event.id;
+      title = idAndTitle.isEmpty
+          ? (isArabic ? event.titleAr : event.titleEn)
+          : idAndTitle;
+    }
+    final (departmentAr, departmentEn, icon, color) = switch (event.source) {
+      'services' => ('قسم الخدمات الميدانية', 'Field Services', Icons.build_outlined, const Color(0xFF315E9A)),
+      'products' => ('قسم المنتجات والمستعمل', 'Products and Used Goods', Icons.local_shipping_outlined, AppColors.dangerDark),
+      'wasalny' => ('قسم وصلني', 'Wasalny', Icons.directions_car_outlined, const Color(0xFF315E9A)),
+      'merchant' => ('قسم التجار', 'Merchants', Icons.storefront_outlined, const Color(0xFF315E9A)),
+      _ => ('القسم المحيل', 'Referring department', Icons.assignment_outlined, const Color(0xFF315E9A)),
+    };
+    final isFrozen = event.titleAr.contains('تجميد') ||
+        event.titleEn.toLowerCase().contains('frozen');
+    final isRejected = event.titleAr.contains('رفض') ||
+        event.titleEn.toLowerCase().contains('rejected');
+    final supervisorDecision = isFrozen
+        ? headSupervisorText(context, arabic: 'مجمّد', english: 'Frozen')
+        : isRejected
+            ? headSupervisorText(context, arabic: 'مرفوض', english: 'Rejected')
+            : headSupervisorText(context, arabic: 'مصعّد للمراجعة', english: 'Escalated for review');
+    return _Request(source: event.source, id: id, title: title, reason: reason, supervisor: _sourceLabel(event.source, context), supervisorCode: headSupervisorText(context, arabic: 'حساب القسم', english: 'Department account'), department: headSupervisorText(context, arabic: departmentAr, english: departmentEn), icon: icon, color: color, supervisorDecision: supervisorDecision, urgent: isFrozen || isRejected);
+  }
+}
+
+class _SearchBar extends StatelessWidget {
+  final TextEditingController controller;
+  const _SearchBar({required this.controller});
+  @override
+  Widget build(BuildContext context) => Row(children: [
+        Container(width: 44, height: 44, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(13)), child: const Icon(Icons.tune, color: AppColors.primaryDark, size: 19)),
+        const SizedBox(width: 7),
+        Expanded(child: TextField(controller: controller, textAlign: TextAlign.right, decoration: InputDecoration(hintText: headSupervisorText(context, arabic: 'بحث برقم الطلب، اسم المشرف، أو القسم', english: 'Search by request ID, supervisor, or department'), hintStyle: const TextStyle(fontSize: 10, color: AppColors.textMuted), suffixIcon: const Icon(Icons.search, size: 19), filled: true, fillColor: Colors.white, contentPadding: const EdgeInsets.symmetric(horizontal: 13, vertical: 13), border: OutlineInputBorder(borderRadius: BorderRadius.circular(13), borderSide: BorderSide.none)))),
+      ]);
+}
+
+class _FilterBar extends StatelessWidget {
+  final String selected;
+  final Map<String, int> counts;
+  final ValueChanged<String> onChanged;
+  const _FilterBar({required this.selected, required this.counts, required this.onChanged});
+  @override
+  Widget build(BuildContext context) {
+    const labels = <(String, String)>[
+      ('الكل', 'All'),
+      ('مرفوض', 'Rejected'),
+      ('مجمّد', 'Frozen'),
+      ('التجار', 'Merchants'),
+      ('وصلني', 'Wasalny'),
+      ('الخدمات', 'Services'),
+      ('المنتجات', 'Products'),
+    ];
+    return SingleChildScrollView(scrollDirection: Axis.horizontal, reverse: true, child: Row(children: [
+      for (final (arabic, english) in labels) Padding(padding: const EdgeInsets.only(left: 6), child: ChoiceChip(label: Text('${headSupervisorText(context, arabic: arabic, english: english)}  ${counts[arabic] ?? 0}', style: const TextStyle(fontSize: 9)), selected: selected == arabic, onSelected: (_) => onChanged(arabic), selectedColor: AppColors.primaryDark, backgroundColor: Colors.white, labelStyle: TextStyle(color: selected == arabic ? Colors.white : AppColors.textSecondary), side: BorderSide.none, visualDensity: VisualDensity.compact)),
+    ]));
+  }
+}
+
+class _Summary extends StatelessWidget {
+  final int count;
+  const _Summary({required this.count});
+  @override
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)), child: Row(children: [
+        const Icon(Icons.circle, size: 9, color: AppColors.danger),
+        const SizedBox(width: 7),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(headSupervisorText(context, arabic: 'إجمالي العمليات:', english: 'Total operations:'), style: const TextStyle(fontSize: 9, color: AppColors.textSecondary)), Text(headSupervisorText(context, arabic: 'سجل الحوكمة الرقابي المباشر لجميع الإدارات', english: 'Live governance queue across all departments'), style: const TextStyle(fontSize: 8, color: AppColors.textSecondary))])),
+        const SizedBox(width: 8),
+        Text('$count', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
+        const SizedBox(width: 5),
+        Text(headSupervisorText(context, arabic: 'عمليات جديدة', english: 'new items'), style: const TextStyle(fontSize: 9, color: AppColors.danger, fontWeight: FontWeight.bold)),
+      ]));
+}
+
+class _RequestCard extends StatelessWidget {
+  final WasalnyLocalEvent event;
+  final _Request request;
+  final VoidCallback onDecide;
+  final VoidCallback onIntervene;
+  const _RequestCard({required this.event, required this.request, required this.onDecide, required this.onIntervene});
+
+  @override
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(13), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFE8ECF0))), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          _RequestBadge(label: headSupervisorText(context, arabic: 'قرار المشرف: ${request.supervisorDecision}', english: 'Supervisor decision: ${request.supervisorDecision}'), urgent: request.urgent),
+          const Spacer(),
+          Text(request.department, style: TextStyle(fontSize: 9, color: request.color, fontWeight: FontWeight.bold)),
+          const SizedBox(width: 6),
+          Container(width: 27, height: 27, decoration: BoxDecoration(color: const Color(0xFFE7EFFB), borderRadius: BorderRadius.circular(8)), child: Icon(request.icon, size: 16, color: request.color)),
+        ]),
+        const SizedBox(height: 9),
+        Row(children: [
+          const Icon(Icons.forward_to_inbox_outlined, size: 13, color: AppColors.textSecondary),
+          const SizedBox(width: 3),
+          Expanded(child: Text(headSupervisorText(context, arabic: 'إحالة واردة من مشرف القسم للمراجعة الرقابية', english: 'Referral from the department supervisor for review'), maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.right, style: const TextStyle(fontSize: 9, color: AppColors.textSecondary))),
+          const SizedBox(width: 5),
+          Text(request.id, style: const TextStyle(fontSize: 9, color: AppColors.textSecondary)),
+        ]),
+        const SizedBox(height: 7),
+        Text(request.title, textAlign: TextAlign.right, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
+        if (request.reason.isNotEmpty) ...[
+          const SizedBox(height: 3),
+          Text(request.reason, textAlign: TextAlign.right, style: const TextStyle(fontSize: 9, height: 1.4, color: AppColors.textSecondary)),
+        ],
+        const SizedBox(height: 9),
+        Container(padding: const EdgeInsets.all(9), decoration: BoxDecoration(color: const Color(0xFFF0F2F4), borderRadius: BorderRadius.circular(12)), child: Column(children: [
+          Row(children: [CircleAvatar(radius: 14, backgroundColor: const Color(0xFF516A89), child: Text(request.supervisor.substring(0, 1), style: const TextStyle(fontSize: 9, color: Colors.white))), const SizedBox(width: 7), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(headSupervisorText(context, arabic: 'المشرف: ${request.supervisor}', english: 'Supervisor: ${request.supervisor}'), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.primaryDark)), Text(headSupervisorText(context, arabic: 'رمز المشرف: ${request.supervisorCode}', english: 'Supervisor ID: ${request.supervisorCode}'), style: const TextStyle(fontSize: 8, color: AppColors.textSecondary))])), Text(_elapsed(event.createdAt, context), style: const TextStyle(fontSize: 8, color: AppColors.textSecondary)), const Icon(Icons.access_time, size: 12, color: AppColors.textSecondary)]),
+          const SizedBox(height: 7),
+          Container(width: double.infinity, padding: const EdgeInsets.all(9), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(9)), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [const Icon(Icons.warning_amber_rounded, size: 15, color: AppColors.danger), const SizedBox(width: 5), Expanded(child: Text(headSupervisorText(context, arabic: 'سبب قرار المشرف: ${request.reason}', english: 'Supervisor decision reason: ${request.reason}'), textAlign: TextAlign.right, style: const TextStyle(fontSize: 9, height: 1.4, color: AppColors.textSecondary)))])),
+        ])),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: OutlinedButton.icon(onPressed: onDecide, icon: const Icon(Icons.rule_outlined, size: 15), label: Text(headSupervisorText(context, arabic: 'إعادة مراجعة القرار', english: 'Review decision'), style: const TextStyle(fontSize: 9)), style: OutlinedButton.styleFrom(foregroundColor: AppColors.primaryDark, padding: const EdgeInsets.symmetric(vertical: 11), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11))))),
+          const SizedBox(width: 7),
+          Expanded(child: FilledButton.icon(onPressed: onIntervene, icon: const Icon(Icons.tune, size: 15), label: Text(headSupervisorText(context, arabic: 'التدخل الرقابي', english: 'Oversight intervention'), style: const TextStyle(fontSize: 9)), style: FilledButton.styleFrom(backgroundColor: AppColors.primaryDark, padding: const EdgeInsets.symmetric(vertical: 11), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11))))),
+        ]),
+      ]));
+}
+
+String _elapsed(DateTime date, BuildContext context) {
+  final minutes = DateTime.now().difference(date).inMinutes;
+  if (minutes < 1) {
+    return headSupervisorText(context, arabic: 'الآن', english: 'Just now');
+  }
+  if (minutes < 60) {
+    return headSupervisorText(
+        context, arabic: 'منذ $minutes دقيقة', english: '$minutes min ago');
+  }
+  final hours = minutes ~/ 60;
+  if (hours < 24) {
+    return headSupervisorText(
+        context, arabic: 'منذ $hours ساعة', english: '$hours hr ago');
+  }
+  final days = hours ~/ 24;
+  return headSupervisorText(
+      context, arabic: 'منذ $days يوم', english: '$days day(s) ago');
+}
+
+class _RequestBadge extends StatelessWidget {
+  final String label;
+  final bool urgent;
+  const _RequestBadge({required this.label, required this.urgent});
+  @override
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5), decoration: BoxDecoration(color: urgent ? const Color(0xFFFFDDDA) : const Color(0xFFE1ECFF), borderRadius: BorderRadius.circular(12)), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(urgent ? Icons.warning_amber_rounded : Icons.circle, size: 9, color: urgent ? AppColors.dangerDark : const Color(0xFF42699F)), const SizedBox(width: 4), Text(label, style: TextStyle(fontSize: 8, color: urgent ? AppColors.dangerDark : const Color(0xFF315E9A), fontWeight: FontWeight.w600))]));
+}
+
+class _GovernanceFooter extends StatelessWidget {
+  const _GovernanceFooter();
+  @override
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: const Color(0xFF0B294A), borderRadius: BorderRadius.circular(15)), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(headSupervisorText(context, arabic: 'صلاحيات الإشراف الإداري والرقابي', english: 'Administrative and oversight authority'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)), const SizedBox(height: 5), Text(headSupervisorText(context, arabic: 'تمنح منصة رئيس المشرفين حق مراجعة القرارات التشغيلية. وتظل القرارات المالية والحسابات مقيدة بموافقة الإدارة المالية وفق المعايير.', english: 'The Head Supervisor can review operational decisions. Financial decisions and accounts remain subject to finance approval.'), textAlign: TextAlign.right, style: const TextStyle(fontSize: 9, height: 1.55, color: Color(0xFFD6E0EC)))])),
+        const SizedBox(width: 10), const Icon(Icons.admin_panel_settings_outlined, size: 20, color: Color(0xFFD6E0EC)),
+      ]));
+}
+
+class _EmptyQueue extends StatelessWidget {
+  const _EmptyQueue();
+  @override
+  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.symmetric(vertical: 54), child: Column(children: [const Icon(Icons.inbox_outlined, size: 42, color: AppColors.textMuted), const SizedBox(height: 10), Text(headSupervisorText(context, arabic: 'لا توجد طلبات جديدة بانتظار القرار', english: 'No new requests are awaiting a decision'), style: const TextStyle(fontSize: 12, color: AppColors.textSecondary))]));
+}

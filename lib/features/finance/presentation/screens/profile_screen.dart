@@ -835,7 +835,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           const SizedBox(height: 4),
                           Text(
                               '${_formatRate(_commissionMatrix.salesPercentage)}%',
-                              style: TextStyle(
+                              style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                   color: AppColors.textPrimary)),

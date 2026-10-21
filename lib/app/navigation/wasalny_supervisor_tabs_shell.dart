@@ -178,7 +178,7 @@ class _WasalnySupervisorTabsShellState
                           tooltip: l10n.productChatsTitle,
                           onPressed: () =>
                               _openPage(const AccountConversationsScreen(accountId: 'wasalny')),
-                          icon: const Icon(Icons.chat_bubble_outline),
+                          icon: const AccountChatUnreadBadge(accountId: 'wasalny', child: Icon(Icons.chat_bubble_outline)),
                         ),
                         IconButton(
                           tooltip: l10n.wasalnyNotificationsTitle,

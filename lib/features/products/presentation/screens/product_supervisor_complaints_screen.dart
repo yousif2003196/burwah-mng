@@ -167,20 +167,24 @@ class _ProductSupervisorComplaintsScreenState
           ..clear()
           ..addAll(restored);
       }
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _isLoading = false;
         _loadError = null;
       });
+      }
     } catch (error, stackTrace) {
       FlutterError.reportError(FlutterErrorDetails(
         exception: error,
         stack: stackTrace,
         library: 'product supervisor complaints',
       ));
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _isLoading = false;
         _loadError = error;
       });
+      }
     }
   }
 
@@ -250,9 +254,11 @@ class _ProductSupervisorComplaintsScreenState
         library: 'product complaint audit recording',
       ));
     }
-    if (mounted) _message(
+    if (mounted) {
+      _message(
       _copy(isArabic, 'تم تحديث حالة الشكوى.', 'Complaint status updated.'),
     );
+    }
   }
 
   Future<void> _sendCustomerMessage(
@@ -312,22 +318,26 @@ class _ProductSupervisorComplaintsScreenState
           createdAt: updated.updatedAt,
         ),
       );
-      if (mounted) _message(_copy(
+      if (mounted) {
+        _message(_copy(
         isArabic,
         'حُفظت الرسالة في صندوق التنبيهات المحلي.',
         'Message saved to the local notification inbox.',
       ));
+      }
     } catch (error, stackTrace) {
       FlutterError.reportError(FlutterErrorDetails(
         exception: error,
         stack: stackTrace,
         library: 'product complaint customer message',
       ));
-      if (mounted) _message(_copy(
+      if (mounted) {
+        _message(_copy(
         isArabic,
         'تعذر حفظ الرسالة أو إرسال التنبيه المحلي.',
         'Could not save the message or local notice.',
       ));
+      }
     } finally {
       controller.dispose();
     }
@@ -348,11 +358,13 @@ class _ProductSupervisorComplaintsScreenState
         ),
       );
       await _recordAudit(complaint, 'complaint_escalated', 'head');
-      if (mounted) _message(_copy(
+      if (mounted) {
+        _message(_copy(
         isArabic,
         'تم حفظ التصعيد وإشعار الرئيس محليًا.',
         'Escalation and local notice saved.',
       ));
+      }
     } catch (error, stackTrace) {
       FlutterError.reportError(FlutterErrorDetails(
         exception: error,

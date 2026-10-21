@@ -264,7 +264,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
             SizedBox(
               height: 48,
               child: OutlinedButton.icon(
-                onPressed: widget.onLogout,
+                onPressed: _confirmLogout,
                 icon: const Icon(Icons.logout, size: 18),
                 label: Text(l10n.logout),
                 style: OutlinedButton.styleFrom(
@@ -281,6 +281,22 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _confirmLogout() async {
+    final l10n = AppLocalizations.of(context)!;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.logoutConfirmTitle),
+        content: Text(l10n.logoutConfirmMessage),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(l10n.logoutCancel)),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: Text(l10n.logoutConfirm)),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) widget.onLogout();
   }
 
   Widget _buildProfileSummary(AppLocalizations l10n) {
