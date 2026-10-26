@@ -8,27 +8,36 @@ class AppBrandMark extends StatelessWidget {
   const AppBrandMark({
     required this.size,
     required this.iconSize,
+    this.navyInLight = false,
     super.key,
   });
 
   final double size;
   final double iconSize;
 
+  /// تدرج كحلي بدل الأزرق في المظهر الفاتح (شاشة الدخول).
+  final bool navyInLight;
+
   static const Color _top = Color(0xFF7FB0FF);
   static const Color _bottom = Color(0xFF2646D8);
+  static const Color _navyTop = Color(0xFF2F4A8F);
+  static const Color _navyBottom = Color(0xFF0A1640);
 
   @override
   Widget build(BuildContext context) {
     final dark = AppColors.isDark;
+    final navy = navyInLight && !dark;
+    final top = navy ? _navyTop : _top;
+    final bottom = navy ? _navyBottom : _bottom;
     final radius = BorderRadius.circular(size * 0.23);
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [_top, _bottom],
+          colors: [top, bottom],
         ),
         borderRadius: radius,
         border: Border.all(

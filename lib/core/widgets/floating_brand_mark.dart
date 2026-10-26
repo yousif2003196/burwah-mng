@@ -86,6 +86,7 @@ class _FloatingBrandMarkState extends State<FloatingBrandMark>
                     child: AppBrandMark(
                       size: size,
                       iconSize: widget.iconSize,
+                      navyInLight: true,
                     ),
                   ),
                 ),
