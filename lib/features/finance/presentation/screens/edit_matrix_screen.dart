@@ -3,11 +3,15 @@ import 'dart:ui' as ui;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../../../../core/constants/app_colors.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../../../core/widgets/app_snack_bar.dart';
-import '../utils/finance_commission_matrix_store.dart';
-import '../widgets/finance_navigation.dart';
+
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/widgets/app_snack_bar.dart';
+import 'package:barwah_app/features/finance/data/datasources/finance_commission_matrix_store.dart';
+import 'package:barwah_app/features/finance/presentation/widgets/finance_navigation.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
 
 class EditMatrixScreen extends StatefulWidget {
   const EditMatrixScreen({super.key});
@@ -128,17 +132,17 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _matrixChangeLine(l10n.matrixSalesRateTitle,
-                  _savedMatrix.salesPercentage, sales, '%'),
-              _matrixChangeLine(l10n.matrixSettlementFeesTitle,
-                  _savedMatrix.settlementPercentage, settlement, '%'),
-              _matrixChangeLine(l10n.matrixDeliveryTitle,
-                  _savedMatrix.deliveryPercentage, delivery, '%'),
-              _matrixChangeLine(l10n.matrixFixedPerShipment,
-                  _savedMatrix.deliveryFixedAmount, fixed, l10n.currencyEgy),
+              ScrollFx(child: _matrixChangeLine(l10n.matrixSalesRateTitle,
+                  _savedMatrix.salesPercentage, sales, '%')),
+              ScrollFx(child: _matrixChangeLine(l10n.matrixSettlementFeesTitle,
+                  _savedMatrix.settlementPercentage, settlement, '%')),
+              ScrollFx(child: _matrixChangeLine(l10n.matrixDeliveryTitle,
+                  _savedMatrix.deliveryPercentage, delivery, '%')),
+              ScrollFx(child: _matrixChangeLine(l10n.matrixFixedPerShipment,
+                  _savedMatrix.deliveryFixedAmount, fixed, l10n.currencyEgy)),
               const SizedBox(height: 10),
               Text(reason,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: AppColors.textSecondary, fontSize: 11)),
             ],
           ),
@@ -187,7 +191,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
         padding: const EdgeInsets.only(bottom: 8),
         child: Text(
           '$label: ${_formatRate(oldValue)}$suffix  →  ${_formatRate(newValue)}$suffix',
-          style: const TextStyle(fontSize: 11, color: AppColors.textPrimary),
+          style: TextStyle(fontSize: 11, color: AppColors.textPrimary),
         ),
       );
 
@@ -234,8 +238,8 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                   alignment: AlignmentDirectional.centerStart,
                   child: Text(
                     isArabic ? 'سجل تعديلات المصفوفة' : 'Matrix change history',
-                    style: const TextStyle(
-                      color: AppColors.primaryDark,
+                    style: TextStyle(
+                      color: AppColors.ink,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
@@ -254,12 +258,12 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                         itemCount: history.length,
                         separatorBuilder: (_, __) =>
                             const SizedBox(height: 8),
-                        itemBuilder: (context, index) {
+                        itemBuilder: scrollFxItems((context, index) {
                           final entry = history[index];
                           return Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: AppColors.surface,
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(color: AppColors.cardBorder),
                             ),
@@ -272,7 +276,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                                       : _formatSavedAt(
                                           entry.updatedAt!, l10n.localeName),
                                   textDirection: ui.TextDirection.ltr,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     color: AppColors.info,
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold,
@@ -283,7 +287,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                                   '${l10n.matrixSalesRateTitle}: ${_formatRate(entry.salesPercentage)}%  •  '
                                   '${l10n.matrixSettlementFeesTitle}: ${_formatRate(entry.settlementPercentage)}%  •  '
                                   '${l10n.matrixDeliveryTitle}: ${_formatRate(entry.deliveryPercentage)}%',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                       color: AppColors.textPrimary,
                                       fontSize: 10,
                                       height: 1.5),
@@ -291,7 +295,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                                 if (entry.reason.isNotEmpty) ...[
                                   const SizedBox(height: 5),
                                   Text(entry.reason,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                           color: AppColors.textSecondary,
                                           fontSize: 10,
                                           height: 1.4)),
@@ -299,7 +303,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                               ],
                             ),
                           );
-                        },
+                        }),
                       ),
               ),
             ],
@@ -337,7 +341,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
     return Directionality(
       textDirection: isArabic ? ui.TextDirection.rtl : ui.TextDirection.ltr,
       child: Scaffold(
-        backgroundColor: AppColors.backgroundLight,
+        backgroundColor: AppColors.scaffold,
         appBar: FinancePageAppBar(
           title: l10n.matrixScreenTitle,
           subtitle: l10n.financialDepartment,
@@ -351,7 +355,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Header Card
-              Container(
+              ScrollFx(child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: AppColors.primaryExtraDark,
@@ -364,8 +368,8 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                       children: [
                         Row(
                           children: [
-                            const Icon(Icons.circle,
-                                color: Colors.greenAccent, size: 8),
+                            MotionIcon(Icons.circle,
+                                color: AppColors.success, size: 8),
                             const SizedBox(width: 4),
                             Text(l10n.matrixLive,
                                 style: const TextStyle(
@@ -384,7 +388,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.verified_user_outlined,
+                                const MotionIcon(Icons.verified_user_outlined,
                                     color: Colors.white, size: 12),
                                 const SizedBox(width: 6),
                                 Flexible(
@@ -418,11 +422,11 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                     ),
                   ],
                 ),
-              ),
+              )),
               const SizedBox(height: 16),
 
               // Section 1: General Sales Percentage
-              _buildCard(
+              ScrollFx(child: _buildCard(
                 icon: Icons.storefront_outlined,
                 title: l10n.matrixSalesRateTitle,
                 child: Column(
@@ -438,9 +442,9 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                                 color: AppColors.surfaceLight,
                                 borderRadius: BorderRadius.circular(6)),
                           child: Text(l10n.matrixRateRange,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 10,
-                                  color: AppColors.primaryDark,
+                                  color: AppColors.ink,
                                   fontWeight: FontWeight.bold),
                               textDirection: ui.TextDirection.ltr),
                           ),
@@ -450,7 +454,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                           child: Text(l10n.matrixAppliedRate,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 11, color: AppColors.textSecondary)),
                      ), ],
                     ),
@@ -459,7 +463,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                       alignment: AlignmentDirectional.centerEnd,
                       child: Text('${_salesPercentageController.text}%',
                           textDirection: ui.TextDirection.ltr,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 28,
                               fontWeight: FontWeight.bold,
                               color: AppColors.textPrimary)),
@@ -480,7 +484,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 12, vertical: 2),
                                 decoration: BoxDecoration(
-                                    color: Colors.white,
+                                    color: AppColors.surface,
                                     borderRadius: BorderRadius.circular(8)),
                                 child: Row(
                                   textDirection: ui.TextDirection.ltr,
@@ -492,7 +496,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                                             .numberWithOptions(decimal: true),
                                         textDirection: ui.TextDirection.ltr,
                                         textAlign: TextAlign.end,
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                             fontSize: 16,
                                             fontWeight: FontWeight.bold,
                                             color: AppColors.textPrimary),
@@ -504,9 +508,9 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                                       ),
                                     ),
                                     const SizedBox(width: 8),
-                                    const Text('%',
+                                    Text('%',
                                         style: TextStyle(
-                                            color: AppColors.primaryDark,
+                                            color: AppColors.ink,
                                             fontWeight: FontWeight.bold)),
                                   ],
                                 ),
@@ -516,7 +520,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                                 child: Text(l10n.matrixTargetRate,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                         fontSize: 11,
                                         color: AppColors.textSecondary)),
                               ),
@@ -531,7 +535,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     textAlign: TextAlign.start,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                         fontSize: 9,
                                         color: AppColors.textSecondary)),
                               ),
@@ -540,7 +544,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     textAlign: TextAlign.center,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                         fontSize: 9,
                                         color: AppColors.textSecondary)),
                               ),
@@ -549,7 +553,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     textAlign: TextAlign.end,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                         fontSize: 9,
                                         color: AppColors.textSecondary)),
                               ),
@@ -562,7 +566,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.info_outline,
+                        MotionIcon(Icons.info_outline,
                             size: 14, color: AppColors.info),
                         const SizedBox(width: 6),
                         Expanded(
@@ -570,7 +574,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                             l10n.matrixSalesNote,
                             style: TextStyle(
                                 fontSize: 10,
-                                color: Colors.grey.shade600,
+                                color: AppColors.textSecondary,
                                 height: 1.4),
                           ),
                         ),
@@ -578,11 +582,11 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                     ),
                   ],
                 ),
-              ),
+              )),
               const SizedBox(height: 16),
 
               // Section 2: Wallet Settlement
-              _buildCard(
+              ScrollFx(child: _buildCard(
                 icon: Icons.account_balance_wallet_outlined,
                 title: l10n.matrixSettlementFeesTitle,
                 child: Column(
@@ -608,9 +612,9 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                                           decimal: true),
                                   textDirection: ui.TextDirection.ltr,
                                   textAlign: TextAlign.end,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                       fontSize: 10,
-                                      color: AppColors.primaryDark,
+                                      color: AppColors.ink,
                                       fontWeight: FontWeight.bold),
                                   decoration: const InputDecoration(
                                     border: InputBorder.none,
@@ -619,10 +623,10 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                                   ),
                                 ),
                               ),
-                              const Text(' %',
+                              Text(' %',
                                   style: TextStyle(
                                       fontSize: 10,
-                                      color: AppColors.primaryDark,
+                                      color: AppColors.ink,
                                       fontWeight: FontWeight.bold)),
                             ],
                           ),
@@ -634,7 +638,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                             textAlign: TextAlign.start,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 11, color: AppColors.textSecondary),
                           ),
                         ),
@@ -645,7 +649,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                       alignment: AlignmentDirectional.centerEnd,
                       child: Text('${_settlementFeeController.text}%',
                           textDirection: ui.TextDirection.ltr,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 28,
                               fontWeight: FontWeight.bold,
                               color: AppColors.textPrimary)),
@@ -678,7 +682,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                                   l10n.matrixInstantFixedFee,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.bold,
                                       color: AppColors.textPrimary),
@@ -690,7 +694,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                       fontSize: 9,
-                                      color: Colors.grey.shade600),
+                                      color: AppColors.textSecondary),
                                 ),
                               ],
                             ),
@@ -710,20 +714,20 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.end,
                             children: [
-                              Icon(Icons.pie_chart_outline,
-                                  size: 14, color: Colors.blue.shade700),
+                              MotionIcon(Icons.pie_chart_outline,
+                                  size: 14, color: AppColors.infoDark),
                               const SizedBox(width: 4),
                               Text(l10n.matrixCoverageDetails,
                                   style: TextStyle(
                                       fontSize: 10,
                                       fontWeight: FontWeight.bold,
-                                      color: Colors.blue.shade700)),
+                                      color: AppColors.infoDark)),
                             ],
                           ),
                           const SizedBox(height: 4),
                           Text(
                             l10n.matrixGatewayCoverage,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 9, color: AppColors.textPrimary),
                             textDirection: isArabic
                                 ? ui.TextDirection.rtl
@@ -731,7 +735,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                           ),
                           const SizedBox(height: 2),
                           Text(l10n.matrixOperatingMargin,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 9, color: AppColors.textPrimary)),
                         ],
                       ),
@@ -741,17 +745,17 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                       l10n.matrixSettlementNote,
                       style: TextStyle(
                           fontSize: 10,
-                          color: Colors.grey.shade600,
+                          color: AppColors.textSecondary,
                           height: 1.4),
                       textAlign: TextAlign.start,
                     ),
                   ],
                 ),
-              ),
+              )),
               const SizedBox(height: 16),
 
               // Section 3: Delivery Commission
-              _buildCard(
+              ScrollFx(child: _buildCard(
                 icon: Icons.local_shipping_outlined,
                 title: l10n.matrixDeliveryTitle,
                 child: Column(
@@ -763,12 +767,12 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                              color: Colors.blue.shade50,
+                              color: AppColors.infoLight,
                               borderRadius: BorderRadius.circular(6)),
                           child: Text(l10n.matrixDeliveryFleet,
                               style: TextStyle(
                                   fontSize: 10,
-                                  color: Colors.blue.shade800,
+                                  color: AppColors.infoDark,
                                   fontWeight: FontWeight.bold)),
                         ),
                         const SizedBox(width: 8),
@@ -778,7 +782,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                             textAlign: TextAlign.start,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 11, color: AppColors.textSecondary),
                           ),
                         ),
@@ -792,7 +796,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                               ? '${_deliveryCommissionController.text}%'
                               : '${_deliveryFixedController.text} ${l10n.currencyEgy}',
                           textDirection: ui.TextDirection.ltr,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 28,
                               fontWeight: FontWeight.bold,
                               color: AppColors.textPrimary)),
@@ -823,10 +827,10 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 10, vertical: 2),
                               decoration: BoxDecoration(
-                                  color: Colors.white,
+                                  color: AppColors.surface,
                                   borderRadius: BorderRadius.circular(6),
                                   border:
-                                      Border.all(color: Colors.grey.shade300)),
+                                      Border.all(color: AppColors.cardBorder)),
                               child: Row(
                                 textDirection: ui.TextDirection.ltr,
                                 children: [
@@ -864,20 +868,20 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                                     child: Text(l10n.matrixDeliveryPercentage,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                             fontSize: 12,
                                             fontWeight: FontWeight.bold,
                                             color: AppColors.textPrimary)),
                                   ),
                                   const SizedBox(width: 8),
-                                  Icon(
+                                  MotionIcon(
                                       _deliveryCommissionType == 'percentage'
                                           ? Icons.radio_button_checked
                                           : Icons.radio_button_unchecked,
                                       color:
                                           _deliveryCommissionType == 'percentage'
-                                              ? AppColors.primaryDark
-                                              : Colors.grey,
+                                              ? AppColors.ink
+                                              : AppColors.textSecondary,
                                       size: 20),
                                 ],
                               ),
@@ -909,10 +913,10 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 10, vertical: 2),
                               decoration: BoxDecoration(
-                                  color: Colors.white,
+                                  color: AppColors.surface,
                                   borderRadius: BorderRadius.circular(6),
                                   border:
-                                      Border.all(color: Colors.grey.shade300)),
+                                      Border.all(color: AppColors.cardBorder)),
                               child: Row(
                                 textDirection: ui.TextDirection.ltr,
                                 children: [
@@ -924,7 +928,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                                               decimal: true),
                                       textDirection: ui.TextDirection.ltr,
                                       textAlign: TextAlign.end,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                           fontSize: 11,
                                           color: AppColors.textSecondary),
                                       decoration: const InputDecoration(
@@ -935,7 +939,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                                     ),
                                   ),
                                   Text(l10n.currencyEgy,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                           fontSize: 11,
                                           color: AppColors.textSecondary)),
                                 ],
@@ -950,18 +954,18 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                                     child: Text(l10n.matrixFixedPerShipment,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                             fontSize: 12,
                                             color: AppColors.textSecondary)),
                                   ),
                                   const SizedBox(width: 8),
-                                  Icon(
+                                  MotionIcon(
                                       _deliveryCommissionType == 'fixed'
                                           ? Icons.radio_button_checked
                                           : Icons.radio_button_unchecked,
                                       color: _deliveryCommissionType == 'fixed'
-                                          ? AppColors.primaryDark
-                                          : Colors.grey,
+                                          ? AppColors.ink
+                                          : AppColors.textSecondary,
                                       size: 20),
                                 ],
                               ),
@@ -975,7 +979,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.check_circle_outline,
+                        MotionIcon(Icons.check_circle_outline,
                             size: 14, color: AppColors.info),
                         const SizedBox(width: 6),
                         Expanded(
@@ -983,7 +987,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                             l10n.matrixDeliveryDescription,
                             style: TextStyle(
                                 fontSize: 10,
-                                color: Colors.grey.shade600,
+                                color: AppColors.textSecondary,
                                 height: 1.4),
                           ),
                         ),
@@ -991,14 +995,14 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                     ),
                   ],
                 ),
-              ),
+              )),
               const SizedBox(height: 16),
 
               // Section 4: Audit Reason
-              Container(
+              ScrollFx(child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: AppColors.surface,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: AppColors.cardBorder),
                 ),
@@ -1008,13 +1012,13 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.start,
                       children: [
-                        const Icon(Icons.gavel, color: AppColors.danger, size: 18),
+                        MotionIcon(Icons.gavel, color: AppColors.danger, size: 18),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(l10n.matrixAuditReasonTitle,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold,
                                   color: AppColors.textPrimary)),
@@ -1023,7 +1027,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(l10n.matrixAuditReasonPrompt,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 10, color: AppColors.textSecondary)),
                     const SizedBox(height: 12),
                     TextField(
@@ -1033,7 +1037,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                           ? ui.TextDirection.rtl
                           : ui.TextDirection.ltr,
                       textAlign: TextAlign.start,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 12,
                           color: AppColors.textSecondary,
                           height: 1.5),
@@ -1060,13 +1064,13 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                             decoration: BoxDecoration(
                               color: _notifyAll
                                   ? AppColors.primaryExtraDark
-                                  : Colors.white,
+                                  : AppColors.surface,
                               borderRadius: BorderRadius.circular(4),
                               border:
                                   Border.all(color: AppColors.primaryExtraDark),
                             ),
                             child: _notifyAll
-                                ? const Icon(Icons.check,
+                                ? const MotionIcon(Icons.check,
                                     size: 12, color: Colors.white)
                                 : null,
                           ),
@@ -1074,7 +1078,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                           Expanded(
                             child: Text(
                               l10n.matrixNotifyUsers,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 10,
                                   color: AppColors.textPrimary,
                                   height: 1.4),
@@ -1086,11 +1090,11 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                     ),
                   ],
                 ),
-              ),
+              )),
               const SizedBox(height: 24),
 
               // Actions
-              Row(
+              ScrollFx(child: Row(
                 children: [
                   Expanded(
                     flex: 1,
@@ -1128,7 +1132,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                               child: CircularProgressIndicator(
                                   strokeWidth: 2, color: Colors.white),
                             )
-                          : const Icon(Icons.drive_file_rename_outline,
+                          : const MotionIcon(Icons.drive_file_rename_outline,
                               size: 18),
                       onPressed:
                           _isSaving ? null : () => _saveMatrix(l10n),
@@ -1140,9 +1144,9 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                     ),
                   ),
                 ],
-              ),
+              )),
               const SizedBox(height: 12),
-              InkWell(
+              ScrollFx(child: InkWell(
                 onTap: () => _showMatrixHistory(l10n),
                 borderRadius: BorderRadius.circular(8),
                 child: Padding(
@@ -1150,20 +1154,20 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.start,
                     children: [
-                      const Icon(Icons.history_rounded,
+                      MotionIcon(Icons.history_rounded,
                           size: 14, color: AppColors.textSecondary),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(l10n.matrixAuditTrailNotice,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 9, color: AppColors.textSecondary)),
                       ),
                     ],
                   ),
                 ),
-              ),
+              )),
               const SizedBox(height: 20),
             ],
           ),
@@ -1177,7 +1181,7 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.cardBorder),
       ),
@@ -1192,14 +1196,14 @@ class _EditMatrixScreenState extends State<EditMatrixScreen> {
                 decoration: BoxDecoration(
                     color: AppColors.surfaceLight,
                     borderRadius: BorderRadius.circular(8)),
-                child: Icon(icon, size: 16, color: AppColors.primaryDark),
+                child: MotionIcon(icon, size: 16, color: AppColors.ink),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   title,
                   textAlign: TextAlign.start,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                       color: AppColors.textPrimary),

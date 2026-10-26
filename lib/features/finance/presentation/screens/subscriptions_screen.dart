@@ -1,15 +1,21 @@
 import 'package:flutter/material.dart';
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/di/injection_container.dart';
-import '../../../../core/utils/currency_formatter.dart';
-import '../../domain/entities/subscription_request_entity.dart';
-import '../../domain/repositories/finance_repository.dart';
-import '../../domain/usecases/get_subscriptions_usecase.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../../../core/widgets/app_snack_bar.dart';
-import '../../../../core/widgets/finance_dialogs.dart';
-import '../utils/finance_localizer.dart';
-import '../widgets/finance_navigation.dart';
+
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/utils/currency_formatter.dart';
+import 'package:barwah_app/core/widgets/app_snack_bar.dart';
+import 'package:barwah_app/features/admin/data/datasources/admin_request_store.dart';
+import 'package:barwah_app/features/admin/domain/entities/admin_request.dart';
+import 'package:barwah_app/features/finance/domain/entities/subscription_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/repositories/finance_repository.dart';
+import 'package:barwah_app/features/finance/domain/usecases/get_subscriptions_usecase.dart';
+import 'package:barwah_app/features/finance/presentation/utils/finance_localizer.dart';
+import 'package:barwah_app/features/finance/presentation/widgets/finance_dialogs.dart';
+import 'package:barwah_app/features/finance/presentation/widgets/finance_navigation.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
 
 enum _SubscriptionSortOption { newest, oldest, amountHigh, amountLow }
 
@@ -247,6 +253,19 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
         }
         return;
       }
+      if (decision == SubscriptionReviewDecision.approved) {
+        await forwardFinanceRequestToAdmin(
+          kind: AdminRequestKind.subscription,
+          refId: subscription.id,
+          titleAr: 'اشتراك بانتظار المصادقة النهائية',
+          titleEn: 'Subscription awaiting final authorization',
+          detailsAr:
+              '${subscription.providerName} — ${subscription.targetPackageName} (${subscription.durationText}) بقيمة ${subscription.totalAmount.toStringAsFixed(2)} ج.م.',
+          detailsEn:
+              '${subscription.providerName} — ${subscription.targetPackageName} (${subscription.durationText}) for EGP ${subscription.totalAmount.toStringAsFixed(2)}.',
+          amount: subscription.totalAmount,
+        );
+      }
       if (!mounted) return;
       final refreshed = await sl<GetSubscriptionsUseCase>()();
       if (!mounted) return;
@@ -357,7 +376,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
           ? TextDirection.rtl
           : TextDirection.ltr,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF9FAFB),
+        backgroundColor: AppColors.scaffold,
         appBar: FinancePageAppBar(
           title: l10n.subscriptionOrdersTitle,
           subtitle: l10n.financialManagementSubtitle,
@@ -365,21 +384,21 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
           onBackPressed: () => Navigator.pop(context),
         ),
         body: _isLoading
-            ? const Center(
-                child: CircularProgressIndicator(color: AppColors.primaryDark))
+            ? Center(
+                child: CircularProgressIndicator(color: AppColors.ink))
             : _hasLoadError
                 ? Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.cloud_off_outlined,
+                        MotionIcon(Icons.cloud_off_outlined,
                             size: 42, color: AppColors.textSecondary),
                         const SizedBox(height: 10),
                         Text(l10n.financeRequestDecisionFailed),
                         const SizedBox(height: 8),
                         OutlinedButton.icon(
                           onPressed: _loadData,
-                          icon: const Icon(Icons.refresh),
+                          icon: const MotionIcon(Icons.refresh),
                           label: Text(l10n.frozenRefresh),
                         ),
                       ],
@@ -392,7 +411,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                       padding: const EdgeInsets.all(16),
                       children: [
                         // 1. Header Info
-                        Row(
+                        ScrollFx(child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Expanded(
@@ -401,8 +420,8 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                                 children: [
                                   Row(
                                     children: [
-                                      const Icon(Icons.verified,
-                                          color: Colors.blueAccent, size: 14),
+                                      MotionIcon(Icons.verified,
+                                          color: AppColors.info, size: 14),
                                       const SizedBox(width: 4),
                                       Expanded(
                                         child: Text(
@@ -410,7 +429,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                             style: TextStyle(
-                                                color: Colors.blue.shade700,
+                                                color: AppColors.infoDark,
                                                 fontSize: 11,
                                                 fontWeight: FontWeight.bold)),
                                       ),
@@ -418,19 +437,19 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                                   ),
                                   const SizedBox(height: 4),
                                   Text(l10n.subscriptionsAndUpgradesReviewTitle,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                           fontSize: 18,
                                           fontWeight: FontWeight.w900,
-                                          color: AppColors.primaryDark),
+                                          color: AppColors.ink),
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis),
                                   const SizedBox(height: 2),
                                   Text(
                                       l10n
                                           .subscriptionsAndUpgradesReviewSubtitle,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                           fontSize: 11,
-                                          color: Colors.grey,
+                                          color: AppColors.textSecondary,
                                           height: 1.3)),
                                 ],
                               ),
@@ -446,18 +465,18 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                                       _query = '';
                                     }
                                   }),
-                                  icon: Icon(
+                                  icon: MotionIcon(
                                       _showSearch
                                           ? Icons.search_off
                                           : Icons.search,
-                                      color: Colors.black87,
+                                      color: AppColors.textPrimary,
                                       size: 20),
                                 ),
                                 const SizedBox(width: 8),
                               ],
                             ),
                           ],
-                        ),
+                        )),
                         const SizedBox(height: 20),
 
                         if (_showSearch) ...[
@@ -469,7 +488,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                               hintText: isArabic
                                   ? 'ابحث بالاسم أو رقم الطلب أو السجل التجاري'
                                   : 'Search name, request number, or registration',
-                              prefixIcon: const Icon(Icons.search),
+                              prefixIcon: const MotionIcon(Icons.search),
                               suffixIcon: _query.isEmpty
                                   ? null
                                   : IconButton(
@@ -477,19 +496,19 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                                         _searchController.clear();
                                         setState(() => _query = '');
                                       },
-                                      icon: const Icon(Icons.close),
+                                      icon: const MotionIcon(Icons.close),
                                     ),
                               filled: true,
-                              fillColor: Colors.white,
+                              fillColor: AppColors.surface,
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide:
-                                    BorderSide(color: Colors.grey.shade300),
+                                    BorderSide(color: AppColors.cardBorder),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide:
-                                    BorderSide(color: Colors.grey.shade300),
+                                    BorderSide(color: AppColors.cardBorder),
                               ),
                             ),
                           ),
@@ -497,11 +516,11 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                         ],
 
                         // 2. Summary Dashboard Card
-                        Container(
+                        ScrollFx(child: Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
                             color:
-                                const Color(0xFF0F172A), // Dark blue background
+                                AppColors.primaryDark, // Dark blue background
                             borderRadius: BorderRadius.circular(16),
                             boxShadow: [
                               BoxShadow(
@@ -543,13 +562,13 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                                           horizontal: 10, vertical: 4),
                                       decoration: BoxDecoration(
                                         color:
-                                            Colors.blue.withValues(alpha: 0.2),
+                                            AppColors.info.withValues(alpha: 0.2),
                                         borderRadius: BorderRadius.circular(20),
                                       ),
                                       child: Text(
                                         l10n.updatedNow,
-                                        style: const TextStyle(
-                                            color: Colors.lightBlueAccent,
+                                        style: TextStyle(
+                                            color: AppColors.info,
                                             fontSize: 10,
                                             fontWeight: FontWeight.bold),
                                         maxLines: 1,
@@ -626,9 +645,9 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                                                       maxLines: 1,
                                                       overflow: TextOverflow
                                                           .ellipsis)),
-                                              const Icon(
+                                              MotionIcon(
                                                   Icons.calendar_month_outlined,
-                                                  color: Colors.lightBlueAccent,
+                                                  color: AppColors.info,
                                                   size: 12),
                                             ],
                                           ),
@@ -688,9 +707,9 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                                                       maxLines: 1,
                                                       overflow: TextOverflow
                                                           .ellipsis)),
-                                              const Icon(
+                                              MotionIcon(
                                                   Icons.pause_circle_outline,
-                                                  color: Colors.orangeAccent,
+                                                  color: AppColors.warning,
                                                   size: 12),
                                             ],
                                           ),
@@ -700,7 +719,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                                                 CrossAxisAlignment.end,
                                             children: [
                                               Expanded(
-                                                  child: Text('$_pendingCount',
+                                                  child: CountText('$_pendingCount',
                                                       style: const TextStyle(
                                                           color: Colors.white,
                                                           fontSize: 14,
@@ -718,8 +737,8 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                                           ),
                                           const SizedBox(height: 4),
                                           Text(l10n.ordersUnderAudit,
-                                              style: const TextStyle(
-                                                  color: Colors.orangeAccent,
+                                              style: TextStyle(
+                                                  color: AppColors.warning,
                                                   fontSize: 9),
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis),
@@ -754,8 +773,8 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                                                       maxLines: 1,
                                                       overflow: TextOverflow
                                                           .ellipsis)),
-                                              const Icon(Icons.access_time,
-                                                  color: Colors.redAccent,
+                                              MotionIcon(Icons.access_time,
+                                                  color: AppColors.danger,
                                                   size: 12),
                                             ],
                                           ),
@@ -765,7 +784,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                                                 CrossAxisAlignment.end,
                                             children: [
                                               Expanded(
-                                                  child: Text('$_expiredCount',
+                                                  child: CountText('$_expiredCount',
                                                       style: const TextStyle(
                                                           color: Colors.white,
                                                           fontSize: 14,
@@ -784,8 +803,8 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                                           if (_expiredCount > 0) ...[
                                             const SizedBox(height: 4),
                                             Text(l10n.autoCommercialAlert,
-                                                style: const TextStyle(
-                                                    color: Colors.redAccent,
+                                                style: TextStyle(
+                                                    color: AppColors.danger,
                                                     fontSize: 9),
                                                 maxLines: 1,
                                                 overflow:
@@ -799,10 +818,10 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                               ),
                             ],
                           ),
-                        ),
+                        )),
                         const SizedBox(height: 20),
 
-                        _buildQueueSelector(isArabic),
+                        ScrollFx(child: _buildQueueSelector(isArabic)),
                         const SizedBox(height: 14),
 
                         // 3. Filters
@@ -837,7 +856,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                                       _query = '';
                                     });
                                   },
-                                  icon: const Icon(Icons.filter_alt_off,
+                                  icon: const MotionIcon(Icons.filter_alt_off,
                                       size: 16),
                                   label:
                                       Text(isArabic ? 'مسح التصفية' : 'Clear'),
@@ -848,25 +867,25 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                         ),
                         const SizedBox(height: 20),
 
-                        _buildStatusFilters(),
+                        ScrollFx(child: _buildStatusFilters()),
                         const SizedBox(height: 12),
 
                         // 4. Section Title
-                        Row(
+                        ScrollFx(child: Row(
                           children: [
                             Expanded(
                               child: Row(
                                 children: [
-                                  const Icon(Icons.circle,
-                                      color: AppColors.primaryDark, size: 10),
+                                  MotionIcon(Icons.circle,
+                                      color: AppColors.ink, size: 10),
                                   const SizedBox(width: 6),
                                   Expanded(
                                     child: Text(
                                       l10n.awaitingCertificationRequests,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                           fontSize: 14,
                                           fontWeight: FontWeight.bold,
-                                          color: Colors.black87),
+                                          color: AppColors.textPrimary),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
@@ -879,7 +898,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                               isArabic
                                   ? '${_filteredSubscriptions.length} طلب'
                                   : '${_filteredSubscriptions.length} requests',
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 10, color: AppColors.textSecondary),
                             ),
                             PopupMenuButton<_SubscriptionSortOption>(
@@ -912,21 +931,21 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const Icon(Icons.sort,
-                                        color: Colors.blueAccent, size: 18),
+                                    MotionIcon(Icons.sort,
+                                        color: AppColors.info, size: 18),
                                     const SizedBox(width: 2),
                                     Text(
                                       _sortLabel(isArabic),
                                       style: TextStyle(
                                           fontSize: 10,
-                                          color: Colors.blue.shade700),
+                                          color: AppColors.infoDark),
                                     ),
                                   ],
                                 ),
                               ),
                             ),
                           ],
-                        ),
+                        )),
                         const SizedBox(height: 16),
 
                         // 5. List
@@ -948,13 +967,13 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                           ),
 
                         // 6. Bottom Info Banner
-                        Container(
+                        ScrollFx(child: Container(
                           margin: const EdgeInsets.only(top: 10, bottom: 20),
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: AppColors.surface,
                             borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.grey.shade200),
+                            border: Border.all(color: AppColors.cardBorder),
                             boxShadow: [
                               BoxShadow(
                                   color: Colors.black.withValues(alpha: 0.02),
@@ -970,11 +989,11 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                                   Container(
                                     padding: const EdgeInsets.all(10),
                                     decoration: BoxDecoration(
-                                        color: Colors.blue.shade50,
+                                        color: AppColors.infoLight,
                                         borderRadius:
                                             BorderRadius.circular(12)),
-                                    child: Icon(Icons.shield_outlined,
-                                        color: Colors.blue.shade700, size: 24),
+                                    child: MotionIcon(Icons.shield_outlined,
+                                        color: AppColors.infoDark, size: 24),
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
@@ -983,16 +1002,16 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                                           CrossAxisAlignment.start,
                                       children: [
                                         Text(l10n.licensesGovernanceTitle,
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                                 fontSize: 13,
                                                 fontWeight: FontWeight.bold,
-                                                color: Colors.black87)),
+                                                color: AppColors.textPrimary)),
                                         const SizedBox(height: 4),
                                         Text(
                                           l10n.licensesGovernanceDesc,
                                           style: TextStyle(
                                               fontSize: 11,
-                                              color: Colors.grey.shade600,
+                                              color: AppColors.textSecondary,
                                               height: 1.4),
                                         ),
                                       ],
@@ -1010,33 +1029,33 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                                   Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      const Icon(Icons.lock_outline,
-                                          size: 14, color: Colors.grey),
+                                      MotionIcon(Icons.lock_outline,
+                                          size: 14, color: AppColors.textSecondary),
                                       const SizedBox(width: 4),
                                       Text(l10n.certifiedAndDocumentedRecord,
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                               fontSize: 11,
-                                              color: Colors.grey)),
+                                              color: AppColors.textSecondary)),
                                     ],
                                   ),
                                   Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       _buildSmallButton(l10n.pdfReport,
-                                          Icons.picture_as_pdf, Colors.red),
+                                          Icons.picture_as_pdf, AppColors.danger),
                                       const SizedBox(width: 8),
                                       _buildSmallButton(l10n.exportExcel,
-                                          Icons.table_chart, Colors.green),
+                                          Icons.table_chart, AppColors.success),
                                     ],
                                   ),
                                 ],
                               ),
                             ],
                           ),
-                        ),
+                        )),
 
                         // 7. Bottom Record Button
-                        InkWell(
+                        ScrollFx(child: InkWell(
                           onTap: () {
                             AppSnackBar.showInfo(
                                 context, l10n.openingSubscriptionsRegister);
@@ -1045,12 +1064,12 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                           child: Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: AppColors.surface,
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: Colors.blue.shade100),
+                              border: Border.all(color: AppColors.infoLight),
                               boxShadow: [
                                 BoxShadow(
-                                    color: Colors.blue.withValues(alpha: 0.05),
+                                    color: AppColors.info.withValues(alpha: 0.05),
                                     blurRadius: 4,
                                     offset: const Offset(0, 2)),
                               ],
@@ -1060,10 +1079,10 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                                 Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                      color: Colors.blue.shade50,
+                                      color: AppColors.infoLight,
                                       borderRadius: BorderRadius.circular(10)),
-                                  child: Icon(Icons.history,
-                                      color: Colors.blue.shade700, size: 20),
+                                  child: MotionIcon(Icons.history,
+                                      color: AppColors.infoDark, size: 20),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
@@ -1075,21 +1094,21 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                                           style: TextStyle(
                                               fontSize: 12,
                                               fontWeight: FontWeight.bold,
-                                              color: Colors.blue.shade900)),
+                                              color: AppColors.infoDark)),
                                       const SizedBox(height: 2),
                                       Text(l10n.browsePreviousOperations,
                                           style: TextStyle(
                                               fontSize: 10,
-                                              color: Colors.grey.shade600)),
+                                              color: AppColors.textSecondary)),
                                     ],
                                   ),
                                 ),
-                                const Icon(Icons.arrow_forward_ios,
-                                    size: 14, color: Colors.grey),
+                                MotionIcon(Icons.arrow_forward_ios,
+                                    size: 14, color: AppColors.textSecondary),
                               ],
                             ),
                           ),
-                        ),
+                        )),
                         const SizedBox(height: 20),
                       ],
                     ),
@@ -1119,24 +1138,24 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF0F172A) : Colors.white,
+          color: isSelected ? AppColors.primaryDark : AppColors.surface,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
               color:
-                  isSelected ? const Color(0xFF0F172A) : Colors.grey.shade300),
+                  isSelected ? AppColors.textPrimary : AppColors.cardBorder),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (icon != null)
-              Icon(icon,
+              MotionIcon(icon,
                   size: 14,
-                  color: isSelected ? Colors.white : Colors.blue.shade700),
+                  color: isSelected ? Colors.white : AppColors.infoDark),
             if (icon != null) const SizedBox(width: 6),
             Text(
               label,
               style: TextStyle(
-                color: isSelected ? Colors.white : Colors.black87,
+                color: isSelected ? Colors.white : AppColors.textPrimary,
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
@@ -1173,7 +1192,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
               tooltip: isArabic ? 'مسح الحالة' : 'Clear status',
               visualDensity: VisualDensity.compact,
               onPressed: () => setState(() => _selectedStatus = null),
-              icon: const Icon(Icons.close, size: 18),
+              icon: const MotionIcon(Icons.close, size: 18),
             ),
           ],
         ],
@@ -1189,8 +1208,8 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
       showCheckmark: false,
       onSelected: (_) => setState(() => _selectedStatus = status),
       selectedColor: AppColors.primaryDark,
-      backgroundColor: Colors.white,
-      side: BorderSide(color: Colors.grey.shade300),
+      backgroundColor: AppColors.surface,
+      side: BorderSide(color: AppColors.cardBorder),
       labelStyle: TextStyle(
         color: isSelected ? Colors.white : AppColors.textSecondary,
         fontSize: 11,
@@ -1209,7 +1228,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
       segments: [
         ButtonSegment(
           value: false,
-          icon: const Icon(Icons.pending_actions_outlined, size: 17),
+          icon: const MotionIcon(Icons.pending_actions_outlined, size: 17),
           label: Text(
             '${isArabic ? 'قيد الإجراء' : 'In progress'} ($activeCount)',
             maxLines: 1,
@@ -1218,7 +1237,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
         ),
         ButtonSegment(
           value: true,
-          icon: const Icon(Icons.archive_outlined, size: 17),
+          icon: const MotionIcon(Icons.archive_outlined, size: 17),
           label: Text(
             '${isArabic ? 'الأرشيف' : 'Archive'} ($archiveCount)',
             maxLines: 1,
@@ -1243,7 +1262,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                 ? Colors.white
                 : AppColors.textSecondary),
         side: WidgetStateProperty.all(
-          BorderSide(color: Colors.grey.shade300),
+          BorderSide(color: AppColors.cardBorder),
         ),
         shape: WidgetStateProperty.all(
           RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -1316,20 +1335,20 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: AppColors.backgroundLight,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: AppColors.cardBorder),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: color),
+          MotionIcon(icon, size: 14, color: color),
           const SizedBox(width: 4),
           Text(title,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black87)),
+                  color: AppColors.textPrimary)),
         ],
       ),
     );
@@ -1346,7 +1365,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
       SubscriptionReviewDecision.approved => AppColors.success,
       SubscriptionReviewDecision.frozen => AppColors.warning,
       SubscriptionReviewDecision.rejected => AppColors.danger,
-      null => isAutoReady ? AppColors.primaryDark : Colors.blue.shade800,
+      null => isAutoReady ? AppColors.primaryDark : AppColors.infoDark,
     };
     final decisionLabel = isArchived
         ? _localizeStatus(sub.reviewDecision?.name ?? '')
@@ -1358,9 +1377,9 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: AppColors.cardBorder),
         boxShadow: [
           BoxShadow(
               color: Colors.black.withValues(alpha: 0.02),
@@ -1378,10 +1397,10 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
+                  color: AppColors.surfaceLight,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(
+                child: MotionIcon(
                   sub.type == SubscriptionType.merchant
                       ? Icons.devices
                       : (sub.type == SubscriptionType.serviceProvider
@@ -1391,7 +1410,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                               : (sub.type == SubscriptionType.courier
                                   ? Icons.local_shipping
                                   : Icons.campaign))),
-                  color: AppColors.primaryDark,
+                  color: AppColors.ink,
                   size: 24,
                 ),
               ),
@@ -1403,10 +1422,10 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                     Text(
                       FinanceLocalizer.localizeProviderName(
                           context, sub.providerName),
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontWeight: FontWeight.w900,
                           fontSize: 14,
-                          color: Colors.black87),
+                          color: AppColors.textPrimary),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -1426,23 +1445,23 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                             },
                             style: TextStyle(
                                 fontSize: 10,
-                                color: Colors.blue.shade700,
+                                color: AppColors.infoDark,
                                 fontWeight: FontWeight.bold),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         const SizedBox(width: 4),
-                        const Icon(Icons.circle, size: 4, color: Colors.grey),
+                        MotionIcon(Icons.circle, size: 4, color: AppColors.textSecondary),
                         const SizedBox(width: 4),
                         Expanded(
-                          child: Text(
+                          child: FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart, child: CountText(
                             '${sub.type == SubscriptionType.merchant ? l10n.commercialRegister : l10n.licenseNumber} ${sub.registrationNumber}',
                             style: TextStyle(
-                                fontSize: 10, color: Colors.grey.shade700),
+                                fontSize: 10, color: AppColors.textSecondary),
                             maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+ softWrap: false,
+                          )),
                         ),
                       ],
                     ),
@@ -1457,14 +1476,14 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                     color: isArchived
                         ? decisionColor.withValues(alpha: 0.1)
                         : isAutoReady
-                            ? Colors.blue.shade50
-                            : const Color(0xFFF1F5F9),
+                            ? AppColors.infoLight
+                            : AppColors.surfaceLight,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
+                      MotionIcon(
                         isArchived
                             ? sub.reviewDecision ==
                                     SubscriptionReviewDecision.approved
@@ -1502,13 +1521,13 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
             const SizedBox(height: 8),
             Row(
               children: [
-                const Icon(Icons.schedule,
+                MotionIcon(Icons.schedule,
                     size: 13, color: AppColors.textSecondary),
                 const SizedBox(width: 5),
                 Expanded(
                   child: Text(
                     '${isArabic ? 'طلب #${sub.id}' : 'Request #${sub.id}'} · ${_formatRequestDate(sub.createdAt!, isArabic)}',
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 10, color: AppColors.textSecondary),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -1525,32 +1544,32 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFFFAFAFA),
+              color: AppColors.surfaceMuted,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade200),
+              border: Border.all(color: AppColors.cardBorder),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   l10n.targetedPackageType,
-                  style: const TextStyle(fontSize: 10, color: Colors.grey),
+                  style: TextStyle(fontSize: 10, color: AppColors.textSecondary),
                 ),
                 const SizedBox(height: 4),
                 Row(
                   children: [
                     if (sub.type == SubscriptionType.merchant)
-                      const Icon(Icons.stars, color: Colors.blue, size: 14),
+                      MotionIcon(Icons.stars, color: AppColors.info, size: 14),
                     if (sub.type == SubscriptionType.merchant)
                       const SizedBox(width: 4),
                     Expanded(
                       child: Text(
                         FinanceLocalizer.localizePackageName(
                             context, sub.targetPackageName),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
-                          color: Colors.black87,
+                          color: AppColors.textPrimary,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -1563,7 +1582,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                   sub.type == SubscriptionType.serviceProvider
                       ? l10n.semiAnnualDuration
                       : l10n.taxInclusive15,
-                  style: TextStyle(fontSize: 10, color: Colors.blue.shade700),
+                  style: TextStyle(fontSize: 10, color: AppColors.infoDark),
                 ),
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 8),
@@ -1571,7 +1590,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                 ),
                 Text(
                   l10n.totalRequiredAmount,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 10,
                     color: AppColors.textSecondary,
                     fontWeight: FontWeight.w600,
@@ -1588,10 +1607,10 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                           sub.totalAmount,
                           includeCurrency: false,
                         ),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.primaryExtraDark,
+                          color: AppColors.ink,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -1600,9 +1619,9 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                     const SizedBox(width: 4),
                     Text(
                       l10n.currencyEgy,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 10,
-                        color: AppColors.primaryDark,
+                        color: AppColors.ink,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -1616,7 +1635,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                   style: TextStyle(
                     fontSize: 9,
                     color:
-                        isAutoReady ? AppColors.success : Colors.grey.shade600,
+                        isAutoReady ? AppColors.success : AppColors.textSecondary,
                   ),
                 ),
               ],
@@ -1629,24 +1648,24 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppColors.surface,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade200),
+              border: Border.all(color: AppColors.cardBorder),
             ),
             child: Row(
               children: [
-                Icon(
+                MotionIcon(
                     isAutoReady
                         ? Icons.account_balance_wallet
                         : Icons.account_balance,
                     size: 16,
-                    color: Colors.blue.shade700),
+                    color: AppColors.infoDark),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     FinanceLocalizer.localizePaymentMethod(
                         context, sub.paymentMethod),
-                    style: const TextStyle(fontSize: 11, color: Colors.black87),
+                    style: TextStyle(fontSize: 11, color: AppColors.textPrimary),
                   ),
                 ),
                 if (isAutoReady && sub.availableBalance != null)
@@ -1656,7 +1675,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                               context, sub.availableBalance) ??
                           sub.availableBalance!,
                       style:
-                          TextStyle(fontSize: 10, color: Colors.blue.shade700),
+                          TextStyle(fontSize: 10, color: AppColors.infoDark),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.end,
@@ -1668,7 +1687,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                       l10n.corporateAccount,
                       style: TextStyle(
                           fontSize: 10,
-                          color: Colors.blue.shade700,
+                          color: AppColors.infoDark,
                           height: 1.2),
                       textAlign: TextAlign.center,
                       maxLines: 2,
@@ -1702,10 +1721,10 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (subscription.decisionReason?.isNotEmpty ?? false) ...[
-            Text(
+            CountText(
               '${isArabic ? 'سبب القرار:' : 'Decision reason:'} ${subscription.decisionReason}',
               style:
-                  const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                  TextStyle(fontSize: 11, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 8),
           ],
@@ -1717,13 +1736,13 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                       dimension: 16,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Icon(Icons.undo_rounded, size: 17),
+                  : const MotionIcon(Icons.undo_rounded, size: 17),
               label: Text(isArabic
                   ? 'التراجع عن القرار وإعادة الطلب لقيد الإجراء'
                   : 'Reverse decision and return to in progress'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primaryDark,
-                side: const BorderSide(color: AppColors.primaryDark),
+                foregroundColor: AppColors.ink,
+                side: BorderSide(color: AppColors.ink),
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10)),
@@ -1736,7 +1755,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                 isArabic
                     ? 'الطلب معتمد ولا يمكن التراجع عنه من الأرشيف.'
                     : 'Approved requests cannot be reversed from the archive.',
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 11, color: AppColors.textSecondary),
               ),
             ),
@@ -1763,7 +1782,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                   dimension: 16,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Icon(Icons.check_circle_outline, size: 16),
+              : const MotionIcon(Icons.check_circle_outline, size: 16),
           onPressed: isBusy
               ? null
               : () => _handleDecision(
@@ -1780,9 +1799,9 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
             Expanded(
               child: OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.orange.shade800,
-                  backgroundColor: Colors.orange.shade50,
-                  side: BorderSide(color: Colors.orange.shade200),
+                  foregroundColor: AppColors.warningDark,
+                  backgroundColor: AppColors.warningLight,
+                  side: BorderSide(color: AppColors.warningBorder),
                   padding: const EdgeInsets.symmetric(vertical: 11),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10)),
@@ -1792,7 +1811,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                         dimension: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Icon(Icons.pause_circle_outline, size: 16),
+                    : const MotionIcon(Icons.pause_circle_outline, size: 16),
                 onPressed: isBusy
                     ? null
                     : () => _handleDecision(
@@ -1812,7 +1831,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.danger,
                   backgroundColor: AppColors.dangerLight.withValues(alpha: 0.3),
-                  side: const BorderSide(color: AppColors.dangerLight),
+                  side: BorderSide(color: AppColors.dangerLight),
                   padding: const EdgeInsets.symmetric(vertical: 11),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10)),
@@ -1822,7 +1841,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                         dimension: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Icon(Icons.cancel_outlined, size: 16),
+                    : const MotionIcon(Icons.cancel_outlined, size: 16),
                 onPressed: isBusy
                     ? null
                     : () => _handleDecision(
@@ -1853,14 +1872,14 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
         width: double.infinity,
         child: OutlinedButton.icon(
           style: OutlinedButton.styleFrom(
-            foregroundColor: Colors.blue.shade700,
-            side: BorderSide(color: Colors.blue.shade200),
-            backgroundColor: Colors.blue.shade50.withValues(alpha: 0.5),
+            foregroundColor: AppColors.infoDark,
+            side: BorderSide(color: AppColors.infoBorder),
+            backgroundColor: AppColors.infoLight.withValues(alpha: 0.5),
             padding: const EdgeInsets.symmetric(vertical: 11),
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
-          icon: const Icon(Icons.receipt_long, size: 16),
+          icon: const MotionIcon(Icons.receipt_long, size: 16),
           onPressed: () => _showReceiptPreviewDialog(context, subscription),
           label: Text(l10n.previewReceiptAndTransferData,
               style:
@@ -1883,7 +1902,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           title: Row(
             children: [
-              const Icon(Icons.receipt, color: AppColors.primaryDark),
+              MotionIcon(Icons.receipt, color: AppColors.ink),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -1901,7 +1920,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Container(
+                ScrollFx(child: Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: AppColors.surfaceLight,
@@ -1913,8 +1932,8 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(isArabic ? 'المشترك:' : 'Subscriber:',
-                              style: const TextStyle(
-                                  fontSize: 11, color: Colors.grey)),
+                              style: TextStyle(
+                                  fontSize: 11, color: AppColors.textSecondary)),
                           Text(
                               FinanceLocalizer.localizeProviderName(
                                   context, sub.providerName),
@@ -1930,8 +1949,8 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                               isArabic
                                   ? 'الباقة المستهدفة:'
                                   : 'Target Package:',
-                              style: const TextStyle(
-                                  fontSize: 11, color: Colors.grey)),
+                              style: TextStyle(
+                                  fontSize: 11, color: AppColors.textSecondary)),
                           Text(
                               FinanceLocalizer.localizePackageName(
                                   context, sub.targetPackageName),
@@ -1944,8 +1963,8 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(isArabic ? 'طريقة الدفع:' : 'Payment Method:',
-                              style: const TextStyle(
-                                  fontSize: 11, color: Colors.grey)),
+                              style: TextStyle(
+                                  fontSize: 11, color: AppColors.textSecondary)),
                           Text(
                               FinanceLocalizer.localizePaymentMethod(
                                   context, sub.paymentMethod),
@@ -1961,53 +1980,53 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                               isArabic
                                   ? 'المبلغ المحول:'
                                   : 'Transferred Amount:',
-                              style: const TextStyle(
-                                  fontSize: 11, color: Colors.grey)),
-                          Text(
+                              style: TextStyle(
+                                  fontSize: 11, color: AppColors.textSecondary)),
+                          CountText(
                             CurrencyFormatter.format(sub.totalAmount),
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.bold,
-                                color: AppColors.primaryDark),
+                                color: AppColors.ink),
                           ),
                         ],
                       ),
                     ],
                   ),
-                ),
+                )),
                 const SizedBox(height: 14),
                 // صورة إيصال التحويل التوضيحية
-                Container(
+                ScrollFx(child: Container(
                   height: 150,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
+                    color: AppColors.surfaceLight,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade300),
+                    border: Border.all(color: AppColors.cardBorder),
                   ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.image_outlined,
-                          size: 40, color: Colors.grey.shade600),
+                      MotionIcon(Icons.image_outlined,
+                          size: 40, color: AppColors.textSecondary),
                       const SizedBox(height: 8),
                       Text(
                         isArabic
                             ? 'صورة إيصال التحويل المصرفي المرفقة'
                             : 'Attached Bank Transfer Receipt',
                         style: TextStyle(
-                            fontSize: 11, color: Colors.grey.shade700),
+                            fontSize: 11, color: AppColors.textSecondary),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         'RECEIPT-${sub.id}-BANK.JPG',
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
                             color: AppColors.info),
                       ),
                     ],
                   ),
-                ),
+                )),
               ],
             ),
           ),

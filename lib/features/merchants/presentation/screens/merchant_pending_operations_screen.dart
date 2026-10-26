@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/widgets/app_snack_bar.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../domain/entities/merchant_entity.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/widgets/app_snack_bar.dart';
+import 'package:barwah_app/features/merchants/domain/entities/merchant_entity.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class MerchantPendingOperationsScreen extends StatefulWidget {
   final MerchantEntity merchant;
@@ -37,24 +40,24 @@ class _MerchantPendingOperationsScreenState
     return Directionality(
       textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF5F7F9),
+        backgroundColor: AppColors.scaffold,
         appBar: AppBar(
           title: Text(l10n.merchantInfoPendingOperations),
-          backgroundColor: Colors.white,
-          foregroundColor: AppColors.primaryDark,
+          backgroundColor: AppColors.surface,
+          foregroundColor: AppColors.ink,
           centerTitle: true,
         ),
         body: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            _MerchantHeading(merchant: widget.merchant, isArabic: isArabic),
+            ScrollFx(child: _MerchantHeading(merchant: widget.merchant, isArabic: isArabic)),
             const SizedBox(height: 16),
             if (remainingPendingCount > 0) ...[
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: AppColors.surface,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: AppColors.cardBorder),
                 ),
@@ -63,8 +66,8 @@ class _MerchantPendingOperationsScreenState
                   children: [
                     Text(
                       l10n.merchantPendingCount(remainingPendingCount),
-                      style: const TextStyle(
-                        color: AppColors.primaryDark,
+                      style: TextStyle(
+                        color: AppColors.ink,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -72,7 +75,7 @@ class _MerchantPendingOperationsScreenState
                       const SizedBox(height: 6),
                       Text(
                         l10n.merchantPendingMoreDetailsUnavailable,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 12,
                         ),
@@ -120,7 +123,7 @@ class _MerchantHeading extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.cardBorder),
       ),
@@ -128,7 +131,7 @@ class _MerchantHeading extends StatelessWidget {
         children: [
           CircleAvatar(
             backgroundColor: AppColors.primaryDark,
-            child: Icon(
+            child: MotionIcon(
               merchant.logoIcon ?? merchant.categoryIcon,
               color: Colors.white,
             ),
@@ -137,8 +140,8 @@ class _MerchantHeading extends StatelessWidget {
           Expanded(
             child: Text(
               merchant.getName(isArabic),
-              style: const TextStyle(
-                color: AppColors.primaryDark,
+              style: TextStyle(
+                color: AppColors.ink,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -172,7 +175,7 @@ class _PendingAdvertisementCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.cardBorder),
       ),
@@ -181,13 +184,13 @@ class _PendingAdvertisementCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.campaign_outlined, color: AppColors.info),
+              MotionIcon(Icons.campaign_outlined, color: AppColors.info),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
+                  style: TextStyle(
+                    color: AppColors.ink,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -236,10 +239,10 @@ class _InfoRow extends StatelessWidget {
       padding: const EdgeInsets.only(top: 6),
       child: Row(
         children: [
-          Text(label, style: const TextStyle(color: AppColors.textSecondary)),
+          Text(label, style: TextStyle(color: AppColors.textSecondary)),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
+            child: CountText(
               value,
               textAlign: TextAlign.end,
               style: const TextStyle(fontWeight: FontWeight.w600),
@@ -262,7 +265,7 @@ class _EmptyPendingOperations extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 64),
       child: Column(
         children: [
-          const Icon(
+          MotionIcon(
             Icons.task_alt_outlined,
             size: 52,
             color: AppColors.textMuted,
@@ -271,7 +274,7 @@ class _EmptyPendingOperations extends StatelessWidget {
           Text(
             message,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.textSecondary),
+            style: TextStyle(color: AppColors.textSecondary),
           ),
         ],
       ),

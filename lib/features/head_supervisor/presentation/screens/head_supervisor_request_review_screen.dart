@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../head_supervisor_text.dart';
-import 'head_supervisor_request_decision_sheet.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/utils/head_supervisor_text.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_supervisor_request_decision_sheet.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class HeadSupervisorRequestReviewScreen extends StatefulWidget {
   final String requestId;
@@ -56,10 +58,10 @@ class _HeadSupervisorRequestReviewScreenState
   @override
   Widget build(BuildContext context) {
     final rejected = widget.supervisorDecision == 'مرفوض';
-    final statusColor = rejected ? AppColors.dangerDark : const Color(0xFF315E9A);
+    final statusColor = rejected ? AppColors.dangerDark : AppColors.infoDark;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.scaffold,
       appBar: AppBar(
         title: Text(headSupervisorText(context, arabic: 'إعادة مراجعة القرار', english: 'Review decision'),
             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
@@ -67,62 +69,62 @@ class _HeadSupervisorRequestReviewScreenState
         leading: IconButton(
           tooltip: headSupervisorText(context, arabic: 'رجوع', english: 'Back'),
           onPressed: () => Navigator.of(context).pop(),
-          icon: const Icon(Icons.arrow_back),
+          icon: const MotionIcon(Icons.arrow_back),
         ),
-        actions: const [
+        actions: [
           Padding(
             padding: EdgeInsetsDirectional.only(end: 14),
-            child: Icon(Icons.shield_outlined, color: AppColors.primaryDark),
+            child: MotionIcon(Icons.shield_outlined, color: AppColors.ink),
           ),
         ],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         children: [
-          _ReviewSessionCard(
+          ScrollFx(child: _ReviewSessionCard(
             requestId: widget.requestId,
             status: widget.supervisorDecision,
             statusColor: statusColor,
             createdAt: widget.createdAt,
-          ),
+          )),
           const SizedBox(height: 12),
-          _SupervisorDecisionCard(
+          ScrollFx(child: _SupervisorDecisionCard(
             supervisor: widget.supervisor,
             department: widget.department,
             decision: widget.supervisorDecision,
             reason: widget.reason,
             statusColor: statusColor,
-          ),
+          )),
           const SizedBox(height: 12),
-          _RequestDetailsCard(
+          ScrollFx(child: _RequestDetailsCard(
             requestId: widget.requestId,
             title: widget.title,
             department: widget.department,
-          ),
+          )),
           const SizedBox(height: 18),
-          _SectionHeading(
+          ScrollFx(child: _SectionHeading(
             title: headSupervisorText(context, arabic: 'نوع الإجراء والتوجيه الرقابي', english: 'Oversight action and instruction'),
             subtitle: headSupervisorText(context, arabic: 'اختر الإجراء المطلوب من المشرف', english: 'Choose the action required from the supervisor'),
-          ),
+          )),
           const SizedBox(height: 8),
-          _ActionChoice(
+          ScrollFx(child: _ActionChoice(
             selected: _action == HeadSupervisorDecisionAction.returnForReview,
             onTap: () => setState(() => _action =
                 HeadSupervisorDecisionAction.returnForReview),
             title: headSupervisorText(context, arabic: 'إعادة الطلب للمشرف مع توجيه ملزم', english: 'Return request with a required instruction'),
             detail: headSupervisorText(context, arabic: 'إلزام المشرف بإعادة فحص الطلب وإسناد النطاق الجغرافي خلال مهلة محددة.', english: 'Require the supervisor to review the request and assign its geographic scope within a set period.'),
             badge: headSupervisorText(context, arabic: 'الإجراء الأنسب', english: 'Recommended action'),
-          ),
+          )),
           const SizedBox(height: 8),
-          _ActionChoice(
+          ScrollFx(child: _ActionChoice(
             selected: _action == HeadSupervisorDecisionAction.requestExplanation,
             onTap: () => setState(() =>
                 _action = HeadSupervisorDecisionAction.requestExplanation),
             title: headSupervisorText(context, arabic: 'طلب إفادة تفسيرية إضافية من المشرف', english: 'Request additional explanation'),
             detail: headSupervisorText(context, arabic: 'تجميد اعتماد القرار مؤقتاً ومطالبة المشرف بتوضيح كتابي يشرح سبب اتخاذه.', english: 'Temporarily hold approval and ask the supervisor for a written explanation.'),
-          ),
+          )),
           const SizedBox(height: 8),
-          _ActionChoice(
+          ScrollFx(child: _ActionChoice(
             selected:
                 _action == HeadSupervisorDecisionAction.administrativeWarning,
             onTap: () => setState(() =>
@@ -130,12 +132,12 @@ class _HeadSupervisorRequestReviewScreenState
             title: headSupervisorText(context, arabic: 'توجيه تنبيه إداري ولفت نظر رقابي', english: 'Issue an administrative warning'),
             detail: headSupervisorText(context, arabic: 'تسجيل ملاحظة تدقيق مهني في سجل أداء المشرف لاتخاذ الإجراء المناسب.', english: 'Record an audit note in the supervisor performance log.'),
             warning: true,
-          ),
+          )),
           const SizedBox(height: 14),
-          _SectionHeading(
+          ScrollFx(child: _SectionHeading(
             title: headSupervisorText(context, arabic: 'التوجيه الإداري والمهني للمشرف *', english: 'Administrative instruction for supervisor *'),
             subtitle: headSupervisorText(context, arabic: 'إشعار المشرف فوراً', english: 'Notify supervisor immediately'),
-          ),
+          )),
           const SizedBox(height: 8),
           TextField(
             controller: _guidance,
@@ -146,26 +148,26 @@ class _HeadSupervisorRequestReviewScreenState
             onChanged: (_) => setState(() => _error = null),
             decoration: InputDecoration(
               hintText: headSupervisorText(context, arabic: 'اكتب التوجيه وسبب إعادة مراجعة القرار...', english: 'Enter the instruction and reason for reviewing the decision...'),
-              hintStyle: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+              hintStyle: TextStyle(fontSize: 10, color: AppColors.textMuted),
               errorText: _error,
               filled: true,
-              fillColor: Colors.white,
+              fillColor: AppColors.surface,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(13),
-                borderSide: const BorderSide(color: Color(0xFFE3E7EB)),
+                borderSide: BorderSide(color: AppColors.surfaceHighlight),
               ),
             ),
           ),
           const SizedBox(height: 10),
-          Container(
+          ScrollFx(child: Container(
             padding: const EdgeInsets.all(13),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppColors.surface,
               borderRadius: BorderRadius.circular(14),
             ),
             child: Row(
               children: [
-                const Icon(Icons.folder_open_outlined,
+                MotionIcon(Icons.folder_open_outlined,
                     color: AppColors.textSecondary),
                 const SizedBox(width: 9),
                 Expanded(
@@ -173,27 +175,27 @@ class _HeadSupervisorRequestReviewScreenState
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(headSupervisorText(context, arabic: 'سجل توجيهات المشرف السابقة', english: 'Previous supervisor instructions'),
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
-                              color: AppColors.primaryDark)),
+                              color: AppColors.ink)),
                       Text(headSupervisorText(context, arabic: 'تاريخ قرار المشرف: ${_dateLabel(widget.createdAt, context)}', english: 'Supervisor decision date: ${_dateLabel(widget.createdAt, context)}'),
                           textAlign: TextAlign.right,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 8, color: AppColors.textSecondary)),
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_left, color: AppColors.textSecondary),
+                MotionIcon(Icons.chevron_left, color: AppColors.textSecondary),
               ],
             ),
-          ),
+          )),
           const SizedBox(height: 20),
           SizedBox(
             height: 50,
             child: FilledButton.icon(
               onPressed: _submit,
-              icon: const Icon(Icons.send_outlined, size: 17),
+              icon: const MotionIcon(Icons.send_outlined, size: 17),
               label: Text(
                 headSupervisorText(context, arabic: switch (_action) {
                   HeadSupervisorDecisionAction.returnForReview =>
@@ -224,7 +226,7 @@ class _HeadSupervisorRequestReviewScreenState
             child: TextButton(
               onPressed: () => Navigator.of(context).pop(),
               style: TextButton.styleFrom(
-                backgroundColor: const Color(0xFFE9ECEF),
+                backgroundColor: AppColors.surfaceHighlight,
                 foregroundColor: AppColors.textPrimary,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
@@ -256,17 +258,17 @@ class _ReviewSessionCard extends StatelessWidget {
   Widget build(BuildContext context) => _WhiteCard(
         child: Column(children: [
           Row(children: [
-            const Icon(Icons.shield_outlined,
-                size: 20, color: AppColors.primaryDark),
+            MotionIcon(Icons.shield_outlined,
+                size: 20, color: AppColors.ink),
             const Spacer(),
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
               Text(headSupervisorText(context, arabic: 'رقم الجلسة الرقابية', english: 'Oversight session ID'),
-                  style: const TextStyle(fontSize: 8, color: AppColors.textSecondary)),
+                  style: TextStyle(fontSize: 8, color: AppColors.textSecondary)),
               Text('REV-${requestId.hashCode.abs() % 90000 + 10000}#',
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.primaryDark)),
+                      color: AppColors.ink)),
             ]),
           ]),
           const Divider(height: 18),
@@ -282,12 +284,12 @@ class _ReviewSessionCard extends StatelessWidget {
             ), color: statusColor),
             const Spacer(),
             Text('مرتبط بالطلب: $requestId',
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 9,
                     fontWeight: FontWeight.bold,
                     color: AppColors.textPrimary)),
             const SizedBox(width: 4),
-            const Icon(Icons.assignment_outlined,
+            MotionIcon(Icons.assignment_outlined,
                 size: 14, color: AppColors.textSecondary),
           ]),
         ]),
@@ -322,42 +324,42 @@ class _SupervisorDecisionCard extends StatelessWidget {
             _StatusBadge(label: decisionLabel, color: statusColor),
             const Spacer(),
             Text(supervisor,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
                     color: AppColors.textPrimary)),
             const SizedBox(width: 8),
             CircleAvatar(
               radius: 22,
-              backgroundColor: const Color(0xFFE3EAF3),
-              child: Icon(Icons.person_outline, color: statusColor),
+              backgroundColor: AppColors.surfaceHighlight,
+              child: MotionIcon(Icons.person_outline, color: statusColor),
             ),
           ]),
           const SizedBox(height: 3),
           Text(department,
               textAlign: TextAlign.right,
-              style: const TextStyle(fontSize: 9, color: AppColors.textSecondary)),
+              style: TextStyle(fontSize: 9, color: AppColors.textSecondary)),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFFF0F2F4),
+              color: AppColors.surfaceLight,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Row(mainAxisAlignment: MainAxisAlignment.end, children: [
                 Text(headSupervisorText(context, arabic: 'مسوغ المشرف للقرار', english: 'Supervisor rationale'),
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 9,
                         fontWeight: FontWeight.bold,
                         color: AppColors.textPrimary)),
                 const SizedBox(width: 5),
-                Icon(Icons.format_quote, size: 15, color: statusColor),
+                MotionIcon(Icons.format_quote, size: 15, color: statusColor),
               ]),
               const SizedBox(height: 5),
               Text(reason.isEmpty ? headSupervisorText(context, arabic: 'لم يسجل المشرف سبباً للقرار.', english: 'The supervisor did not provide a reason.') : reason,
                   textAlign: TextAlign.right,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 10,
                       height: 1.55,
                       color: AppColors.textSecondary)),
@@ -384,15 +386,15 @@ class _RequestDetailsCard extends StatelessWidget {
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Text(headSupervisorText(context, arabic: 'تفاصيل الطلب / الإعلان', english: 'Request / ad details'),
               textAlign: TextAlign.right,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF315E9A))),
+                  color: AppColors.infoDark)),
           const SizedBox(height: 8),
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(headSupervisorText(context, arabic: 'القسم', english: 'Department'),
-                  style: const TextStyle(fontSize: 8, color: AppColors.textSecondary)),
+                  style: TextStyle(fontSize: 8, color: AppColors.textSecondary)),
               Text(department,
                   style: const TextStyle(
                       fontSize: 10, fontWeight: FontWeight.bold)),
@@ -403,12 +405,12 @@ class _RequestDetailsCard extends StatelessWidget {
               child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                 Text(title,
                     textAlign: TextAlign.right,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
                         color: AppColors.textPrimary)),
                 Text(headSupervisorText(context, arabic: 'رقم الطلب: $requestId', english: 'Request ID: $requestId'),
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 8, color: AppColors.textSecondary)),
               ]),
             ),
@@ -417,16 +419,16 @@ class _RequestDetailsCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-                color: const Color(0xFFD8EAFE),
+                color: AppColors.infoBorder,
                 borderRadius: BorderRadius.circular(11)),
             child: Row(children: [
-              const Icon(Icons.radar, color: AppColors.primaryDark, size: 18),
+              MotionIcon(Icons.radar, color: AppColors.ink, size: 18),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   headSupervisorText(context, arabic: 'يعرض هذا القسم بيانات الطلب وسبب قرار المشرف المسجل للمراجعة الرقابية.', english: 'This section shows the request and the supervisor decision rationale for oversight review.'),
                   textAlign: TextAlign.right,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 8,
                       height: 1.4,
                       color: AppColors.textSecondary),
@@ -448,12 +450,12 @@ class _SectionHeading extends StatelessWidget {
   Widget build(BuildContext context) => Row(children: [
         if (subtitle != null)
           Text(subtitle!,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 8, color: AppColors.textSecondary)),
         const Spacer(),
         Text(title,
             textAlign: TextAlign.right,
-            style: const TextStyle(
+            style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
                 color: AppColors.textPrimary)),
@@ -479,9 +481,9 @@ class _ActionChoice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = warning ? AppColors.danger : const Color(0xFF315E9A);
+    final color = warning ? AppColors.danger : AppColors.infoDark;
     return Material(
-      color: Colors.white,
+      color: AppColors.surface,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
@@ -489,8 +491,8 @@ class _ActionChoice extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Icon(selected ? Icons.radio_button_checked : Icons.radio_button_off,
-                size: 17, color: selected ? AppColors.primaryDark : AppColors.textMuted),
+            MotionIcon(selected ? Icons.radio_button_checked : Icons.radio_button_off,
+                size: 17, color: selected ? AppColors.ink : AppColors.textMuted),
             const SizedBox(width: 9),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -511,7 +513,7 @@ class _ActionChoice extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(detail,
                     textAlign: TextAlign.right,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 8,
                         height: 1.45,
                         color: AppColors.textSecondary)),
@@ -551,9 +553,9 @@ class _WhiteCard extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE9EDF1)),
+          border: Border.all(color: AppColors.surfaceHighlight),
         ),
         child: child,
       );

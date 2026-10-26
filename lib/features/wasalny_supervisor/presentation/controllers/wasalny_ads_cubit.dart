@@ -1,12 +1,13 @@
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../data/wasalny_local_event_store.dart';
-import '../../../products/domain/entities/product_supervisor_audit_entry.dart';
-import '../../../products/domain/repositories/product_supervisor_audit_repository.dart';
-import '../../domain/entities/wasalny_ad.dart';
-import '../../domain/usecases/get_wasalny_ads_usecase.dart';
-import '../../domain/usecases/update_wasalny_ad_status_usecase.dart';
+import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
+import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
+import 'package:barwah_app/features/products/domain/entities/product_supervisor_audit_entry.dart';
+import 'package:barwah_app/features/products/domain/repositories/product_supervisor_audit_repository.dart';
+import 'package:barwah_app/features/wasalny_supervisor/domain/entities/wasalny_ad.dart';
+import 'package:barwah_app/features/wasalny_supervisor/domain/usecases/get_wasalny_ads_usecase.dart';
+import 'package:barwah_app/features/wasalny_supervisor/domain/usecases/update_wasalny_ad_status_usecase.dart';
 
 sealed class WasalnyAdsState {
   const WasalnyAdsState();
@@ -47,8 +48,8 @@ class WasalnyAdsCubit extends Cubit<WasalnyAdsState> {
           item.status == WasalnyAdStatus.pending ||
           item.status == WasalnyAdStatus.awaitingApproval)) {
         try {
-          await WasalnyLocalEventStore().publish(
-            WasalnyLocalEvent(
+          await LocalEventStore().publish(
+            LocalEvent(
               id: 'wasalny-new-ad-${ad.id}',
               recipient: 'wasalny',
               source: 'wasalny',

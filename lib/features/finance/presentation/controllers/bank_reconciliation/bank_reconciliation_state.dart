@@ -1,4 +1,4 @@
-import '../../../domain/entities/bank_link_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/bank_link_request_entity.dart';
 
 class BankReconciliationState {
   final List<BankLinkRequestEntity> requests;

@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/di/injection_container.dart';
-import '../../../../core/widgets/app_snack_bar.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../data/merchant_supervisor_local_store.dart';
-import '../../domain/entities/merchant_entity.dart';
-import '../../domain/entities/supervisor_stats_entity.dart';
-import '../controllers/merchants_cubit.dart';
-import '../controllers/merchants_state.dart';
-import 'merchant_details_screen.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/widgets/app_snack_bar.dart';
+import 'package:barwah_app/features/merchants/data/datasources/merchant_supervisor_local_store.dart';
+import 'package:barwah_app/features/merchants/domain/entities/merchant_entity.dart';
+import 'package:barwah_app/features/merchants/domain/entities/supervisor_stats_entity.dart';
+import 'package:barwah_app/features/merchants/presentation/controllers/merchants_cubit.dart';
+import 'package:barwah_app/features/merchants/presentation/controllers/merchants_state.dart';
+import 'package:barwah_app/features/merchants/presentation/screens/merchant_details_screen.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class SupervisedMerchantsScreen extends StatelessWidget {
   const SupervisedMerchantsScreen({super.key});
@@ -105,8 +108,8 @@ class _SupervisedMerchantsContentState
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
         return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(
+            color: AppColors.surface,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           padding: EdgeInsets.only(
@@ -124,7 +127,7 @@ class _SupervisedMerchantsContentState
                   width: 44,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.grey[300],
+                    color: AppColors.cardBorder,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -138,9 +141,9 @@ class _SupervisedMerchantsContentState
                       color: AppColors.primaryDark.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(
+                    child: MotionIcon(
                       Icons.storefront_outlined,
-                      color: AppColors.primaryDark,
+                      color: AppColors.ink,
                       size: 22,
                     ),
                   ),
@@ -151,10 +154,10 @@ class _SupervisedMerchantsContentState
                       children: [
                         Text(
                           l10n.addNewMerchantToSupervision,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 17,
                             fontWeight: FontWeight.bold,
-                            color: AppColors.primaryDark,
+                            color: AppColors.ink,
                           ),
                         ),
                         const SizedBox(height: 2),
@@ -162,7 +165,7 @@ class _SupervisedMerchantsContentState
                           l10n.supervisedAreaLabel,
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.grey[600],
+                            color: AppColors.textSecondary,
                           ),
                         ),
                       ],
@@ -176,7 +179,7 @@ class _SupervisedMerchantsContentState
                 decoration: InputDecoration(
                   labelText: l10n.merchantNameField,
                   hintText: 'مثال: شركة الرواد للتجارة',
-                  prefixIcon: const Icon(Icons.business_outlined, size: 20),
+                  prefixIcon: const MotionIcon(Icons.business_outlined, size: 20),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -189,7 +192,7 @@ class _SupervisedMerchantsContentState
                 decoration: InputDecoration(
                   labelText: l10n.merchantCrField,
                   hintText: '1010XXXXXX',
-                  prefixIcon: const Icon(Icons.badge_outlined, size: 20),
+                  prefixIcon: const MotionIcon(Icons.badge_outlined, size: 20),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -202,7 +205,7 @@ class _SupervisedMerchantsContentState
                 decoration: InputDecoration(
                   labelText: l10n.merchantPhoneField,
                   hintText: '+966 5X XXX XXXX',
-                  prefixIcon: const Icon(Icons.phone_outlined, size: 20),
+                  prefixIcon: const MotionIcon(Icons.phone_outlined, size: 20),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -247,13 +250,13 @@ class _SupervisedMerchantsContentState
     final cubit = context.read<MerchantsCubit>();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F4F6),
+      backgroundColor: AppColors.scaffold,
       appBar: _buildCustomAppBar(context, l10n),
       body: BlocBuilder<MerchantsCubit, MerchantsState>(
         builder: (context, state) {
           if (state is MerchantsLoading) {
-            return const Center(
-              child: CircularProgressIndicator(color: AppColors.primaryDark),
+            return Center(
+              child: CircularProgressIndicator(color: AppColors.ink),
             );
           }
 
@@ -262,7 +265,7 @@ class _SupervisedMerchantsContentState
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.error_outline,
+                  MotionIcon(Icons.error_outline,
                       color: AppColors.dangerDark, size: 48),
                   const SizedBox(height: 12),
                   Text(
@@ -319,7 +322,7 @@ class _SupervisedMerchantsContentState
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       // Top Supervision Scope Strip
-                      _buildSupervisionScopeStrip(context, stats, l10n),
+                      ScrollFx(child: _buildSupervisionScopeStrip(context, stats, l10n)),
                       const SizedBox(height: 14),
 
                       // Field Accounts Overview Card
@@ -327,26 +330,26 @@ class _SupervisedMerchantsContentState
                       const SizedBox(height: 16),
 
                       // Search Bar
-                      _buildSearchBar(context, cubit, l10n),
+                      ScrollFx(child: _buildSearchBar(context, cubit, l10n)),
                       const SizedBox(height: 12),
 
                       // Filter Chips Row
-                      _buildFilterChipsRow(
+                      ScrollFx(child: _buildFilterChipsRow(
                         context,
                         stats,
                         cubit,
                         l10n,
                         suspendedCount:
                             state.allMerchants.where(_isSuspended).length,
-                      ),
+                      )),
                       const SizedBox(height: 14),
                       if (isSuspendedFilter) ...[
                         Align(
                           alignment: AlignmentDirectional.centerStart,
                           child: Text(
                             l10n.merchantSuspendedSection,
-                            style: const TextStyle(
-                              color: AppColors.primaryDark,
+                            style: TextStyle(
+                              color: AppColors.ink,
                               fontSize: 15,
                               fontWeight: FontWeight.bold,
                             ),
@@ -356,7 +359,7 @@ class _SupervisedMerchantsContentState
                       ],
 
                       // Sort & Result Count Header
-                      _buildSortHeader(context, merchants.length, l10n),
+                      ScrollFx(child: _buildSortHeader(context, merchants.length, l10n)),
                       const SizedBox(height: 10),
 
                       // Merchants List
@@ -415,13 +418,13 @@ class _SupervisedMerchantsContentState
   PreferredSizeWidget _buildCustomAppBar(
       BuildContext context, AppLocalizations l10n) {
     return AppBar(
-      backgroundColor: Colors.white,
-      foregroundColor: AppColors.primaryDark,
+      backgroundColor: AppColors.surface,
+      foregroundColor: AppColors.ink,
       elevation: 0,
       centerTitle: false,
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back,
-            color: AppColors.primaryDark, size: 22),
+        icon: MotionIcon(Icons.arrow_back,
+            color: AppColors.ink, size: 22),
         onPressed: () => Navigator.of(context).maybePop(),
       ),
       title: Column(
@@ -437,10 +440,10 @@ class _SupervisedMerchantsContentState
                   l10n.supervisedMerchantsBadge,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
-                    color: AppColors.primaryDark,
+                    color: AppColors.ink,
                     letterSpacing: 0.3,
                   ),
                 ),
@@ -450,10 +453,10 @@ class _SupervisedMerchantsContentState
           const SizedBox(height: 2),
           Text(
             l10n.merchantsUnderSupervisionTitle,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: AppColors.primaryDark,
+              color: AppColors.ink,
             ),
           ),
         ],
@@ -461,7 +464,7 @@ class _SupervisedMerchantsContentState
       actions: [
         IconButton(
           icon:
-              const Icon(Icons.search, color: AppColors.primaryDark, size: 22),
+              MotionIcon(Icons.search, color: AppColors.ink, size: 22),
           onPressed: () {},
         ),
       ],
@@ -473,25 +476,27 @@ class _SupervisedMerchantsContentState
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
+        gradient: AppColors.blueFill,
+        boxShadow: AppColors.blueGlow,
         color: AppColors.primaryDark,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFF1E2D4A)),
+        border: Border.all(color: AppColors.infoDark),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: const Color(0xFF0284C7).withValues(alpha: 0.2),
+              color: AppColors.info.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: const Color(0xFF38BDF8).withValues(alpha: 0.4),
+                color: AppColors.info.withValues(alpha: 0.4),
               ),
             ),
             child: Text(
               stats.supervisorCode,
-              style: const TextStyle(
-                color: Color(0xFF38BDF8),
+              style: TextStyle(
+                color: AppColors.info,
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
               ),
@@ -515,8 +520,8 @@ class _SupervisedMerchantsContentState
                 const SizedBox(height: 2),
                 Text(
                   l10n.supervisorFullName,
-                  style: const TextStyle(
-                    color: Color(0xFF94A3B8),
+                  style: TextStyle(
+                    color: AppColors.textMuted,
                     fontSize: 11.5,
                   ),
                   maxLines: 1,
@@ -535,6 +540,7 @@ class _SupervisedMerchantsContentState
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
+        gradient: AppColors.blueFill,
         color: AppColors.primaryDark,
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
@@ -544,16 +550,16 @@ class _SupervisedMerchantsContentState
             offset: const Offset(0, 4),
           ),
         ],
-        border: Border.all(color: const Color(0xFF1E2D4A)),
+        border: Border.all(color: AppColors.infoDark),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              const Icon(
+              MotionIcon(
                 Icons.folder_shared_outlined,
-                color: Color(0xFF38BDF8),
+                color: AppColors.info,
                 size: 18,
               ),
               const SizedBox(width: 8),
@@ -562,8 +568,8 @@ class _SupervisedMerchantsContentState
                   l10n.totalFieldAccountsTitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Color(0xFFCBD5E1),
+                  style: TextStyle(
+                    color: AppColors.infoBorder,
                     fontSize: 13.5,
                     fontWeight: FontWeight.w600,
                   ),
@@ -579,7 +585,7 @@ class _SupervisedMerchantsContentState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    CountText(
                       '${stats.totalCount}',
                       style: const TextStyle(
                         color: Colors.white,
@@ -591,8 +597,8 @@ class _SupervisedMerchantsContentState
                     const SizedBox(height: 2),
                     Text(
                       l10n.merchantsUnderYourSupervision,
-                      style: const TextStyle(
-                        color: Color(0xFF94A3B8),
+                      style: TextStyle(
+                        color: AppColors.textMuted,
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
                       ),
@@ -612,9 +618,9 @@ class _SupervisedMerchantsContentState
                           value: stats.compliancePercentage / 100,
                           strokeWidth: 6,
                           backgroundColor: Colors.white.withValues(alpha: 0.12),
-                          color: const Color(0xFF10B981),
+                          color: AppColors.success,
                         ),
-                        Text(
+                        CountText(
                           '${stats.compliancePercentage}%',
                           style: const TextStyle(
                             color: Colors.white,
@@ -628,8 +634,8 @@ class _SupervisedMerchantsContentState
                   const SizedBox(height: 6),
                   Text(
                     l10n.complianceRate,
-                    style: const TextStyle(
-                      color: Color(0xFF94A3B8),
+                    style: TextStyle(
+                      color: AppColors.textMuted,
                       fontSize: 11.5,
                       fontWeight: FontWeight.w500,
                     ),
@@ -645,7 +651,7 @@ class _SupervisedMerchantsContentState
             children: [
               Expanded(
                 child: _buildOverviewMiniBlock(
-                  color: const Color(0xFF10B981),
+                  color: AppColors.success,
                   count: stats.activeVerifiedCount,
                   label: l10n.activeAndVerifiedMetric,
                 ),
@@ -653,7 +659,7 @@ class _SupervisedMerchantsContentState
               const SizedBox(width: 8),
               Expanded(
                 child: _buildOverviewMiniBlock(
-                  color: const Color(0xFFF59E0B),
+                  color: AppColors.warning,
                   count: stats.pendingAlertsCount,
                   label: l10n.pendingAlertsMetric,
                 ),
@@ -661,7 +667,7 @@ class _SupervisedMerchantsContentState
               const SizedBox(width: 8),
               Expanded(
                 child: _buildOverviewMiniBlock(
-                  color: const Color(0xFFEF4444),
+                  color: AppColors.danger,
                   count: stats.suspendedCount,
                   label: l10n.temporarySuspendedMetric,
                 ),
@@ -681,7 +687,9 @@ class _SupervisedMerchantsContentState
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF0F1E36),
+        gradient: AppColors.blueFill,
+        boxShadow: AppColors.blueGlow,
+        color: AppColors.primaryDark,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
       ),
@@ -699,7 +707,7 @@ class _SupervisedMerchantsContentState
                 ),
               ),
               const SizedBox(width: 6),
-              Text(
+              CountText(
                 '$count',
                 style: const TextStyle(
                   color: Colors.white,
@@ -712,8 +720,8 @@ class _SupervisedMerchantsContentState
           const SizedBox(height: 4),
           Text(
             label,
-            style: const TextStyle(
-              color: Color(0xFF94A3B8),
+            style: TextStyle(
+              color: AppColors.textMuted,
               fontSize: 11,
               fontWeight: FontWeight.w500,
             ),
@@ -729,9 +737,9 @@ class _SupervisedMerchantsContentState
       BuildContext context, MerchantsCubit cubit, AppLocalizations l10n) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: AppColors.cardBorder),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.02),
@@ -748,19 +756,19 @@ class _SupervisedMerchantsContentState
         },
         decoration: InputDecoration(
           hintText: l10n.searchMerchantPlaceholder,
-          hintStyle: const TextStyle(
-            color: Color(0xFF94A3B8),
+          hintStyle: TextStyle(
+            color: AppColors.textMuted,
             fontSize: 13,
           ),
-          prefixIcon: const Icon(
+          prefixIcon: MotionIcon(
             Icons.search,
-            color: Color(0xFF64748B),
+            color: AppColors.textSecondary,
             size: 20,
           ),
           suffixIcon: _searchController.text.isNotEmpty
               ? IconButton(
-                  icon: const Icon(Icons.clear, size: 18),
-                  color: const Color(0xFF64748B),
+                  icon: const MotionIcon(Icons.clear, size: 18),
+                  color: AppColors.textSecondary,
                   onPressed: () {
                     _searchController.clear();
                     cubit.searchMerchants('');
@@ -783,15 +791,15 @@ class _SupervisedMerchantsContentState
       {'label': l10n.filterAllWithCount(stats.totalCount), 'color': null},
       {
         'label': l10n.filterActiveWithCount(stats.activeVerifiedCount),
-        'color': const Color(0xFF10B981)
+        'color': AppColors.success
       },
       {
         'label': l10n.filterPendingWithCount(stats.pendingAlertsCount),
-        'color': const Color(0xFFF59E0B)
+        'color': AppColors.warning
       },
       {
         'label': l10n.filterSuspendedWithCount(suspendedCount),
-        'color': const Color(0xFFEF4444)
+        'color': AppColors.danger
       },
     ];
 
@@ -829,11 +837,11 @@ class _SupervisedMerchantsContentState
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
-            color: isSelected ? AppColors.primaryDark : Colors.white,
+            color: isSelected ? AppColors.primaryDark : AppColors.surface,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
               color:
-                  isSelected ? AppColors.primaryDark : const Color(0xFFCBD5E1),
+                  isSelected ? AppColors.primaryDark : AppColors.infoBorder,
             ),
             boxShadow: isSelected
                 ? [
@@ -862,7 +870,7 @@ class _SupervisedMerchantsContentState
               Text(
                 label,
                 style: TextStyle(
-                  color: isSelected ? Colors.white : const Color(0xFF334155),
+                  color: isSelected ? Colors.white : AppColors.infoDark,
                   fontSize: 12.5,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                 ),
@@ -882,10 +890,10 @@ class _SupervisedMerchantsContentState
         Expanded(
           child: Row(
             children: [
-              const Icon(
+              MotionIcon(
                 Icons.swap_vert,
                 size: 18,
-                color: Color(0xFF64748B),
+                color: AppColors.textSecondary,
               ),
               const SizedBox(width: 4),
               Flexible(
@@ -893,8 +901,8 @@ class _SupervisedMerchantsContentState
                   l10n.sortMostActive,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Color(0xFF64748B),
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
                   ),
@@ -906,8 +914,8 @@ class _SupervisedMerchantsContentState
         const SizedBox(width: 8),
         Text(
           '($count تاجر)',
-          style: const TextStyle(
-            color: Color(0xFF94A3B8),
+          style: TextStyle(
+            color: AppColors.textMuted,
             fontSize: 12,
           ),
         ),
@@ -919,24 +927,24 @@ class _SupervisedMerchantsContentState
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: AppColors.cardBorder),
       ),
       child: Column(
         children: [
-          const Icon(
+          MotionIcon(
             Icons.storefront_outlined,
             size: 48,
-            color: Color(0xFF94A3B8),
+            color: AppColors.textMuted,
           ),
           const SizedBox(height: 12),
           Text(
             l10n.noMerchantsFound,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w600,
-              color: Color(0xFF475569),
+              color: AppColors.textSecondary,
             ),
           ),
         ],
@@ -956,11 +964,11 @@ class _SupervisedMerchantsContentState
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color:
-              isSuspended ? const Color(0xFFFCA5A5) : const Color(0xFFE2E8F0),
+              isSuspended ? AppColors.danger : AppColors.cardBorder,
         ),
         boxShadow: [
           BoxShadow(
@@ -980,13 +988,13 @@ class _SupervisedMerchantsContentState
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
+                  color: AppColors.surfaceLight,
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   merchant.getCode(),
-                  style: const TextStyle(
-                    color: Color(0xFF334155),
+                  style: TextStyle(
+                    color: AppColors.infoDark,
                     fontSize: 11.5,
                     fontWeight: FontWeight.bold,
                   ),
@@ -1002,8 +1010,8 @@ class _SupervisedMerchantsContentState
           const SizedBox(height: 10),
           Text(
             merchant.getName(isArabic),
-            style: const TextStyle(
-              color: AppColors.primaryDark,
+            style: TextStyle(
+              color: AppColors.ink,
               fontSize: 15.5,
               fontWeight: FontWeight.bold,
             ),
@@ -1016,8 +1024,8 @@ class _SupervisedMerchantsContentState
           const SizedBox(height: 4),
           Text(
             '${merchant.getLocation(isArabic)} • ${merchant.getDelegateName(isArabic)}',
-            style: const TextStyle(
-              color: Color(0xFF64748B),
+            style: TextStyle(
+              color: AppColors.textSecondary,
               fontSize: 12,
             ),
           ),
@@ -1026,23 +1034,23 @@ class _SupervisedMerchantsContentState
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFFBEB),
+                color: AppColors.warningLight,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFFDE68A)),
+                border: Border.all(color: AppColors.warningBorder),
               ),
               child: Row(
                 children: [
-                  const Icon(
+                  MotionIcon(
                     Icons.warning_amber_rounded,
-                    color: Color(0xFFD97706),
+                    color: AppColors.warning,
                     size: 18,
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       merchant.financialWithdrawalAlert!,
-                      style: const TextStyle(
-                        color: Color(0xFFB45309),
+                      style: TextStyle(
+                        color: AppColors.warningDark,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
@@ -1057,23 +1065,23 @@ class _SupervisedMerchantsContentState
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: const Color(0xFFEFF6FF),
+                color: AppColors.infoLight,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFBFDBFE)),
+                border: Border.all(color: AppColors.infoBorder),
               ),
               child: Row(
                 children: [
-                  const Icon(
+                  MotionIcon(
                     Icons.info_outline,
-                    color: Color(0xFF2563EB),
+                    color: AppColors.info,
                     size: 18,
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       merchant.violationNotice!,
-                      style: const TextStyle(
-                        color: Color(0xFF1D4ED8),
+                      style: TextStyle(
+                        color: AppColors.info,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
@@ -1088,16 +1096,16 @@ class _SupervisedMerchantsContentState
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFFFEF2F2),
+                color: AppColors.dangerLight,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFFECACA)),
+                border: Border.all(color: AppColors.dangerBorder),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(
+                  MotionIcon(
                     Icons.report_problem_outlined,
-                    color: Color(0xFFDC2626),
+                    color: AppColors.danger,
                     size: 20,
                   ),
                   const SizedBox(width: 8),
@@ -1107,8 +1115,8 @@ class _SupervisedMerchantsContentState
                       children: [
                         Text(
                           l10n.descriptionStandardsViolation,
-                          style: const TextStyle(
-                            color: Color(0xFFB91C1C),
+                          style: TextStyle(
+                            color: AppColors.dangerDark,
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
                           ),
@@ -1116,8 +1124,8 @@ class _SupervisedMerchantsContentState
                         const SizedBox(height: 2),
                         Text(
                           l10n.zeroAdsDisplayedSuspended,
-                          style: const TextStyle(
-                            color: Color(0xFFEF4444),
+                          style: TextStyle(
+                            color: AppColors.danger,
                             fontSize: 11.5,
                           ),
                         ),
@@ -1136,8 +1144,8 @@ class _SupervisedMerchantsContentState
                   value: '${merchant.activeAdsCount ?? merchant.adsCount}',
                   label: l10n.activeAdsHeader,
                   valueColor: isSuspended
-                      ? const Color(0xFF94A3B8)
-                      : const Color(0xFF0F172A),
+                      ? AppColors.textMuted
+                      : AppColors.textPrimary,
                 ),
               ),
               const SizedBox(width: 8),
@@ -1146,8 +1154,8 @@ class _SupervisedMerchantsContentState
                   value: '${merchant.pendingReviewCount ?? 0}',
                   label: l10n.pendingReviewHeader,
                   valueColor: (merchant.pendingReviewCount ?? 0) > 0
-                      ? const Color(0xFFD97706)
-                      : const Color(0xFF0F172A),
+                      ? AppColors.warning
+                      : AppColors.textPrimary,
                 ),
               ),
               const SizedBox(width: 8),
@@ -1162,8 +1170,8 @@ class _SupervisedMerchantsContentState
                           ? 'التسليم: ${merchant.deliveryStatus}'
                           : l10n.deliveryStatusFieldInspection),
                   valueColor: isSuspended
-                      ? const Color(0xFFDC2626)
-                      : const Color(0xFF0F172A),
+                      ? AppColors.danger
+                      : AppColors.textPrimary,
                 ),
               ),
             ],
@@ -1207,17 +1215,17 @@ class _SupervisedMerchantsContentState
 
   Widget _merchantTierBadge(AppLocalizations l10n, bool isFeatured) {
     final color =
-        isFeatured ? const Color(0xFF9A6700) : AppColors.textSecondary;
+        isFeatured ? AppColors.warningDark : AppColors.textSecondary;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: isFeatured ? const Color(0xFFFFF4CC) : const Color(0xFFF1F3F5),
+        color: isFeatured ? AppColors.warningBorder : AppColors.surfaceLight,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
+          MotionIcon(
             isFeatured ? Icons.star : Icons.storefront_outlined,
             size: 12,
             color: color,
@@ -1246,24 +1254,24 @@ class _SupervisedMerchantsContentState
     String label;
 
     if (isSuspended) {
-      bg = const Color(0xFFFEF2F2);
-      border = const Color(0xFFFECACA);
-      text = const Color(0xFFDC2626);
+      bg = AppColors.dangerLight;
+      border = AppColors.dangerBorder;
+      text = AppColors.danger;
       label = l10n.temporarySuspendedMetric;
     } else if (hasFinancialAlert) {
-      bg = const Color(0xFFFFFBEB);
-      border = const Color(0xFFFDE68A);
-      text = const Color(0xFFD97706);
+      bg = AppColors.warningLight;
+      border = AppColors.warningBorder;
+      text = AppColors.warning;
       label = 'تنبيه مالي';
     } else if (hasSupervisoryNote) {
-      bg = const Color(0xFFEFF6FF);
-      border = const Color(0xFFBFDBFE);
-      text = const Color(0xFF2563EB);
+      bg = AppColors.infoLight;
+      border = AppColors.infoBorder;
+      text = AppColors.info;
       label = 'ملاحظة إشرافية';
     } else {
-      bg = const Color(0xFFECFDF5);
-      border = const Color(0xFFA7F3D0);
-      text = const Color(0xFF059669);
+      bg = AppColors.successLight;
+      border = AppColors.successBorder;
+      text = AppColors.success;
       label = l10n.activeAndVerifiedMetric;
     }
 
@@ -1295,13 +1303,13 @@ class _SupervisedMerchantsContentState
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: AppColors.background,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: AppColors.surfaceLight),
       ),
       child: Column(
         children: [
-          Text(
+          FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart, child: CountText(
             value,
             style: TextStyle(
               color: valueColor,
@@ -1309,13 +1317,13 @@ class _SupervisedMerchantsContentState
               fontWeight: FontWeight.bold,
             ),
             maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
+ softWrap: false,
+          )),
           const SizedBox(height: 2),
           Text(
             label,
-            style: const TextStyle(
-              color: Color(0xFF64748B),
+            style: TextStyle(
+              color: AppColors.textSecondary,
               fontSize: 10.5,
             ),
             maxLines: 1,
@@ -1335,9 +1343,9 @@ class _SupervisedMerchantsContentState
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: AppColors.cardBorder),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.02),
@@ -1359,8 +1367,8 @@ class _SupervisedMerchantsContentState
                       left: 0,
                       child: CircleAvatar(
                         radius: 16,
-                        backgroundColor: const Color(0xFF0F172A),
-                        child: Text(
+                        backgroundColor: AppColors.primaryDark,
+                        child: CountText(
                           '+$remainingCount',
                           style: const TextStyle(
                             color: Colors.white,
@@ -1370,21 +1378,21 @@ class _SupervisedMerchantsContentState
                         ),
                       ),
                     ),
-                    const Positioned(
+                    Positioned(
                       left: 20,
                       child: CircleAvatar(
                         radius: 16,
-                        backgroundColor: Color(0xFF0284C7),
-                        child: Icon(Icons.store, size: 16, color: Colors.white),
+                        backgroundColor: AppColors.info,
+                        child: MotionIcon(Icons.store, size: 16, color: Colors.white),
                       ),
                     ),
-                    const Positioned(
+                    Positioned(
                       left: 40,
                       child: CircleAvatar(
                         radius: 16,
                         backgroundColor: AppColors.primaryDark,
                         child:
-                            Icon(Icons.verified, size: 16, color: Colors.white),
+                            MotionIcon(Icons.verified, size: 16, color: Colors.white),
                       ),
                     ),
                   ],
@@ -1397,8 +1405,8 @@ class _SupervisedMerchantsContentState
                   children: [
                     Text(
                       l10n.remainingMerchantsTitle,
-                      style: const TextStyle(
-                        color: AppColors.primaryDark,
+                      style: TextStyle(
+                        color: AppColors.ink,
                         fontSize: 13.5,
                         fontWeight: FontWeight.bold,
                       ),
@@ -1406,8 +1414,8 @@ class _SupervisedMerchantsContentState
                     const SizedBox(height: 2),
                     Text(
                       l10n.remainingMerchantsSubtitle,
-                      style: const TextStyle(
-                        color: Color(0xFF64748B),
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
                         fontSize: 11.5,
                       ),
                     ),
@@ -1420,8 +1428,8 @@ class _SupervisedMerchantsContentState
           OutlinedButton(
             onPressed: onToggle,
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.primaryDark,
-              side: const BorderSide(color: Color(0xFFCBD5E1)),
+              foregroundColor: AppColors.ink,
+              side: BorderSide(color: AppColors.infoBorder),
               padding: const EdgeInsets.symmetric(vertical: 10),
               minimumSize: const Size.fromHeight(42),
               shape: RoundedRectangleBorder(
@@ -1444,7 +1452,7 @@ class _SupervisedMerchantsContentState
                   ),
                 ),
                 const SizedBox(width: 6),
-                const Icon(Icons.keyboard_arrow_down, size: 18),
+                const MotionIcon(Icons.keyboard_arrow_down, size: 18),
               ],
             ),
           ),
@@ -1458,9 +1466,9 @@ class _SupervisedMerchantsContentState
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: AppColors.cardBorder),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1468,12 +1476,15 @@ class _SupervisedMerchantsContentState
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
+              gradient: AppColors.blueFill,
+              border: AppColors.blueEdge,
+              boxShadow: AppColors.blueGlow,
               color: AppColors.primaryDark,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(
+            child: MotionIcon(
               Icons.shield,
-              color: Color(0xFF38BDF8),
+              color: AppColors.info,
               size: 20,
             ),
           ),
@@ -1484,8 +1495,8 @@ class _SupervisedMerchantsContentState
               children: [
                 Text(
                   l10n.fieldGovernanceCardTitle,
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
+                  style: TextStyle(
+                    color: AppColors.ink,
                     fontSize: 13.5,
                     fontWeight: FontWeight.bold,
                   ),
@@ -1493,8 +1504,8 @@ class _SupervisedMerchantsContentState
                 const SizedBox(height: 4),
                 Text(
                   l10n.fieldGovernanceCardBody,
-                  style: const TextStyle(
-                    color: Color(0xFF64748B),
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
                     fontSize: 11.5,
                     height: 1.4,
                   ),
@@ -1534,7 +1545,7 @@ class _SupervisedMerchantsContentState
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.add, size: 20, color: Colors.white),
+            const MotionIcon(Icons.add, size: 20, color: Colors.white),
             const SizedBox(width: 8),
             Flexible(
               child: Text(

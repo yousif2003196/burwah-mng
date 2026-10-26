@@ -3,17 +3,20 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/di/injection_container.dart';
-import '../../../../core/widgets/app_snack_bar.dart';
-import '../../../../features/finance/domain/entities/withdrawal_request_entity.dart';
-import '../../../../features/finance/domain/repositories/finance_repository.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../data/merchant_supervisor_local_store.dart';
-import '../../domain/entities/merchant_entity.dart';
-import '../../domain/usecases/get_merchants_usecase.dart';
-import 'merchant_details_screen.dart';
-import '../../../wasalny_supervisor/data/wasalny_local_event_store.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/widgets/app_snack_bar.dart';
+import 'package:barwah_app/features/finance/domain/entities/withdrawal_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/repositories/finance_repository.dart';
+import 'package:barwah_app/features/merchants/data/datasources/merchant_supervisor_local_store.dart';
+import 'package:barwah_app/features/merchants/domain/entities/merchant_entity.dart';
+import 'package:barwah_app/features/merchants/domain/usecases/get_merchants_usecase.dart';
+import 'package:barwah_app/features/merchants/presentation/screens/merchant_details_screen.dart';
+import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
+import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class MerchantUpgradeRequestsScreen extends StatefulWidget {
   const MerchantUpgradeRequestsScreen({super.key});
@@ -241,8 +244,8 @@ class _MerchantUpgradeRequestsScreenState
       );
       final failure = result.fold((failure) => failure, (_) => null);
       if (failure != null) throw StateError(failure.message);
-      await WasalnyLocalEventStore().publish(
-        WasalnyLocalEvent(
+      await LocalEventStore().publish(
+        LocalEvent(
           id: 'finance-new-merchant-upgrade-${request.id}',
           recipient: 'finance',
           source: 'merchant',
@@ -364,7 +367,7 @@ class _MerchantUpgradeRequestsScreenState
                 hintText: isArabic
                     ? 'ابحث باسم التاجر أو رقم الطلب'
                     : 'Search merchant or request number',
-                prefixIcon: const Icon(Icons.search_rounded, size: 19),
+                prefixIcon: const MotionIcon(Icons.search_rounded, size: 19),
                 suffixIcon: _searchQuery.isEmpty
                     ? null
                     : IconButton(
@@ -373,18 +376,18 @@ class _MerchantUpgradeRequestsScreenState
                           _searchController.clear();
                           setState(() => _searchQuery = '');
                         },
-                        icon: const Icon(Icons.close_rounded, size: 18),
+                        icon: const MotionIcon(Icons.close_rounded, size: 18),
                       ),
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: AppColors.surface,
                 contentPadding: const EdgeInsets.symmetric(vertical: 10),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
+                  borderSide: BorderSide(color: AppColors.cardBorder),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
+                  borderSide: BorderSide(color: AppColors.cardBorder),
                 ),
               ),
             ),
@@ -441,28 +444,28 @@ class _MerchantUpgradeRequestsScreenState
                     isArabic ? request.package : request.packageEn;
                 return Card(
                   margin: const EdgeInsets.only(bottom: 12),
-                  color: Colors.white,
+                  color: AppColors.surface,
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Row(children: [
-                          const Icon(Icons.storefront_outlined,
-                              color: AppColors.primaryDark),
+                          MotionIcon(Icons.storefront_outlined,
+                              color: AppColors.ink),
                           const SizedBox(width: 10),
                           Expanded(
                               child: Text(merchantName,
                                   style: const TextStyle(
                                       fontWeight: FontWeight.bold))),
                           Text(request.id,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   color: AppColors.textSecondary,
                                   fontSize: 11)),
                         ]),
                         const SizedBox(height: 10),
                         Text(
-                            '$packageName • ${request.amount.toStringAsFixed(0)} ${isArabic ? 'ر.س' : 'SAR'}'),
+                            '$packageName • ${request.amount.toStringAsFixed(0)} ${isArabic ? 'ج.م' : 'EGP'}'),
                         const SizedBox(height: 12),
                         OutlinedButton.icon(
                           onPressed: _merchants[request.merchantId] == null
@@ -473,7 +476,7 @@ class _MerchantUpgradeRequestsScreenState
                                         merchant:
                                             _merchants[request.merchantId]!),
                                   )),
-                          icon: const Icon(Icons.manage_search_outlined,
+                          icon: const MotionIcon(Icons.manage_search_outlined,
                               size: 18),
                           label: Text(_copy(
                               l10n,
@@ -514,12 +517,12 @@ class _MerchantUpgradeRequestsScreenState
                   ),
                 );
               }),
-            Padding(
+            ScrollFx(child: Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(_copy(l10n, 'notice'),
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: AppColors.textSecondary, fontSize: 11)),
-            ),
+            )),
           ],
         ),
       ),

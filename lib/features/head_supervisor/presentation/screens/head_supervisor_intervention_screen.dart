@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../head_supervisor_text.dart';
-import '../../../wasalny_supervisor/data/wasalny_local_event_store.dart';
-import 'head_supervisor_request_decision_sheet.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/theme/app_palette.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/utils/head_supervisor_text.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_supervisor_request_decision_sheet.dart';
+import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
+import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class HeadSupervisorInterventionScreen extends StatefulWidget {
   final String eventId;
@@ -15,6 +20,7 @@ class HeadSupervisorInterventionScreen extends StatefulWidget {
   final String supervisorDecision;
   final String recipient;
   final DateTime createdAt;
+  final bool allowRefunds;
 
   const HeadSupervisorInterventionScreen({
     super.key,
@@ -27,6 +33,7 @@ class HeadSupervisorInterventionScreen extends StatefulWidget {
     required this.supervisorDecision,
     required this.recipient,
     required this.createdAt,
+    this.allowRefunds = true,
   });
 
   @override
@@ -38,8 +45,7 @@ class _HeadSupervisorInterventionScreenState
     extends State<HeadSupervisorInterventionScreen> {
   final _guidance = TextEditingController();
   final _basis = TextEditingController();
-  HeadSupervisorDecisionAction _action =
-      HeadSupervisorDecisionAction.returnFullRefund;
+  late HeadSupervisorDecisionAction _action;
   bool _guidanceSent = false;
   bool _sendingGuidance = false;
   String? _error;
@@ -54,7 +60,7 @@ class _HeadSupervisorInterventionScreenState
     (
       HeadSupervisorDecisionAction.partialCompensation,
       'إلزام البائع بتعويض جزئي (15%) واستلام السلعة',
-      'استقطاع مبلغ 1,267.50 ر.س من قيمة الصفقة وإيداعه للمشتري مقابل قبول الخدش، وتحويل المبلغ المتبقي للبائع.',
+      'استقطاع مبلغ 1,267.50 ج.م من قيمة الصفقة وإيداعه للمشتري مقابل قبول الخدش، وتحويل المبلغ المتبقي للبائع.',
       'تعويض جزئي عن العيب المثبت مع إتمام الصفقة بموافقة المشتري.',
     ),
     (
@@ -69,12 +75,32 @@ class _HeadSupervisorInterventionScreenState
       'تجميد الحساب لمدة 14 يوماً ورفع مذكرة اشتباه احتيال وتضليل تجاري للمدير العام.',
       'إحالة الملف للتحقيق النظامي وحفظ كافة الأدلة والمراسلات.',
     ),
+    (
+      HeadSupervisorDecisionAction.escalateToAdmin,
+      'تصعيد الملف إلى الأدمن لاتخاذ القرار النهائي',
+      'رفع الملف كاملاً مع مبررات رئيس المشرفين إلى الأدمن، وانتظار قراره قبل أي إجراء مالي أو تنفيذي.',
+      'تجاوز النزاع صلاحيات رئيس المشرفين ويحتاج قراراً نهائياً من الإدارة العليا.',
+    ),
   ];
+
+  static const _refundActions = {
+    HeadSupervisorDecisionAction.returnFullRefund,
+    HeadSupervisorDecisionAction.partialCompensation,
+    HeadSupervisorDecisionAction.rejectRefund,
+  };
+
+  /// الإجراءات المتاحة: الاستردادات تتطلب صلاحية اعتماد الاستردادات.
+  List<(HeadSupervisorDecisionAction, String, String, String)>
+      get _visibleActions => _actions
+          .where((option) =>
+              widget.allowRefunds || !_refundActions.contains(option.$1))
+          .toList();
 
   @override
   void initState() {
     super.initState();
-    _basis.text = _actions.first.$4;
+    _action = _visibleActions.first.$1;
+    _basis.text = _visibleActions.first.$4;
   }
 
   @override
@@ -100,8 +126,8 @@ class _HeadSupervisorInterventionScreenState
     }
     setState(() => _sendingGuidance = true);
     try {
-      await WasalnyLocalEventStore().publish(
-        WasalnyLocalEvent(
+      await LocalEventStore().publish(
+        LocalEvent(
           id: 'head-intervention-guidance-${widget.eventId}-${DateTime.now().millisecondsSinceEpoch}',
           recipient: widget.recipient,
           source: 'head',
@@ -153,31 +179,31 @@ class _HeadSupervisorInterventionScreenState
     final frozen = widget.supervisorDecision == 'مجمّد';
     final urgent = DateTime.now().difference(widget.createdAt).inHours >= 48;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.scaffold,
       appBar: AppBar(
         title: Text(headSupervisorText(context, arabic: 'التدخل الرقابي', english: 'Oversight intervention'),
             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
         centerTitle: true,
         leading: IconButton(
           onPressed: () => Navigator.of(context).pop(),
-          icon: const Icon(Icons.arrow_back),
+          icon: const MotionIcon(Icons.arrow_back),
         ),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         children: [
-          _UrgencyBanner(urgent: urgent),
+          ScrollFx(child: _UrgencyBanner(urgent: urgent)),
           const SizedBox(height: 11),
-          _DisputeSummaryCard(
+          ScrollFx(child: _DisputeSummaryCard(
             requestId: widget.requestId,
             title: widget.title,
             department: widget.department,
             frozen: frozen,
-          ),
+          )),
           const SizedBox(height: 12),
-          _ComplaintDetailsCard(reason: widget.reason),
+          ScrollFx(child: _ComplaintDetailsCard(reason: widget.reason)),
           const SizedBox(height: 12),
-          _SupervisorGuidanceCard(
+          ScrollFx(child: _SupervisorGuidanceCard(
             supervisor: widget.supervisor,
             guidance: _guidance,
             sent: _guidanceSent,
@@ -185,18 +211,18 @@ class _HeadSupervisorInterventionScreenState
             error: _error,
             onSend: _sendGuidance,
             onChanged: () => setState(() => _error = null),
-          ),
+          )),
           const SizedBox(height: 12),
-          _DisputePartiesCard(requestId: widget.requestId),
+          ScrollFx(child: _DisputePartiesCard(requestId: widget.requestId)),
           const SizedBox(height: 14),
           Text(headSupervisorText(context, arabic: 'قرارات الحسم الرقابي الفوري', english: 'Immediate oversight decisions'),
               textAlign: TextAlign.right,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.primaryDark)),
+                  color: AppColors.ink)),
           const SizedBox(height: 8),
-          for (final option in _actions) ...[
+          for (final option in _visibleActions) ...[
             _FinalDecisionOption(
               title: option.$2,
               detail: option.$3,
@@ -206,17 +232,17 @@ class _HeadSupervisorInterventionScreenState
             ),
             const SizedBox(height: 8),
           ],
-          _LegalBasisCard(
+          ScrollFx(child: _LegalBasisCard(
             controller: _basis,
             error: _error,
             onChanged: () => setState(() => _error = null),
-          ),
+          )),
           const SizedBox(height: 16),
           SizedBox(
             height: 50,
             child: FilledButton.icon(
               onPressed: _submit,
-              icon: const Icon(Icons.gavel_outlined, size: 18),
+              icon: const MotionIcon(Icons.gavel_outlined, size: 18),
               label: Text(headSupervisorText(context, arabic: 'اعتماد قرار حسم النزاع وإنهاء البلاغ فوراً', english: 'Approve dispute resolution and close the report'),
                   style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
               style: FilledButton.styleFrom(
@@ -230,7 +256,7 @@ class _HeadSupervisorInterventionScreenState
           Text(
             headSupervisorText(context, arabic: 'قرار الحسم يصدر بموجب صلاحيات رئيس هيئة المشرفين المختصين، ويُرسل للطرفين فوراً.', english: 'The decision is issued under the Head Supervisor’s authority and sent to both parties.'),
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 8, color: AppColors.textSecondary),
+            style: TextStyle(fontSize: 8, color: AppColors.textSecondary),
           ),
         ],
       ),
@@ -246,7 +272,7 @@ class _UrgencyBanner extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
         decoration: BoxDecoration(
-            color: const Color(0xFFFFE2DE),
+            color: AppColors.dangerBorder,
             borderRadius: BorderRadius.circular(11)),
         child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
           Text(urgent
@@ -254,11 +280,11 @@ class _UrgencyBanner extends StatelessWidget {
                   : headSupervisorText(context, arabic: 'مراجعة رقابية • طلب بانتظار قرار رئيس المشرفين', english: 'Oversight review • awaiting Head Supervisor decision'),
               style: TextStyle(
                   fontSize: 9,
-                  color: urgent ? AppColors.dangerDark : AppColors.primaryDark,
+                  color: urgent ? AppColors.dangerDark : AppColors.ink,
                   fontWeight: FontWeight.bold)),
           const SizedBox(width: 6),
-          Icon(urgent ? Icons.warning_amber_rounded : Icons.shield_outlined,
-              size: 16, color: urgent ? AppColors.dangerDark : AppColors.primaryDark),
+          MotionIcon(urgent ? Icons.warning_amber_rounded : Icons.shield_outlined,
+              size: 16, color: urgent ? AppColors.dangerDark : AppColors.ink),
         ]),
       );
 }
@@ -278,16 +304,19 @@ class _DisputeSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final amount = requestId == 'WAS-5510' ? headSupervisorText(context, arabic: '8,450 ر.س', english: 'SAR 8,450') : headSupervisorText(context, arabic: 'غير محدد في الطلب', english: 'Not specified');
+    final amount = requestId == 'WAS-5510' ? headSupervisorText(context, arabic: '8,450 ج.م', english: 'EGP 8,450') : headSupervisorText(context, arabic: 'غير محدد في الطلب', english: 'Not specified');
     return Container(
         padding: const EdgeInsets.all(15),
         decoration: BoxDecoration(
-          color: const Color(0xFF0A2443),
+          gradient: AppColors.blueFill,
+          border: AppColors.blueEdge,
+          boxShadow: AppColors.blueGlow,
+          color: AppColors.primaryDark,
           borderRadius: BorderRadius.circular(15),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(children: [
-            const Icon(Icons.gavel_outlined, color: Colors.white70),
+            const MotionIcon(Icons.gavel_outlined, color: Colors.white70),
             const Spacer(),
             _Tag(label: requestId, light: true),
           ]),
@@ -301,15 +330,15 @@ class _DisputeSummaryCard extends StatelessWidget {
           const SizedBox(height: 5),
           Text(department,
               textAlign: TextAlign.right,
-              style: const TextStyle(fontSize: 9, color: Color(0xFFB8C9DE))),
-          const Divider(color: Color(0x335A789C), height: 20),
+              style: TextStyle(fontSize: 9, color: AppColors.info)),
+          const Divider(color: AppPalette.overlay335A789C, height: 20),
           Row(children: [
             _Tag(label: frozen ? headSupervisorText(context, arabic: 'مجمّد مؤقتاً', english: 'Temporarily frozen') : headSupervisorText(context, arabic: 'مرفوض من المشرف', english: 'Rejected by supervisor'), light: true),
             const Spacer(),
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
               Text(headSupervisorText(context, arabic: 'المبلغ المتنازع عليه', english: 'Disputed amount'),
-                  style: const TextStyle(fontSize: 8, color: const Color(0xFFB8C9DE))),
-              Text(amount,
+                  style: TextStyle(fontSize: 8, color: AppColors.info)),
+              CountText(amount,
                   style: const TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.bold,
@@ -333,14 +362,14 @@ class _ComplaintDetailsCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-                color: const Color(0xFFF1F3F5),
+                color: AppColors.surfaceLight,
                 borderRadius: BorderRadius.circular(11)),
             child: Text(
               reason.isEmpty
                   ? headSupervisorText(context, arabic: 'لم تُرفق تفاصيل إضافية للشكوى.', english: 'No additional complaint details were provided.')
                   : reason,
               textAlign: TextAlign.right,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 10,
                   height: 1.55,
                   color: AppColors.textSecondary),
@@ -349,7 +378,7 @@ class _ComplaintDetailsCard extends StatelessWidget {
           const SizedBox(height: 10),
           Text(headSupervisorText(context, arabic: 'المرفقات والأدلة (نماذج توضيحية)', english: 'Attachments and evidence (samples)'),
               textAlign: TextAlign.right,
-              style: const TextStyle(fontSize: 8, color: AppColors.textSecondary)),
+              style: TextStyle(fontSize: 8, color: AppColors.textSecondary)),
           const SizedBox(height: 6),
           const Row(children: [
             Expanded(child: _AttachmentTile(icon: Icons.article_outlined, label: 'سجل المراسلات')),
@@ -386,19 +415,19 @@ class _SupervisorGuidanceCard extends StatelessWidget {
   Widget build(BuildContext context) => _WhiteCard(
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(children: [
-            const Icon(Icons.chat_bubble_outline,
-                color: Color(0xFF315E9A), size: 18),
+            MotionIcon(Icons.chat_bubble_outline,
+                color: AppColors.infoDark, size: 18),
             const Spacer(),
             Text(headSupervisorText(context, arabic: 'توجيه إداري مباشر وموثق للمشرف', english: 'Direct documented instruction to supervisor'),
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.primaryDark)),
+                    color: AppColors.ink)),
           ]),
           const SizedBox(height: 6),
           Text(supervisor,
               textAlign: TextAlign.right,
-              style: const TextStyle(fontSize: 9, color: AppColors.textSecondary)),
+              style: TextStyle(fontSize: 9, color: AppColors.textSecondary)),
           const SizedBox(height: 7),
           TextField(
             controller: guidance,
@@ -409,10 +438,10 @@ class _SupervisorGuidanceCard extends StatelessWidget {
             onChanged: (_) => onChanged(),
             decoration: InputDecoration(
               hintText: headSupervisorText(context, arabic: 'اكتب أمراً تنفيذياً أو تنبيهاً يوثق في السجل الوظيفي للمشرف...', english: 'Enter an instruction or warning for the supervisor’s employment record...'),
-              hintStyle: const TextStyle(fontSize: 9, color: AppColors.textMuted),
+              hintStyle: TextStyle(fontSize: 9, color: AppColors.textMuted),
               errorText: error,
               filled: true,
-              fillColor: const Color(0xFFF1F3F5),
+              fillColor: AppColors.surfaceLight,
               border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(11),
                   borderSide: BorderSide.none),
@@ -422,12 +451,12 @@ class _SupervisorGuidanceCard extends StatelessWidget {
             alignment: Alignment.centerRight,
             child: OutlinedButton.icon(
               onPressed: sending || sent ? null : onSend,
-              icon: Icon(sent ? Icons.check_circle_outline : Icons.send_outlined,
+              icon: MotionIcon(sent ? Icons.check_circle_outline : Icons.send_outlined,
                   size: 14),
               label: Text(sent ? headSupervisorText(context, arabic: 'تم إرسال التوجيه', english: 'Instruction sent') : headSupervisorText(context, arabic: 'إرسال التوجيه فوراً', english: 'Send instruction now'),
                   style: const TextStyle(fontSize: 9)),
               style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.primaryDark,
+                  foregroundColor: AppColors.ink,
                   visualDensity: VisualDensity.compact),
             ),
           ),
@@ -464,18 +493,18 @@ class _PartyRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: const Color(0xFFF1F3F5), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: AppColors.surfaceLight, borderRadius: BorderRadius.circular(12)),
         child: Row(children: [
-          const Icon(Icons.chat_bubble_outline, size: 17, color: AppColors.textSecondary),
+          MotionIcon(Icons.chat_bubble_outline, size: 17, color: AppColors.textSecondary),
           const SizedBox(width: 7),
-          const Icon(Icons.phone_outlined, size: 17, color: AppColors.textSecondary),
+          MotionIcon(Icons.phone_outlined, size: 17, color: AppColors.textSecondary),
           const Spacer(),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text('$name • #$code', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
-            Text(role, style: const TextStyle(fontSize: 8, color: AppColors.textSecondary)),
+            Text('$name • #$code', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.ink)),
+            Text(role, style: TextStyle(fontSize: 8, color: AppColors.textSecondary)),
           ]),
           const SizedBox(width: 8),
-          CircleAvatar(radius: 17, backgroundColor: const Color(0xFFDDE8F5), child: Icon(icon, size: 17, color: AppColors.primaryDark)),
+          CircleAvatar(radius: 17, backgroundColor: AppColors.infoBorder, child: MotionIcon(icon, size: 17, color: AppColors.ink)),
         ]),
       );
 }
@@ -491,7 +520,7 @@ class _FinalDecisionOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: selected ? const Color(0xFFF0F2F4) : Colors.white,
+        color: selected ? AppColors.surfaceLight : AppColors.surface,
         borderRadius: BorderRadius.circular(13),
         child: InkWell(
           onTap: onTap,
@@ -499,13 +528,13 @@ class _FinalDecisionOption extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Icon(selected ? Icons.radio_button_checked : Icons.radio_button_off,
+              MotionIcon(selected ? Icons.radio_button_checked : Icons.radio_button_off,
                   size: 17, color: warning ? AppColors.danger : AppColors.textMuted),
               const SizedBox(width: 8),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                Text(title, textAlign: TextAlign.right, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: warning ? AppColors.dangerDark : AppColors.primaryDark)),
+                Text(title, textAlign: TextAlign.right, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: warning ? AppColors.dangerDark : AppColors.ink)),
                 const SizedBox(height: 5),
-                Text(detail, textAlign: TextAlign.right, style: const TextStyle(fontSize: 8, height: 1.45, color: AppColors.textSecondary)),
+                Text(detail, textAlign: TextAlign.right, style: TextStyle(fontSize: 8, height: 1.45, color: AppColors.textSecondary)),
               ])),
             ]),
           ),
@@ -531,10 +560,10 @@ class _LegalBasisCard extends StatelessWidget {
           onChanged: (_) => onChanged(),
           decoration: InputDecoration(
             hintText: headSupervisorText(context, arabic: 'يُملأ السند بحسب القرار المختار، ويمكن إضافة حيثيات الحكم...', english: 'Enter the basis for the selected decision and any supporting rationale...'),
-            hintStyle: const TextStyle(fontSize: 9, color: AppColors.textMuted),
+            hintStyle: TextStyle(fontSize: 9, color: AppColors.textMuted),
             errorText: error,
             filled: true,
-            fillColor: const Color(0xFFF1F3F5),
+            fillColor: AppColors.surfaceLight,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(11), borderSide: BorderSide.none),
           ),
         ),
@@ -550,11 +579,11 @@ class _AttachmentTile extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         height: 58,
         padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(color: const Color(0xFFF1F3F5), borderRadius: BorderRadius.circular(9)),
+        decoration: BoxDecoration(color: AppColors.surfaceLight, borderRadius: BorderRadius.circular(9)),
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(icon, size: 19, color: const Color(0xFF315E9A)),
+          MotionIcon(icon, size: 19, color: AppColors.infoDark),
           const SizedBox(height: 3),
-          Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 7, color: AppColors.textSecondary)),
+          Text(label, textAlign: TextAlign.center, style: TextStyle(fontSize: 7, color: AppColors.textSecondary)),
         ]),
       );
 }
@@ -567,8 +596,8 @@ class _Tag extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-        decoration: BoxDecoration(color: light ? const Color(0x334B6687) : const Color(0xFFE6EDF6), borderRadius: BorderRadius.circular(10)),
-        child: Text(label, style: TextStyle(fontSize: 8, color: light ? const Color(0xFFD6E1EF) : AppColors.primaryDark, fontWeight: FontWeight.w600)),
+        decoration: BoxDecoration(color: light ? AppPalette.overlay334B6687 : AppColors.surfaceHighlight, borderRadius: BorderRadius.circular(10)),
+        child: Text(label, style: TextStyle(fontSize: 8, color: light ? AppColors.cardBorder : AppColors.ink, fontWeight: FontWeight.w600)),
       );
 }
 
@@ -581,13 +610,13 @@ class _WhiteCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(13),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), border: Border.all(color: const Color(0xFFE9EDF1))),
+        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(15), border: Border.all(color: AppColors.surfaceHighlight)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           if (title != null) ...[
             Row(children: [
-              if (icon != null) Icon(icon!, size: 17, color: AppColors.primaryDark),
+              if (icon != null) MotionIcon(icon!, size: 17, color: AppColors.ink),
               const Spacer(),
-              Text(title!, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
+              Text(title!, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.ink)),
             ]),
             const SizedBox(height: 9),
           ],

@@ -1,12 +1,12 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../domain/entities/product_review.dart';
-import '../../domain/entities/product_supervisor_audit_entry.dart';
-import '../../domain/repositories/product_supervisor_audit_repository.dart';
-import '../../domain/usecases/change_product_review_status_usecase.dart';
-import '../../domain/usecases/get_product_reviews_usecase.dart';
-import '../../domain/usecases/update_product_review_usecase.dart';
-import 'product_review_state.dart';
+import 'package:barwah_app/features/products/domain/entities/product_review.dart';
+import 'package:barwah_app/features/products/domain/entities/product_supervisor_audit_entry.dart';
+import 'package:barwah_app/features/products/domain/repositories/product_supervisor_audit_repository.dart';
+import 'package:barwah_app/features/products/domain/usecases/change_product_review_status_usecase.dart';
+import 'package:barwah_app/features/products/domain/usecases/get_product_reviews_usecase.dart';
+import 'package:barwah_app/features/products/domain/usecases/update_product_review_usecase.dart';
+import 'package:barwah_app/features/products/presentation/controllers/product_review_state.dart';
 
 class ProductReviewCubit extends Cubit<ProductReviewState> {
   final GetProductReviewsUseCase getProductReviews;

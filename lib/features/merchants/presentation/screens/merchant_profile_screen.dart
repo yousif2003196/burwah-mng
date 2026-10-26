@@ -4,12 +4,18 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/utils/app_locale_controller.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../data/merchant_supervisor_local_store.dart';
-import '../../../services_supervisor/presentation/screens/services_supervisor_wallet_screen.dart';
-import 'supervised_merchants_screen.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/localization/app_locale_controller.dart';
+import 'package:barwah_app/core/theme/app_theme_switcher.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/features/merchants/data/datasources/merchant_supervisor_local_store.dart';
+import 'package:barwah_app/features/merchants/domain/entities/merchant_supervisor_audit_event.dart';
+import 'package:barwah_app/features/merchants/presentation/screens/supervised_merchants_screen.dart';
+import 'package:barwah_app/features/merchants/presentation/widgets/merchant_escalations_entry.dart';
+import 'package:barwah_app/features/services_supervisor/presentation/screens/services_supervisor_wallet_screen.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class MerchantProfileScreen extends StatefulWidget {
   final VoidCallback onLogout;
@@ -157,55 +163,55 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
     return Directionality(
       textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF5F7F9),
+        backgroundColor: AppColors.scaffold,
         body: ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
           children: [
-            _buildProfileSummary(l10n),
+            ScrollFx(child: _buildProfileSummary(l10n)),
             const SizedBox(height: 16),
-            _buildSectionHeading(
+            ScrollFx(child: _buildSectionHeading(
               l10n.merchantProfileDocumentsTitle,
               Icons.circle,
-              const Color(0xFF0E2B4F),
-            ),
+              AppColors.primaryDark,
+            )),
             const SizedBox(height: 8),
-            _buildAuthorizationCard(l10n),
+            ScrollFx(child: _buildAuthorizationCard(l10n)),
             const SizedBox(height: 8),
-            _buildDocumentTile(
+            ScrollFx(child: _buildDocumentTile(
               l10n,
               icon: Icons.menu_book_outlined,
               title: l10n.merchantProfileGovernanceGuide,
               subtitle: l10n.merchantProfileGuideSubtitle,
               trailing: '2025',
               id: 'GUIDE-2025',
-            ),
+            )),
             const SizedBox(height: 8),
-            _buildDocumentTile(
+            ScrollFx(child: _buildDocumentTile(
               l10n,
               icon: Icons.gavel_outlined,
               title: l10n.merchantProfileDelegationDocument,
               subtitle: l10n.merchantProfileDelegationSubtitle,
               id: 'DEL-SUP-4092',
-            ),
+            )),
             const SizedBox(height: 18),
-            _buildSectionHeading(
+            ScrollFx(child: _buildSectionHeading(
               l10n.merchantProfileFieldPermissions,
               Icons.circle,
               AppColors.info,
               trailing: l10n.merchantProfileUpdatedAutomatically,
-            ),
+            )),
             const SizedBox(height: 8),
-            _buildPreferences(l10n),
+            ScrollFx(child: _buildPreferences(l10n)),
             const SizedBox(height: 8),
             OutlinedButton.icon(
               key: const ValueKey('merchant_profile_change_settings'),
               onPressed: () => _showSettingsSheet(l10n),
-              icon: const Icon(Icons.tune_outlined, size: 18),
+              icon: const MotionIcon(Icons.tune_outlined, size: 18),
               label: Text(l10n.merchantProfileChangeSettings),
               style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primaryDark,
-                backgroundColor: Colors.white,
-                side: const BorderSide(color: AppColors.cardBorder),
+                foregroundColor: AppColors.ink,
+                backgroundColor: AppColors.surface,
+                side: BorderSide(color: AppColors.cardBorder),
                 minimumSize: const Size.fromHeight(44),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -213,64 +219,76 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            Card(
-              color: Colors.white,
+            ScrollFx(child: Card(
+              color: AppColors.surface,
               child: ListTile(
-                leading: const Icon(Icons.language, color: AppColors.info),
+                leading: MotionIcon(Icons.language, color: AppColors.info),
                 title: Text(l10n.switchLanguage),
-                trailing: const Icon(Icons.chevron_right),
+                trailing: const MotionIcon(Icons.chevron_right),
                 onTap: AppLocaleController.instance.toggle,
               ),
-            ),
-            Padding(
+            )),
+            const SizedBox(height: 8),
+            ScrollFx(child: Card(
+              color: AppColors.surface,
+              child: ListTile(
+                leading: MotionIcon(Icons.brightness_6_outlined, color: AppColors.info),
+                title: Text(l10n.localeName.startsWith('ar') ? 'المظهر' : 'Appearance'),
+                trailing: const MotionIcon(Icons.chevron_right),
+                onTap: () => showAppThemeSheet(context),
+              ),
+            )),
+            ScrollFx(child: Padding(
               padding: const EdgeInsetsDirectional.only(top: 7),
               child: Text(
                 l10n.merchantProfileLocalOnlyNotice,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 10,
                 ),
               ),
-            ),
+            )),
             const SizedBox(height: 18),
-            _buildSectionHeading(
+            ScrollFx(child: _buildSectionHeading(
               l10n.merchantProfileSecurityAudit,
               Icons.circle,
               AppColors.textMuted,
               trailing: l10n.merchantProfileViewAll,
-            ),
-            Padding(
+            )),
+            ScrollFx(child: Padding(
               padding: const EdgeInsetsDirectional.only(top: 6),
               child: Text(
                 l10n.merchantProfileLocalAuditNotice,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 10,
                 ),
               ),
-            ),
+            )),
             const SizedBox(height: 8),
-            _buildAuditHistory(l10n),
+            ScrollFx(child: _buildAuditHistory(l10n)),
             const SizedBox(height: 18),
-            _buildSectionHeading(
+            ScrollFx(child: const MerchantEscalationsEntry()),
+            const SizedBox(height: 18),
+            ScrollFx(child: _buildSectionHeading(
               l10n.merchantProfileFinancialWallet,
               Icons.account_balance_wallet_outlined,
               AppColors.info,
               trailing: l10n.merchantProfileJustUpdated,
-            ),
+            )),
             const SizedBox(height: 8),
-            _buildWalletCard(l10n),
+            ScrollFx(child: _buildWalletCard(l10n)),
             const SizedBox(height: 14),
             SizedBox(
               height: 48,
               child: OutlinedButton.icon(
                 onPressed: _confirmLogout,
-                icon: const Icon(Icons.logout, size: 18),
+                icon: const MotionIcon(Icons.logout, size: 18),
                 label: Text(l10n.logout),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.danger,
-                  backgroundColor: Colors.white,
-                  side: const BorderSide(color: AppColors.cardBorder),
+                  backgroundColor: AppColors.surface,
+                  side: BorderSide(color: AppColors.cardBorder),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
@@ -303,7 +321,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.cardBorder),
       ),
@@ -318,14 +336,14 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                     width: 62,
                     height: 62,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFE8EDF2),
+                      color: AppColors.surfaceHighlight,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFFD5DEE8)),
+                      border: Border.all(color: AppColors.cardBorder),
                     ),
-                    child: const Icon(
+                    child: MotionIcon(
                       Icons.person,
                       size: 38,
-                      color: AppColors.primaryDark,
+                      color: AppColors.ink,
                     ),
                   ),
                   Positioned(
@@ -333,14 +351,16 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                     left: -5,
                     child: Container(
                       padding: const EdgeInsets.all(4),
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
+                        gradient: AppColors.blueFill,
+                        boxShadow: AppColors.blueGlow,
                         color: AppColors.primaryDark,
                         shape: BoxShape.circle,
                         border: Border.fromBorderSide(
                           BorderSide(color: Colors.white, width: 2),
                         ),
                       ),
-                      child: const Icon(
+                      child: const MotionIcon(
                         Icons.verified,
                         size: 13,
                         color: Colors.white,
@@ -359,8 +379,8 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.end,
-                      style: const TextStyle(
-                        color: AppColors.primaryDark,
+                      style: TextStyle(
+                        color: AppColors.ink,
                         fontWeight: FontWeight.bold,
                         fontSize: 17,
                       ),
@@ -371,7 +391,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.end,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 10,
                       ),
@@ -384,13 +404,13 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                       children: [
                         _pill(
                           l10n.merchantProfileSupervisorId,
-                          const Color(0xFFEAF0F7),
+                          AppColors.surfaceLight,
                           AppColors.info,
                           icon: Icons.badge_outlined,
                         ),
                         _pill(
                           l10n.merchantProfileActive,
-                          const Color(0xFFEAF0F7),
+                          AppColors.surfaceLight,
                           AppColors.info,
                           icon: Icons.circle,
                         ),
@@ -441,7 +461,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
     VoidCallback? onTap,
   }) {
     return Material(
-      color: const Color(0xFFF5F7F9),
+      color: AppColors.background,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
@@ -454,19 +474,19 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(icon, size: 14, color: AppColors.info),
+                  MotionIcon(icon, size: 14, color: AppColors.info),
                   const SizedBox(width: 5),
-                  Text(
+                  CountText(
                     value,
-                    style: const TextStyle(
-                      color: AppColors.primaryDark,
+                    style: TextStyle(
+                      color: AppColors.ink,
                       fontSize: 17,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
                   if (onTap != null) ...[
                     const SizedBox(width: 4),
-                    const Icon(Icons.arrow_forward_ios,
+                    MotionIcon(Icons.arrow_forward_ios,
                         size: 10, color: AppColors.info),
                   ],
                 ],
@@ -476,7 +496,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 9,
                 ),
@@ -496,15 +516,15 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
   }) {
     return Row(
       children: [
-        Icon(icon, size: 9, color: color),
+        MotionIcon(icon, size: 9, color: color),
         const SizedBox(width: 5),
         Expanded(
           child: Text(
             title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppColors.primaryDark,
+            style: TextStyle(
+              color: AppColors.ink,
               fontWeight: FontWeight.bold,
               fontSize: 14,
             ),
@@ -516,7 +536,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
             trailing,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: AppColors.info, fontSize: 9),
+            style: TextStyle(color: AppColors.info, fontSize: 9),
           ),
         ],
       ],
@@ -527,7 +547,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(15),
         border: Border.all(color: AppColors.cardBorder),
       ),
@@ -544,8 +564,8 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                     Text(
                       l10n.merchantProfileAuthorizationCard,
                       textAlign: TextAlign.end,
-                      style: const TextStyle(
-                        color: AppColors.primaryDark,
+                      style: TextStyle(
+                        color: AppColors.ink,
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
                       ),
@@ -554,7 +574,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                     Text(
                       l10n.merchantProfileValidUntil,
                       textAlign: TextAlign.end,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 9,
                       ),
@@ -567,14 +587,14 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                       children: [
                         _pill(
                           l10n.merchantProfileActive,
-                          const Color(0xFFEAF0F7),
+                          AppColors.surfaceLight,
                           AppColors.info,
                           icon: Icons.circle,
                         ),
                         _pill(
                           'PDF',
-                          const Color(0xFFDCE8FF),
-                          AppColors.primaryDark,
+                          AppColors.infoBorder,
+                          AppColors.ink,
                         ),
                       ],
                     ),
@@ -589,13 +609,13 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
               IconButton.filledTonal(
                 tooltip: l10n.merchantProfileOpenDocument,
                 onPressed: () => _showDocumentDetails(l10n, 'AUTH-SUP-4092'),
-                icon: const Icon(Icons.download_outlined, size: 18),
+                icon: const MotionIcon(Icons.download_outlined, size: 18),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: FilledButton.icon(
                   onPressed: () => _showDocumentDetails(l10n, 'AUTH-SUP-4092'),
-                  icon: const Icon(Icons.visibility_outlined, size: 16),
+                  icon: const MotionIcon(Icons.visibility_outlined, size: 16),
                   label: Text(
                     l10n.merchantProfileOpenDocument,
                     maxLines: 1,
@@ -628,7 +648,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.cardBorder),
       ),
@@ -645,8 +665,8 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.end,
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
+                  style: TextStyle(
+                    color: AppColors.ink,
                     fontWeight: FontWeight.w600,
                     fontSize: 12,
                   ),
@@ -656,7 +676,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.end,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 9,
                   ),
@@ -666,7 +686,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
           ),
           if (trailing != null) ...[
             const SizedBox(width: 4),
-            _pill(trailing, const Color(0xFFE9EBED), AppColors.textSecondary),
+            _pill(trailing, AppColors.surfaceHighlight, AppColors.textSecondary),
           ],
           const SizedBox(width: 4),
           TextButton(
@@ -689,10 +709,10 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
       width: 40,
       height: 40,
       decoration: BoxDecoration(
-        color: const Color(0xFFF0F2F4),
+        color: AppColors.surfaceLight,
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Icon(icon, color: AppColors.primaryDark, size: 21),
+      child: MotionIcon(icon, color: AppColors.ink, size: 21),
     );
   }
 
@@ -700,7 +720,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(15),
         border: Border.all(color: AppColors.cardBorder),
       ),
@@ -719,7 +739,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                     ),
             toggleKey: const ValueKey('merchant_profile_availability_toggle'),
           ),
-          const Divider(height: 1, color: Color(0xFFE3E7EB)),
+          Divider(height: 1, color: AppColors.surfaceHighlight),
           _preferenceRow(
             icon: Icons.campaign_outlined,
             title: l10n.merchantProfileDirectNotifications,
@@ -734,7 +754,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
             toggleKey: const ValueKey('merchant_profile_notifications_toggle'),
           ),
           if (_loadError != null) ...[
-            const Divider(height: 1, color: Color(0xFFE3E7EB)),
+            Divider(height: 1, color: AppColors.surfaceHighlight),
             ListTile(
               contentPadding: EdgeInsets.zero,
               title: Text(l10n.merchantProfileLoadError),
@@ -758,8 +778,8 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
       builder: (sheetContext) => Container(
         height: MediaQuery.sizeOf(sheetContext).height * .78,
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-        decoration: const BoxDecoration(
-          color: Color(0xFFF5F7F9),
+        decoration: BoxDecoration(
+          color: AppColors.background,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: Column(
@@ -768,20 +788,20 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: const Color(0xFFCBD2D9),
+                color: AppColors.cardBorder,
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
             const SizedBox(height: 14),
             Row(
               children: [
-                const Icon(Icons.tune_outlined, color: AppColors.primaryDark),
+                MotionIcon(Icons.tune_outlined, color: AppColors.ink),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     l10n.merchantProfileChangeSettings,
-                    style: const TextStyle(
-                      color: AppColors.primaryDark,
+                    style: TextStyle(
+                      color: AppColors.ink,
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
                     ),
@@ -791,7 +811,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                   tooltip:
                       MaterialLocalizations.of(sheetContext).closeButtonTooltip,
                   onPressed: () => Navigator.of(sheetContext).pop(),
-                  icon: const Icon(Icons.close),
+                  icon: const MotionIcon(Icons.close),
                 ),
               ],
             ),
@@ -799,18 +819,28 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
             Expanded(
               child: ListView(
                 children: [
-                  _buildPreferences(l10n),
+                  ScrollFx(child: _buildPreferences(l10n)),
                   const SizedBox(height: 8),
-                  Card(
-                    color: Colors.white,
+                  ScrollFx(child: Card(
+                    color: AppColors.surface,
                     child: ListTile(
                       leading:
-                          const Icon(Icons.language, color: AppColors.info),
+                          MotionIcon(Icons.language, color: AppColors.info),
                       title: Text(l10n.switchLanguage),
-                      trailing: const Icon(Icons.chevron_right),
+                      trailing: const MotionIcon(Icons.chevron_right),
                       onTap: AppLocaleController.instance.toggle,
                     ),
-                  ),
+                  )),
+                  const SizedBox(height: 8),
+                  ScrollFx(child: Card(
+                    color: AppColors.surface,
+                    child: ListTile(
+                      leading: MotionIcon(Icons.brightness_6_outlined, color: AppColors.info),
+                      title: Text(l10n.localeName.startsWith('ar') ? 'المظهر' : 'Appearance'),
+                      trailing: const MotionIcon(Icons.chevron_right),
+                      onTap: () => showAppThemeSheet(context),
+                    ),
+                  )),
                 ],
               ),
             ),
@@ -841,8 +871,8 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.end,
-                style: const TextStyle(
-                  color: AppColors.primaryDark,
+                style: TextStyle(
+                  color: AppColors.ink,
                   fontWeight: FontWeight.w600,
                   fontSize: 12,
                 ),
@@ -852,7 +882,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.end,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 9,
                 ),
@@ -876,7 +906,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(15),
         border: Border.all(color: AppColors.cardBorder),
       ),
@@ -889,8 +919,8 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                   l10n.merchantProfileLatestActivities,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
+                  style: TextStyle(
+                    color: AppColors.ink,
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
                   ),
@@ -903,7 +933,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
               padding: const EdgeInsets.symmetric(vertical: 10),
               child: Text(
                 l10n.merchantAuditLoadError,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.danger,
                   fontSize: 11,
                 ),
@@ -914,14 +944,14 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
               padding: const EdgeInsets.symmetric(vertical: 14),
               child: Text(
                 l10n.merchantProfileNoLocalActivity,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 11,
                 ),
               ),
             ),
           if (latestEvent != null) ...[
-            const Divider(height: 1, color: Color(0xFFE3E7EB)),
+            Divider(height: 1, color: AppColors.surfaceHighlight),
             InkWell(
               borderRadius: BorderRadius.circular(10),
               onTap: () => _showAllAuditEvents(l10n),
@@ -944,7 +974,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
               alignment: AlignmentDirectional.centerStart,
               child: TextButton.icon(
                 onPressed: () => _showAllAuditEvents(l10n),
-                icon: const Icon(Icons.history, size: 16),
+                icon: const MotionIcon(Icons.history, size: 16),
                 label: Text(l10n.localeName.startsWith('ar')
                     ? 'عرض كل الحركات'
                     : 'View all activity'),
@@ -952,7 +982,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
             ),
           ],
           if (_data.activities.isNotEmpty) ...[
-            const Divider(height: 1, color: Color(0xFFE3E7EB)),
+            Divider(height: 1, color: AppColors.surfaceHighlight),
             _activity(
               icon: Icons.settings_outlined,
               title: l10n.merchantProfilePreferenceUpdated,
@@ -981,8 +1011,8 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
         minChildSize: 0.4,
         maxChildSize: 0.94,
         builder: (context, scrollController) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(
+            color: AppColors.surface,
             borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
           ),
           child: Column(
@@ -996,8 +1026,8 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                         isArabic
                             ? 'كل العمليات الرقابية'
                             : 'All supervisory activity',
-                        style: const TextStyle(
-                          color: AppColors.primaryDark,
+                        style: TextStyle(
+                          color: AppColors.ink,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
@@ -1005,7 +1035,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                     ),
                     IconButton(
                       onPressed: () => Navigator.pop(sheetContext),
-                      icon: const Icon(Icons.close),
+                      icon: const MotionIcon(Icons.close),
                     ),
                   ],
                 ),
@@ -1023,8 +1053,8 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                         itemCount: _auditEvents.length,
                         separatorBuilder: (_, __) =>
-                            const Divider(height: 1, color: Color(0xFFE3E7EB)),
-                        itemBuilder: (context, index) {
+                            Divider(height: 1, color: AppColors.surfaceHighlight),
+                        itemBuilder: scrollFxItems((context, index) {
                           final activity = _auditEvents[index];
                           return _activity(
                             icon: Icons.fact_check_outlined,
@@ -1037,7 +1067,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                                 .add_jm()
                                 .format(activity.occurredAt),
                           );
-                        },
+                        }),
                       ),
               ),
             ],
@@ -1069,8 +1099,8 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.end,
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
+                  style: TextStyle(
+                    color: AppColors.ink,
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                   ),
@@ -1080,7 +1110,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.end,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 9,
                   ),
@@ -1094,7 +1124,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
               time,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 9,
               ),
@@ -1112,7 +1142,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(15),
           border: Border.all(color: AppColors.cardBorder),
         ),
@@ -1122,10 +1152,10 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: const Color(0xFFEAF0FF),
+                color: AppColors.infoLight,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(
+              child: MotionIcon(
                 Icons.account_balance_wallet_outlined,
                 color: AppColors.info,
               ),
@@ -1137,16 +1167,16 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                 children: [
                   Text(
                     l10n.merchantProfileBalanceTitle,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 10,
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
+                  CountText(
                     '${l10n.merchantProfileBalance} ${l10n.finRequestCurrency}',
-                    style: const TextStyle(
-                      color: AppColors.primaryDark,
+                    style: TextStyle(
+                      color: AppColors.ink,
                       fontSize: 19,
                       fontWeight: FontWeight.w900,
                     ),
@@ -1156,7 +1186,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.end,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 9,
                     ),
@@ -1168,7 +1198,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
             IconButton.filledTonal(
               tooltip: l10n.merchantProfileWalletDetails,
               onPressed: _openWallet,
-              icon: const Icon(Icons.arrow_back, size: 18),
+              icon: const MotionIcon(Icons.arrow_back, size: 18),
             ),
           ],
         ),
@@ -1192,7 +1222,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 11, color: foreground),
+            MotionIcon(icon, size: 11, color: foreground),
             const SizedBox(width: 4),
           ],
           Flexible(

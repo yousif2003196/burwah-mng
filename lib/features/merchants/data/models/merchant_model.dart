@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../domain/entities/merchant_entity.dart';
+
+import 'package:barwah_app/features/merchants/domain/entities/merchant_entity.dart';
 
 class MerchantModel extends MerchantEntity {
   const MerchantModel({

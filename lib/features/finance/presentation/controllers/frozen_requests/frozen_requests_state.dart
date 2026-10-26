@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
 
-import '../../../domain/entities/withdrawal_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/withdrawal_request_entity.dart';
 
 class FrozenRequestsState extends Equatable {
   final List<WithdrawalRequestEntity> requests;

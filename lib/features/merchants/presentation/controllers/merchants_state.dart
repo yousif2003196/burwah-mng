@@ -1,5 +1,5 @@
-import '../../domain/entities/merchant_entity.dart';
-import '../../domain/entities/supervisor_stats_entity.dart';
+import 'package:barwah_app/features/merchants/domain/entities/merchant_entity.dart';
+import 'package:barwah_app/features/merchants/domain/entities/supervisor_stats_entity.dart';
 
 abstract class MerchantsState {
   const MerchantsState();

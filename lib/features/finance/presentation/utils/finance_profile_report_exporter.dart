@@ -28,18 +28,20 @@ class FinanceProfileReportExporter {
       throw StateError('The finance report could not be generated.');
     }
 
-    final result = await Share.shareXFiles(
-      [
-        XFile.fromData(
-          Uint8List.fromList(bytes),
-          mimeType:
-              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        ),
-      ],
-      fileNameOverrides: [fileName],
-      text: shareText,
-      subject: shareText,
-      sharePositionOrigin: sharePositionOrigin,
+    final result = await SharePlus.instance.share(
+      ShareParams(
+        files: [
+          XFile.fromData(
+            Uint8List.fromList(bytes),
+            mimeType:
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          ),
+        ],
+        fileNameOverrides: [fileName],
+        text: shareText,
+        subject: shareText,
+        sharePositionOrigin: sharePositionOrigin,
+      ),
     );
     return result.status != ShareResultStatus.dismissed;
   }

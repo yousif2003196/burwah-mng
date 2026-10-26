@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
 
-import '../../../domain/entities/expense_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/expense_request_entity.dart';
 
 class ExpenseRequestsState extends Equatable {
   final List<ExpenseRequestEntity> requests;

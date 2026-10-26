@@ -1,6 +1,6 @@
-import '../../domain/entities/wasalny_complaint.dart';
-import '../../domain/repositories/wasalny_complaints_repository.dart';
-import '../datasources/wasalny_complaints_data_source.dart';
+import 'package:barwah_app/features/wasalny_supervisor/data/datasources/wasalny_complaints_data_source.dart';
+import 'package:barwah_app/features/wasalny_supervisor/domain/entities/wasalny_complaint.dart';
+import 'package:barwah_app/features/wasalny_supervisor/domain/repositories/wasalny_complaints_repository.dart';
 
 class WasalnyComplaintsRepositoryImpl implements WasalnyComplaintsRepository {
   final WasalnyComplaintsDataSource dataSource;

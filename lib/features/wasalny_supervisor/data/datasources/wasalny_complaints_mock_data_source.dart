@@ -1,6 +1,6 @@
-import '../../domain/entities/wasalny_complaint.dart';
-import '../models/wasalny_complaint_model.dart';
-import 'wasalny_complaints_data_source.dart';
+import 'package:barwah_app/features/wasalny_supervisor/data/datasources/wasalny_complaints_data_source.dart';
+import 'package:barwah_app/features/wasalny_supervisor/data/models/wasalny_complaint_model.dart';
+import 'package:barwah_app/features/wasalny_supervisor/domain/entities/wasalny_complaint.dart';
 
 class WasalnyComplaintsMockDataSource implements WasalnyComplaintsDataSource {
   final List<WasalnyComplaintModel> _complaints = [
@@ -18,7 +18,7 @@ class WasalnyComplaintsMockDataSource implements WasalnyComplaintsDataSource {
       dealCode: 'صفقة وصلني #WS-4088',
       itemTitleAr: 'جهاز بلايستيشن 5 مع ملحقاته',
       itemTitleEn: 'PlayStation 5 with accessories',
-      heldAmount: '1,850 ر.س',
+      heldAmount: '1,850 ج.م',
       buyerNameAr: 'سلطان الحربي',
       buyerNameEn: 'Sultan Al-Harbi',
       sellerNameAr: 'محمد الدوسري',
@@ -42,7 +42,7 @@ class WasalnyComplaintsMockDataSource implements WasalnyComplaintsDataSource {
       status: WasalnyComplaintStatus.underReview,
       itemTitleAr: 'جهاز بلايستيشن 5 مع ملحقاته',
       itemTitleEn: 'PlayStation 5 with accessories',
-      heldAmount: '1,850 ر.س',
+      heldAmount: '1,850 ج.م',
       buyerNameAr: 'سلطان الحربي',
       buyerNameEn: 'Sultan Al-Harbi',
       sellerNameAr: 'محمد الدوسري',
@@ -91,7 +91,7 @@ class WasalnyComplaintsMockDataSource implements WasalnyComplaintsDataSource {
       dealCode: 'صفقة وصلني #WS-3910',
       itemTitleAr: 'كاميرا كانون EOS R6',
       itemTitleEn: 'Canon EOS R6 Camera',
-      heldAmount: '6,200 ر.س',
+      heldAmount: '6,200 ج.م',
       buyerNameAr: 'فيصل الغامدي',
       buyerNameEn: 'Faisal Al-Ghamdi',
       sellerNameAr: 'عبد الله السالم',
@@ -116,7 +116,7 @@ class WasalnyComplaintsMockDataSource implements WasalnyComplaintsDataSource {
       dealCode: 'صفقة وصلني #WS-3844',
       itemTitleAr: 'سماعات أبل إيربودز ماكس',
       itemTitleEn: 'Apple AirPods Max',
-      heldAmount: '1,400 ر.س',
+      heldAmount: '1,400 ج.م',
       buyerNameAr: 'سارة العتيبي',
       buyerNameEn: 'Sara Al-Otaibi',
       sellerNameAr: 'خالد المطيري',
@@ -141,7 +141,7 @@ class WasalnyComplaintsMockDataSource implements WasalnyComplaintsDataSource {
       dealCode: 'صفقة وصلني #WS-2991',
       itemTitleAr: 'شاشة قيمنق سامسونج أوديسي G7',
       itemTitleEn: 'Samsung Odyssey G7 Gaming Monitor',
-      heldAmount: '2,400 ر.س',
+      heldAmount: '2,400 ج.م',
       buyerNameAr: 'تركي الشهري',
       buyerNameEn: 'Turki Al-Shehri',
       sellerNameAr: 'أحمد القحطاني',
@@ -169,7 +169,7 @@ class WasalnyComplaintsMockDataSource implements WasalnyComplaintsDataSource {
       dealCode: 'صفقة وصلني #WS-2850',
       itemTitleAr: 'آيباد برو 12.9 إنش M2',
       itemTitleEn: 'iPad Pro 12.9-inch M2',
-      heldAmount: '3,100 ر.س',
+      heldAmount: '3,100 ج.م',
       buyerNameAr: 'عمر باوزير',
       buyerNameEn: 'Omar Bawazeer',
       sellerNameAr: 'رياض الزهراني',

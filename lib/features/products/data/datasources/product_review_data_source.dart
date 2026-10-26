@@ -1,5 +1,5 @@
-import '../../domain/entities/product_review.dart';
-import '../models/product_review_model.dart';
+import 'package:barwah_app/features/products/data/models/product_review_model.dart';
+import 'package:barwah_app/features/products/domain/entities/product_review.dart';
 
 abstract class ProductReviewDataSource {
   Future<List<ProductReviewModel>> getProductReviews();

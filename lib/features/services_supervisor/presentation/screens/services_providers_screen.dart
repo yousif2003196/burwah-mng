@@ -2,10 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../merchants/presentation/screens/merchant_conversation_screen.dart';
-import '../../../../l10n/app_localizations.dart';
-import 'service_provider_catalog.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/features/merchants/presentation/screens/merchant_conversation_screen.dart';
+import 'package:barwah_app/features/products/presentation/widgets/product_head_escalation.dart' show askProductEscalationReason;
+import 'package:barwah_app/features/services_supervisor/data/datasources/service_provider_catalog.dart';
+import 'package:barwah_app/features/services_supervisor/data/datasources/services_activity_log.dart';
+import 'package:barwah_app/features/services_supervisor/data/datasources/services_escalation_store.dart';
+import 'package:barwah_app/features/services_supervisor/data/datasources/services_provider_state_store.dart';
+import 'package:barwah_app/features/services_supervisor/domain/entities/service_provider.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class ServicesProvidersScreen extends StatefulWidget {
   const ServicesProvidersScreen({super.key});
@@ -18,9 +26,30 @@ class ServicesProvidersScreen extends StatefulWidget {
 class _ServicesProvidersScreenState extends State<ServicesProvidersScreen> {
   final TextEditingController _searchController = TextEditingController();
   ServiceProviderCategory? _selectedCategory;
+  Map<String, ServicesProviderState> _states = const {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStates();
+    ServicesProviderStateStore.revision.addListener(_loadStates);
+  }
+
+  Future<void> _loadStates() async {
+    try {
+      final states = await ServicesProviderStateStore().load();
+      if (mounted) setState(() => _states = states);
+    } on Object catch (error) {
+      debugPrint('Provider states unavailable: $error');
+    }
+  }
+
+  ServiceProvider _effective(ServiceProvider p) =>
+      applyProviderState(p, _states[p.id]);
 
   @override
   void dispose() {
+    ServicesProviderStateStore.revision.removeListener(_loadStates);
     _searchController.dispose();
     super.dispose();
   }
@@ -30,7 +59,7 @@ class _ServicesProvidersScreenState extends State<ServicesProvidersScreen> {
     final l10n = AppLocalizations.of(context)!;
     final isArabic = l10n.localeName.startsWith('ar');
     final query = _searchController.text.trim().toLowerCase();
-    final visibleProviders = serviceProviders.where((provider) {
+    final visibleProviders = serviceProviders.map(_effective).where((provider) {
       final searchableText = [
         provider.nameAr,
         provider.nameEn,
@@ -47,13 +76,13 @@ class _ServicesProvidersScreenState extends State<ServicesProvidersScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
       children: [
-        _buildHeader(l10n),
+        ScrollFx(child: _buildHeader(l10n)),
         const SizedBox(height: 14),
-        _buildSummary(l10n),
+        ScrollFx(child: _buildSummary(l10n)),
         const SizedBox(height: 14),
-        _buildSearch(l10n),
+        ScrollFx(child: _buildSearch(l10n)),
         const SizedBox(height: 10),
-        _buildCategoryFilters(l10n),
+        ScrollFx(child: _buildCategoryFilters(l10n)),
         const SizedBox(height: 14),
         if (visibleProviders.isEmpty)
           Padding(
@@ -61,7 +90,7 @@ class _ServicesProvidersScreenState extends State<ServicesProvidersScreen> {
             child: Text(
               l10n.servicesProvidersEmpty,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.textSecondary),
+              style: TextStyle(color: AppColors.textSecondary),
             ),
           )
         else
@@ -74,7 +103,7 @@ class _ServicesProvidersScreenState extends State<ServicesProvidersScreen> {
             const SizedBox(height: 12),
           ],
         const SizedBox(height: 4),
-        _buildGovernanceNote(l10n),
+        ScrollFx(child: _buildGovernanceNote(l10n)),
       ],
     );
   }
@@ -88,15 +117,15 @@ class _ServicesProvidersScreenState extends State<ServicesProvidersScreen> {
           child: _SmallBadge(
             label: l10n.servicesProvidersPortalBadge,
             icon: Icons.verified_user_outlined,
-            background: const Color(0xFFDDEAFF),
-            foreground: AppColors.primaryDark,
+            background: AppColors.infoBorder,
+            foreground: AppColors.ink,
           ),
         ),
         const SizedBox(height: 8),
         Text(
           l10n.servicesProvidersTitle,
-          style: const TextStyle(
-            color: AppColors.primaryDark,
+          style: TextStyle(
+            color: AppColors.ink,
             fontSize: 21,
             fontWeight: FontWeight.bold,
           ),
@@ -104,7 +133,7 @@ class _ServicesProvidersScreenState extends State<ServicesProvidersScreen> {
         const SizedBox(height: 3),
         Text(
           l10n.servicesProvidersSubtitle,
-          style: const TextStyle(
+          style: TextStyle(
             color: AppColors.textSecondary,
             fontSize: 11,
           ),
@@ -148,7 +177,7 @@ class _ServicesProvidersScreenState extends State<ServicesProvidersScreen> {
       textInputAction: TextInputAction.search,
       decoration: InputDecoration(
         hintText: l10n.servicesProvidersSearchHint,
-        prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
+        prefixIcon: MotionIcon(Icons.search, color: AppColors.textSecondary),
         suffixIcon: _searchController.text.isEmpty
             ? null
             : IconButton(
@@ -157,10 +186,10 @@ class _ServicesProvidersScreenState extends State<ServicesProvidersScreen> {
                   _searchController.clear();
                   setState(() {});
                 },
-                icon: const Icon(Icons.close),
+                icon: const MotionIcon(Icons.close),
               ),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: AppColors.surface,
         contentPadding: const EdgeInsets.symmetric(vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -168,11 +197,11 @@ class _ServicesProvidersScreenState extends State<ServicesProvidersScreen> {
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppColors.cardBorder),
+          borderSide: BorderSide(color: AppColors.cardBorder),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppColors.info),
+          borderSide: BorderSide(color: AppColors.info),
         ),
       ),
     );
@@ -220,15 +249,15 @@ class _ServicesProvidersScreenState extends State<ServicesProvidersScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFF0F2F4),
+        color: AppColors.surfaceLight,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
+          MotionIcon(
             Icons.policy_outlined,
-            color: AppColors.primaryDark,
+            color: AppColors.ink,
             size: 20,
           ),
           const SizedBox(width: 9),
@@ -238,8 +267,8 @@ class _ServicesProvidersScreenState extends State<ServicesProvidersScreen> {
               children: [
                 Text(
                   l10n.servicesProvidersGovernanceTitle,
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
+                  style: TextStyle(
+                    color: AppColors.ink,
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
                   ),
@@ -247,7 +276,7 @@ class _ServicesProvidersScreenState extends State<ServicesProvidersScreen> {
                 const SizedBox(height: 4),
                 Text(
                   l10n.servicesProvidersGovernanceMessage,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 10,
                     height: 1.45,
@@ -277,6 +306,265 @@ class _ServicesProvidersScreenState extends State<ServicesProvidersScreen> {
   }
 }
 
+/// Applies a supervisor's local override on top of the catalog entry.
+ServiceProvider applyProviderState(
+  ServiceProvider p,
+  ServicesProviderState? state,
+) {
+  if (state == null) return p;
+  return ServiceProvider(
+    id: p.id,
+    nameAr: p.nameAr,
+    nameEn: p.nameEn,
+    tradeAr: p.tradeAr,
+    tradeEn: p.tradeEn,
+    cityAr: p.cityAr,
+    cityEn: p.cityEn,
+    taskCount: p.taskCount,
+    rating: p.rating,
+    completionRate: p.completionRate,
+    responseTime: p.responseTime,
+    phone: p.phone,
+    category: p.category,
+    icon: p.icon,
+    available: state.suspended ? false : (state.available ?? p.available),
+    verified: state.verified ?? p.verified,
+    featured: p.featured,
+    featureAr: p.featureAr,
+    featureEn: p.featureEn,
+  );
+}
+
+/// Suspend / reactivate / verify + long-suspension request to the head.
+class _ProviderManagementPanel extends StatefulWidget {
+  final ServiceProvider provider;
+  final bool isArabic;
+
+  const _ProviderManagementPanel({
+    required this.provider,
+    required this.isArabic,
+  });
+
+  @override
+  State<_ProviderManagementPanel> createState() =>
+      _ProviderManagementPanelState();
+}
+
+class _ProviderManagementPanelState extends State<_ProviderManagementPanel> {
+  final _store = ServicesProviderStateStore();
+  ServicesProviderState? _state;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final all = await _store.load();
+      if (mounted) setState(() => _state = all[widget.provider.id]);
+    } on Object catch (error) {
+      debugPrint('Provider state unavailable: $error');
+    }
+  }
+
+  Future<String?> _askReason(String title) async {
+    final controller = TextEditingController();
+    final ar = widget.isArabic;
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => Directionality(
+        textDirection: ar ? TextDirection.rtl : TextDirection.ltr,
+        child: AlertDialog(
+          title: Text(title),
+          content: TextField(
+            controller: controller,
+            maxLines: 3,
+            autofocus: true,
+            decoration: InputDecoration(
+              labelText: ar ? 'السبب (إلزامي)' : 'Reason (required)',
+              border: const OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(ar ? 'إلغاء' : 'Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final text = controller.text.trim();
+                if (text.length < 5) return;
+                Navigator.of(dialogContext).pop(text);
+              },
+              child: Text(ar ? 'تأكيد' : 'Confirm'),
+            ),
+          ],
+        ),
+      ),
+    );
+    controller.dispose();
+    return result;
+  }
+
+  void _toast(String message) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _run(Future<void> Function() action, String failure) async {
+    try {
+      await action();
+      await _load();
+    } on Object catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'services providers',
+        context: ErrorDescription('while updating a provider'),
+      ));
+      if (mounted) _toast(failure);
+    }
+  }
+
+  Future<void> _suspend() async {
+    final ar = widget.isArabic;
+    final reason = await _askReason(ar ? 'إيقاف مزود الخدمة' : 'Suspend provider');
+    if (reason == null || !mounted) return;
+    await _run(() async {
+      await _store.suspend(widget.provider.id, reason);
+      await ServicesActivityLog().tryRecord(
+        action: 'provider_suspended',
+        subject: widget.provider.id,
+        details: reason,
+      );
+    }, ar ? 'تعذر إيقاف المزود' : 'Could not suspend');
+  }
+
+  Future<void> _reactivate() async {
+    final ar = widget.isArabic;
+    await _run(() async {
+      await _store.reactivate(widget.provider.id);
+      await ServicesActivityLog().tryRecord(
+        action: 'provider_reactivated',
+        subject: widget.provider.id,
+      );
+    }, ar ? 'تعذر التفعيل' : 'Could not reactivate');
+  }
+
+  Future<void> _toggleVerified(bool current) async {
+    final ar = widget.isArabic;
+    await _run(() async {
+      await _store.setVerified(widget.provider.id, !current);
+      await ServicesActivityLog().tryRecord(
+        action: current ? 'provider_unverified' : 'provider_verified',
+        subject: widget.provider.id,
+      );
+    }, ar ? 'تعذر تحديث التوثيق' : 'Could not update verification');
+  }
+
+  Future<void> _escalate() async {
+    final ar = widget.isArabic;
+    final reason =
+        await askProductEscalationReason(context, isArabic: ar);
+    if (reason == null || !mounted) return;
+    await _run(() async {
+      await ServicesEscalationStore().escalate(
+        kind: ServicesEscalationKind.provider,
+        refId: widget.provider.id,
+        title: ar ? widget.provider.nameAr : widget.provider.nameEn,
+        subject: ar ? widget.provider.tradeAr : widget.provider.tradeEn,
+        reason: reason,
+      );
+      await ServicesActivityLog().tryRecord(
+        action: 'provider_escalated',
+        subject: widget.provider.id,
+        details: reason,
+      );
+      if (mounted) {
+        _toast(ar
+            ? 'تم رفع طلب الإيقاف الطويل لرئيس المشرفين.'
+            : 'Long-suspension request sent to the head.');
+      }
+    }, ar ? 'تعذر رفع الطلب لرئيس المشرفين' : 'Could not escalate');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ar = widget.isArabic;
+    final suspended = _state?.suspended ?? false;
+    final verified = _state?.verified ?? widget.provider.verified;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.surfaceLight),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            ar ? 'إدارة المزود' : 'Provider management',
+            style: TextStyle(
+              color: AppColors.ink,
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          if (suspended && (_state?.reason ?? '').isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              '${ar ? 'سبب الإيقاف' : 'Suspension reason'}: ${_state!.reason}',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 11,
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (suspended)
+                FilledButton.icon(
+                  onPressed: _reactivate,
+                  icon: const MotionIcon(Icons.play_circle_outline, size: 18),
+                  label: Text(ar ? 'إعادة التفعيل' : 'Reactivate'),
+                )
+              else
+                OutlinedButton.icon(
+                  onPressed: _suspend,
+                  icon: const MotionIcon(Icons.pause_circle_outline, size: 18),
+                  label: Text(ar ? 'إيقاف مؤقت' : 'Suspend'),
+                ),
+              OutlinedButton.icon(
+                onPressed: () => _toggleVerified(verified),
+                icon: MotionIcon(
+                  verified ? Icons.gpp_bad_outlined : Icons.verified_outlined,
+                  size: 18,
+                ),
+                label: Text(verified
+                    ? (ar ? 'إلغاء التوثيق' : 'Remove verification')
+                    : (ar ? 'توثيق المزود' : 'Verify')),
+              ),
+              OutlinedButton.icon(
+                onPressed: _escalate,
+                icon: const MotionIcon(Icons.north_east, size: 18),
+                label: Text(ar
+                    ? 'طلب إيقاف طويل (للرئيس)'
+                    : 'Long suspension (to head)'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ProviderProfileScreen extends StatelessWidget {
   final ServiceProvider provider;
   final bool isArabic;
@@ -295,10 +583,10 @@ class _ProviderProfileScreen extends StatelessWidget {
     final feature = isArabic ? provider.featureAr : provider.featureEn;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7F9),
+      backgroundColor: AppColors.scaffold,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: AppColors.primaryDark,
+        backgroundColor: AppColors.surface,
+        foregroundColor: AppColors.ink,
         title: Text(
           l10n.servicesProviderProfileTitle,
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -307,23 +595,25 @@ class _ProviderProfileScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         children: [
-          _buildAvailability(l10n),
+          ScrollFx(child: _buildAvailability(l10n)),
           const SizedBox(height: 12),
-          _buildIdentity(context, l10n, name),
+          ScrollFx(child: _ProviderManagementPanel(provider: provider, isArabic: isArabic)),
+          const SizedBox(height: 12),
+          ScrollFx(child: _buildIdentity(context, l10n, name)),
           const SizedBox(height: 18),
-          _buildSectionTitle(l10n.servicesProvidersCompletedTasks),
+          ScrollFx(child: _buildSectionTitle(l10n.servicesProvidersCompletedTasks)),
           const SizedBox(height: 10),
-          _buildMetrics(l10n),
+          ScrollFx(child: _buildMetrics(l10n)),
           const SizedBox(height: 20),
-          _buildSectionTitle(l10n.servicesProviderProfileCertifications),
+          ScrollFx(child: _buildSectionTitle(l10n.servicesProviderProfileCertifications)),
           const SizedBox(height: 10),
-          _buildCertifications(l10n),
+          ScrollFx(child: _buildCertifications(l10n)),
           const SizedBox(height: 20),
-          _buildSectionTitle(l10n.servicesProviderProfileSpecialties),
+          ScrollFx(child: _buildSectionTitle(l10n.servicesProviderProfileSpecialties)),
           const SizedBox(height: 10),
-          _buildSpecialties(l10n, trade, feature, city),
+          ScrollFx(child: _buildSpecialties(l10n, trade, feature, city)),
           const SizedBox(height: 20),
-          _buildSectionTitle(l10n.servicesProviderProfileRecentTasks),
+          ScrollFx(child: _buildSectionTitle(l10n.servicesProviderProfileRecentTasks)),
           const SizedBox(height: 10),
           for (var index = 0; index < 3; index++) ...[
             _RecentTaskCard(
@@ -334,21 +624,21 @@ class _ProviderProfileScreen extends StatelessWidget {
             ),
             const SizedBox(height: 9),
           ],
-          Container(
+          ScrollFx(child: Container(
             padding: const EdgeInsets.all(11),
             decoration: BoxDecoration(
-              color: const Color(0xFFF0F2F4),
+              color: AppColors.surfaceLight,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
               l10n.servicesProvidersSampleProfileNotice,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 10,
               ),
             ),
-          ),
+          )),
         ],
       ),
     );
@@ -363,13 +653,13 @@ class _ProviderProfileScreen extends StatelessWidget {
 
     return Row(
       children: [
-        Icon(Icons.circle, size: 10, color: statusColor),
+        MotionIcon(Icons.circle, size: 10, color: statusColor),
         const SizedBox(width: 7),
         Expanded(
           child: Text(
             statusLabel,
-            style: const TextStyle(
-              color: AppColors.primaryDark,
+            style: TextStyle(
+              color: AppColors.ink,
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
@@ -393,7 +683,7 @@ class _ProviderProfileScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.cardBorder),
       ),
@@ -409,8 +699,8 @@ class _ProviderProfileScreen extends StatelessWidget {
                   children: [
                     Text(
                       name,
-                      style: const TextStyle(
-                        color: AppColors.primaryDark,
+                      style: TextStyle(
+                        color: AppColors.ink,
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
@@ -418,7 +708,7 @@ class _ProviderProfileScreen extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       '${l10n.servicesProviderProfileRegistryNumber} #${provider.id}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 10,
                       ),
@@ -432,12 +722,12 @@ class _ProviderProfileScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(11),
             decoration: BoxDecoration(
-              color: const Color(0xFFF1F3F5),
+              color: AppColors.surfaceLight,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
               children: [
-                const Icon(
+                MotionIcon(
                   Icons.verified_user_outlined,
                   color: AppColors.info,
                   size: 18,
@@ -446,8 +736,8 @@ class _ProviderProfileScreen extends StatelessWidget {
                 Expanded(
                   child: Text(
                     l10n.servicesProviderProfileVerified,
-                    style: const TextStyle(
-                      color: AppColors.primaryDark,
+                    style: TextStyle(
+                      color: AppColors.ink,
                       fontSize: 11,
                     ),
                   ),
@@ -461,7 +751,7 @@ class _ProviderProfileScreen extends StatelessWidget {
               Expanded(
                 child: FilledButton.icon(
                   onPressed: () => _callProvider(context, l10n),
-                  icon: const Icon(Icons.call_outlined, size: 17),
+                  icon: const MotionIcon(Icons.call_outlined, size: 17),
                   label: Text(l10n.servicesProviderProfileCall),
                 ),
               ),
@@ -474,7 +764,7 @@ class _ProviderProfileScreen extends StatelessWidget {
                           MerchantConversationScreen(conversationTitle: name),
                     ),
                   ),
-                  icon: const Icon(Icons.chat_outlined, size: 17),
+                  icon: const MotionIcon(Icons.chat_outlined, size: 17),
                   label: Text(l10n.servicesProviderProfileChat),
                 ),
               ),
@@ -599,8 +889,8 @@ class _ProviderProfileScreen extends StatelessWidget {
   Widget _buildSectionTitle(String title) {
     return Text(
       title,
-      style: const TextStyle(
-        color: AppColors.primaryDark,
+      style: TextStyle(
+        color: AppColors.ink,
         fontSize: 17,
         fontWeight: FontWeight.bold,
       ),
@@ -626,7 +916,7 @@ class _ProviderMetric extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.cardBorder),
       ),
@@ -636,14 +926,14 @@ class _ProviderMetric extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, color: AppColors.info, size: 17),
+              MotionIcon(icon, color: AppColors.info, size: 17),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 9,
                   ),
@@ -651,10 +941,10 @@ class _ProviderMetric extends StatelessWidget {
               ),
             ],
           ),
-          Text(
+          CountText(
             value,
-            style: const TextStyle(
-              color: AppColors.primaryDark,
+            style: TextStyle(
+              color: AppColors.ink,
               fontSize: 22,
               fontWeight: FontWeight.bold,
             ),
@@ -663,7 +953,7 @@ class _ProviderMetric extends StatelessWidget {
             detail,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 8,
             ),
@@ -684,7 +974,7 @@ class _ProfilePanel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.cardBorder),
       ),
@@ -704,18 +994,18 @@ class _ProfileBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFFDDEAFF),
+        color: AppColors.infoBorder,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: AppColors.primaryDark, size: 13),
+          MotionIcon(icon, color: AppColors.ink, size: 13),
           const SizedBox(width: 4),
           Text(
             label,
-            style: const TextStyle(
-              color: AppColors.primaryDark,
+            style: TextStyle(
+              color: AppColors.ink,
               fontSize: 9,
               fontWeight: FontWeight.w600,
             ),
@@ -746,7 +1036,7 @@ class _RecentTaskCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(15),
         border: Border.all(color: AppColors.cardBorder),
       ),
@@ -758,8 +1048,8 @@ class _RecentTaskCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
+                  style: TextStyle(
+                    color: AppColors.ink,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                   ),
@@ -774,7 +1064,7 @@ class _RecentTaskCard extends StatelessWidget {
           const SizedBox(height: 7),
           Text(
             '#SRV-${3042 - index}',
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.info,
               fontSize: 10,
               fontWeight: FontWeight.w600,
@@ -783,7 +1073,7 @@ class _RecentTaskCard extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             details,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 10,
             ),
@@ -791,12 +1081,12 @@ class _RecentTaskCard extends StatelessWidget {
           const SizedBox(height: 8),
           Row(
             children: [
-              const Icon(Icons.star, color: AppColors.info, size: 14),
+              MotionIcon(Icons.star, color: AppColors.info, size: 14),
               const SizedBox(width: 4),
               Text(
                 rating,
-                style: const TextStyle(
-                  color: AppColors.primaryDark,
+                style: TextStyle(
+                  color: AppColors.ink,
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
                 ),
@@ -804,7 +1094,7 @@ class _RecentTaskCard extends StatelessWidget {
               const Spacer(),
               Text(
                 l10n.servicesProviderProfileTaskRecord,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.info,
                   fontSize: 9,
                 ),
@@ -839,9 +1129,9 @@ class _ProviderCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(17),
-        border: Border.all(color: const Color(0xFFF0F1F3)),
+        border: Border.all(color: AppColors.surfaceLight),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.025),
@@ -862,8 +1152,8 @@ class _ProviderCard extends StatelessWidget {
                   name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
+                  style: TextStyle(
+                    color: AppColors.ink,
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                   ),
@@ -886,9 +1176,9 @@ class _ProviderCard extends StatelessWidget {
           ),
           if (provider.featured) ...[
             const SizedBox(height: 5),
-            const Align(
+            Align(
               alignment: AlignmentDirectional.centerEnd,
-              child: Icon(
+              child: MotionIcon(
                 Icons.verified,
                 color: AppColors.infoDark,
                 size: 17,
@@ -902,7 +1192,7 @@ class _ProviderCard extends StatelessWidget {
               trade,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.infoDark,
                 fontSize: 12,
               ),
@@ -918,8 +1208,8 @@ class _ProviderCard extends StatelessWidget {
                 _SmallBadge(
                   label: l10n.servicesProvidersCommercialRegister,
                   icon: Icons.assignment_turned_in_outlined,
-                  background: const Color(0xFFEAF1FF),
-                  foreground: AppColors.primaryDark,
+                  background: AppColors.infoLight,
+                  foreground: AppColors.ink,
                 ),
               _SmallBadge(
                 label: l10n.servicesProvidersLicense,
@@ -930,7 +1220,7 @@ class _ProviderCard extends StatelessWidget {
               _SmallBadge(
                 label: l10n.servicesProvidersServiceTerms,
                 icon: Icons.speed_outlined,
-                background: const Color(0xFFDDF6ED),
+                background: AppColors.successBorder,
                 foreground: AppColors.successDark,
               ),
             ],
@@ -961,7 +1251,7 @@ class _ProviderCard extends StatelessWidget {
                     const SizedBox(width: 7),
                     Text(
                       l10n.servicesProvidersTasksCount(provider.taskCount),
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 9,
                       ),
@@ -976,7 +1266,7 @@ class _ProviderCard extends StatelessWidget {
                         feature,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.infoDark,
                           fontSize: 10,
                         ),
@@ -986,7 +1276,7 @@ class _ProviderCard extends StatelessWidget {
                       _SmallBadge(
                         label: l10n.servicesProvidersExecutionWindow,
                         icon: Icons.access_time,
-                        background: const Color(0xFFE8EAEC),
+                        background: AppColors.surfaceHighlight,
                         foreground: AppColors.textSecondary,
                       )
                     else
@@ -995,7 +1285,7 @@ class _ProviderCard extends StatelessWidget {
                           provider.completionRate,
                         ),
                         icon: Icons.bolt_outlined,
-                        background: const Color(0xFFDDF6ED),
+                        background: AppColors.successBorder,
                         foreground: AppColors.successDark,
                       ),
                   ],
@@ -1009,7 +1299,7 @@ class _ProviderCard extends StatelessWidget {
             child: FilledButton.icon(
               key: ValueKey('provider_profile_${provider.id}'),
               onPressed: onTap,
-              icon: const Icon(Icons.assignment_turned_in_outlined, size: 18),
+              icon: const MotionIcon(Icons.assignment_turned_in_outlined, size: 18),
               label: Text(l10n.servicesProvidersViewProfile),
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.primaryDark,
@@ -1043,9 +1333,9 @@ class _SummaryCard extends StatelessWidget {
       height: 60,
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: const Color(0xFFF0F1F3)),
+        border: Border.all(color: AppColors.surfaceLight),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -1054,20 +1344,20 @@ class _SummaryCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (showDot) ...[
-                const Icon(Icons.circle, color: AppColors.success, size: 8),
+                MotionIcon(Icons.circle, color: AppColors.success, size: 8),
                 const SizedBox(width: 4),
               ],
               Flexible(
-                child: Text(
+                child: FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart, child: CountText(
                   value,
                   maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
+ softWrap: false,
+                  style: TextStyle(
+                    color: AppColors.ink,
                     fontWeight: FontWeight.bold,
                     fontSize: 15,
                   ),
-                ),
+                )),
               ),
             ],
           ),
@@ -1077,7 +1367,7 @@ class _SummaryCard extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 9,
             ),
@@ -1102,7 +1392,7 @@ class _CategoryChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? AppColors.primaryDark : Colors.white,
+      color: selected ? AppColors.primaryDark : AppColors.surface,
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
         onTap: onTap,
@@ -1143,7 +1433,7 @@ class _ProviderIcon extends StatelessWidget {
         color: AppColors.surfaceLight,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Icon(icon, color: AppColors.infoDark, size: 23),
+      child: MotionIcon(icon, color: AppColors.infoDark, size: 23),
     );
   }
 }
@@ -1172,7 +1462,7 @@ class _SmallBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: foreground, size: 12),
+          MotionIcon(icon, color: foreground, size: 12),
           const SizedBox(width: 4),
           Text(
             label,
@@ -1209,17 +1499,17 @@ class _ProviderFact extends StatelessWidget {
         if (trailing) ...[
           Text(
             text,
-            style: const TextStyle(
-              color: AppColors.primaryDark,
+            style: TextStyle(
+              color: AppColors.ink,
               fontSize: 10,
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(width: 3),
         ],
-        Icon(
+        MotionIcon(
           icon,
-          color: trailing ? const Color(0xFFF6A900) : AppColors.textSecondary,
+          color: trailing ? AppColors.warning : AppColors.textSecondary,
           size: 14,
         ),
         if (!trailing) ...[
@@ -1229,7 +1519,7 @@ class _ProviderFact extends StatelessWidget {
               text,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 9,
               ),
@@ -1259,23 +1549,23 @@ class _ProfileRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: AppColors.infoDark, size: 18),
+          MotionIcon(icon, color: AppColors.infoDark, size: 18),
           const SizedBox(width: 8),
           SizedBox(
             width: 105,
             child: Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 11,
               ),
             ),
           ),
           Expanded(
-            child: Text(
+            child: CountText(
               value,
-              style: const TextStyle(
-                color: AppColors.primaryDark,
+              style: TextStyle(
+                color: AppColors.ink,
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
               ),

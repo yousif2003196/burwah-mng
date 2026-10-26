@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/di/injection_container.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../../services_supervisor/presentation/screens/services_supervisor_wallet_screen.dart';
-import '../../domain/entities/product_supervisor_audit_entry.dart';
-import '../../domain/repositories/product_supervisor_audit_repository.dart';
-import 'product_supervisor_audit_screen.dart';
-import 'product_supervisor_complaints_screen.dart';
-import 'product_supervisor_support_screen.dart';
-import 'product_supervisor_chats_screen.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/features/products/domain/entities/product_supervisor_audit_entry.dart';
+import 'package:barwah_app/features/products/domain/repositories/product_supervisor_audit_repository.dart';
+import 'package:barwah_app/features/products/presentation/screens/product_supervisor_audit_screen.dart';
+import 'package:barwah_app/features/products/presentation/screens/product_supervisor_chats_screen.dart';
+import 'package:barwah_app/features/products/presentation/screens/product_supervisor_complaints_screen.dart';
+import 'package:barwah_app/features/products/presentation/screens/product_supervisor_support_screen.dart';
+import 'package:barwah_app/features/products/presentation/widgets/product_escalations_entry.dart';
+import 'package:barwah_app/features/services_supervisor/presentation/screens/services_supervisor_wallet_screen.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class ProductSupervisorProfileScreen extends StatefulWidget {
   final VoidCallback onLogout;
@@ -169,55 +173,55 @@ class _ProductSupervisorProfileScreenState
     return Directionality(
       textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF5F7F9),
+        backgroundColor: AppColors.scaffold,
         body: ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
           children: [
-            _buildProfileCard(l10n),
+            ScrollFx(child: _buildProfileCard(l10n)),
             const SizedBox(height: 18),
-            _buildSectionHeading(
+            ScrollFx(child: _buildSectionHeading(
               l10n.productProfileMetricsTitle,
               Icons.analytics_outlined,
               trailing: l10n.productProfileLastUpdated,
-            ),
+            )),
             const SizedBox(height: 8),
-            _buildMetrics(l10n),
+            ScrollFx(child: _buildMetrics(l10n)),
             const SizedBox(height: 18),
-            _buildSectionHeading(
+            ScrollFx(child: _buildSectionHeading(
               l10n.productProfileDocumentsTitle,
               Icons.folder_open_outlined,
-            ),
+            )),
             const SizedBox(height: 8),
-            _buildDocuments(l10n),
+            ScrollFx(child: _buildDocuments(l10n)),
             const SizedBox(height: 18),
-            _buildSectionHeading(
+            ScrollFx(child: _buildSectionHeading(
               l10n.productProfileWalletTitle,
               Icons.account_balance_wallet_outlined,
               trailing: l10n.productProfileJustUpdated,
-            ),
+            )),
             const SizedBox(height: 8),
-            _buildWalletCard(l10n),
+            ScrollFx(child: _buildWalletCard(l10n)),
             const SizedBox(height: 18),
-            _buildSectionHeading(
+            ScrollFx(child: _buildSectionHeading(
               l10n.productProfileOperationsTitle,
               Icons.tune,
-            ),
+            )),
             const SizedBox(height: 8),
-            _buildOperationsCard(l10n),
-            Padding(
+            ScrollFx(child: _buildOperationsCard(l10n)),
+            ScrollFx(child: Padding(
               padding: const EdgeInsetsDirectional.only(top: 7),
               child: Text(
                 l10n.productProfilePreferenceLocalOnlyNotice,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 10,
                 ),
               ),
-            ),
+            )),
             if (_preferencesLoadError != null)
               TextButton.icon(
                 onPressed: _loadPreferences,
-                icon: const Icon(Icons.refresh),
+                icon: const MotionIcon(Icons.refresh),
                 label: Text(l10n.productProfilePreferenceLoadError),
               ),
             const SizedBox(height: 18),
@@ -225,11 +229,11 @@ class _ProductSupervisorProfileScreenState
               height: 50,
               child: FilledButton.icon(
                 onPressed: _confirmLogout,
-                icon: const Icon(Icons.logout, size: 19),
+                icon: const MotionIcon(Icons.logout, size: 19),
                 label: Text(l10n.productProfileEndSession),
                 style: FilledButton.styleFrom(
                   foregroundColor: AppColors.danger,
-                  backgroundColor: const Color(0xFFFFD9D5),
+                  backgroundColor: AppColors.dangerBorder,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
@@ -243,7 +247,7 @@ class _ProductSupervisorProfileScreenState
                   Text(
                     l10n.productProfileFooter,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 10,
                     ),
@@ -251,7 +255,7 @@ class _ProductSupervisorProfileScreenState
                   const SizedBox(height: 4),
                   Text(
                     l10n.productProfileBuild,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textMuted,
                       fontSize: 9,
                     ),
@@ -269,7 +273,7 @@ class _ProductSupervisorProfileScreenState
     return Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.cardBorder),
       ),
@@ -284,14 +288,14 @@ class _ProductSupervisorProfileScreenState
                     width: 64,
                     height: 64,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFE8EDF2),
+                      color: AppColors.surfaceHighlight,
                       borderRadius: BorderRadius.circular(15),
-                      border: Border.all(color: const Color(0xFFD5DEE8)),
+                      border: Border.all(color: AppColors.cardBorder),
                     ),
-                    child: const Icon(
+                    child: MotionIcon(
                       Icons.person,
                       size: 38,
-                      color: AppColors.primaryDark,
+                      color: AppColors.ink,
                     ),
                   ),
                   Positioned(
@@ -299,14 +303,16 @@ class _ProductSupervisorProfileScreenState
                     left: -4,
                     child: Container(
                       padding: const EdgeInsets.all(4),
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
+                        gradient: AppColors.blueFill,
+                        boxShadow: AppColors.blueGlow,
                         color: AppColors.primaryDark,
                         shape: BoxShape.circle,
                         border: Border.fromBorderSide(
                           BorderSide(color: Colors.white, width: 2),
                         ),
                       ),
-                      child: const Icon(
+                      child: const MotionIcon(
                         Icons.verified,
                         size: 13,
                         color: Colors.white,
@@ -324,8 +330,8 @@ class _ProductSupervisorProfileScreenState
                       l10n.productProfileName,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.primaryDark,
+                      style: TextStyle(
+                        color: AppColors.ink,
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
                       ),
@@ -333,7 +339,7 @@ class _ProductSupervisorProfileScreenState
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        const Icon(Icons.location_on_outlined,
+                        MotionIcon(Icons.location_on_outlined,
                             size: 14, color: AppColors.textSecondary),
                         const SizedBox(width: 3),
                         Expanded(
@@ -341,7 +347,7 @@ class _ProductSupervisorProfileScreenState
                             l10n.productProfileRegion,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: AppColors.textSecondary,
                               fontSize: 10,
                             ),
@@ -374,7 +380,7 @@ class _ProductSupervisorProfileScreenState
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
             decoration: BoxDecoration(
-              color: const Color(0xFFF1F3F5),
+              color: AppColors.surfaceLight,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
@@ -385,8 +391,8 @@ class _ProductSupervisorProfileScreenState
                     children: [
                       Text(
                         l10n.productProfileFieldAvailability,
-                        style: const TextStyle(
-                          color: AppColors.primaryDark,
+                        style: TextStyle(
+                          color: AppColors.ink,
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
                         ),
@@ -394,7 +400,7 @@ class _ProductSupervisorProfileScreenState
                       const SizedBox(height: 3),
                       Text(
                         l10n.productProfileFieldAvailabilityHint,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 9,
                         ),
@@ -422,7 +428,7 @@ class _ProductSupervisorProfileScreenState
                                 _fieldAvailability = enabled,
                           )
                       : null,
-                  activeTrackColor: const Color(0xFF52C5A1),
+                  activeTrackColor: AppColors.success,
                 ),
               ],
             ),
@@ -436,18 +442,18 @@ class _ProductSupervisorProfileScreenState
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        color: const Color(0xFFEAF0F7),
+        color: AppColors.surfaceLight,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 13, color: AppColors.info),
+          MotionIcon(icon, size: 13, color: AppColors.info),
           const SizedBox(width: 4),
           Text(
             label,
-            style: const TextStyle(
-              color: AppColors.primaryDark,
+            style: TextStyle(
+              color: AppColors.ink,
               fontSize: 9,
               fontWeight: FontWeight.w700,
             ),
@@ -479,14 +485,14 @@ class _ProductSupervisorProfileScreenState
         unit: l10n.productReportMinuteUnit,
         detail: l10n.productProfileFasterThanAverage,
         icon: Icons.bolt,
-        color: const Color(0xFF376AB0),
+        color: AppColors.infoDark,
       ),
       _ProfileMetric(
         title: l10n.productProfileQualityMetric,
         value: '4.9',
         detail: l10n.productProfileQualityDetail,
         icon: Icons.star,
-        color: const Color(0xFF375C94),
+        color: AppColors.infoDark,
       ),
     ];
 
@@ -524,10 +530,10 @@ class _ProductSupervisorProfileScreenState
                 width: 30,
                 height: 30,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF0F3F7),
+                  color: AppColors.surfaceLight,
                   borderRadius: BorderRadius.circular(9),
                 ),
-                child: Icon(metric.icon, size: 17, color: metric.color),
+                child: MotionIcon(metric.icon, size: 17, color: metric.color),
               ),
               const SizedBox(width: 7),
               Expanded(
@@ -535,7 +541,7 @@ class _ProductSupervisorProfileScreenState
                   metric.title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 10,
                   ),
@@ -549,10 +555,10 @@ class _ProductSupervisorProfileScreenState
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
+                CountText(
                   metric.value,
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
+                  style: TextStyle(
+                    color: AppColors.ink,
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
                   ),
@@ -561,7 +567,7 @@ class _ProductSupervisorProfileScreenState
                   const SizedBox(width: 4),
                   Text(
                     metric.unit!,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 9,
                     ),
@@ -640,7 +646,7 @@ class _ProductSupervisorProfileScreenState
     required VoidCallback onTap,
   }) {
     return Material(
-      color: const Color(0xFFF1F3F5),
+      color: AppColors.surfaceLight,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
@@ -653,10 +659,10 @@ class _ProductSupervisorProfileScreenState
                 width: 34,
                 height: 34,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: AppColors.surface,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, color: AppColors.primaryDark, size: 18),
+                child: MotionIcon(icon, color: AppColors.ink, size: 18),
               ),
               const SizedBox(width: 9),
               Expanded(
@@ -667,8 +673,8 @@ class _ProductSupervisorProfileScreenState
                       title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.primaryDark,
+                      style: TextStyle(
+                        color: AppColors.ink,
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
                       ),
@@ -678,7 +684,7 @@ class _ProductSupervisorProfileScreenState
                       subtitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 8,
                       ),
@@ -697,7 +703,7 @@ class _ProductSupervisorProfileScreenState
 
   Widget _buildWalletCard(AppLocalizations l10n) {
     return Material(
-      color: Colors.white,
+      color: AppColors.surface,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
@@ -717,10 +723,10 @@ class _ProductSupervisorProfileScreenState
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEAF0FF),
+                  color: AppColors.infoLight,
                   borderRadius: BorderRadius.circular(13),
                 ),
-                child: const Icon(
+                child: MotionIcon(
                   Icons.account_balance_wallet_outlined,
                   color: AppColors.info,
                 ),
@@ -732,7 +738,7 @@ class _ProductSupervisorProfileScreenState
                   children: [
                     Text(
                       l10n.productProfileWalletBalance,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 10,
                       ),
@@ -740,8 +746,8 @@ class _ProductSupervisorProfileScreenState
                     const SizedBox(height: 3),
                     Text(
                       l10n.productProfileWalletAmount,
-                      style: const TextStyle(
-                        color: AppColors.primaryDark,
+                      style: TextStyle(
+                        color: AppColors.ink,
                         fontSize: 19,
                         fontWeight: FontWeight.w800,
                       ),
@@ -751,7 +757,7 @@ class _ProductSupervisorProfileScreenState
                       l10n.productProfileWalletDetail,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 8,
                       ),
@@ -760,7 +766,7 @@ class _ProductSupervisorProfileScreenState
                 ),
               ),
               const SizedBox(width: 6),
-              const Icon(Icons.arrow_forward_ios,
+              MotionIcon(Icons.arrow_forward_ios,
                   size: 15, color: AppColors.textSecondary),
             ],
           ),
@@ -818,6 +824,8 @@ class _ProductSupervisorProfileScreenState
               subtitle: 'مراجعة الشكاوى ومتابعة الإجراءات والتواصل مع العملاء',
               onTap: () => _openPage(const ProductSupervisorComplaintsScreen()),
             ),
+          if (widget.showGenericComplaintsShortcut)
+            const ProductEscalationsEntry(),
           _operationLink(
             icon: Icons.chat_outlined,
             title: 'التواصل مع المشرفين والدعم',
@@ -859,8 +867,8 @@ class _ProductSupervisorProfileScreenState
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
+                  style: TextStyle(
+                    color: AppColors.ink,
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                   ),
@@ -870,7 +878,7 @@ class _ProductSupervisorProfileScreenState
                   subtitle,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 8,
                   ),
@@ -883,7 +891,7 @@ class _ProductSupervisorProfileScreenState
             key: toggleKey,
             value: value,
             onChanged: onChanged,
-            activeTrackColor: const Color(0xFF52C5A1),
+            activeTrackColor: AppColors.success,
           ),
         ],
       ),
@@ -913,8 +921,8 @@ class _ProductSupervisorProfileScreenState
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
-                        color: AppColors.primaryDark,
+                      style: TextStyle(
+                        color: AppColors.ink,
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
                       ),
@@ -924,7 +932,7 @@ class _ProductSupervisorProfileScreenState
                       subtitle,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 8,
                       ),
@@ -933,7 +941,7 @@ class _ProductSupervisorProfileScreenState
                 ),
               ),
               const SizedBox(width: 8),
-              const Icon(Icons.chevron_right,
+              MotionIcon(Icons.chevron_right,
                   size: 20, color: AppColors.textSecondary),
             ],
           ),
@@ -950,7 +958,7 @@ class _ProductSupervisorProfileScreenState
         color: color.withValues(alpha: .12),
         shape: BoxShape.circle,
       ),
-      child: Icon(icon, color: color, size: 18),
+      child: MotionIcon(icon, color: color, size: 18),
     );
   }
 
@@ -961,13 +969,13 @@ class _ProductSupervisorProfileScreenState
   }) {
     return Row(
       children: [
-        Icon(icon, size: 17, color: AppColors.info),
+        MotionIcon(icon, size: 17, color: AppColors.info),
         const SizedBox(width: 6),
         Expanded(
           child: Text(
             title,
-            style: const TextStyle(
-              color: AppColors.primaryDark,
+            style: TextStyle(
+              color: AppColors.ink,
               fontSize: 15,
               fontWeight: FontWeight.w800,
             ),
@@ -976,7 +984,7 @@ class _ProductSupervisorProfileScreenState
         if (trailing != null)
           Text(
             trailing,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 8,
             ),
@@ -989,12 +997,12 @@ class _ProductSupervisorProfileScreenState
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
         label,
-        style: const TextStyle(
+        style: TextStyle(
           color: AppColors.info,
           fontSize: 8,
           fontWeight: FontWeight.w700,
@@ -1004,7 +1012,7 @@ class _ProductSupervisorProfileScreenState
   }
 
   BoxDecoration _cardDecoration() => BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.cardBorder),
         boxShadow: [

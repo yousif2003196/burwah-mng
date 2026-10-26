@@ -2,10 +2,13 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/widgets/account_conversations_screen.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../data/wasalny_local_event_store.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
+import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
+import 'package:barwah_app/features/messaging/presentation/screens/account_conversations_screen.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class WasalnySupervisorNotificationsScreen extends StatelessWidget {
   const WasalnySupervisorNotificationsScreen({super.key});
@@ -49,21 +52,21 @@ class _WasalnyEventInbox extends StatefulWidget {
 }
 
 class _WasalnyEventInboxState extends State<_WasalnyEventInbox> {
-  final _store = WasalnyLocalEventStore();
-  List<WasalnyLocalEvent> _events = const [];
+  final _store = LocalEventStore();
+  List<LocalEvent> _events = const [];
   Object? _loadError;
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    WasalnyLocalEventStore.revision.addListener(_load);
+    LocalEventStore.revision.addListener(_load);
     _load();
   }
 
   @override
   void dispose() {
-    WasalnyLocalEventStore.revision.removeListener(_load);
+    LocalEventStore.revision.removeListener(_load);
     super.dispose();
   }
 
@@ -96,12 +99,12 @@ class _WasalnyEventInboxState extends State<_WasalnyEventInbox> {
     }
   }
 
-  Future<void> _markRead(WasalnyLocalEvent event) async {
+  Future<void> _markRead(LocalEvent event) async {
     try {
       await _store.markRead(widget.recipient, event.id);
       if (widget.recipient == 'head' && !event.isRead) {
         await _store.publish(
-          WasalnyLocalEvent(
+          LocalEvent(
             id: 'chief-read-${event.id}',
             recipient: 'wasalny',
             source: 'chief',
@@ -153,10 +156,10 @@ class _WasalnyEventInboxState extends State<_WasalnyEventInbox> {
     return Directionality(
       textDirection: isArabic ? ui.TextDirection.rtl : ui.TextDirection.ltr,
       child: Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: AppColors.scaffold,
         appBar: AppBar(
-          backgroundColor: Colors.white,
-          foregroundColor: AppColors.primaryDark,
+          backgroundColor: AppColors.surface,
+          foregroundColor: AppColors.ink,
           title: Text(widget.title),
           actions: [
             if (widget.recipient == 'head')
@@ -171,14 +174,14 @@ class _WasalnyEventInboxState extends State<_WasalnyEventInbox> {
                 ),
                 icon: const AccountChatUnreadBadge(
                   accountId: 'head',
-                  child: Icon(Icons.chat_bubble_outline),
+                  child: MotionIcon(Icons.chat_bubble_outline),
                 ),
               ),
             if (widget.onLogout != null)
               IconButton(
                 tooltip: l10n.logout,
                 onPressed: () => _confirmLogout(l10n),
-                icon: const Icon(Icons.logout),
+                icon: const MotionIcon(Icons.logout),
               ),
             TextButton(
               onPressed: _events.any((event) => !event.isRead)
@@ -211,13 +214,13 @@ class _WasalnyEventInboxState extends State<_WasalnyEventInbox> {
                         itemCount: _events.length,
                         separatorBuilder: (_, __) =>
                             const SizedBox(height: 10),
-                        itemBuilder: (context, index) {
+                        itemBuilder: scrollFxItems((context, index) {
                           final event = _events[index];
                           final isArabicText = l10n.localeName.startsWith('ar');
                           final color = _sourceColor(event.source);
                           return Material(
                             color: event.isRead
-                                ? Colors.white
+                                ? AppColors.surface
                                 : color.withValues(alpha: .07),
                             borderRadius: BorderRadius.circular(14),
                             child: InkWell(
@@ -231,7 +234,7 @@ class _WasalnyEventInboxState extends State<_WasalnyEventInbox> {
                                     CircleAvatar(
                                       backgroundColor:
                                           color.withValues(alpha: .14),
-                                      child: Icon(
+                                      child: MotionIcon(
                                         _sourceIcon(event.source),
                                         color: color,
                                       ),
@@ -249,7 +252,7 @@ class _WasalnyEventInboxState extends State<_WasalnyEventInbox> {
                                                   isArabicText
                                                       ? event.titleAr
                                                       : event.titleEn,
-                                                  style: const TextStyle(
+                                                  style: TextStyle(
                                                     color:
                                                         AppColors.textPrimary,
                                                     fontWeight: FontWeight.bold,
@@ -257,7 +260,7 @@ class _WasalnyEventInboxState extends State<_WasalnyEventInbox> {
                                                 ),
                                               ),
                                               if (!event.isRead)
-                                                Icon(Icons.circle,
+                                                MotionIcon(Icons.circle,
                                                     color: color, size: 9),
                                             ],
                                           ),
@@ -266,7 +269,7 @@ class _WasalnyEventInboxState extends State<_WasalnyEventInbox> {
                                             isArabicText
                                                 ? event.messageAr
                                                 : event.messageEn,
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                               color: AppColors.textSecondary,
                                               fontSize: 12,
                                             ),
@@ -300,7 +303,7 @@ class _WasalnyEventInboxState extends State<_WasalnyEventInbox> {
                               ),
                             ),
                           );
-                        },
+                        }),
                       ),
       ),
     );
@@ -328,8 +331,8 @@ class _WasalnyEventInboxState extends State<_WasalnyEventInbox> {
   }
 
   Color _sourceColor(String source) => switch (source) {
-        'finance' => const Color(0xFFB56812),
-        'chief' => const Color(0xFF7A4DB3),
+        'finance' => AppColors.warningDark,
+        'chief' => AppColors.purple,
         _ => AppColors.primaryDark,
       };
 

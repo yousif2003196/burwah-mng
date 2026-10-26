@@ -29,7 +29,7 @@ class WithdrawalRequestEntity extends Equatable {
   final BeneficiaryType beneficiaryType;
   final double grossAmount; // إجمالي المبلغ المطلوب
   final double platformFeePercentage; // نسبة عمولة المنصة
-  final double platformFeeAmount; // قيمة العمولة بالريال
+  final double platformFeeAmount; // قيمة العمولة بالجنيه
   final double netAmount; // صافي المبلغ المستحق للصرف
   final String bankName; // مصرف الراجحي، البنك الأهلي السعودي..
   final String iban;

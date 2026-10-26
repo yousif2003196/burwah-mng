@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/widgets/local_event_inbox_screen.dart';
-import '../../data/head_supervisor_audit_store.dart';
-import 'head_supervisor_broadcast_sheet.dart';
-import 'head_supervisor_wallet_screen.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_audit_store.dart';
+import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_audit_record.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_wallet_screen.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_supervisor_broadcast_sheet.dart';
+import 'package:barwah_app/features/messaging/presentation/screens/local_event_inbox_screen.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
-const _sampleAuditEntries = [
+List<_AuditEntry> get _sampleAuditEntries => [
   _AuditEntry(
     icon: Icons.cancel_outlined,
-    color: Color(0xFFB91C1C),
+    color: AppColors.dangerDark,
     title: 'تعليق إعلان تجاري وإحالة للتحقيق',
     details: 'تم توجيه الإجراء العاجل بحق مشرف القطاع الشرقي وإحالته للتحقيق الإداري.',
     time: 'اليوم 11:20 ص',
@@ -18,7 +22,7 @@ const _sampleAuditEntries = [
   ),
   _AuditEntry(
     icon: Icons.gavel_outlined,
-    color: Color(0xFF315F9A),
+    color: AppColors.infoDark,
     title: 'حسم نزاع تسليم كاميرا كانون',
     details: 'قرار نهائي: إلزام البائع برد كامل المبلغ للمشتري بعد ثبوت التلف.',
     time: 'اليوم 09:15 ص',
@@ -27,7 +31,7 @@ const _sampleAuditEntries = [
   ),
   _AuditEntry(
     icon: Icons.swap_horiz,
-    color: Color(0xFF52606D),
+    color: AppColors.textSecondary,
     title: 'اعتماد إعادة إسناد طلب صيانة',
     details: 'الموافقة على تحويل طلب تكييف وتبريد حي الياسمين إلى مزود معتمد بديل.',
     time: 'أمس 04:30 م',
@@ -36,20 +40,13 @@ const _sampleAuditEntries = [
   ),
   _AuditEntry(
     icon: Icons.warning_amber_outlined,
-    color: Color(0xFF68727D),
+    color: AppColors.textSecondary,
     title: 'لفت نظر إداري رسمي',
     details: 'توجيه إداري للمشرف لفحص المنتجات الجديدة وعدم التأخر في مراجعتها.',
     time: 'أمس 02:10 م',
     code: '#SUP-108',
     action: 'إشعار سري',
   ),
-];
-
-const _sampleAuditEntriesEnglish = [
-  _AuditEntry(icon: Icons.cancel_outlined, color: Color(0xFFB91C1C), title: 'Commercial ad suspended and referred for investigation', details: 'Urgent action was taken against the East Sector supervisor and referred for administrative investigation.', time: 'Today 11:20 AM', code: '#CMP-SUP-104', action: 'Account deduction recorded'),
-  _AuditEntry(icon: Icons.gavel_outlined, color: Color(0xFF315F9A), title: 'Camera delivery dispute resolved', details: 'Final decision: seller must issue a full refund after damage was confirmed.', time: 'Today 09:15 AM', code: '#WAS-5510', action: 'Immediate enforcement'),
-  _AuditEntry(icon: Icons.swap_horiz, color: Color(0xFF52606D), title: 'Maintenance request reassignment approved', details: 'Approved transfer of the Yasmin District cooling request to an alternative provider.', time: 'Yesterday 04:30 PM', code: '#SRV-3042', action: 'Riyadh'),
-  _AuditEntry(icon: Icons.warning_amber_outlined, color: Color(0xFF68727D), title: 'Official administrative warning', details: 'Supervisor instructed to inspect new products and complete reviews on time.', time: 'Yesterday 02:10 PM', code: '#SUP-108', action: 'Confidential notice'),
 ];
 
 String _profileText(BuildContext context, String arabic, String english) =>
@@ -110,8 +107,8 @@ class _HeadSupervisorProfileScreenState extends State<HeadSupervisorProfileScree
             _ => Icons.policy_outlined,
           },
           color: record.kind == 'complaint'
-              ? const Color(0xFFB91C1C)
-              : const Color(0xFF315F9A),
+              ? AppColors.dangerDark
+              : AppColors.infoDark,
           title: record.title,
           details: record.details,
           time: _auditTime(record.occurredAt),
@@ -134,10 +131,10 @@ class _HeadSupervisorProfileScreenState extends State<HeadSupervisorProfileScree
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.scaffold,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: AppColors.primaryDark,
+        backgroundColor: AppColors.surface,
+        foregroundColor: AppColors.ink,
         elevation: 0,
         title: Text(_profileText(context, 'رئيس المشرفين', 'Head Supervisor'),
             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
@@ -152,7 +149,7 @@ class _HeadSupervisorProfileScreenState extends State<HeadSupervisorProfileScree
                 ),
               ),
             ),
-            icon: const Icon(Icons.notifications_none_outlined),
+            icon: const MotionIcon(Icons.notifications_none_outlined),
           ),
           const SizedBox(width: 8),
         ],
@@ -160,46 +157,46 @@ class _HeadSupervisorProfileScreenState extends State<HeadSupervisorProfileScree
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
-          const _SessionBanner(),
+          ScrollFx(child: const _SessionBanner()),
           const SizedBox(height: 14),
-          _ProfileCard(onEdit: () => _showEditProfile(context)),
+          ScrollFx(child: _ProfileCard(onEdit: () => _showEditProfile(context))),
           const SizedBox(height: 10),
-          _BroadcastNoticeCard(onTap: () => _openBroadcast(context)),
+          ScrollFx(child: _BroadcastNoticeCard(onTap: () => _openBroadcast(context))),
           const SizedBox(height: 14),
-          _WalletCard(onOpen: () => _showWallet(context)),
+          ScrollFx(child: _WalletCard(onOpen: () => _showWallet(context))),
           const SizedBox(height: 18),
-          _SectionHeading(
+          ScrollFx(child: _SectionHeading(
               title: _profileText(context, 'مؤشرات الرقابة والامتثال', 'Oversight & Compliance'),
-              subtitle: _profileText(context, 'خلال 30 يوماً', 'Last 30 days')),
+              subtitle: _profileText(context, 'خلال 30 يوماً', 'Last 30 days'))),
           const SizedBox(height: 8),
-          Row(children: [
+          ScrollFx(child: Row(children: [
             Expanded(child: _MetricCard(value: '18', label: _profileText(context, 'مشرفاً تحت الإدارة', 'Supervisors managed'), icon: Icons.groups_outlined)),
             const SizedBox(width: 8),
-            Expanded(child: _MetricCard(value: '98.4%', label: _profileText(context, 'معيار الحوكمة', 'Governance score'), icon: Icons.verified_outlined, valueColor: const Color(0xFF315F9A))),
+            Expanded(child: _MetricCard(value: '98.4%', label: _profileText(context, 'معيار الحوكمة', 'Governance score'), icon: Icons.verified_outlined, valueColor: AppColors.infoDark)),
             const SizedBox(width: 8),
             Expanded(child: _MetricCard(value: '342', label: _profileText(context, 'تدخل رقابي معتمد', 'Approved interventions'), icon: Icons.gavel_outlined)),
-          ]),
+          ])),
           const SizedBox(height: 14),
-          _AuditCard(
+          ScrollFx(child: _AuditCard(
             entries: _auditEntries,
             totalCount: _records.isEmpty ? 142 : _records.length,
             onViewAll: () => _showAudit(context),
-          ),
+          )),
           const SizedBox(height: 14),
-          const _SecurityCard(),
+          ScrollFx(child: const _SecurityCard()),
           const SizedBox(height: 14),
           SizedBox(
             height: 48,
             child: OutlinedButton.icon(
               onPressed: () => _confirmLogout(context, widget.onLogout),
-              icon: const Icon(Icons.logout, color: Color(0xFFB91C1C), size: 18),
+              icon: MotionIcon(Icons.logout, color: AppColors.dangerDark, size: 18),
               label: Text(_profileText(context, 'إنهاء الجلسة الإدارية وإغلاق التطبيق', 'End the admin session and sign out'),
-                  style: const TextStyle(
-                      color: const Color(0xFFB91C1C),
+                  style: TextStyle(
+                      color: AppColors.dangerDark,
                       fontSize: 11,
                       fontWeight: FontWeight.bold)),
               style: OutlinedButton.styleFrom(
-                backgroundColor: const Color(0xFFE9EAEC),
+                backgroundColor: AppColors.surfaceHighlight,
                 side: BorderSide.none,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
               ),
@@ -248,7 +245,7 @@ class _HeadSupervisorProfileScreenState extends State<HeadSupervisorProfileScree
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.surface,
       builder: (context) => SafeArea(
         child: SizedBox(
           height: MediaQuery.sizeOf(context).height * .72,
@@ -256,7 +253,7 @@ class _HeadSupervisorProfileScreenState extends State<HeadSupervisorProfileScree
             Text(_profileText(context, 'السجل الرقابي والإداري', 'Oversight & Administration Log'), textAlign: TextAlign.right, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             ..._auditEntries.map((entry) => Padding(padding: const EdgeInsets.only(bottom: 8), child: _AuditEntryTile(entry: entry))),
-            Text(_profileText(context, 'إجمالي القرارات المسجلة: ${_records.isEmpty ? 142 : _records.length}', 'Total recorded decisions: ${_records.isEmpty ? 142 : _records.length}'), textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+            Text(_profileText(context, 'إجمالي القرارات المسجلة: ${_records.isEmpty ? 142 : _records.length}', 'Total recorded decisions: ${_records.isEmpty ? 142 : _records.length}'), textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
           ]),
         ),
       ),
@@ -285,16 +282,16 @@ class _SessionBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(color: const Color(0xFFE9ECEF), borderRadius: BorderRadius.circular(14)),
+        decoration: BoxDecoration(color: AppColors.surfaceHighlight, borderRadius: BorderRadius.circular(14)),
         child: Row(children: [
           const _Tag(text: 'SUP-HEAD-01', icon: Icons.shield_outlined),
           const Spacer(),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text(_profileText(context, 'جلسة نفاذ الوطني موثقة', 'Verified national access session'), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-            Text(_profileText(context, 'الرقابة الإدارية النشطة • تشفير قياسي', 'Active administration • Standard encryption'), style: const TextStyle(fontSize: 8, color: AppColors.textSecondary)),
+            Text(_profileText(context, 'جلسة نفاذ الوطني موثقة', 'Verified national access session'), style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            Text(_profileText(context, 'الرقابة الإدارية النشطة • تشفير قياسي', 'Active administration • Standard encryption'), style: TextStyle(fontSize: 8, color: AppColors.textSecondary)),
           ]),
           const SizedBox(width: 8),
-          const CircleAvatar(radius: 14, backgroundColor: Color(0xFFDCE4EC), child: Icon(Icons.verified_user_outlined, size: 16, color: Color(0xFF315F9A))),
+          CircleAvatar(radius: 14, backgroundColor: AppColors.cardBorder, child: MotionIcon(Icons.verified_user_outlined, size: 16, color: AppColors.infoDark)),
         ]),
       );
 }
@@ -305,7 +302,7 @@ class _BroadcastNoticeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
           onTap: onTap,
@@ -313,18 +310,18 @@ class _BroadcastNoticeCard extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
             decoration: BoxDecoration(
-              border: Border.all(color: const Color(0xFFE7EBEF)),
+              border: Border.all(color: AppColors.surfaceHighlight),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Row(children: [
-              const Icon(Icons.campaign_outlined, color: Color(0xFF315F9A), size: 21),
+              MotionIcon(Icons.campaign_outlined, color: AppColors.infoDark, size: 21),
               const SizedBox(width: 10),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                Text(_profileText(context, 'إشعار المشرفين', 'Supervisor announcement'), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
-                Text(_profileText(context, 'أرسل توجيهاً لجميع المشرفين أو لمشرف محدد', 'Send guidance to all supervisors or a selected supervisor'), textAlign: TextAlign.right, style: const TextStyle(fontSize: 8, color: AppColors.textSecondary)),
+                Text(_profileText(context, 'إشعار المشرفين', 'Supervisor announcement'), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.ink)),
+                Text(_profileText(context, 'أرسل توجيهاً لجميع المشرفين أو لمشرف محدد', 'Send guidance to all supervisors or a selected supervisor'), textAlign: TextAlign.right, style: TextStyle(fontSize: 8, color: AppColors.textSecondary)),
               ])),
               const SizedBox(width: 7),
-              const Icon(Icons.arrow_back_ios_new, size: 13, color: AppColors.textSecondary),
+              MotionIcon(Icons.arrow_back_ios_new, size: 13, color: AppColors.textSecondary),
             ]),
           ),
         ),
@@ -339,12 +336,12 @@ class _ProfileCard extends StatelessWidget {
   Widget build(BuildContext context) => _WhiteCard(
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(children: [
-            IconButton(onPressed: onEdit, icon: const Icon(Icons.edit_outlined, size: 18), style: IconButton.styleFrom(backgroundColor: const Color(0xFFF0F2F4))),
+            IconButton(onPressed: onEdit, icon: const MotionIcon(Icons.edit_outlined, size: 18), style: IconButton.styleFrom(backgroundColor: AppColors.surfaceLight)),
             const Spacer(),
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Row(children: [Text(_profileText(context, 'عادل الشمري', 'Adel Alshammari'), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.primaryDark)), const SizedBox(width: 4), const Icon(Icons.verified, color: Color(0xFF315F9A), size: 15)]),
-              Text(_profileText(context, 'رئيس هيئة المشرفين والرقابة الميدانية', 'Head of Supervisors & Field Oversight'), style: const TextStyle(fontSize: 9, color: AppColors.textSecondary)),
-              Text(_profileText(context, '4.9 ★  (1,280 تقييم امتثال)', '4.9 ★  (1,280 compliance ratings)'), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: AppColors.primaryDark)),
+              Row(children: [Text(_profileText(context, 'عادل الشمري', 'Adel Alshammari'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.ink)), const SizedBox(width: 4), MotionIcon(Icons.verified, color: AppColors.infoDark, size: 15)]),
+              Text(_profileText(context, 'رئيس هيئة المشرفين والرقابة الميدانية', 'Head of Supervisors & Field Oversight'), style: TextStyle(fontSize: 9, color: AppColors.textSecondary)),
+              Text(_profileText(context, '4.9 ★  (1,280 تقييم امتثال)', '4.9 ★  (1,280 compliance ratings)'), style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: AppColors.ink)),
             ]),
             const SizedBox(width: 8),
             const _Avatar(),
@@ -352,7 +349,7 @@ class _ProfileCard extends StatelessWidget {
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.all(9),
-            decoration: BoxDecoration(color: const Color(0xFFF2F4F6), borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(color: AppColors.surfaceLight, borderRadius: BorderRadius.circular(12)),
             child: Column(children: [
               _ProfileInfo(icon: Icons.mail_outline, text: 'adel.alshammari@almazouri.sa', tag: _profileText(context, 'رسمي', 'Official')),
               const SizedBox(height: 8),
@@ -362,7 +359,7 @@ class _ProfileCard extends StatelessWidget {
             ]),
           ),
           const SizedBox(height: 10),
-          Text(_profileText(context, 'الصلاحيات التنفيذية السيادية:', 'Executive authorities:'), textAlign: TextAlign.right, style: const TextStyle(fontSize: 8, color: AppColors.textSecondary)),
+          Text(_profileText(context, 'الصلاحيات التنفيذية السيادية:', 'Executive authorities:'), textAlign: TextAlign.right, style: TextStyle(fontSize: 8, color: AppColors.textSecondary)),
           const SizedBox(height: 6),
           Wrap(alignment: WrapAlignment.end, spacing: 5, runSpacing: 5, children: [
             _PermissionChip(text: _profileText(context, 'فك الحظر والإلغاء (Override)', 'Override restrictions'), icon: Icons.history),
@@ -380,7 +377,9 @@ class _WalletCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(15),
-        decoration: BoxDecoration(color: AppColors.primaryDark, borderRadius: BorderRadius.circular(15)),
+        decoration: BoxDecoration(gradient: AppColors.blueFill,
+border: AppColors.blueEdge,
+boxShadow: AppColors.blueGlow, color: AppColors.primaryDark, borderRadius: BorderRadius.circular(15)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(children: [
             _Tag(text: _profileText(context, 'سارية المفعول', 'Active'), icon: Icons.verified_outlined, light: true),
@@ -389,19 +388,19 @@ class _WalletCard extends StatelessWidget {
               Text(_profileText(context, 'محفظة البدلات ومستحقات الإشراف', 'Supervisor Allowances Wallet'), style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
             ]),
             const SizedBox(width: 8),
-            const CircleAvatar(radius: 15, backgroundColor: Color(0xFF294B75), child: Icon(Icons.account_balance_wallet_outlined, color: Colors.white, size: 17)),
+            CircleAvatar(radius: 15, backgroundColor: AppColors.infoDark, child: MotionIcon(Icons.account_balance_wallet_outlined, color: Colors.white, size: 17)),
           ]),
           const SizedBox(height: 16),
-          Text(_profileText(context, 'الرصيد الحالي المتاح للمشرف الرئاسي', 'Available balance'), textAlign: TextAlign.right, style: const TextStyle(color: Color(0xFF9DB4D0), fontSize: 9)),
+          Text(_profileText(context, 'الرصيد الحالي المتاح للمشرف الرئاسي', 'Available balance'), textAlign: TextAlign.right, style: TextStyle(color: AppColors.info, fontSize: 9)),
           const SizedBox(height: 4),
-          Text(_profileText(context, '45,800.00 ر.س', 'SAR 45,800.00'), textAlign: TextAlign.right, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+          Text(_profileText(context, '45,800.00 ج.م', 'EGP 45,800.00'), textAlign: TextAlign.right, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
           const SizedBox(height: 14),
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             _WalletAmount(label: _profileText(context, 'معلق تحت الإقفال الدوري', 'Pending settlement'), value: '7,800.00'),
             _WalletAmount(label: _profileText(context, 'جاهز للصرف الفوري', 'Available to withdraw'), value: '38,000.00'),
           ]),
           const SizedBox(height: 16),
-          SizedBox(height: 42, child: FilledButton.icon(onPressed: onOpen, icon: const Icon(Icons.account_balance_wallet_outlined, size: 17), label: Text(_profileText(context, 'فتح المحفظة وإدارة السحب المالي', 'Open wallet and manage withdrawals'), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)), style: FilledButton.styleFrom(backgroundColor: const Color(0xFF9CC3FF), foregroundColor: AppColors.primaryDark, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))))),
+          SizedBox(height: 42, child: FilledButton.icon(onPressed: onOpen, icon: const MotionIcon(Icons.account_balance_wallet_outlined, size: 17), label: Text(_profileText(context, 'فتح المحفظة وإدارة السحب المالي', 'Open wallet and manage withdrawals'), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)), style: FilledButton.styleFrom(backgroundColor: AppColors.info, foregroundColor: AppColors.ink, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))))),
         ]),
       );
 }
@@ -415,13 +414,13 @@ class _AuditCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => _WhiteCard(
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Row(children: [_Tag(text: _profileText(context, 'مشفر', 'Encrypted')), const Spacer(), Text(_profileText(context, 'السجل الرقابي والإداري الأخير', 'Recent oversight log'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primaryDark)), const SizedBox(width: 6), const Icon(Icons.receipt_long_outlined, size: 17, color: Color(0xFF315F9A))]),
+          Row(children: [_Tag(text: _profileText(context, 'مشفر', 'Encrypted')), const Spacer(), Text(_profileText(context, 'السجل الرقابي والإداري الأخير', 'Recent oversight log'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.ink)), const SizedBox(width: 6), MotionIcon(Icons.receipt_long_outlined, size: 17, color: AppColors.infoDark)]),
           const SizedBox(height: 10),
           for (final entry in entries.take(4)) ...[
             _AuditEntryTile(entry: entry),
             const SizedBox(height: 7),
           ],
-          SizedBox(height: 34, child: TextButton.icon(onPressed: onViewAll, icon: const Icon(Icons.arrow_back, size: 15), label: Text(_profileText(context, 'عرض كامل السجل الإداري والقرارات ($totalCount قرار)', 'View all administrative decisions ($totalCount)'), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold)), style: TextButton.styleFrom(backgroundColor: const Color(0xFFE9ECEF), foregroundColor: AppColors.primaryDark, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9))))),
+          SizedBox(height: 34, child: TextButton.icon(onPressed: onViewAll, icon: const MotionIcon(Icons.arrow_back, size: 15), label: Text(_profileText(context, 'عرض كامل السجل الإداري والقرارات ($totalCount قرار)', 'View all administrative decisions ($totalCount)'), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold)), style: TextButton.styleFrom(backgroundColor: AppColors.surfaceHighlight, foregroundColor: AppColors.ink, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9))))),
         ]),
       );
 }
@@ -432,7 +431,7 @@ class _SecurityCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => _WhiteCard(
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text(_profileText(context, 'الأمان وصلاحيات النظام', 'Security & System Access'), textAlign: TextAlign.right, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
+          Text(_profileText(context, 'الأمان وصلاحيات النظام', 'Security & System Access'), textAlign: TextAlign.right, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.ink)),
           const SizedBox(height: 10),
           _SecurityRow(icon: Icons.shield_outlined, title: _profileText(context, 'المصادقة الثنائية التلقائية (2FA)', 'Two-factor authentication (2FA)'), subtitle: _profileText(context, 'مفعلة تلقائياً عبر النفاذ الموحد', 'Enabled through unified access'), status: _profileText(context, 'نشطة', 'Active')),
           const SizedBox(height: 7),
@@ -453,13 +452,13 @@ class _SecurityRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(9),
-        decoration: BoxDecoration(color: const Color(0xFFF2F4F6), borderRadius: BorderRadius.circular(11)),
+        decoration: BoxDecoration(color: AppColors.surfaceLight, borderRadius: BorderRadius.circular(11)),
         child: Row(children: [
           _Tag(text: status),
           const Spacer(),
-          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(title, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: AppColors.primaryDark)), Text(subtitle, style: const TextStyle(fontSize: 8, color: AppColors.textSecondary))]),
+          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(title, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: AppColors.ink)), Text(subtitle, style: TextStyle(fontSize: 8, color: AppColors.textSecondary))]),
           const SizedBox(width: 8),
-          CircleAvatar(radius: 15, backgroundColor: const Color(0xFFE1E5E8), child: Icon(icon, size: 16, color: AppColors.primaryDark)),
+          CircleAvatar(radius: 15, backgroundColor: AppColors.cardBorder, child: MotionIcon(icon, size: 16, color: AppColors.ink)),
         ]),
       );
 }
@@ -482,16 +481,16 @@ class _AuditEntryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(9),
-        decoration: BoxDecoration(color: const Color(0xFFF2F4F6), borderRadius: BorderRadius.circular(11)),
+        decoration: BoxDecoration(color: AppColors.surfaceLight, borderRadius: BorderRadius.circular(11)),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          CircleAvatar(radius: 14, backgroundColor: entry.color.withValues(alpha: .12), child: Icon(entry.icon, size: 16, color: entry.color)),
+          CircleAvatar(radius: 14, backgroundColor: entry.color.withValues(alpha: .12), child: MotionIcon(entry.icon, size: 16, color: entry.color)),
           const SizedBox(width: 8),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(entry.time, style: const TextStyle(fontSize: 8, color: AppColors.textSecondary)), Flexible(child: Text(entry.title, textAlign: TextAlign.right, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.primaryDark)))]),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(entry.time, style: TextStyle(fontSize: 8, color: AppColors.textSecondary)), Flexible(child: Text(entry.title, textAlign: TextAlign.right, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.ink)))]),
             const SizedBox(height: 4),
-            Text(entry.details, textAlign: TextAlign.right, style: const TextStyle(fontSize: 8, height: 1.4, color: AppColors.textSecondary)),
+            Text(entry.details, textAlign: TextAlign.right, style: TextStyle(fontSize: 8, height: 1.4, color: AppColors.textSecondary)),
             const SizedBox(height: 4),
-            Row(mainAxisAlignment: MainAxisAlignment.end, children: [Text(entry.action, style: const TextStyle(fontSize: 8, color: Color(0xFF315F9A))), const SizedBox(width: 9), _Tag(text: entry.code)]),
+            Row(mainAxisAlignment: MainAxisAlignment.end, children: [Text(entry.action, style: TextStyle(fontSize: 8, color: AppColors.infoDark)), const SizedBox(width: 9), _Tag(text: entry.code)]),
           ])),
         ]),
       );
@@ -507,9 +506,9 @@ class _ProfileInfo extends StatelessWidget {
   Widget build(BuildContext context) => Row(children: [
         if (tag != null) _Tag(text: tag!),
         const Spacer(),
-        Flexible(child: Text(text, textAlign: TextAlign.right, style: const TextStyle(fontSize: 8, color: AppColors.textSecondary))),
+        Flexible(child: Text(text, textAlign: TextAlign.right, style: TextStyle(fontSize: 8, color: AppColors.textSecondary))),
         const SizedBox(width: 5),
-        Icon(icon, size: 14, color: const Color(0xFF315F9A)),
+        MotionIcon(icon, size: 14, color: AppColors.infoDark),
       ]);
 }
 
@@ -517,17 +516,18 @@ class _MetricCard extends StatelessWidget {
   final String value;
   final String label;
   final IconData icon;
-  final Color valueColor;
-  const _MetricCard({required this.value, required this.label, required this.icon, this.valueColor = AppColors.primaryDark});
+  final Color? _valueColor;
+  Color get valueColor => _valueColor ?? AppColors.primaryDark;
+  const _MetricCard({required this.value, required this.label, required this.icon, Color? valueColor}) : _valueColor = valueColor;
 
   @override
   Widget build(BuildContext context) => _WhiteCard(
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 10),
         child: Column(children: [
-          CircleAvatar(radius: 15, backgroundColor: const Color(0xFFF0F2F4), child: Icon(icon, size: 16, color: valueColor)),
+          CircleAvatar(radius: 15, backgroundColor: AppColors.surfaceLight, child: MotionIcon(icon, size: 16, color: valueColor)),
           const SizedBox(height: 7),
-          Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: valueColor)),
-          Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 8, color: AppColors.textSecondary)),
+          CountText(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: valueColor)),
+          Text(label, textAlign: TextAlign.center, style: TextStyle(fontSize: 8, color: AppColors.textSecondary)),
         ]),
       );
 }
@@ -538,7 +538,7 @@ class _SectionHeading extends StatelessWidget {
   const _SectionHeading({required this.title, required this.subtitle});
 
   @override
-  Widget build(BuildContext context) => Row(children: [Text(subtitle, style: const TextStyle(fontSize: 8, color: Color(0xFF315F9A))), const Spacer(), Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.primaryDark))]);
+  Widget build(BuildContext context) => Row(children: [Text(subtitle, style: TextStyle(fontSize: 8, color: AppColors.infoDark)), const Spacer(), Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.ink))]);
 }
 
 class _WhiteCard extends StatelessWidget {
@@ -549,7 +549,7 @@ class _WhiteCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: padding,
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), border: Border.all(color: const Color(0xFFE8EBEF))),
+        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(15), border: Border.all(color: AppColors.surfaceHighlight)),
         child: child,
       );
 }
@@ -563,10 +563,10 @@ class _Tag extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(color: light ? const Color(0xFF294B75) : const Color(0xFFE9ECEF), borderRadius: BorderRadius.circular(9)),
+        decoration: BoxDecoration(color: light ? AppColors.infoDark : AppColors.surfaceHighlight, borderRadius: BorderRadius.circular(9)),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Text(text, style: TextStyle(fontSize: 7, fontWeight: FontWeight.w600, color: light ? Colors.white : AppColors.textSecondary)),
-          if (icon != null) ...[const SizedBox(width: 3), Icon(icon, size: 11, color: light ? Colors.white : const Color(0xFF315F9A))],
+          if (icon != null) ...[const SizedBox(width: 3), MotionIcon(icon, size: 11, color: light ? Colors.white : AppColors.infoDark)],
         ]),
       );
 }
@@ -578,8 +578,8 @@ class _Avatar extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         width: 54,
         height: 58,
-        decoration: BoxDecoration(color: const Color(0xFFDCE4EC), borderRadius: BorderRadius.circular(12)),
-        child: const Icon(Icons.person, color: Color(0xFF315F9A), size: 30),
+        decoration: BoxDecoration(color: AppColors.cardBorder, borderRadius: BorderRadius.circular(12)),
+        child: MotionIcon(Icons.person, color: AppColors.infoDark, size: 30),
       );
 }
 
@@ -591,8 +591,8 @@ class _PermissionChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-        decoration: BoxDecoration(color: const Color(0xFFF0F2F4), borderRadius: BorderRadius.circular(10)),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [Text(text, style: const TextStyle(fontSize: 7, fontWeight: FontWeight.w600, color: AppColors.primaryDark)), const SizedBox(width: 3), Icon(icon, size: 11, color: const Color(0xFF315F9A))]),
+        decoration: BoxDecoration(color: AppColors.surfaceLight, borderRadius: BorderRadius.circular(10)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [Text(text, style: TextStyle(fontSize: 7, fontWeight: FontWeight.w600, color: AppColors.ink)), const SizedBox(width: 3), MotionIcon(icon, size: 11, color: AppColors.infoDark)]),
       );
 }
 
@@ -602,6 +602,6 @@ class _WalletAmount extends StatelessWidget {
   const _WalletAmount({required this.label, required this.value});
 
   @override
-  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(label, style: const TextStyle(fontSize: 8, color: Color(0xFF9DB4D0))), Text('$value ر.س', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white))]);
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(label, style: TextStyle(fontSize: 8, color: AppColors.info)), CountText('$value ج.م', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white))]);
 }
 

@@ -1,13 +1,19 @@
 import 'dart:convert';
 
-import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../../wasalny_supervisor/data/wasalny_local_event_store.dart';
-import '../../../merchants/presentation/screens/merchant_conversation_screen.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/features/merchants/presentation/screens/merchant_conversation_screen.dart';
+import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
+import 'package:barwah_app/features/products/presentation/widgets/product_head_escalation.dart' show askProductEscalationReason;
+import 'package:barwah_app/features/services_supervisor/data/datasources/services_activity_log.dart';
+import 'package:barwah_app/features/services_supervisor/data/datasources/services_escalation_store.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 enum _ComplaintStatus { investigating, waiting, closed }
 
@@ -60,6 +66,40 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
   int _selectedFilter = 0;
   Map<String, dynamic> _savedActions = const {};
   bool _isLoadingActions = true;
+  Map<String, ServicesEscalation> _escalations = const {};
+  Map<String, DateTime> _firstSeen = const {};
+  final _escalationStore = ServicesEscalationStore();
+
+  ServicesEscalation? _escalationOf(_ServiceComplaint c) =>
+      _escalations[ServicesEscalation.keyOf(ServicesEscalationKind.complaint, c.id)];
+
+  /// 24h without action for open cases, 48h once with the head.
+  bool _isOverdue(_ServiceComplaint c) {
+    final escalation = _escalationOf(c);
+    final now = DateTime.now();
+    if (escalation != null) return escalation.isOverdue(now);
+    if (c.status == _ComplaintStatus.closed ||
+        c.status == _ComplaintStatus.waiting) {
+      return false;
+    }
+    final seen = _firstSeen[c.id];
+    return seen != null && now.difference(seen) > const Duration(hours: 24);
+  }
+
+  Future<void> _loadEscalations() async {
+    try {
+      final escalations = await _escalationStore.refresh();
+      final firstSeen =
+          await _escalationStore.firstSeen(_complaints.map((c) => c.id));
+      if (!mounted) return;
+      setState(() {
+        _escalations = escalations;
+        _firstSeen = firstSeen;
+      });
+    } on Object catch (error) {
+      debugPrint('Services escalations unavailable: $error');
+    }
+  }
 
   late final List<_ServiceComplaint> _complaints = _createComplaints();
 
@@ -67,6 +107,16 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadSavedActions());
+    LocalEventStore.revision.addListener(_loadEscalations);
+    ServicesEscalationStore.revision.addListener(_loadEscalations);
+  }
+
+  @override
+  void dispose() {
+    LocalEventStore.revision.removeListener(_loadEscalations);
+    ServicesEscalationStore.revision.removeListener(_loadEscalations);
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadSavedActions() async {
@@ -94,6 +144,7 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
       ));
     } finally {
       if (mounted) setState(() => _isLoadingActions = false);
+      await _loadEscalations();
     }
   }
 
@@ -168,12 +219,6 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
   }
 
   @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final isArabic = l10n.localeName.startsWith('ar');
@@ -189,8 +234,8 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
         children: [
           Text(
             l10n.servicesComplaintsTitle,
-            style: const TextStyle(
-              color: AppColors.primaryDark,
+            style: TextStyle(
+              color: AppColors.ink,
               fontSize: 20,
               fontWeight: FontWeight.w800,
             ),
@@ -198,17 +243,17 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
           const SizedBox(height: 4),
           Text(
             l10n.servicesComplaintsSubtitle,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 11,
             ),
           ),
           const SizedBox(height: 14),
-          _buildMetrics(l10n),
+          ScrollFx(child: _buildMetrics(l10n)),
           const SizedBox(height: 12),
-          _buildSearch(l10n),
+          ScrollFx(child: _buildSearch(l10n)),
           const SizedBox(height: 8),
-          _buildFilters(l10n),
+          ScrollFx(child: _buildFilters(l10n)),
           const SizedBox(height: 10),
           if (complaints.isEmpty)
             _buildEmptyState(l10n)
@@ -219,10 +264,12 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
                 onOpen: () => _showDetails(complaint, l10n),
                 onAction: () => _handleAction(complaint, l10n),
                 onEscalate: () => _escalate(complaint, l10n),
+                escalation: _escalationOf(complaint),
+                overdue: _isOverdue(complaint),
               ),
               const SizedBox(height: 12),
             ],
-          _buildResolutionBanner(l10n),
+          ScrollFx(child: _buildResolutionBanner(l10n)),
         ],
       ),
     );
@@ -235,6 +282,9 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
         1 => complaint.status == _ComplaintStatus.investigating,
         2 => complaint.status == _ComplaintStatus.waiting,
         3 => complaint.status == _ComplaintStatus.closed,
+        4 => _escalationOf(complaint) != null &&
+            _escalationOf(complaint)!.status != ServicesEscalationStatus.decided,
+        5 => _isOverdue(complaint),
         _ => true,
       };
       final text = [
@@ -287,18 +337,18 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
       onChanged: (_) => setState(() {}),
       decoration: InputDecoration(
         hintText: l10n.servicesComplaintSearchHint,
-        prefixIcon: const Icon(Icons.search),
-        suffixIcon: const Icon(Icons.tune),
+        prefixIcon: const MotionIcon(Icons.search),
+        suffixIcon: const MotionIcon(Icons.tune),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: AppColors.surface,
         contentPadding: const EdgeInsets.symmetric(vertical: 10),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppColors.cardBorder),
+          borderSide: BorderSide(color: AppColors.cardBorder),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppColors.cardBorder),
+          borderSide: BorderSide(color: AppColors.cardBorder),
         ),
       ),
     );
@@ -310,12 +360,16 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
       l10n.servicesComplaintFilterInvestigating,
       l10n.servicesComplaintFilterWaiting,
       l10n.servicesComplaintFilterClosed,
+      l10n.localeName.startsWith('ar') ? 'عند الرئيس' : 'With head',
+      l10n.localeName.startsWith('ar') ? 'متأخرة' : 'Overdue',
     ];
     final counts = [
       _complaints.length,
       _complaints.where((item) => item.status == _ComplaintStatus.investigating).length,
       _complaints.where((item) => item.status == _ComplaintStatus.waiting).length,
       _complaints.where((item) => item.status == _ComplaintStatus.closed).length,
+      _complaints.where((item) => _escalationOf(item) != null && _escalationOf(item)!.status != ServicesEscalationStatus.decided).length,
+      _complaints.where(_isOverdue).length,
     ].map((count) => '$count').toList();
 
     return SingleChildScrollView(
@@ -330,10 +384,10 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
                 onSelected: (_) => setState(() => _selectedFilter = index),
                 showCheckmark: false,
                 selectedColor: AppColors.primaryDark,
-                backgroundColor: Colors.white,
+                backgroundColor: AppColors.surface,
                 side: BorderSide(
                   color: _selectedFilter == index
-                      ? AppColors.primaryDark
+                      ? AppColors.ink
                       : AppColors.cardBorder,
                 ),
                 labelStyle: TextStyle(
@@ -348,7 +402,7 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
                   children: [
                     Text(labels[index]),
                     const SizedBox(width: 5),
-                    Text(counts[index]),
+                    CountText(counts[index]),
                   ],
                 ),
               ),
@@ -364,12 +418,12 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
       decoration: _cardDecoration(),
       child: Column(
         children: [
-          const Icon(Icons.search_off, color: AppColors.textMuted, size: 32),
+          MotionIcon(Icons.search_off, color: AppColors.textMuted, size: 32),
           const SizedBox(height: 8),
           Text(
             l10n.servicesComplaintNoResults,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 12,
             ),
@@ -383,12 +437,15 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
+        gradient: AppColors.blueFill,
+        border: AppColors.blueEdge,
+        boxShadow: AppColors.blueGlow,
         color: AppColors.primaryDark,
         borderRadius: BorderRadius.circular(18),
       ),
       child: Row(
         children: [
-          const Icon(Icons.shield_outlined, color: Colors.white, size: 34),
+          const MotionIcon(Icons.shield_outlined, color: Colors.white, size: 34),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -405,8 +462,8 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
                 const SizedBox(height: 5),
                 Text(
                   l10n.servicesComplaintResolutionDescription,
-                  style: const TextStyle(
-                    color: Color(0xFFD7E2EF),
+                  style: TextStyle(
+                    color: AppColors.cardBorder,
                     fontSize: 10,
                     height: 1.5,
                   ),
@@ -574,36 +631,43 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
       ),
     );
     if (confirmed != true || !mounted) return;
-    final previousEscalated = complaint.escalated;
-    setState(() => complaint.escalated = true);
-    final saved = await _persistComplaintActions(l10n);
-    if (!saved) {
-      if (mounted) setState(() => complaint.escalated = previousEscalated);
-      return;
-    }
+    final reason = await askProductEscalationReason(
+      context,
+      isArabic: l10n.localeName.startsWith('ar'),
+    );
+    if (reason == null || !mounted) return;
     try {
-      await WasalnyLocalEventStore().publish(
-        WasalnyLocalEvent(
-          id: 'services-complaint-escalated-${complaint.id}',
-          recipient: 'head',
-          source: 'services',
-          titleAr: 'تصعيد شكوى من قسم الخدمات',
-          titleEn: 'Service complaint escalated',
-          messageAr:
-              '${complaint.id}: ${complaint.service} — ${complaint.description}',
-          messageEn:
-              '${complaint.id}: ${complaint.service} — ${complaint.description}',
-          createdAt: DateTime.now(),
-        ),
+      await _escalationStore.escalate(
+        kind: ServicesEscalationKind.complaint,
+        refId: complaint.id,
+        title: complaint.service,
+        subject: complaint.description,
+        reason: reason,
       );
-    } catch (error, stackTrace) {
+    } on Object catch (error, stackTrace) {
       FlutterError.reportError(FlutterErrorDetails(
         exception: error,
         stack: stackTrace,
         library: 'services complaints',
-        context: ErrorDescription('while notifying the head supervisor'),
+        context: ErrorDescription('while escalating to the head supervisor'),
       ));
+      _showMessage(l10n.localeName.startsWith('ar')
+          ? 'تعذر رفع الشكوى لرئيس المشرفين'
+          : 'Could not escalate to the head supervisor');
+      return;
     }
+    final previousEscalated = complaint.escalated;
+    setState(() => complaint.escalated = true);
+    final saved = await _persistComplaintActions(l10n);
+    if (!saved && mounted) {
+      setState(() => complaint.escalated = previousEscalated);
+    }
+    await ServicesActivityLog().tryRecord(
+      action: 'complaint_escalated',
+      subject: complaint.id,
+      details: reason,
+    );
+    await _loadEscalations();
     _showMessage(l10n.servicesComplaintEscalatedNotice(complaint.id));
   }
 
@@ -660,8 +724,8 @@ class _ServicesComplaintEscalationSheet extends StatelessWidget {
           maxHeight: MediaQuery.sizeOf(context).height * 0.85,
         ),
         child: Container(
-          decoration: const BoxDecoration(
-            color: Color(0xFFF5F7F9),
+          decoration: BoxDecoration(
+            color: AppColors.background,
             borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
           ),
           clipBehavior: Clip.antiAlias,
@@ -678,7 +742,7 @@ class _ServicesComplaintEscalationSheet extends StatelessWidget {
                         width: 42,
                         height: 4,
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade400,
+                          color: AppColors.textMuted,
                           borderRadius: BorderRadius.circular(5),
                         ),
                       ),
@@ -686,12 +750,12 @@ class _ServicesComplaintEscalationSheet extends StatelessWidget {
                     const SizedBox(height: 14),
                     Row(
                       children: [
-                        const CircleAvatar(
+                        CircleAvatar(
                           radius: 19,
                           backgroundColor: AppColors.surfaceLight,
-                          child: Icon(
+                          child: MotionIcon(
                             Icons.forward_to_inbox_outlined,
-                            color: AppColors.primaryDark,
+                            color: AppColors.ink,
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -701,8 +765,8 @@ class _ServicesComplaintEscalationSheet extends StatelessWidget {
                             children: [
                               Text(
                                 l10n.servicesComplaintEscalate,
-                                style: const TextStyle(
-                                  color: AppColors.primaryDark,
+                                style: TextStyle(
+                                  color: AppColors.ink,
                                   fontSize: 17,
                                   fontWeight: FontWeight.w800,
                                 ),
@@ -710,7 +774,7 @@ class _ServicesComplaintEscalationSheet extends StatelessWidget {
                               const SizedBox(height: 3),
                               Text(
                                 '${l10n.servicesComplaintDetails} · ${complaint.id}',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: AppColors.textSecondary,
                                   fontSize: 11,
                                 ),
@@ -721,7 +785,7 @@ class _ServicesComplaintEscalationSheet extends StatelessWidget {
                         IconButton(
                           tooltip: l10n.logoutCancel,
                           onPressed: () => Navigator.of(context).pop(false),
-                          icon: const Icon(Icons.close),
+                          icon: const MotionIcon(Icons.close),
                         ),
                       ],
                     ),
@@ -733,29 +797,32 @@ class _ServicesComplaintEscalationSheet extends StatelessWidget {
                   shrinkWrap: true,
                   padding: const EdgeInsets.fromLTRB(18, 0, 18, 14),
                   children: [
-                    _EscalationInfoCard(
+                    ScrollFx(child: _EscalationInfoCard(
                       title: complaint.service,
                       content: complaint.description,
                       icon: Icons.home_repair_service_outlined,
-                    ),
+                    )),
                     const SizedBox(height: 10),
-                    _EscalationInfoCard(
+                    ScrollFx(child: _EscalationInfoCard(
                       title: l10n.servicesComplaintPartiesTitle,
                       content:
                           '${l10n.servicesComplaintClient}: ${complaint.client}\n${l10n.servicesComplaintProvider}: ${complaint.provider}',
                       icon: Icons.people_outline,
-                    ),
+                    )),
                     const SizedBox(height: 10),
-                    _EscalationInfoCard(
+                    ScrollFx(child: _EscalationInfoCard(
                       title: l10n.servicesComplaintPriceLabel,
                       content:
                           '${complaint.price} ${l10n.servicesCurrency}\n${l10n.servicesRequestLocationLabel}: ${complaint.location}',
                       icon: Icons.payments_outlined,
-                    ),
+                    )),
                     const SizedBox(height: 10),
-                    Container(
+                    ScrollFx(child: Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
+                        gradient: AppColors.blueFill,
+                        border: AppColors.blueEdge,
+                        boxShadow: AppColors.blueGlow,
                         color: AppColors.primaryDark,
                         borderRadius: BorderRadius.circular(14),
                       ),
@@ -768,7 +835,7 @@ class _ServicesComplaintEscalationSheet extends StatelessWidget {
                           height: 1.6,
                         ),
                       ),
-                    ),
+                    )),
                   ],
                 ),
               ),
@@ -779,7 +846,7 @@ class _ServicesComplaintEscalationSheet extends StatelessWidget {
                   children: [
                     FilledButton.icon(
                       onPressed: () => Navigator.of(context).pop(true),
-                      icon: const Icon(Icons.verified_user_outlined),
+                      icon: const MotionIcon(Icons.verified_user_outlined),
                       label: Text(l10n.productConfirmAction),
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColors.danger,
@@ -792,7 +859,7 @@ class _ServicesComplaintEscalationSheet extends StatelessWidget {
                       onPressed: () => Navigator.of(context).pop(false),
                       child: Text(
                         l10n.logoutCancel,
-                        style: const TextStyle(color: AppColors.textSecondary),
+                        style: TextStyle(color: AppColors.textSecondary),
                       ),
                     ),
                   ],
@@ -821,14 +888,14 @@ class _EscalationInfoCard extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(13),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(13),
           border: Border.all(color: AppColors.cardBorder),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: AppColors.infoDark, size: 19),
+            MotionIcon(icon, color: AppColors.infoDark, size: 19),
             const SizedBox(width: 9),
             Expanded(
               child: Column(
@@ -836,15 +903,15 @@ class _EscalationInfoCard extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
-                      color: AppColors.primaryDark,
+                    style: TextStyle(
+                      color: AppColors.ink,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
                   const SizedBox(height: 5),
                   Text(
                     content,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 12,
                       height: 1.55,
@@ -883,8 +950,8 @@ class _ServiceComplaintDetailsSheet extends StatelessWidget {
       textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
       child: Container(
         constraints: BoxConstraints(maxHeight: maxHeight),
-        decoration: const BoxDecoration(
-          color: Color(0xFFF5F7F9),
+        decoration: BoxDecoration(
+          color: AppColors.background,
           borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
         ),
         child: Column(
@@ -899,7 +966,7 @@ class _ServiceComplaintDetailsSheet extends StatelessWidget {
                       width: 42,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade400,
+                        color: AppColors.textMuted,
                         borderRadius: BorderRadius.circular(5),
                       ),
                     ),
@@ -907,8 +974,8 @@ class _ServiceComplaintDetailsSheet extends StatelessWidget {
                   const SizedBox(height: 14),
                   Text(
                     '${l10n.servicesComplaintDetails} · ${complaint.id}',
-                    style: const TextStyle(
-                      color: AppColors.primaryDark,
+                    style: TextStyle(
+                      color: AppColors.ink,
                       fontSize: 17,
                       fontWeight: FontWeight.w800,
                     ),
@@ -916,7 +983,7 @@ class _ServiceComplaintDetailsSheet extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     complaint.service,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 12,
                     ),
@@ -928,7 +995,7 @@ class _ServiceComplaintDetailsSheet extends StatelessWidget {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(18, 0, 18, 14),
                 children: [
-                  _ComplaintDetailSection(
+                  ScrollFx(child: _ComplaintDetailSection(
                     title: l10n.servicesComplaintPartiesTitle,
                     child: Column(
                       children: [
@@ -951,16 +1018,16 @@ class _ServiceComplaintDetailsSheet extends StatelessWidget {
                         ),
                       ],
                     ),
-                  ),
+                  )),
                   const SizedBox(height: 10),
-                  _ComplaintDetailSection(
+                  ScrollFx(child: _ComplaintDetailSection(
                     title: l10n.servicesComplaintProblemTitle,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Text(
                           complaint.description,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: AppColors.textPrimary,
                             fontSize: 13,
                             height: 1.6,
@@ -973,9 +1040,9 @@ class _ServiceComplaintDetailsSheet extends StatelessWidget {
                         ),
                       ],
                     ),
-                  ),
+                  )),
                   const SizedBox(height: 10),
-                  _ComplaintDetailSection(
+                  ScrollFx(child: _ComplaintDetailSection(
                     title: l10n.servicesComplaintServiceInfoTitle,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -991,14 +1058,14 @@ class _ServiceComplaintDetailsSheet extends StatelessWidget {
                         ),
                       ],
                     ),
-                  ),
+                  )),
                   const SizedBox(height: 10),
-                  _ComplaintDetailSection(
+                  ScrollFx(child: _ComplaintDetailSection(
                     title: l10n.servicesComplaintPhotosTitle,
                     child: complaint.photoUrls.isEmpty
                         ? Text(
                             l10n.servicesComplaintNoPhotos,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: AppColors.textMuted,
                               fontSize: 12,
                             ),
@@ -1022,7 +1089,7 @@ class _ServiceComplaintDetailsSheet extends StatelessWidget {
                                     height: 120,
                                     color: AppColors.surfaceLight,
                                     alignment: Alignment.center,
-                                    child: const Icon(
+                                    child: MotionIcon(
                                       Icons.broken_image_outlined,
                                       color: AppColors.textMuted,
                                     ),
@@ -1031,7 +1098,7 @@ class _ServiceComplaintDetailsSheet extends StatelessWidget {
                               ),
                             ),
                           ),
-                  ),
+                  )),
                 ],
               ),
             ),
@@ -1050,7 +1117,7 @@ class _ServiceComplaintDetailsSheet extends StatelessWidget {
                           width: double.infinity,
                           child: FilledButton.icon(
                             onPressed: onResolve,
-                            icon: const Icon(Icons.task_alt_outlined),
+                            icon: const MotionIcon(Icons.task_alt_outlined),
                             label: Text(l10n.servicesComplaintInvestigateAndResolve),
                           ),
                         ),
@@ -1061,7 +1128,7 @@ class _ServiceComplaintDetailsSheet extends StatelessWidget {
                         width: double.infinity,
                         child: OutlinedButton.icon(
                           onPressed: () => Navigator.of(context).pop(),
-                          icon: const Icon(Icons.close),
+                          icon: const MotionIcon(Icons.close),
                           label: Text(l10n.logoutCancel),
                         ),
                       ),
@@ -1090,7 +1157,7 @@ class _ComplaintDetailSection extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(13),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: AppColors.cardBorder),
         ),
@@ -1099,8 +1166,8 @@ class _ComplaintDetailSection extends StatelessWidget {
           children: [
             Text(
               title,
-              style: const TextStyle(
-                color: AppColors.primaryDark,
+              style: TextStyle(
+                color: AppColors.ink,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -1123,15 +1190,15 @@ class _ComplaintDetailValue extends StatelessWidget {
         children: [
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 11,
             ),
           ),
           const SizedBox(height: 3),
-          Text(
+          CountText(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textPrimary,
               fontWeight: FontWeight.w700,
             ),
@@ -1160,13 +1227,13 @@ class _ComplaintPartyRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
         children: [
-          const CircleAvatar(
+          CircleAvatar(
             radius: 18,
             backgroundColor: AppColors.surfaceLight,
-            child: Icon(
+            child: MotionIcon(
               Icons.person_outline,
               size: 19,
-              color: AppColors.primaryDark,
+              color: AppColors.ink,
             ),
           ),
           const SizedBox(width: 9),
@@ -1176,7 +1243,7 @@ class _ComplaintPartyRow extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 10,
                   ),
@@ -1184,15 +1251,15 @@ class _ComplaintPartyRow extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   name,
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
+                  style: TextStyle(
+                    color: AppColors.ink,
                     fontSize: 12,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
                 Text(
                   phone,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 10,
                   ),
@@ -1203,12 +1270,12 @@ class _ComplaintPartyRow extends StatelessWidget {
           IconButton(
             tooltip: l10n.servicesCallPhone,
             onPressed: onCall,
-            icon: const Icon(Icons.call_outlined),
+            icon: const MotionIcon(Icons.call_outlined),
           ),
           IconButton(
             tooltip: l10n.servicesProviderProfileChat,
             onPressed: onChat,
-            icon: const Icon(Icons.chat_outlined),
+            icon: const MotionIcon(Icons.chat_outlined),
           ),
         ],
       );
@@ -1219,12 +1286,16 @@ class _ComplaintCard extends StatelessWidget {
   final VoidCallback onOpen;
   final VoidCallback onAction;
   final VoidCallback onEscalate;
+  final ServicesEscalation? escalation;
+  final bool overdue;
 
   const _ComplaintCard({
     required this.complaint,
     required this.onOpen,
     required this.onAction,
     required this.onEscalate,
+    this.escalation,
+    this.overdue = false,
   });
 
   @override
@@ -1256,11 +1327,11 @@ class _ComplaintCard extends StatelessWidget {
                 height: 36,
                 decoration: BoxDecoration(
                   color: isClosed
-                      ? const Color(0xFFE3F2E8)
-                      : const Color(0xFFFFE2DF),
+                      ? AppColors.successBorder
+                      : AppColors.dangerBorder,
                   borderRadius: BorderRadius.circular(11),
                 ),
-                child: Icon(
+                child: MotionIcon(
                   isClosed
                       ? Icons.check_circle
                       : isWaiting
@@ -1273,18 +1344,27 @@ class _ComplaintCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   '#${complaint.id}',
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
+                  style: TextStyle(
+                    color: AppColors.ink,
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
+              if (overdue) ...[
+                _Badge(
+                  label: l10n.localeName.startsWith('ar') ? 'متأخرة' : 'Overdue',
+                  color: AppColors.danger,
+                ),
+                const SizedBox(width: 5),
+              ],
               _Badge(
-                label: complaint.escalated
-                    ? l10n.servicesComplaintEscalated
-                    : complaint.priority,
-                color: complaint.escalated
+                label: escalation != null
+                    ? escalation!.status.labelAr
+                    : complaint.escalated
+                        ? l10n.servicesComplaintEscalated
+                        : complaint.priority,
+                color: complaint.escalated || escalation != null
                     ? AppColors.danger
                     : AppColors.primaryDark,
               ),
@@ -1295,7 +1375,7 @@ class _ComplaintCard extends StatelessWidget {
             children: [
               Flexible(child: _Badge(label: statusLabel, color: statusColor)),
               const SizedBox(width: 7),
-              const Icon(Icons.access_time,
+              MotionIcon(Icons.access_time,
                   size: 14, color: AppColors.textMuted),
               const SizedBox(width: 4),
               Flexible(
@@ -1304,7 +1384,7 @@ class _ComplaintCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.end,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 9,
                   ),
@@ -1320,21 +1400,21 @@ class _ComplaintCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   complaint.service,
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
+                  style: TextStyle(
+                    color: AppColors.ink,
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
-              const Icon(Icons.home_repair_service_outlined,
+              MotionIcon(Icons.home_repair_service_outlined,
                   color: AppColors.info, size: 19),
             ],
           ),
           const SizedBox(height: 7),
           Text(
             complaint.description,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 11,
               height: 1.55,
@@ -1345,13 +1425,13 @@ class _ComplaintCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(11),
               decoration: BoxDecoration(
-                color: const Color(0xFFF0F7FF),
+                color: AppColors.infoLight,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
                 l10n.servicesComplaintResolutionRecorded,
-                style: const TextStyle(
-                  color: AppColors.primaryDark,
+                style: TextStyle(
+                  color: AppColors.ink,
                   fontSize: 10,
                   height: 1.5,
                 ),
@@ -1359,7 +1439,7 @@ class _ComplaintCard extends StatelessWidget {
             ),
             TextButton.icon(
               onPressed: onOpen,
-              icon: const Icon(Icons.lock_outline, size: 15),
+              icon: const MotionIcon(Icons.lock_outline, size: 15),
               label: Text(l10n.servicesComplaintClosedAudit),
             ),
           ] else ...[
@@ -1367,7 +1447,7 @@ class _ComplaintCard extends StatelessWidget {
               height: 44,
               child: FilledButton.icon(
                 onPressed: onOpen,
-                icon: const Icon(Icons.manage_search, size: 18),
+                icon: const MotionIcon(Icons.manage_search, size: 18),
                 label: Text(
                   l10n.servicesComplaintInvestigateAndResolve,
                   maxLines: 1,
@@ -1394,7 +1474,8 @@ class _ComplaintCard extends StatelessWidget {
                     onPressed: onAction,
                   ),
                 ),
-                if (!isWaiting) ...[
+                if (!isWaiting &&
+                    (escalation == null || escalation!.canEscalateAgain)) ...[
                   const SizedBox(width: 7),
                   Expanded(
                     child: _ActionButton(
@@ -1425,7 +1506,7 @@ class _PartiesPanel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: const Color(0xFFF1F3F5),
+        color: AppColors.surfaceLight,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -1471,22 +1552,22 @@ class _PartyInfo extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, color: AppColors.info, size: 15),
+        MotionIcon(icon, color: AppColors.info, size: 15),
         const SizedBox(width: 4),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(label,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: AppColors.textSecondary, fontSize: 8)),
               const SizedBox(height: 3),
               Text(
                 name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.primaryDark,
+                style: TextStyle(
+                  color: AppColors.ink,
                   fontSize: 9,
                   fontWeight: FontWeight.w700,
                 ),
@@ -1495,7 +1576,7 @@ class _PartyInfo extends StatelessWidget {
                 detail,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                     color: AppColors.textSecondary, fontSize: 7),
               ),
             ],
@@ -1511,15 +1592,16 @@ class _MetricCard extends StatelessWidget {
   final String label;
   final String value;
   final String detail;
-  final Color color;
+  final Color? _color;
+  Color get color => _color ?? AppColors.primaryDark;
 
   const _MetricCard({
     required this.icon,
     required this.label,
     required this.value,
     required this.detail,
-    this.color = AppColors.primaryDark,
-  });
+    Color? color,
+  }) : _color = color;
 
   @override
   Widget build(BuildContext context) {
@@ -1532,14 +1614,14 @@ class _MetricCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, color: color, size: 14),
+              MotionIcon(icon, color: color, size: 14),
               const SizedBox(width: 3),
               Expanded(
                 child: Text(
                   label,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 8,
                   ),
@@ -1550,7 +1632,7 @@ class _MetricCard extends StatelessWidget {
           const Spacer(),
           Align(
             alignment: AlignmentDirectional.centerEnd,
-            child: Text(
+            child: CountText(
               value,
               style: TextStyle(
                 color: color,
@@ -1620,14 +1702,14 @@ class _ActionButton extends StatelessWidget {
       onPressed: onPressed,
       style: OutlinedButton.styleFrom(
         foregroundColor: foreground,
-        backgroundColor: const Color(0xFFF1F3F5),
+        backgroundColor: AppColors.surfaceLight,
         side: BorderSide.none,
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 8),
         textStyle: const TextStyle(fontSize: 9),
       ),
       child: Row(
         children: [
-          Icon(icon, size: 15),
+          MotionIcon(icon, size: 15),
           const SizedBox(width: 4),
           Expanded(
             child: Text(
@@ -1645,7 +1727,7 @@ class _ActionButton extends StatelessWidget {
 
 BoxDecoration _cardDecoration() {
   return BoxDecoration(
-    color: Colors.white,
+    color: AppColors.surface,
     borderRadius: BorderRadius.circular(16),
     border: Border.all(color: AppColors.cardBorder),
   );

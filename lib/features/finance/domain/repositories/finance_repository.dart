@@ -1,13 +1,14 @@
 import 'package:dartz/dartz.dart';
-import '../../../../core/errors/failures.dart';
-import '../entities/bank_account_edit_request_entity.dart';
-import '../entities/bank_link_request_entity.dart';
-import '../entities/bank_account_entity.dart';
-import '../entities/department_wallet_entity.dart';
-import '../entities/expense_request_entity.dart';
-import '../entities/finance_summary_entity.dart';
-import '../entities/subscription_request_entity.dart';
-import '../entities/withdrawal_request_entity.dart';
+
+import 'package:barwah_app/core/errors/failures.dart';
+import 'package:barwah_app/features/finance/domain/entities/bank_account_edit_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/bank_account_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/bank_link_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/department_wallet_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/expense_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/finance_summary_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/subscription_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/withdrawal_request_entity.dart';
 
 abstract class FinanceRepository {
   Future<Either<Failure, FinanceSummaryEntity>> getFinanceSummary();

@@ -1,6 +1,6 @@
-import '../../domain/entities/product_review.dart';
-import '../models/product_review_model.dart';
-import 'product_review_data_source.dart';
+import 'package:barwah_app/features/products/data/datasources/product_review_data_source.dart';
+import 'package:barwah_app/features/products/data/models/product_review_model.dart';
+import 'package:barwah_app/features/products/domain/entities/product_review.dart';
 
 class ProductReviewMockDataSource implements ProductReviewDataSource {
   final List<ProductReviewModel> _reviews = [
@@ -15,8 +15,8 @@ class ProductReviewMockDataSource implements ProductReviewDataSource {
       ProductImageKind.watch,
       8,
       15,
-      '3,200 ر.س',
-      'SAR 3,200',
+      '3,200 ج.م',
+      'EGP 3,200',
       descriptionAr:
           'جهاز ذكي جديد كلياً لم يُفتح من كرتونه نهائياً مع استيكر المصنع الحراري، وارد الوكيل المحلي مع فاتورة شراء معتمدة وضمان سنتين ساري.',
       descriptionEn:
@@ -34,8 +34,8 @@ class ProductReviewMockDataSource implements ProductReviewDataSource {
       ProductImageKind.appliance,
       5,
       28,
-      '2,150 ر.س',
-      'SAR 2,150',
+      '2,150 ج.م',
+      'EGP 2,150',
       condition: ProductCondition.used,
     ),
     _review(
@@ -49,8 +49,8 @@ class ProductReviewMockDataSource implements ProductReviewDataSource {
       ProductImageKind.camera,
       6,
       42,
-      '8,400 ر.س',
-      'SAR 8,400',
+      '8,400 ج.م',
+      'EGP 8,400',
       isFeatured: true,
     ),
     _review(
@@ -64,8 +64,8 @@ class ProductReviewMockDataSource implements ProductReviewDataSource {
       ProductImageKind.fragrance,
       4,
       55,
-      '680 ر.س',
-      'SAR 680',
+      '680 ج.م',
+      'EGP 680',
     ),
     _review(
       '5',
@@ -78,8 +78,8 @@ class ProductReviewMockDataSource implements ProductReviewDataSource {
       ProductImageKind.appliance,
       7,
       68,
-      '2,750 ر.س',
-      'SAR 2,750',
+      '2,750 ج.م',
+      'EGP 2,750',
     ),
     _review(
       '6',
@@ -92,8 +92,8 @@ class ProductReviewMockDataSource implements ProductReviewDataSource {
       ProductImageKind.watch,
       5,
       77,
-      '1,450 ر.س',
-      'SAR 1,450',
+      '1,450 ج.م',
+      'EGP 1,450',
     ),
     _review(
       '7',
@@ -106,8 +106,8 @@ class ProductReviewMockDataSource implements ProductReviewDataSource {
       ProductImageKind.phone,
       6,
       91,
-      '4,100 ر.س',
-      'SAR 4,100',
+      '4,100 ج.م',
+      'EGP 4,100',
     ),
     _review(
       '8',
@@ -120,8 +120,8 @@ class ProductReviewMockDataSource implements ProductReviewDataSource {
       ProductImageKind.appliance,
       4,
       104,
-      '920 ر.س',
-      'SAR 920',
+      '920 ج.م',
+      'EGP 920',
     ),
     _review(
       '9',
@@ -134,8 +134,8 @@ class ProductReviewMockDataSource implements ProductReviewDataSource {
       ProductImageKind.fragrance,
       3,
       116,
-      '540 ر.س',
-      'SAR 540',
+      '540 ج.م',
+      'EGP 540',
     ),
     _review(
       '10',
@@ -148,8 +148,8 @@ class ProductReviewMockDataSource implements ProductReviewDataSource {
       ProductImageKind.camera,
       8,
       129,
-      '6,200 ر.س',
-      'SAR 6,200',
+      '6,200 ج.م',
+      'EGP 6,200',
     ),
     _review(
       '11',
@@ -162,8 +162,8 @@ class ProductReviewMockDataSource implements ProductReviewDataSource {
       ProductImageKind.appliance,
       4,
       143,
-      '1,300 ر.س',
-      'SAR 1,300',
+      '1,300 ج.م',
+      'EGP 1,300',
     ),
     _review(
       '12',
@@ -176,8 +176,8 @@ class ProductReviewMockDataSource implements ProductReviewDataSource {
       ProductImageKind.watch,
       5,
       157,
-      '1,050 ر.س',
-      'SAR 1,050',
+      '1,050 ج.م',
+      'EGP 1,050',
     ),
     _review(
       '13',
@@ -190,8 +190,8 @@ class ProductReviewMockDataSource implements ProductReviewDataSource {
       ProductImageKind.phone,
       5,
       168,
-      '890 ر.س',
-      'SAR 890',
+      '890 ج.م',
+      'EGP 890',
     ),
     _review(
       '14',
@@ -204,8 +204,8 @@ class ProductReviewMockDataSource implements ProductReviewDataSource {
       ProductImageKind.fragrance,
       4,
       182,
-      '750 ر.س',
-      'SAR 750',
+      '750 ج.م',
+      'EGP 750',
     ),
   ];
 

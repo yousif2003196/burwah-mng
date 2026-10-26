@@ -1,4 +1,4 @@
-import '../models/wasalny_complaint_model.dart';
+import 'package:barwah_app/features/wasalny_supervisor/data/models/wasalny_complaint_model.dart';
 
 abstract class WasalnyComplaintsDataSource {
   Future<List<WasalnyComplaintModel>> getComplaints();

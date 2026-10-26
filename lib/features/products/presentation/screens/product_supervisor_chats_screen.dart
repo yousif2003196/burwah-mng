@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/widgets/account_conversations_screen.dart';
+import 'package:barwah_app/features/messaging/presentation/screens/account_conversations_screen.dart';
 
 class ProductSupervisorChatsScreen extends StatelessWidget {
   final String accountId;

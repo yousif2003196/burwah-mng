@@ -1,13 +1,15 @@
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../data/wasalny_local_event_store.dart';
-import '../../../products/domain/entities/product_supervisor_audit_entry.dart';
-import '../../../products/domain/repositories/product_supervisor_audit_repository.dart';
-import '../../domain/entities/wasalny_complaint.dart';
-import '../../domain/usecases/escalate_wasalny_complaint_usecase.dart';
-import '../../domain/usecases/get_wasalny_complaints_usecase.dart';
-import '../../domain/usecases/resolve_wasalny_complaint_usecase.dart';
+import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
+import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
+import 'package:barwah_app/features/products/domain/entities/product_supervisor_audit_entry.dart';
+import 'package:barwah_app/features/products/domain/repositories/product_supervisor_audit_repository.dart';
+import 'package:barwah_app/features/wasalny_supervisor/data/datasources/wasalny_case_store.dart';
+import 'package:barwah_app/features/wasalny_supervisor/domain/entities/wasalny_complaint.dart';
+import 'package:barwah_app/features/wasalny_supervisor/domain/usecases/escalate_wasalny_complaint_usecase.dart';
+import 'package:barwah_app/features/wasalny_supervisor/domain/usecases/get_wasalny_complaints_usecase.dart';
+import 'package:barwah_app/features/wasalny_supervisor/domain/usecases/resolve_wasalny_complaint_usecase.dart';
 
 sealed class WasalnyComplaintsState {
   const WasalnyComplaintsState();
@@ -25,8 +27,9 @@ class WasalnyComplaintsLoadFailure extends WasalnyComplaintsState {
 
 class WasalnyComplaintsLoaded extends WasalnyComplaintsState {
   final List<WasalnyComplaint> complaints;
+  final Map<String, WasalnyCaseRecord> cases;
 
-  const WasalnyComplaintsLoaded(this.complaints);
+  const WasalnyComplaintsLoaded(this.complaints, {this.cases = const {}});
 }
 
 class WasalnyComplaintsCubit extends Cubit<WasalnyComplaintsState> {
@@ -34,21 +37,48 @@ class WasalnyComplaintsCubit extends Cubit<WasalnyComplaintsState> {
   final EscalateWasalnyComplaintUseCase escalateComplaint;
   final ResolveWasalnyComplaintUseCase resolveComplaint;
   final ProductSupervisorAuditRepository? auditRepository;
+  final WasalnyCaseStore? caseStore;
 
   WasalnyComplaintsCubit({
     required this.getComplaints,
     required this.escalateComplaint,
     required this.resolveComplaint,
     this.auditRepository,
+    this.caseStore,
   }) : super(const WasalnyComplaintsLoading());
 
   Future<void> loadComplaints() async {
     emit(const WasalnyComplaintsLoading());
     try {
-      emit(WasalnyComplaintsLoaded(await getComplaints()));
+      emit(await _build(await getComplaints()));
     } catch (error) {
       emit(WasalnyComplaintsLoadFailure(error));
     }
+  }
+
+  /// Re-reads head decisions without showing the loading state.
+  Future<void> syncDecisions() async {
+    if (caseStore == null || state is! WasalnyComplaintsLoaded) return;
+    try {
+      emit(await _build(await getComplaints()));
+    } catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'Wasalny complaints',
+          context: ErrorDescription('while syncing head decisions'),
+        ),
+      );
+    }
+  }
+
+  Future<WasalnyComplaintsLoaded> _build(List<WasalnyComplaint> raw) async {
+    final store = caseStore;
+    if (store == null) return WasalnyComplaintsLoaded(raw);
+    final cases = await store.refresh(raw);
+    return WasalnyComplaintsLoaded(WasalnyCaseStore.apply(raw, cases),
+        cases: cases);
   }
 
   Future<bool> resolve({required String id, required String note}) {
@@ -79,11 +109,13 @@ class WasalnyComplaintsCubit extends Cubit<WasalnyComplaintsState> {
     if (current is! WasalnyComplaintsLoaded) return false;
     try {
       final updated = await update();
+      final store = caseStore;
       if (actionKey == 'wasalny_complaint_escalated') {
+        final round = store == null ? 0 : await store.escalationCount(id);
         try {
-          await WasalnyLocalEventStore().publish(
-            WasalnyLocalEvent(
-              id: 'head-${updated.id}',
+          await LocalEventStore().publish(
+            LocalEvent(
+              id: round == 0 ? 'head-${updated.id}' : 'head-${updated.id}-r${round + 1}',
               recipient: 'head',
               source: 'wasalny',
               titleAr: 'تصعيد شكوى وصلني',
@@ -107,6 +139,13 @@ class WasalnyComplaintsCubit extends Cubit<WasalnyComplaintsState> {
           );
         }
       }
+      if (store != null) {
+        if (actionKey == 'wasalny_complaint_escalated') {
+          await store.recordEscalation(id, actionDetails);
+        } else if (actionKey == 'wasalny_complaint_resolved') {
+          await store.recordResolved(id, actionDetails);
+        }
+      }
       await auditRepository?.recordEntry(
         ProductSupervisorAuditEntry(
           id: DateTime.now().microsecondsSinceEpoch.toString(),
@@ -120,12 +159,13 @@ class WasalnyComplaintsCubit extends Cubit<WasalnyComplaintsState> {
           occurredAt: DateTime.now(),
         ),
       );
-      emit(
-        WasalnyComplaintsLoaded([
-          for (final complaint in current.complaints)
-            complaint.id == id ? updated : complaint,
-        ]),
-      );
+      final merged = [
+        for (final complaint in current.complaints)
+          complaint.id == id ? updated : complaint,
+      ];
+      emit(store == null
+          ? WasalnyComplaintsLoaded(merged)
+          : await _build(merged));
       return true;
     } catch (error) {
       emit(WasalnyComplaintsLoadFailure(error));

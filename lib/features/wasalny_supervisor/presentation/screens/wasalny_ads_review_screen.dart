@@ -4,15 +4,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/di/injection_container.dart';
-import '../../../../features/finance/domain/entities/withdrawal_request_entity.dart';
-import '../../../../features/finance/domain/repositories/finance_repository.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../data/wasalny_local_event_store.dart';
-import '../../domain/entities/wasalny_ad.dart';
-import '../controllers/wasalny_ads_cubit.dart';
-import 'wasalny_ad_details_screen.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/theme/app_palette.dart';
+import 'package:barwah_app/features/finance/domain/entities/withdrawal_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/repositories/finance_repository.dart';
+import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
+import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
+import 'package:barwah_app/features/products/domain/entities/product_supervisor_audit_entry.dart';
+import 'package:barwah_app/features/products/domain/repositories/product_supervisor_audit_repository.dart';
+import 'package:barwah_app/features/wasalny_supervisor/domain/entities/wasalny_ad.dart';
+import 'package:barwah_app/features/wasalny_supervisor/presentation/controllers/wasalny_ads_cubit.dart';
+import 'package:barwah_app/features/wasalny_supervisor/presentation/screens/wasalny_ad_details_screen.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 enum _WasalnyAdsFilter { all, pending, edit, approved, archived }
 
@@ -31,14 +38,14 @@ class _WasalnyAdsReviewScreenState extends State<WasalnyAdsReviewScreen> {
   @override
   void initState() {
     super.initState();
-    WasalnyLocalEventStore.revision.addListener(_syncFinanceDecisions);
+    LocalEventStore.revision.addListener(_syncFinanceDecisions);
     WidgetsBinding.instance
         .addPostFrameCallback((_) => _syncFinanceDecisions());
   }
 
   @override
   void dispose() {
-    WasalnyLocalEventStore.revision.removeListener(_syncFinanceDecisions);
+    LocalEventStore.revision.removeListener(_syncFinanceDecisions);
     super.dispose();
   }
 
@@ -145,9 +152,9 @@ class _WasalnyAdsReviewScreenState extends State<WasalnyAdsReviewScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
             children: [
-              _PageHeader(l10n: l10n),
+              ScrollFx(child: _PageHeader(l10n: l10n)),
               const SizedBox(height: 14),
-              Row(
+              ScrollFx(child: Row(
                 children: [
                   Expanded(
                     child: _MetricCard(
@@ -167,7 +174,7 @@ class _WasalnyAdsReviewScreenState extends State<WasalnyAdsReviewScreen> {
                     ),
                   ),
                 ],
-              ),
+              )),
               const SizedBox(height: 14),
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
@@ -201,7 +208,7 @@ class _WasalnyAdsReviewScreenState extends State<WasalnyAdsReviewScreen> {
                   child: Text(
                     l10n.wasalnyAdsEmpty,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: AppColors.textSecondary),
+                    style: TextStyle(color: AppColors.textSecondary),
                   ),
                 ),
               for (final ad in visibleAds) ...[
@@ -226,6 +233,7 @@ class _WasalnyAdsReviewScreenState extends State<WasalnyAdsReviewScreen> {
                     l10n,
                   ),
                   onRestore: () => _decide(ad, WasalnyAdStatus.pending, l10n),
+                  onAppeal: () => _appealToHead(ad, isArabic),
                   onShowFinanceStatus: () => _showFinanceStatus(ad, l10n),
                   onOpen: () => _openDetails(ad, isArabic, l10n),
                 ),
@@ -235,7 +243,7 @@ class _WasalnyAdsReviewScreenState extends State<WasalnyAdsReviewScreen> {
               Text(
                 l10n.wasalnyAdsAuditNote,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 10,
                 ),
@@ -282,6 +290,109 @@ class _WasalnyAdsReviewScreenState extends State<WasalnyAdsReviewScreen> {
         _WasalnyAdsFilter.archived =>
           l10n.localeName.startsWith('ar') ? 'الأرشيف' : 'Archive',
       };
+
+  /// Asks the head to review a blocked/rejected ad (never goes to the admin
+  /// directly).
+  Future<void> _appealToHead(WasalnyAd ad, bool isArabic) async {
+    final controller = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => Directionality(
+        textDirection: isArabic ? ui.TextDirection.rtl : ui.TextDirection.ltr,
+        child: AlertDialog(
+          title: Text(isArabic ? 'رفع الإعلان لرئيس المشرفين' : 'Send ad to the head'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                isArabic
+                    ? 'لطلب رفع الحجب أو مراجعة قرار الرفض/الإيقاف. يقرر الرئيس إن كان يحتاج الأدمن.'
+                    : 'To request unblocking or a review of the rejection/suspension. The head decides whether the admin is needed.',
+                style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: controller,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  labelText: isArabic ? 'السبب (إلزامي)' : 'Reason (required)',
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(isArabic ? 'إلغاء' : 'Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (controller.text.trim().length < 5) return;
+                Navigator.of(dialogContext).pop(true);
+              },
+              child: Text(isArabic ? 'رفع' : 'Send'),
+            ),
+          ],
+        ),
+      ),
+    );
+    final reason =
+        controller.text.replaceAll(' — ', ' - ').replaceAll('\n', ' ').trim();
+    controller.dispose();
+    if (confirmed != true || !mounted) return;
+    try {
+      final store = LocalEventStore();
+      final id = 'head-wasalny-ad-appeal-${ad.id}';
+      final existing = await store.getEvents('head');
+      final round = existing.where((e) => e.id.startsWith(id)).length;
+      await store.publish(
+        LocalEvent(
+          id: round == 0 ? id : '$id-r${round + 1}',
+          recipient: 'head',
+          source: 'wasalny',
+          titleAr: 'وصلني: طلب مراجعة قرار إعلان',
+          titleEn: 'Wasalny: ad decision review request',
+          messageAr:
+              '${ad.reference}: ${ad.titleAr} — البائع: ${ad.sellerNameAr}. الحالة الحالية: ${ad.status.name}. السبب: $reason',
+          messageEn:
+              '${ad.reference}: ${ad.titleEn} — Seller: ${ad.sellerNameEn}. Current status: ${ad.status.name}. Reason: $reason',
+          createdAt: DateTime.now(),
+        ),
+      );
+      await sl<ProductSupervisorAuditRepository>().recordEntry(
+        ProductSupervisorAuditEntry(
+          id: DateTime.now().microsecondsSinceEpoch.toString(),
+          actionKey: 'wasalny_ad_appeal',
+          subject: ad.titleAr,
+          details: '${ad.reference} • $reason',
+          occurredAt: DateTime.now(),
+        ),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isArabic ? 'تم رفع الإعلان لرئيس المشرفين' : 'Ad sent to the head supervisor',
+          ),
+        ),
+      );
+    } catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'Wasalny ad review',
+          context: ErrorDescription('while sending an ad appeal to the head'),
+        ),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(isArabic ? 'تعذر الرفع' : 'Could not send')),
+        );
+      }
+    }
+  }
 
   Future<bool> _askReason(
     WasalnyAd ad,
@@ -385,17 +496,17 @@ class _WasalnyAdsReviewScreenState extends State<WasalnyAdsReviewScreen> {
         (failure) => throw StateError(failure.message),
         (request) => request,
       );
-      await WasalnyLocalEventStore().publish(
-        WasalnyLocalEvent(
+      await LocalEventStore().publish(
+        LocalEvent(
           id: 'wasalny-ad-finance-${financialRequest.id}',
           recipient: 'finance',
           source: 'wasalny',
           titleAr: 'طلب ترويج إعلان وصلني',
           titleEn: 'Wasalny ad promotion request',
           messageAr:
-              'الإعلان ${ad.reference} للعميل ${ad.sellerNameAr} - 120 ر.س. بانتظار مراجعة المالية.',
+              'الإعلان ${ad.reference} للعميل ${ad.sellerNameAr} - 120 ج.م. بانتظار مراجعة المالية.',
           messageEn:
-              'Ad ${ad.reference} for ${ad.sellerNameEn} - 120 SAR awaits finance review.',
+              'Ad ${ad.reference} for ${ad.sellerNameEn} - 120 EGP awaits finance review.',
           createdAt: DateTime.now(),
         ),
       );
@@ -498,8 +609,8 @@ class _WasalnyAdsReviewScreenState extends State<WasalnyAdsReviewScreen> {
               ? ad.decisionNote!.trim()
               : 'لم يسجل المشرف سبباً إضافياً';
       try {
-        await WasalnyLocalEventStore().publish(
-          WasalnyLocalEvent(
+        await LocalEventStore().publish(
+          LocalEvent(
             id: 'head-wasalny-ad-${ad.id}-${status.name}-${DateTime.now().millisecondsSinceEpoch}',
             recipient: 'head',
             source: 'wasalny',
@@ -553,11 +664,11 @@ class _PageHeader extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: const [
           BoxShadow(
-              color: Color(0x10000000), blurRadius: 8, offset: Offset(0, 3)),
+              color: AppPalette.overlay10000000, blurRadius: 8, offset: Offset(0, 3)),
         ],
       ),
       child: Row(
@@ -566,10 +677,13 @@ class _PageHeader extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
+              gradient: AppColors.blueFill,
+              border: AppColors.blueEdge,
+              boxShadow: AppColors.blueGlow,
               color: AppColors.primaryDark,
               borderRadius: BorderRadius.circular(13),
             ),
-            child: const Icon(Icons.shield_outlined, color: Colors.white),
+            child: const MotionIcon(Icons.shield_outlined, color: Colors.white),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -578,7 +692,7 @@ class _PageHeader extends StatelessWidget {
               children: [
                 Text(
                   l10n.wasalnyAdsTitle,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 17,
                     fontWeight: FontWeight.bold,
@@ -586,7 +700,7 @@ class _PageHeader extends StatelessWidget {
                 ),
                 Text(
                   l10n.wasalnyAdsSubtitle,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 10,
                   ),
@@ -594,8 +708,8 @@ class _PageHeader extends StatelessWidget {
               ],
             ),
           ),
-          const Icon(Icons.local_shipping_outlined,
-              color: AppColors.primaryDark, size: 26),
+          MotionIcon(Icons.local_shipping_outlined,
+              color: AppColors.ink, size: 26),
         ],
       ),
     );
@@ -620,12 +734,12 @@ class _MetricCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         children: [
-          Icon(icon, color: color, size: 19),
+          MotionIcon(icon, color: color, size: 19),
           const SizedBox(height: 4),
           Text(
             count.toString(),
@@ -638,7 +752,7 @@ class _MetricCard extends StatelessWidget {
           Text(
             label,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 10,
             ),
@@ -660,6 +774,7 @@ class _WasalnyAdCard extends StatelessWidget {
   final VoidCallback onRestore;
   final VoidCallback onShowFinanceStatus;
   final VoidCallback onOpen;
+  final VoidCallback? onAppeal;
 
   const _WasalnyAdCard({
     required this.ad,
@@ -672,6 +787,7 @@ class _WasalnyAdCard extends StatelessWidget {
     required this.onRestore,
     required this.onShowFinanceStatus,
     required this.onOpen,
+    this.onAppeal,
   });
 
   bool get _isPending =>
@@ -698,11 +814,11 @@ class _WasalnyAdCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(16),
           boxShadow: const [
             BoxShadow(
-                color: Color(0x12000000), blurRadius: 7, offset: Offset(0, 3)),
+                color: AppPalette.overlay12000000, blurRadius: 7, offset: Offset(0, 3)),
           ],
         ),
         child: Column(
@@ -721,15 +837,15 @@ class _WasalnyAdCard extends StatelessWidget {
                     background: ad.status == WasalnyAdStatus.rejected ||
                             ad.status == WasalnyAdStatus.suspended ||
                             ad.status == WasalnyAdStatus.editRequested
-                        ? const Color(0xFFE9EAEC)
-                        : const Color(0xFFD7E5FF),
+                        ? AppColors.surfaceHighlight
+                        : AppColors.infoBorder,
                   ),
                 ),
                 const Spacer(),
                 _Pill(
                   label: '#${ad.reference}',
                   color: AppColors.textSecondary,
-                  background: const Color(0xFFF0F1F3),
+                  background: AppColors.surfaceLight,
                 ),
               ],
             ),
@@ -745,7 +861,7 @@ class _WasalnyAdCard extends StatelessWidget {
                         title,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textPrimary,
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
@@ -754,7 +870,7 @@ class _WasalnyAdCard extends StatelessWidget {
                       const SizedBox(height: 5),
                       Text(
                         seller,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 11,
                         ),
@@ -771,16 +887,16 @@ class _WasalnyAdCard extends StatelessWidget {
                               '$city • ${DateFormat('HH:mm').format(ad.submittedAt)}',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: AppColors.textSecondary,
                                 fontSize: 10,
                               ),
                             ),
                           ),
-                          Text(
+                          CountText(
                             '${NumberFormat('#,###').format(ad.price)} ${l10n.productWalletCurrency}',
-                            style: const TextStyle(
-                              color: AppColors.primaryDark,
+                            style: TextStyle(
+                              color: AppColors.ink,
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
@@ -795,17 +911,17 @@ class _WasalnyAdCard extends StatelessWidget {
                   width: 82,
                   height: 82,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE9EDF1),
+                    color: AppColors.surfaceHighlight,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(
+                  child: MotionIcon(
                     switch (ad.categoryKey) {
                       'camera' => Icons.camera_alt_outlined,
                       'console' => Icons.sports_esports_outlined,
                       'laptop' => Icons.laptop_mac_outlined,
                       _ => Icons.pedal_bike_outlined,
                     },
-                    color: AppColors.primaryDark,
+                    color: AppColors.ink,
                     size: 38,
                   ),
                 ),
@@ -815,7 +931,7 @@ class _WasalnyAdCard extends StatelessWidget {
               const SizedBox(height: 10),
               Text(
                 '${l10n.wasalnyAdsReason}: ${ad.decisionNote}',
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.dangerDark,
                   fontSize: 11,
                 ),
@@ -825,7 +941,7 @@ class _WasalnyAdCard extends StatelessWidget {
               const SizedBox(height: 12),
               OutlinedButton.icon(
                 onPressed: onShowFinanceStatus,
-                icon: const Icon(Icons.payments_outlined, size: 17),
+                icon: const MotionIcon(Icons.payments_outlined, size: 17),
                 label: Text(l10n.productPromotionViewPaymentStatus),
               ),
             ] else if (_isPending) ...[
@@ -838,7 +954,7 @@ class _WasalnyAdCard extends StatelessWidget {
                         child: _ActionButton(
                           label: l10n.wasalnyAdsHideAction,
                           icon: Icons.visibility_off_outlined,
-                          background: const Color(0xFFEDEFF1),
+                          background: AppColors.surfaceLight,
                           foreground: AppColors.textSecondary,
                           onPressed: onHide,
                         ),
@@ -848,7 +964,7 @@ class _WasalnyAdCard extends StatelessWidget {
                         child: _ActionButton(
                           label: l10n.wasalnyAdsRejectAction,
                           icon: Icons.cancel_outlined,
-                          background: const Color(0xFFFFE0DD),
+                          background: AppColors.dangerBorder,
                           foreground: AppColors.dangerDark,
                           onPressed: onReject,
                         ),
@@ -862,8 +978,8 @@ class _WasalnyAdCard extends StatelessWidget {
                         child: _ActionButton(
                           label: l10n.wasalnyAdsSuspendAction,
                           icon: Icons.pause_circle_outline,
-                          background: const Color(0xFFFFF0D8),
-                          foreground: const Color(0xFF8A5A00),
+                          background: AppColors.warningBorder,
+                          foreground: AppColors.warningDark,
                           onPressed: onSuspend,
                         ),
                       ),
@@ -885,9 +1001,24 @@ class _WasalnyAdCard extends StatelessWidget {
               const SizedBox(height: 12),
               OutlinedButton.icon(
                 onPressed: onRestore,
-                icon: const Icon(Icons.restart_alt, size: 17),
+                icon: const MotionIcon(Icons.restart_alt, size: 17),
                 label: Text(isArabic ? 'إعادة للمراجعة' : 'Return to review'),
               ),
+              if (onAppeal != null &&
+                  (ad.status == WasalnyAdStatus.rejected ||
+                      ad.status == WasalnyAdStatus.suspended ||
+                      ad.status == WasalnyAdStatus.hidden)) ...[
+                const SizedBox(height: 6),
+                OutlinedButton.icon(
+                  onPressed: onAppeal,
+                  icon: const MotionIcon(Icons.forward_to_inbox_outlined, size: 17),
+                  label: Text(
+                    isArabic
+                        ? 'رفع لرئيس المشرفين (رفع حجب/مراجعة)'
+                        : 'Send to head (unblock / review)',
+                  ),
+                ),
+              ],
             ],
           ],
         ),
@@ -1013,19 +1144,19 @@ class _PremiumCustomerBadge extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: const Color(0xFFFFF1CC),
+          color: AppColors.warningBorder,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.workspace_premium,
-                size: 13, color: Color(0xFF9A6B00)),
+            MotionIcon(Icons.workspace_premium,
+                size: 13, color: AppColors.warningDark),
             const SizedBox(width: 4),
             Text(
               l10n.wasalnyPremiumCustomer,
-              style: const TextStyle(
-                color: Color(0xFF805800),
+              style: TextStyle(
+                color: AppColors.warningDark,
                 fontSize: 9,
                 fontWeight: FontWeight.bold,
               ),
@@ -1055,7 +1186,7 @@ class _ActionButton extends StatelessWidget {
         height: 42,
         child: FilledButton.icon(
           onPressed: onPressed,
-          icon: Icon(icon, size: 15),
+          icon: MotionIcon(icon, size: 15),
           label: Text(
             label,
             maxLines: 1,

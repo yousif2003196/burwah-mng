@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/widgets/app_snack_bar.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../data/finance_audit_store.dart';
-import '../widgets/finance_navigation.dart';
-import '../widgets/new_settlement_bottom_sheet.dart';
-import 'settlement_details_screen.dart';
+
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/widgets/app_snack_bar.dart';
+import 'package:barwah_app/features/finance/data/datasources/finance_audit_store.dart';
+import 'package:barwah_app/features/finance/domain/entities/finance_audit_entry.dart';
+import 'package:barwah_app/features/finance/presentation/screens/settlement_details_screen.dart';
+import 'package:barwah_app/features/finance/presentation/widgets/finance_navigation.dart';
+import 'package:barwah_app/features/finance/presentation/widgets/new_settlement_bottom_sheet.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
 
 class SettlementsScreen extends StatefulWidget {
   final bool showBottomNavigation;
@@ -27,7 +32,7 @@ class _SettlementsScreenState extends State<SettlementsScreen>
     'مرفوض',
   ];
 
-  static const _seedRequests = [
+  static List<_SettlementRequest> get _seedRequests => [
     _SettlementRequest(
       id: '#SETTL-2024-098',
       name: 'د. طارق العمري',
@@ -39,7 +44,7 @@ class _SettlementsScreenState extends State<SettlementsScreen>
       status: 'قيد المراجعة',
       initials: 'ط',
       age: 'منذ 35 دقيقة',
-      color: Color(0xFFFFD9D6),
+      color: AppColors.dangerBorder,
       badgeColor: AppColors.danger,
     ),
     _SettlementRequest(
@@ -53,8 +58,8 @@ class _SettlementsScreenState extends State<SettlementsScreen>
       status: 'معتمدة',
       initials: 'ض',
       age: 'منذ ساعتين',
-      color: Color(0xFFE8F0FF),
-      badgeColor: Color(0xFF8AB4FF),
+      color: AppColors.infoLight,
+      badgeColor: AppColors.info,
     ),
     _SettlementRequest(
       id: '#SETTL-2024-105',
@@ -67,8 +72,8 @@ class _SettlementsScreenState extends State<SettlementsScreen>
       status: 'قيد نزاع',
       initials: 'خ',
       age: 'اليوم 08:30 ص',
-      color: Color(0xFFE9ECEF),
-      badgeColor: Color(0xFFFFD9D6),
+      color: AppColors.surfaceHighlight,
+      badgeColor: AppColors.dangerBorder,
     ),
   ];
 
@@ -178,16 +183,16 @@ class _SettlementsScreenState extends State<SettlementsScreen>
         currentIndex: 2,
         enabled: widget.showBottomNavigation,
         child: Scaffold(
-          backgroundColor: AppColors.backgroundLight,
+          backgroundColor: AppColors.scaffold,
           appBar: widget.showBottomNavigation
               ? AppBar(
-                  backgroundColor: Colors.white,
+                  backgroundColor: AppColors.surface,
                   elevation: 0.5,
                   scrolledUnderElevation: 0,
                   leading: widget.showBottomNavigation
                       ? IconButton(
                           tooltip: l10n.settlementBack,
-                          icon: Icon(
+                          icon: MotionIcon(
                             isArabic
                                 ? Icons.arrow_forward_ios
                                 : Icons.arrow_back_ios,
@@ -205,19 +210,19 @@ class _SettlementsScreenState extends State<SettlementsScreen>
                       ),
                       Text(
                         l10n.settlementsSubtitle,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 10, color: AppColors.textSecondary),
                       ),
                     ],
                   ),
                   centerTitle: true,
-                  actions: const [
+                  actions: [
                     Padding(
                       padding: EdgeInsets.all(10),
                       child: CircleAvatar(
                         radius: 16,
                         backgroundColor: AppColors.primaryDark,
-                        child: Icon(Icons.person_outline,
+                        child: MotionIcon(Icons.person_outline,
                             color: Colors.white, size: 17),
                       ),
                     ),
@@ -227,15 +232,15 @@ class _SettlementsScreenState extends State<SettlementsScreen>
           body: ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
             children: [
-              _buildHeader(),
+              ScrollFx(child: _buildHeader()),
               const SizedBox(height: 14),
-              _buildBalances(),
+              ScrollFx(child: _buildBalances()),
               const SizedBox(height: 14),
-              _buildAddSettlementAction(),
+              ScrollFx(child: _buildAddSettlementAction()),
               const SizedBox(height: 14),
-              _buildFilters(),
+              ScrollFx(child: _buildFilters()),
               const SizedBox(height: 16),
-              _buildRequestsHeader(),
+              ScrollFx(child: _buildRequestsHeader()),
               const SizedBox(height: 8),
               if (_filteredRequests.isEmpty)
                 Padding(
@@ -248,7 +253,7 @@ class _SettlementsScreenState extends State<SettlementsScreen>
                               : l10n.financeRequestsArchiveNoResults)
                           : l10n.financeRequestsInProgressEmpty,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 12,
                       ),
@@ -256,9 +261,9 @@ class _SettlementsScreenState extends State<SettlementsScreen>
                   ),
                 )
               else
-                ..._filteredRequests.map(_buildRequestCard),
+                ..._filteredRequests.map(_buildRequestCard).staggered(),
               const SizedBox(height: 14),
-              _buildRecentSettlementsHeader(),
+              ScrollFx(child: _buildRecentSettlementsHeader()),
               const SizedBox(height: 8),
               ..._recentSettlements.map(_buildRecentSettlement),
               const SizedBox(height: 8),
@@ -279,6 +284,9 @@ class _SettlementsScreenState extends State<SettlementsScreen>
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
+        gradient: AppColors.blueFill,
+        border: AppColors.blueEdge,
+        boxShadow: AppColors.blueGlow,
         color: AppColors.primaryDark,
         borderRadius: BorderRadius.circular(12),
       ),
@@ -298,7 +306,7 @@ class _SettlementsScreenState extends State<SettlementsScreen>
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.verified_user_outlined,
+                      const MotionIcon(Icons.verified_user_outlined,
                           color: Colors.white, size: 12),
                       const SizedBox(width: 4),
                       Flexible(
@@ -379,7 +387,7 @@ class _SettlementsScreenState extends State<SettlementsScreen>
       constraints: const BoxConstraints(minHeight: 92),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.cardBorder),
       ),
@@ -388,7 +396,7 @@ class _SettlementsScreenState extends State<SettlementsScreen>
         children: [
           Row(
             children: [
-              Icon(icon, size: 15, color: color),
+              MotionIcon(icon, size: 15, color: color),
               const SizedBox(width: 5),
               Expanded(
                 child: Text(
@@ -396,7 +404,7 @@ class _SettlementsScreenState extends State<SettlementsScreen>
                   textAlign: TextAlign.end,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 9, color: AppColors.textSecondary),
                 ),
               ),
@@ -406,16 +414,16 @@ class _SettlementsScreenState extends State<SettlementsScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              Text(
+              CountText(
                 amount,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.primaryDark),
+                    color: AppColors.ink),
               ),
               const SizedBox(width: 4),
               Text(l10n.currencyEgy,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 9, color: AppColors.textSecondary)),
             ],
           ),
@@ -425,7 +433,7 @@ class _SettlementsScreenState extends State<SettlementsScreen>
             textAlign: TextAlign.end,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 8, color: AppColors.info),
+            style: TextStyle(fontSize: 8, color: AppColors.info),
           ),
         ],
       ),
@@ -462,7 +470,7 @@ class _SettlementsScreenState extends State<SettlementsScreen>
                     status: 'قيد المراجعة',
                     initials: submission.beneficiary.substring(0, 1),
                     age: l10n.localeName.startsWith('ar') ? 'الآن' : 'Just now',
-                    color: const Color(0xFFE8F0FF),
+                    color: AppColors.infoLight,
                     badgeColor: AppColors.info,
                   ),
                 );
@@ -477,7 +485,7 @@ class _SettlementsScreenState extends State<SettlementsScreen>
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           child: Row(
             children: [
-              const Icon(Icons.add_circle_outline,
+              const MotionIcon(Icons.add_circle_outline,
                   color: Colors.white, size: 20),
               const SizedBox(width: 8),
               Expanded(
@@ -563,7 +571,7 @@ class _SettlementsScreenState extends State<SettlementsScreen>
             textInputAction: TextInputAction.search,
             decoration: InputDecoration(
               hintText: l10n.financeRequestsArchiveSearchHint,
-              prefixIcon: const Icon(Icons.search, size: 19),
+              prefixIcon: const MotionIcon(Icons.search, size: 19),
               filled: true,
               fillColor: AppColors.surfaceLight,
               isDense: true,
@@ -639,13 +647,13 @@ class _SettlementsScreenState extends State<SettlementsScreen>
                 decoration: BoxDecoration(
                   color: selected
                       ? Colors.white.withValues(alpha: 0.16)
-                      : Colors.white,
+                      : AppColors.surface,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Text(
+                child: CountText(
                   '$count',
                   style: TextStyle(
-                    color: selected ? Colors.white : AppColors.primaryDark,
+                    color: selected ? Colors.white : AppColors.ink,
                     fontSize: 9,
                     fontWeight: FontWeight.bold,
                   ),
@@ -662,7 +670,7 @@ class _SettlementsScreenState extends State<SettlementsScreen>
     final l10n = AppLocalizations.of(context)!;
     return Row(
       children: [
-        const Icon(Icons.assignment_outlined, color: AppColors.info, size: 17),
+        MotionIcon(Icons.assignment_outlined, color: AppColors.info, size: 17),
         const SizedBox(width: 6),
         Expanded(
           child: Text(
@@ -670,15 +678,15 @@ class _SettlementsScreenState extends State<SettlementsScreen>
                 ? l10n.financeRequestsArchiveTab
                 : l10n.pendingSettlementRequests,
             textAlign: TextAlign.end,
-            style: const TextStyle(
+            style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.bold,
-                color: AppColors.primaryDark),
+                color: AppColors.ink),
           ),
         ),
-        Text(
+        CountText(
           '${_filteredRequests.length} ${l10n.settlementRequestOne}',
-          style: const TextStyle(fontSize: 9, color: AppColors.info),
+          style: TextStyle(fontSize: 9, color: AppColors.info),
         ),
       ],
     );
@@ -792,8 +800,8 @@ class _SettlementsScreenState extends State<SettlementsScreen>
                 status: labels.status,
                 initials: labels.initials,
                 age: labels.age,
-                color: request.color,
-                badgeColor: request.badgeColor,
+                color: AppColors.adapt(request.color),
+                badgeColor: AppColors.adapt(request.badgeColor),
                 linkedBank: l10n.settlementsLinkedRajhiEscrow,
                 onAction: (action) =>
                     _handleSettlementAction(request.id, action),
@@ -805,7 +813,7 @@ class _SettlementsScreenState extends State<SettlementsScreen>
           margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: AppColors.surface,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: AppColors.cardBorder),
           ),
@@ -813,7 +821,8 @@ class _SettlementsScreenState extends State<SettlementsScreen>
             children: [
               Row(
                 children: [
-                  _buildTag(labels.badge, request.badgeColor),
+                  _buildTag(labels.badge, AppColors.adapt(request.badgeColor),
+                      textColor: Colors.white),
                   const SizedBox(width: 5),
                   _buildTag(labels.status, AppColors.surfaceLight,
                       textColor: AppColors.infoDark),
@@ -821,7 +830,7 @@ class _SettlementsScreenState extends State<SettlementsScreen>
                   Text(
                     request.id,
                     textDirection: TextDirection.ltr,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 8,
                         fontWeight: FontWeight.bold,
                         color: AppColors.textSecondary),
@@ -833,10 +842,10 @@ class _SettlementsScreenState extends State<SettlementsScreen>
                 children: [
                   CircleAvatar(
                     radius: 17,
-                    backgroundColor: request.color,
+                    backgroundColor: AppColors.adapt(request.color),
                     child: Text(
                       labels.initials,
-                      style: const TextStyle(
+                      style: TextStyle(
                           color: AppColors.infoDark,
                           fontWeight: FontWeight.bold,
                           fontSize: 12),
@@ -852,17 +861,17 @@ class _SettlementsScreenState extends State<SettlementsScreen>
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           textAlign: TextAlign.end,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
-                              color: AppColors.primaryDark),
+                              color: AppColors.ink),
                         ),
                         Text(
                           labels.description,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           textAlign: TextAlign.end,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 8, color: AppColors.textSecondary),
                         ),
                       ],
@@ -874,27 +883,27 @@ class _SettlementsScreenState extends State<SettlementsScreen>
                     children: [
                       Row(
                         children: [
-                          Text(
+                          CountText(
                             request.amount,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
-                                color: AppColors.primaryDark),
+                                color: AppColors.ink),
                           ),
                           const SizedBox(width: 3),
                           Text(l10n.currencyEgy,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 8, color: AppColors.textSecondary)),
                         ],
                       ),
                       Text(labels.age,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 8, color: AppColors.info)),
                     ],
                   ),
                 ],
               ),
-              const Padding(
+              Padding(
                 padding: EdgeInsets.symmetric(vertical: 7),
                 child: Divider(height: 1, color: AppColors.surfaceLight),
               ),
@@ -904,17 +913,17 @@ class _SettlementsScreenState extends State<SettlementsScreen>
                       AppColors.surfaceLight,
                       textColor: AppColors.infoDark),
                   const Spacer(),
-                  Icon(
+                  MotionIcon(
                     isArabic ? Icons.arrow_back : Icons.arrow_forward,
                     size: 14,
-                    color: AppColors.primaryDark,
+                    color: AppColors.ink,
                   ),
                   const SizedBox(width: 3),
                   Text(l10n.viewLabel,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.primaryDark)),
+                          color: AppColors.ink)),
                 ],
               ),
             ],
@@ -925,7 +934,8 @@ class _SettlementsScreenState extends State<SettlementsScreen>
   }
 
   Widget _buildTag(String label, Color color,
-      {Color textColor = AppColors.primaryDark}) {
+      {Color? textColor}) {
+    textColor ??= AppColors.primaryDark;
     return Container(
       constraints: const BoxConstraints(maxWidth: 150),
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
@@ -945,21 +955,21 @@ class _SettlementsScreenState extends State<SettlementsScreen>
     final l10n = AppLocalizations.of(context)!;
     return Row(
       children: [
-        const Icon(Icons.history, color: AppColors.info, size: 17),
+        MotionIcon(Icons.history, color: AppColors.info, size: 17),
         const SizedBox(width: 6),
         Expanded(
           child: Text(
             l10n.recentSettlementsTitle,
             textAlign: TextAlign.end,
-            style: const TextStyle(
+            style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.bold,
-                color: AppColors.primaryDark),
+                color: AppColors.ink),
           ),
         ),
         Text(
           l10n.settlementRecentOperationsCount,
-          style: const TextStyle(fontSize: 9, color: AppColors.info),
+          style: TextStyle(fontSize: 9, color: AppColors.info),
         ),
         const SizedBox(width: 6),
         TextButton(
@@ -979,13 +989,13 @@ class _SettlementsScreenState extends State<SettlementsScreen>
       margin: const EdgeInsets.only(bottom: 7),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.cardBorder),
       ),
       child: Row(
         children: [
-          const Icon(Icons.check_circle_outline,
+          MotionIcon(Icons.check_circle_outline,
               color: AppColors.info, size: 18),
           const SizedBox(width: 8),
           Expanded(
@@ -996,7 +1006,7 @@ class _SettlementsScreenState extends State<SettlementsScreen>
                     style: const TextStyle(
                         fontSize: 10, fontWeight: FontWeight.bold)),
                 Text(labels.description,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 8, color: AppColors.textSecondary)),
               ],
             ),
@@ -1007,23 +1017,23 @@ class _SettlementsScreenState extends State<SettlementsScreen>
             children: [
               Row(
                 children: [
-                  Text(settlement.amount,
+                  CountText(settlement.amount,
                       style: const TextStyle(
                           fontSize: 11, fontWeight: FontWeight.bold)),
                   const SizedBox(width: 3),
                   Text(l10n.currencyEgy,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 8, color: AppColors.textSecondary)),
                 ],
               ),
               Text(labels.time,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 8, color: AppColors.textSecondary)),
             ],
           ),
           const SizedBox(width: 5),
           Text(settlement.id,
-              style: const TextStyle(fontSize: 8, color: AppColors.info)),
+              style: TextStyle(fontSize: 8, color: AppColors.info)),
         ],
       ),
     );

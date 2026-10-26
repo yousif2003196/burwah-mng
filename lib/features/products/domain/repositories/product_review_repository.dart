@@ -1,4 +1,4 @@
-import '../entities/product_review.dart';
+import 'package:barwah_app/features/products/domain/entities/product_review.dart';
 
 abstract class ProductReviewRepository {
   Future<List<ProductReview>> getProductReviews();

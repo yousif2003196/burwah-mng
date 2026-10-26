@@ -1,12 +1,21 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../data/head_supervisor_audit_store.dart';
-import '../../../wasalny_supervisor/data/wasalny_local_event_store.dart';
-import 'head_supervisor_request_decision_sheet.dart';
-import 'head_supervisor_intervention_screen.dart';
-import 'head_supervisor_request_review_screen.dart';
-import '../head_supervisor_text.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/features/admin/data/datasources/admin_request_store.dart';
+import 'package:barwah_app/features/admin/data/services/head_access_policy.dart';
+import 'package:barwah_app/features/admin/domain/entities/admin_request.dart';
+import 'package:barwah_app/features/admin/domain/entities/head_account.dart';
+import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_audit_store.dart';
+import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_audit_record.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_intervention_screen.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_request_review_screen.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/utils/head_supervisor_text.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_supervisor_request_decision_sheet.dart';
+import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
+import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class HeadSupervisorRequestsScreen extends StatefulWidget {
   const HeadSupervisorRequestsScreen({super.key});
@@ -18,9 +27,9 @@ class HeadSupervisorRequestsScreen extends StatefulWidget {
 
 class _HeadSupervisorRequestsScreenState
     extends State<HeadSupervisorRequestsScreen> {
-  final _store = WasalnyLocalEventStore();
+  final _store = LocalEventStore();
   final _search = TextEditingController();
-  List<WasalnyLocalEvent> _events = const [];
+  List<LocalEvent> _events = const [];
   bool _loading = true;
   Object? _error;
   String _query = '';
@@ -29,14 +38,14 @@ class _HeadSupervisorRequestsScreenState
   @override
   void initState() {
     super.initState();
-    WasalnyLocalEventStore.revision.addListener(_load);
+    LocalEventStore.revision.addListener(_load);
     _search.addListener(() => setState(() => _query = _search.text.trim()));
     _load();
   }
 
   @override
   void dispose() {
-    WasalnyLocalEventStore.revision.removeListener(_load);
+    LocalEventStore.revision.removeListener(_load);
     _search.dispose();
     super.dispose();
   }
@@ -73,12 +82,12 @@ class _HeadSupervisorRequestsScreenState
     }
   }
 
-  bool _isReviewRequest(WasalnyLocalEvent event) =>
+  bool _isReviewRequest(LocalEvent event) =>
       !event.id.startsWith('demo-') &&
       const {'merchant', 'products', 'wasalny', 'services'}
           .contains(event.source);
 
-  List<WasalnyLocalEvent> get _pending {
+  List<LocalEvent> get _pending {
     return _events.where((event) {
       if (event.isRead) return false;
       final text = '${event.id} ${event.titleAr} ${event.titleEn} ${event.messageAr} ${event.messageEn}'.toLowerCase();
@@ -110,9 +119,16 @@ class _HeadSupervisorRequestsScreenState
   }
 
   Future<void> _decide(
-    WasalnyLocalEvent event, {
+    LocalEvent event, {
     bool intervention = false,
   }) async {
+    final policy = await HeadAccessPolicy.load();
+    if (!mounted) return;
+    if (intervention &&
+        !await ensureHeadPermission(context, HeadPermission.settleDisputes)) {
+      return;
+    }
+    if (!mounted) return;
     final request = _Request.fromEvent(event, context);
     final decision = await Navigator.of(context).push<HeadSupervisorDecisionDraft>(
       MaterialPageRoute(
@@ -127,6 +143,7 @@ class _HeadSupervisorRequestsScreenState
                 supervisorDecision: request.supervisorDecision,
                 recipient: event.source,
                 createdAt: event.createdAt,
+                allowRefunds: policy.allows(HeadPermission.approveRefunds),
               )
             : HeadSupervisorRequestReviewScreen(
                 requestId: request.id,
@@ -167,7 +184,7 @@ class _HeadSupervisorRequestsScreenState
           occurredAt: DateTime.now(),
         ),
       );
-      await _store.publish(WasalnyLocalEvent(
+      await _store.publish(LocalEvent(
         id: id,
         recipient: event.source,
         source: 'head',
@@ -177,6 +194,24 @@ class _HeadSupervisorRequestsScreenState
         messageEn: actionDetailsEn,
         createdAt: DateTime.now(),
       ));
+      if (decision.action == HeadSupervisorDecisionAction.escalateToAdmin) {
+        await AdminRequestStore().submit(AdminRequest(
+          id: 'escalation-${event.id}',
+          kind: AdminRequestKind.escalation,
+          titleAr: request.title,
+          titleEn: request.title,
+          detailsAr: 'طلب ${request.id} من ${request.department} (المشرف: ${request.supervisor}). السبب: ${request.reason}. مبررات الرئيس: ${decision.note}',
+          detailsEn: 'Request ${request.id} from ${request.department} (supervisor: ${request.supervisor}). Reason: ${request.reason}. Head note: ${decision.note}',
+          fromAr: 'رئيس المشرفين',
+          fromEn: 'Head of supervisors',
+          origin: 'head',
+          refId: request.id,
+          createdAt: DateTime.now(),
+          priority: AdminRequestPriority.critical,
+          deadline: DateTime.now().add(const Duration(hours: 24)),
+          sourceAccount: event.source,
+        ));
+      }
       if (decision.action.closesRequest) await _store.markRead('head', event.id);
       await _load();
       if (!mounted) return;
@@ -197,11 +232,11 @@ class _HeadSupervisorRequestsScreenState
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         children: [
-          _SearchBar(controller: _search),
+          ScrollFx(child: _SearchBar(controller: _search)),
           const SizedBox(height: 10),
-          _FilterBar(selected: _filter, counts: _counts, onChanged: (value) => setState(() => _filter = value)),
+          ScrollFx(child: _FilterBar(selected: _filter, counts: _counts, onChanged: (value) => setState(() => _filter = value))),
           const SizedBox(height: 12),
-          _Summary(count: _events.where((event) => !event.isRead).length),
+          ScrollFx(child: _Summary(count: _events.where((event) => !event.isRead).length)),
           const SizedBox(height: 12),
           if (requests.isEmpty)
             const _EmptyQueue()
@@ -215,7 +250,7 @@ class _HeadSupervisorRequestsScreenState
               ),
               const SizedBox(height: 12),
             ],
-          const _GovernanceFooter(),
+          ScrollFx(child: const _GovernanceFooter()),
         ],
       ),
     );
@@ -256,7 +291,7 @@ class _Request {
 
   const _Request({required this.source, required this.id, required this.title, required this.reason, required this.supervisor, required this.supervisorCode, required this.department, required this.icon, required this.color, required this.supervisorDecision, required this.urgent});
 
-  factory _Request.fromEvent(WasalnyLocalEvent event, BuildContext context) {
+  factory _Request.fromEvent(LocalEvent event, BuildContext context) {
     final isArabic = Localizations.localeOf(context).languageCode == 'ar';
     final raw = isArabic ? event.messageAr : event.messageEn;
     final idAndTitle = raw.split(' — ').first.trim();
@@ -284,11 +319,11 @@ class _Request {
           : idAndTitle;
     }
     final (departmentAr, departmentEn, icon, color) = switch (event.source) {
-      'services' => ('قسم الخدمات الميدانية', 'Field Services', Icons.build_outlined, const Color(0xFF315E9A)),
+      'services' => ('قسم الخدمات الميدانية', 'Field Services', Icons.build_outlined, AppColors.infoDark),
       'products' => ('قسم المنتجات والمستعمل', 'Products and Used Goods', Icons.local_shipping_outlined, AppColors.dangerDark),
-      'wasalny' => ('قسم وصلني', 'Wasalny', Icons.directions_car_outlined, const Color(0xFF315E9A)),
-      'merchant' => ('قسم التجار', 'Merchants', Icons.storefront_outlined, const Color(0xFF315E9A)),
-      _ => ('القسم المحيل', 'Referring department', Icons.assignment_outlined, const Color(0xFF315E9A)),
+      'wasalny' => ('قسم وصلني', 'Wasalny', Icons.directions_car_outlined, AppColors.infoDark),
+      'merchant' => ('قسم التجار', 'Merchants', Icons.storefront_outlined, AppColors.infoDark),
+      _ => ('القسم المحيل', 'Referring department', Icons.assignment_outlined, AppColors.infoDark),
     };
     final isFrozen = event.titleAr.contains('تجميد') ||
         event.titleEn.toLowerCase().contains('frozen');
@@ -308,9 +343,9 @@ class _SearchBar extends StatelessWidget {
   const _SearchBar({required this.controller});
   @override
   Widget build(BuildContext context) => Row(children: [
-        Container(width: 44, height: 44, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(13)), child: const Icon(Icons.tune, color: AppColors.primaryDark, size: 19)),
+        Container(width: 44, height: 44, decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(13)), child: MotionIcon(Icons.tune, color: AppColors.ink, size: 19)),
         const SizedBox(width: 7),
-        Expanded(child: TextField(controller: controller, textAlign: TextAlign.right, decoration: InputDecoration(hintText: headSupervisorText(context, arabic: 'بحث برقم الطلب، اسم المشرف، أو القسم', english: 'Search by request ID, supervisor, or department'), hintStyle: const TextStyle(fontSize: 10, color: AppColors.textMuted), suffixIcon: const Icon(Icons.search, size: 19), filled: true, fillColor: Colors.white, contentPadding: const EdgeInsets.symmetric(horizontal: 13, vertical: 13), border: OutlineInputBorder(borderRadius: BorderRadius.circular(13), borderSide: BorderSide.none)))),
+        Expanded(child: TextField(controller: controller, textAlign: TextAlign.right, decoration: InputDecoration(hintText: headSupervisorText(context, arabic: 'بحث برقم الطلب، اسم المشرف، أو القسم', english: 'Search by request ID, supervisor, or department'), hintStyle: TextStyle(fontSize: 10, color: AppColors.textMuted), suffixIcon: const MotionIcon(Icons.search, size: 19), filled: true, fillColor: AppColors.surface, contentPadding: const EdgeInsets.symmetric(horizontal: 13, vertical: 13), border: OutlineInputBorder(borderRadius: BorderRadius.circular(13), borderSide: BorderSide.none)))),
       ]);
 }
 
@@ -331,7 +366,7 @@ class _FilterBar extends StatelessWidget {
       ('المنتجات', 'Products'),
     ];
     return SingleChildScrollView(scrollDirection: Axis.horizontal, reverse: true, child: Row(children: [
-      for (final (arabic, english) in labels) Padding(padding: const EdgeInsets.only(left: 6), child: ChoiceChip(label: Text('${headSupervisorText(context, arabic: arabic, english: english)}  ${counts[arabic] ?? 0}', style: const TextStyle(fontSize: 9)), selected: selected == arabic, onSelected: (_) => onChanged(arabic), selectedColor: AppColors.primaryDark, backgroundColor: Colors.white, labelStyle: TextStyle(color: selected == arabic ? Colors.white : AppColors.textSecondary), side: BorderSide.none, visualDensity: VisualDensity.compact)),
+      for (final (arabic, english) in labels) Padding(padding: const EdgeInsets.only(left: 6), child: ChoiceChip(label: CountText('${headSupervisorText(context, arabic: arabic, english: english)}  ${counts[arabic] ?? 0}', style: const TextStyle(fontSize: 9)), selected: selected == arabic, onSelected: (_) => onChanged(arabic), selectedColor: AppColors.primaryDark, backgroundColor: AppColors.surface, labelStyle: TextStyle(color: selected == arabic ? Colors.white : AppColors.textSecondary), side: BorderSide.none, visualDensity: VisualDensity.compact)),
     ]));
   }
 }
@@ -340,58 +375,58 @@ class _Summary extends StatelessWidget {
   final int count;
   const _Summary({required this.count});
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)), child: Row(children: [
-        const Icon(Icons.circle, size: 9, color: AppColors.danger),
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14)), child: Row(children: [
+        MotionIcon(Icons.circle, size: 9, color: AppColors.danger),
         const SizedBox(width: 7),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(headSupervisorText(context, arabic: 'إجمالي العمليات:', english: 'Total operations:'), style: const TextStyle(fontSize: 9, color: AppColors.textSecondary)), Text(headSupervisorText(context, arabic: 'سجل الحوكمة الرقابي المباشر لجميع الإدارات', english: 'Live governance queue across all departments'), style: const TextStyle(fontSize: 8, color: AppColors.textSecondary))])),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(headSupervisorText(context, arabic: 'إجمالي العمليات:', english: 'Total operations:'), style: TextStyle(fontSize: 9, color: AppColors.textSecondary)), Text(headSupervisorText(context, arabic: 'سجل الحوكمة الرقابي المباشر لجميع الإدارات', english: 'Live governance queue across all departments'), style: TextStyle(fontSize: 8, color: AppColors.textSecondary))])),
         const SizedBox(width: 8),
-        Text('$count', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
+        CountText('$count', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.ink)),
         const SizedBox(width: 5),
-        Text(headSupervisorText(context, arabic: 'عمليات جديدة', english: 'new items'), style: const TextStyle(fontSize: 9, color: AppColors.danger, fontWeight: FontWeight.bold)),
+        Text(headSupervisorText(context, arabic: 'عمليات جديدة', english: 'new items'), style: TextStyle(fontSize: 9, color: AppColors.danger, fontWeight: FontWeight.bold)),
       ]));
 }
 
 class _RequestCard extends StatelessWidget {
-  final WasalnyLocalEvent event;
+  final LocalEvent event;
   final _Request request;
   final VoidCallback onDecide;
   final VoidCallback onIntervene;
   const _RequestCard({required this.event, required this.request, required this.onDecide, required this.onIntervene});
 
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(13), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFE8ECF0))), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(13), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.surfaceHighlight)), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
           _RequestBadge(label: headSupervisorText(context, arabic: 'قرار المشرف: ${request.supervisorDecision}', english: 'Supervisor decision: ${request.supervisorDecision}'), urgent: request.urgent),
           const Spacer(),
           Text(request.department, style: TextStyle(fontSize: 9, color: request.color, fontWeight: FontWeight.bold)),
           const SizedBox(width: 6),
-          Container(width: 27, height: 27, decoration: BoxDecoration(color: const Color(0xFFE7EFFB), borderRadius: BorderRadius.circular(8)), child: Icon(request.icon, size: 16, color: request.color)),
+          Container(width: 27, height: 27, decoration: BoxDecoration(color: AppColors.infoLight, borderRadius: BorderRadius.circular(8)), child: MotionIcon(request.icon, size: 16, color: request.color)),
         ]),
         const SizedBox(height: 9),
         Row(children: [
-          const Icon(Icons.forward_to_inbox_outlined, size: 13, color: AppColors.textSecondary),
+          MotionIcon(Icons.forward_to_inbox_outlined, size: 13, color: AppColors.textSecondary),
           const SizedBox(width: 3),
-          Expanded(child: Text(headSupervisorText(context, arabic: 'إحالة واردة من مشرف القسم للمراجعة الرقابية', english: 'Referral from the department supervisor for review'), maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.right, style: const TextStyle(fontSize: 9, color: AppColors.textSecondary))),
+          Expanded(child: Text(headSupervisorText(context, arabic: 'إحالة واردة من مشرف القسم للمراجعة الرقابية', english: 'Referral from the department supervisor for review'), maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.right, style: TextStyle(fontSize: 9, color: AppColors.textSecondary))),
           const SizedBox(width: 5),
-          Text(request.id, style: const TextStyle(fontSize: 9, color: AppColors.textSecondary)),
+          Text(request.id, style: TextStyle(fontSize: 9, color: AppColors.textSecondary)),
         ]),
         const SizedBox(height: 7),
-        Text(request.title, textAlign: TextAlign.right, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
+        Text(request.title, textAlign: TextAlign.right, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.ink)),
         if (request.reason.isNotEmpty) ...[
           const SizedBox(height: 3),
-          Text(request.reason, textAlign: TextAlign.right, style: const TextStyle(fontSize: 9, height: 1.4, color: AppColors.textSecondary)),
+          Text(request.reason, textAlign: TextAlign.right, style: TextStyle(fontSize: 9, height: 1.4, color: AppColors.textSecondary)),
         ],
         const SizedBox(height: 9),
-        Container(padding: const EdgeInsets.all(9), decoration: BoxDecoration(color: const Color(0xFFF0F2F4), borderRadius: BorderRadius.circular(12)), child: Column(children: [
-          Row(children: [CircleAvatar(radius: 14, backgroundColor: const Color(0xFF516A89), child: Text(request.supervisor.substring(0, 1), style: const TextStyle(fontSize: 9, color: Colors.white))), const SizedBox(width: 7), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(headSupervisorText(context, arabic: 'المشرف: ${request.supervisor}', english: 'Supervisor: ${request.supervisor}'), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.primaryDark)), Text(headSupervisorText(context, arabic: 'رمز المشرف: ${request.supervisorCode}', english: 'Supervisor ID: ${request.supervisorCode}'), style: const TextStyle(fontSize: 8, color: AppColors.textSecondary))])), Text(_elapsed(event.createdAt, context), style: const TextStyle(fontSize: 8, color: AppColors.textSecondary)), const Icon(Icons.access_time, size: 12, color: AppColors.textSecondary)]),
+        Container(padding: const EdgeInsets.all(9), decoration: BoxDecoration(color: AppColors.surfaceLight, borderRadius: BorderRadius.circular(12)), child: Column(children: [
+          Row(children: [CircleAvatar(radius: 14, backgroundColor: AppColors.infoDark, child: Text(request.supervisor.substring(0, 1), style: const TextStyle(fontSize: 9, color: Colors.white))), const SizedBox(width: 7), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(headSupervisorText(context, arabic: 'المشرف: ${request.supervisor}', english: 'Supervisor: ${request.supervisor}'), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.ink)), Text(headSupervisorText(context, arabic: 'رمز المشرف: ${request.supervisorCode}', english: 'Supervisor ID: ${request.supervisorCode}'), style: TextStyle(fontSize: 8, color: AppColors.textSecondary))])), Text(_elapsed(event.createdAt, context), style: TextStyle(fontSize: 8, color: AppColors.textSecondary)), MotionIcon(Icons.access_time, size: 12, color: AppColors.textSecondary)]),
           const SizedBox(height: 7),
-          Container(width: double.infinity, padding: const EdgeInsets.all(9), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(9)), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [const Icon(Icons.warning_amber_rounded, size: 15, color: AppColors.danger), const SizedBox(width: 5), Expanded(child: Text(headSupervisorText(context, arabic: 'سبب قرار المشرف: ${request.reason}', english: 'Supervisor decision reason: ${request.reason}'), textAlign: TextAlign.right, style: const TextStyle(fontSize: 9, height: 1.4, color: AppColors.textSecondary)))])),
+          Container(width: double.infinity, padding: const EdgeInsets.all(9), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(9)), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [MotionIcon(Icons.warning_amber_rounded, size: 15, color: AppColors.danger), const SizedBox(width: 5), Expanded(child: Text(headSupervisorText(context, arabic: 'سبب قرار المشرف: ${request.reason}', english: 'Supervisor decision reason: ${request.reason}'), textAlign: TextAlign.right, style: TextStyle(fontSize: 9, height: 1.4, color: AppColors.textSecondary)))])),
         ])),
         const SizedBox(height: 10),
         Row(children: [
-          Expanded(child: OutlinedButton.icon(onPressed: onDecide, icon: const Icon(Icons.rule_outlined, size: 15), label: Text(headSupervisorText(context, arabic: 'إعادة مراجعة القرار', english: 'Review decision'), style: const TextStyle(fontSize: 9)), style: OutlinedButton.styleFrom(foregroundColor: AppColors.primaryDark, padding: const EdgeInsets.symmetric(vertical: 11), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11))))),
+          Expanded(child: OutlinedButton.icon(onPressed: onDecide, icon: const MotionIcon(Icons.rule_outlined, size: 15), label: Text(headSupervisorText(context, arabic: 'إعادة مراجعة القرار', english: 'Review decision'), style: const TextStyle(fontSize: 9)), style: OutlinedButton.styleFrom(foregroundColor: AppColors.ink, padding: const EdgeInsets.symmetric(vertical: 11), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11))))),
           const SizedBox(width: 7),
-          Expanded(child: FilledButton.icon(onPressed: onIntervene, icon: const Icon(Icons.tune, size: 15), label: Text(headSupervisorText(context, arabic: 'التدخل الرقابي', english: 'Oversight intervention'), style: const TextStyle(fontSize: 9)), style: FilledButton.styleFrom(backgroundColor: AppColors.primaryDark, padding: const EdgeInsets.symmetric(vertical: 11), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11))))),
+          Expanded(child: FilledButton.icon(onPressed: onIntervene, icon: const MotionIcon(Icons.tune, size: 15), label: Text(headSupervisorText(context, arabic: 'التدخل الرقابي', english: 'Oversight intervention'), style: const TextStyle(fontSize: 9)), style: FilledButton.styleFrom(backgroundColor: AppColors.primaryDark, padding: const EdgeInsets.symmetric(vertical: 11), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11))))),
         ]),
       ]));
 }
@@ -420,20 +455,22 @@ class _RequestBadge extends StatelessWidget {
   final bool urgent;
   const _RequestBadge({required this.label, required this.urgent});
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5), decoration: BoxDecoration(color: urgent ? const Color(0xFFFFDDDA) : const Color(0xFFE1ECFF), borderRadius: BorderRadius.circular(12)), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(urgent ? Icons.warning_amber_rounded : Icons.circle, size: 9, color: urgent ? AppColors.dangerDark : const Color(0xFF42699F)), const SizedBox(width: 4), Text(label, style: TextStyle(fontSize: 8, color: urgent ? AppColors.dangerDark : const Color(0xFF315E9A), fontWeight: FontWeight.w600))]));
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5), decoration: BoxDecoration(color: urgent ? AppColors.dangerBorder : AppColors.infoLight, borderRadius: BorderRadius.circular(12)), child: Row(mainAxisSize: MainAxisSize.min, children: [MotionIcon(urgent ? Icons.warning_amber_rounded : Icons.circle, size: 9, color: urgent ? AppColors.dangerDark : AppColors.infoDark), const SizedBox(width: 4), Text(label, style: TextStyle(fontSize: 8, color: urgent ? AppColors.dangerDark : AppColors.infoDark, fontWeight: FontWeight.w600))]));
 }
 
 class _GovernanceFooter extends StatelessWidget {
   const _GovernanceFooter();
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: const Color(0xFF0B294A), borderRadius: BorderRadius.circular(15)), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(headSupervisorText(context, arabic: 'صلاحيات الإشراف الإداري والرقابي', english: 'Administrative and oversight authority'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)), const SizedBox(height: 5), Text(headSupervisorText(context, arabic: 'تمنح منصة رئيس المشرفين حق مراجعة القرارات التشغيلية. وتظل القرارات المالية والحسابات مقيدة بموافقة الإدارة المالية وفق المعايير.', english: 'The Head Supervisor can review operational decisions. Financial decisions and accounts remain subject to finance approval.'), textAlign: TextAlign.right, style: const TextStyle(fontSize: 9, height: 1.55, color: Color(0xFFD6E0EC)))])),
-        const SizedBox(width: 10), const Icon(Icons.admin_panel_settings_outlined, size: 20, color: Color(0xFFD6E0EC)),
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(gradient: AppColors.blueFill,
+border: AppColors.blueEdge,
+boxShadow: AppColors.blueGlow, color: AppColors.primaryDark, borderRadius: BorderRadius.circular(15)), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(headSupervisorText(context, arabic: 'صلاحيات الإشراف الإداري والرقابي', english: 'Administrative and oversight authority'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)), const SizedBox(height: 5), Text(headSupervisorText(context, arabic: 'تمنح منصة رئيس المشرفين حق مراجعة القرارات التشغيلية. وتظل القرارات المالية والحسابات مقيدة بموافقة الإدارة المالية وفق المعايير.', english: 'The Head Supervisor can review operational decisions. Financial decisions and accounts remain subject to finance approval.'), textAlign: TextAlign.right, style: TextStyle(fontSize: 9, height: 1.55, color: AppColors.cardBorder))])),
+        const SizedBox(width: 10), MotionIcon(Icons.admin_panel_settings_outlined, size: 20, color: AppColors.cardBorder),
       ]));
 }
 
 class _EmptyQueue extends StatelessWidget {
   const _EmptyQueue();
   @override
-  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.symmetric(vertical: 54), child: Column(children: [const Icon(Icons.inbox_outlined, size: 42, color: AppColors.textMuted), const SizedBox(height: 10), Text(headSupervisorText(context, arabic: 'لا توجد طلبات جديدة بانتظار القرار', english: 'No new requests are awaiting a decision'), style: const TextStyle(fontSize: 12, color: AppColors.textSecondary))]));
+  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.symmetric(vertical: 54), child: Column(children: [MotionIcon(Icons.inbox_outlined, size: 42, color: AppColors.textMuted), const SizedBox(height: 10), Text(headSupervisorText(context, arabic: 'لا توجد طلبات جديدة بانتظار القرار', english: 'No new requests are awaiting a decision'), style: TextStyle(fontSize: 12, color: AppColors.textSecondary))]));
 }

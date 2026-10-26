@@ -4,17 +4,21 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/widgets/app_snack_bar.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../data/finance_audit_store.dart';
-import 'widgets/withdraw_bottom_sheet.dart';
-import 'personal_withdrawal_methods_screen.dart';
-import 'edit_matrix_screen.dart';
-import 'financial_activity_log_screen.dart';
-import '../widgets/finance_navigation.dart';
-import '../utils/finance_profile_report_exporter.dart';
-import '../utils/finance_commission_matrix_store.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/widgets/app_snack_bar.dart';
+import 'package:barwah_app/features/finance/data/datasources/finance_audit_store.dart';
+import 'package:barwah_app/features/finance/data/datasources/finance_commission_matrix_store.dart';
+import 'package:barwah_app/features/finance/domain/entities/finance_audit_entry.dart';
+import 'package:barwah_app/features/finance/presentation/screens/edit_matrix_screen.dart';
+import 'package:barwah_app/features/finance/presentation/screens/financial_activity_log_screen.dart';
+import 'package:barwah_app/features/finance/presentation/screens/personal_withdrawal_methods_screen.dart';
+import 'package:barwah_app/features/finance/presentation/utils/finance_profile_report_exporter.dart';
+import 'package:barwah_app/features/finance/presentation/widgets/finance_navigation.dart';
+import 'package:barwah_app/features/finance/presentation/widgets/withdraw_bottom_sheet.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
 
 class ProfileScreen extends StatefulWidget {
   final VoidCallback onLogout;
@@ -106,7 +110,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ? TextDirection.rtl
           : TextDirection.ltr,
       child: Scaffold(
-        backgroundColor: AppColors.backgroundLight,
+        backgroundColor: AppColors.scaffold,
         appBar: FinancePageAppBar(
           title: l10n.profileTitle,
           subtitle: l10n.financialDepartment,
@@ -119,7 +123,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Column(
             children: [
               // Security Banner
-              InkWell(
+              ScrollFx(child: InkWell(
                 onTap: () => _showSecurityDetails(context, l10n),
                 borderRadius: BorderRadius.circular(12),
                 child: Container(
@@ -137,21 +141,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: AppColors.surface,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.grey.shade300),
+                          border: Border.all(color: AppColors.cardBorder),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.circle,
-                                size: 6, color: Colors.blue.shade700),
+                            MotionIcon(Icons.circle,
+                                size: 6, color: AppColors.infoDark),
                             const SizedBox(width: 4),
                             Flexible(
                               child: Text(l10n.encryptedBit256,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                       fontSize: 10,
                                       color: AppColors.textSecondary)),
                             ),
@@ -170,7 +174,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               textAlign: TextAlign.end,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
                                   color: AppColors.textPrimary),
@@ -180,10 +184,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           Container(
                             padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(
+                              gradient: AppColors.blueFill,
+                              border: AppColors.blueEdge,
+                              boxShadow: AppColors.blueGlow,
                               color: AppColors.primaryDark,
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Icon(Icons.verified_user_outlined,
+                            child: const MotionIcon(Icons.verified_user_outlined,
                                 color: Colors.white, size: 16),
                           ),
                         ],
@@ -192,13 +199,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ],
                 ),
                 ),
-              ),
+              )),
               const SizedBox(height: 16),
 
               // 1. Profile Card
-              Container(
+              ScrollFx(child: Container(
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: AppColors.surface,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: AppColors.cardBorder),
                 ),
@@ -232,7 +239,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     const SizedBox(width: 8),
                                     Flexible(
                                         child: Text(l10n.cfoName,
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                                 fontSize: 16,
                                                 fontWeight: FontWeight.bold,
                                                 color: AppColors.textPrimary),
@@ -242,11 +249,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ),
                                 const SizedBox(height: 6),
                                 Text(l10n.cfoRole,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                         fontSize: 11, color: AppColors.info)),
                                 const SizedBox(height: 4),
                                 Text(l10n.cfoAuditingTitle,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                         fontSize: 10,
                                         color: AppColors.textSecondary),
                                     textDirection: TextDirection.ltr),
@@ -263,11 +270,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 right: -4,
                                 child: Container(
                                   padding: const EdgeInsets.all(4),
-                                  decoration: const BoxDecoration(
+                                  decoration: BoxDecoration(
                                     color: AppColors.primaryExtraDark,
                                     shape: BoxShape.circle,
                                   ),
-                                  child: const Icon(Icons.shield_outlined,
+                                  child: const MotionIcon(Icons.shield_outlined,
                                       color: Colors.white, size: 12),
                                 ),
                               ),
@@ -280,9 +287,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       margin: const EdgeInsets.symmetric(horizontal: 16),
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFAFAFA),
+                        color: AppColors.surfaceMuted,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade200),
+                        border: Border.all(color: AppColors.cardBorder),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
@@ -293,19 +300,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             children: [
                               Expanded(
                                   child: Text(l10n.sovereignApprovalPowers,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                           fontSize: 11,
                                           fontWeight: FontWeight.bold,
                                           color: AppColors.textPrimary),
                                       textAlign: TextAlign.end)),
                               const SizedBox(width: 8),
-                              Icon(Icons.account_balance,
-                                  size: 16, color: Colors.blue.shade700),
+                              MotionIcon(Icons.account_balance,
+                                  size: 16, color: AppColors.infoDark),
                             ],
                           ),
                           const SizedBox(height: 6),
                           Text(l10n.certifiedAuditorAuthority,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 10,
                                   color: AppColors.textSecondary,
                                   height: 1.4),
@@ -334,7 +341,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    const Divider(height: 1, color: AppColors.cardBorder),
+                    Divider(height: 1, color: AppColors.cardBorder),
                     Padding(
                       padding: const EdgeInsets.all(12),
                       child: Row(
@@ -344,7 +351,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.fingerprint,
+                                MotionIcon(Icons.fingerprint,
                                     color: AppColors.info, size: 16),
                                 const SizedBox(width: 4),
                                 Flexible(
@@ -353,7 +360,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
                                           fontSize: 10,
-                                          color: Colors.blue.shade700,
+                                          color: AppColors.infoDark,
                                           fontWeight: FontWeight.bold)),
                                 ),
                               ],
@@ -364,7 +371,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             child: Text(l10n.authorizationEffectiveFrom,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
+                                style: TextStyle(
                                     fontSize: 10,
                                     color: AppColors.textSecondary)),
                           ),
@@ -373,11 +380,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ],
                 ),
-              ),
+              )),
               const SizedBox(height: 16),
 
               // 2. Wallet Card
-              Container(
+              ScrollFx(child: Container(
                 decoration: BoxDecoration(
                   color: AppColors.primaryExtraDark,
                   borderRadius: BorderRadius.circular(16),
@@ -401,13 +408,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
-                                color: Colors.blue.withValues(alpha: 0.2),
+                                color: AppColors.info.withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(Icons.circle,
+                                  const MotionIcon(Icons.circle,
                                       size: 6, color: Colors.white),
                                   const SizedBox(width: 4),
                                   Flexible(
@@ -452,7 +459,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               color: Colors.white.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: const Icon(
+                            child: const MotionIcon(
                                 Icons.account_balance_wallet_outlined,
                                 color: Colors.white,
                                 size: 24),
@@ -471,7 +478,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          const Text('68,500.00',
+                          const CountText('68,500.00',
                               style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 36,
@@ -514,9 +521,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                                 fontSize: 10)),
                                       ),
                                       const SizedBox(width: 4),
-                                      Icon(Icons.circle,
+                                      MotionIcon(Icons.circle,
                                           size: 6,
-                                          color: Colors.blueGrey.shade400),
+                                          color: AppColors.textMuted),
                                     ],
                                   ),
                                   const SizedBox(height: 4),
@@ -525,12 +532,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     crossAxisAlignment: CrossAxisAlignment.end,
                                     children: [
                                       const Flexible(
-                                        child: Text('16,500.00',
-                                            overflow: TextOverflow.ellipsis,
+                                        child: FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart, child: CountText('16,500.00',
                                             style: TextStyle(
                                                 color: Colors.white,
                                                 fontSize: 16,
-                                                fontWeight: FontWeight.bold)),
+                                                fontWeight: FontWeight.bold))),
                                       ),
                                       const SizedBox(width: 2),
                                       Text(l10n.currencyEgy,
@@ -571,8 +577,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                                 fontSize: 10)),
                                       ),
                                       const SizedBox(width: 4),
-                                      Icon(Icons.circle,
-                                          size: 6, color: Colors.blue.shade200),
+                                      MotionIcon(Icons.circle,
+                                          size: 6, color: AppColors.infoBorder),
                                     ],
                                   ),
                                   const SizedBox(height: 4),
@@ -581,12 +587,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     crossAxisAlignment: CrossAxisAlignment.end,
                                     children: [
                                       const Flexible(
-                                        child: Text('52,000.00',
-                                            overflow: TextOverflow.ellipsis,
+                                        child: FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart, child: CountText('52,000.00',
                                             style: TextStyle(
                                                 color: Colors.white,
                                                 fontSize: 16,
-                                                fontWeight: FontWeight.bold)),
+                                                fontWeight: FontWeight.bold))),
                                       ),
                                       const SizedBox(width: 2),
                                       Text(l10n.currencyEgy,
@@ -616,7 +621,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.remove_red_eye_outlined,
+                          const MotionIcon(Icons.remove_red_eye_outlined,
                               color: Colors.white70, size: 20),
                           const SizedBox(width: 8),
                           Expanded(
@@ -643,12 +648,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 6, vertical: 4),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: AppColors.surface,
                               borderRadius: BorderRadius.circular(4),
                             ),
-                            child: const Text('RAJHI',
+                            child: Text('RAJHI',
                                 style: TextStyle(
-                                    color: AppColors.primaryExtraDark,
+                                    color: AppColors.ink,
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold)),
                           ),
@@ -673,7 +678,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 padding:
                                     const EdgeInsets.symmetric(vertical: 12),
                               ),
-                              icon: const Icon(Icons.arrow_circle_left_outlined,
+                              icon: const MotionIcon(Icons.arrow_circle_left_outlined,
                                   size: 18),
                               onPressed: () {
                                 showWithdrawBottomSheet(context);
@@ -698,7 +703,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 padding:
                                     const EdgeInsets.symmetric(vertical: 12),
                               ),
-                              icon: const Icon(Icons.arrow_circle_left_outlined,
+                              icon: const MotionIcon(Icons.arrow_circle_left_outlined,
                                   size: 18),
                               onPressed: () => Navigator.push(
                                 context,
@@ -719,18 +724,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 16),
                   ],
                 ),
-              ),
+              )),
               const SizedBox(height: 24),
 
               // 3. Section Title
-              Row(
+              ScrollFx(child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Flexible(
                     child: Text(l10n.cfoExclusive,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 10, color: AppColors.textSecondary)),
                   ),
                   const SizedBox(width: 8),
@@ -742,23 +747,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           child: Text(l10n.sovereignControls,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.bold,
                                   color: AppColors.textPrimary)),
                         ),
                         const SizedBox(width: 8),
-                        const Icon(Icons.tune,
-                            color: AppColors.primaryDark, size: 18),
+                        MotionIcon(Icons.tune,
+                            color: AppColors.ink, size: 18),
                       ],
                     ),
                   ),
                 ],
-              ),
+              )),
               const SizedBox(height: 12),
 
               // 4. Matrix Settings
-              _buildSettingCard(
+              ScrollFx(child: _buildSettingCard(
                 title: l10n.feesAndCommissionsMatrix,
                 subtitle: l10n.feesAndCommissionsMatrixDesc,
                 icon: Icons.account_tree_outlined,
@@ -774,7 +779,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10)),
                         ),
-                        icon: const Icon(Icons.edit, size: 14),
+                        icon: const MotionIcon(Icons.edit, size: 14),
                         onPressed: () async {
                           final updatedMatrix =
                               await Navigator.push<FinanceCommissionMatrix>(
@@ -799,18 +804,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(l10n.fastSettlementFees,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 9,
                                   color: AppColors.textSecondary,
                                   height: 1.2),
                               textAlign: TextAlign.end),
                           const SizedBox(height: 4),
-                          Text(
+                          CountText(
                               '${_formatRate(_commissionMatrix.settlementPercentage)}%',
                               style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.blue.shade700)),
+                                  color: AppColors.infoDark)),
                         ],
                       ),
                     ),
@@ -827,15 +832,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               l10n.localeName.startsWith('ar')
                                   ? 'العمولة الأساسية المحفوظة'
                                   : 'Saved base commission',
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 9,
                                   color: AppColors.textSecondary,
                                   height: 1.2),
                               textAlign: TextAlign.end),
                           const SizedBox(height: 4),
-                          Text(
+                          CountText(
                               '${_formatRate(_commissionMatrix.salesPercentage)}%',
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                   color: AppColors.textPrimary)),
@@ -844,11 +849,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ],
                 ),
-              ),
+              )),
               const SizedBox(height: 12),
 
               // 5. Reports Card
-              _buildSettingCard(
+              ScrollFx(child: _buildSettingCard(
                 title: l10n.comprehensivePaymentsReports,
                 subtitle: l10n.comprehensivePaymentsReportsDesc,
                 icon: Icons.bar_chart_outlined,
@@ -864,7 +869,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10)),
                         ),
-                        icon: const Icon(Icons.grid_on_outlined, size: 16),
+                        icon: const MotionIcon(Icons.grid_on_outlined, size: 16),
                         onPressed: () => _exportDetailedReport(context, l10n),
                         label: Text(l10n.exportDetailedExcel,
                             style: const TextStyle(
@@ -883,7 +888,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               borderRadius: BorderRadius.circular(10)),
                         ),
                         icon:
-                            const Icon(Icons.picture_as_pdf_outlined, size: 16),
+                            const MotionIcon(Icons.picture_as_pdf_outlined, size: 16),
                         onPressed: () => _exportApprovedReport(context, l10n),
                         label: Text(l10n.exportApprovedPdf,
                             style: const TextStyle(
@@ -892,11 +897,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ],
                 ),
-              ),
+              )),
               const SizedBox(height: 24),
 
               // 6. Timeline Section Title
-              Row(
+              ScrollFx(child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Container(
@@ -907,7 +912,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(l10n.liveDocumented,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 9, color: AppColors.textSecondary)),
                   ),
                   const SizedBox(width: 8),
@@ -919,19 +924,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           child: Text(l10n.auditActivityLog,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.bold,
                                   color: AppColors.textPrimary)),
                         ),
                         const SizedBox(width: 8),
-                        const Icon(Icons.history,
-                            color: AppColors.primaryDark, size: 18),
+                        MotionIcon(Icons.history,
+                            color: AppColors.ink, size: 18),
                       ],
                     ),
                   ),
                 ],
-              ),
+              )),
               const SizedBox(height: 16),
 
               // Recent actions are loaded from the finance audit store.
@@ -946,7 +951,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: Center(
                     child: Text(
                       isArabic ? 'لا توجد حركات مسجلة بعد.' : 'No recorded activity yet.',
-                      style: const TextStyle(color: AppColors.textSecondary),
+                      style: TextStyle(color: AppColors.textSecondary),
                     ),
                   ),
                 )
@@ -966,7 +971,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     icon: warning
                         ? Icons.warning_amber_rounded
                         : Icons.fact_check_outlined,
-                    iconColor: warning ? AppColors.danger : AppColors.primaryDark,
+                    iconColor: warning ? AppColors.danger : AppColors.ink,
                     bgColor: warning ? AppColors.dangerLight : AppColors.surfaceLight,
                     isLast: item.key == _auditEntries.length - 1,
                     bottomWidget: Row(
@@ -977,7 +982,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             '${isArabic ? 'المرجع' : 'Reference'}: ${entry.reference} · ${isArabic ? 'المنفذ' : 'By'}: ${isArabic ? 'المشرف المالي' : 'Finance supervisor'}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 9,
                               color: AppColors.textSecondary,
                             ),
@@ -999,7 +1004,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10)),
                   ),
-                  icon: const Icon(Icons.arrow_back, size: 18),
+                  icon: const MotionIcon(Icons.arrow_back, size: 18),
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
                       builder: (_) => const FinancialActivityLogScreen(
@@ -1017,11 +1022,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 width: double.infinity,
                 child: OutlinedButton.icon(
                   onPressed: () => _confirmSignOut(context, l10n),
-                  icon: const Icon(Icons.logout_rounded, size: 18),
+                  icon: const MotionIcon(Icons.logout_rounded, size: 18),
                   label: Text(l10n.logout),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.danger,
-                    side: const BorderSide(color: AppColors.dangerBorder),
+                    side: BorderSide(color: AppColors.dangerBorder),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                 ),
@@ -1052,8 +1057,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
             Text(
               isArabic ? 'حالة الجلسة والأمان' : 'Session and security status',
-              style: const TextStyle(
-                color: AppColors.primaryDark,
+              style: TextStyle(
+                color: AppColors.ink,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
@@ -1084,18 +1089,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _securityDetailRow(IconData icon, String title, String value) => Row(
         children: [
-          Icon(icon, color: AppColors.info, size: 18),
+          MotionIcon(icon, color: AppColors.info, size: 18),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title,
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: AppColors.textSecondary, fontSize: 10)),
                 const SizedBox(height: 2),
-                Text(value,
-                    style: const TextStyle(
+                CountText(value,
+                    style: TextStyle(
                         color: AppColors.textPrimary,
                         fontWeight: FontWeight.w600,
                         fontSize: 12)),
@@ -1120,7 +1125,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, true),
             child: Text(l10n.logoutConfirm,
-                style: const TextStyle(color: AppColors.danger)),
+                style: TextStyle(color: AppColors.danger)),
           ),
         ],
       ),
@@ -1145,7 +1150,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.cardBorder),
         boxShadow: [
@@ -1165,12 +1170,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
+                      color: AppColors.infoLight,
                       borderRadius: BorderRadius.circular(12)),
                   child: Text(badgeText,
                       style: TextStyle(
                           fontSize: 9,
-                          color: Colors.blue.shade700,
+                          color: AppColors.infoDark,
                           fontWeight: FontWeight.bold)),
                 ),
               const SizedBox(width: 8),
@@ -1179,7 +1184,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(title,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
                             color: AppColors.textPrimary),
@@ -1194,7 +1199,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 decoration: BoxDecoration(
                     color: AppColors.surfaceLight,
                     borderRadius: BorderRadius.circular(10)),
-                child: Icon(icon, size: 20, color: AppColors.primaryDark),
+                child: MotionIcon(icon, size: 20, color: AppColors.ink),
               ),
             ],
           ),
@@ -1204,7 +1209,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               Expanded(
                 child: Text(subtitle,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 10,
                         color: AppColors.textSecondary,
                         height: 1.4),
@@ -1250,7 +1255,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             overflow: TextOverflow.ellipsis,
                             textAlign:
                                 isArabic ? TextAlign.left : TextAlign.right,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 9, color: AppColors.textSecondary)),
                       ),
                       const SizedBox(width: 6),
@@ -1261,7 +1266,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             overflow: TextOverflow.ellipsis,
                             textAlign:
                                 isArabic ? TextAlign.right : TextAlign.left,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
                                 color: AppColors.textPrimary)),
@@ -1270,7 +1275,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(description,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 10,
                           color: AppColors.textSecondary,
                           height: 1.4),
@@ -1290,7 +1295,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 height: 32,
                 decoration:
                     BoxDecoration(color: bgColor, shape: BoxShape.circle),
-                child: Icon(icon, size: 16, color: iconColor),
+                child: MotionIcon(icon, size: 16, color: iconColor),
               ),
               if (!isLast)
                 Expanded(
@@ -1454,8 +1459,8 @@ class _ProfileAvatarState extends State<_ProfileAvatar> {
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: _imageBytes == null
-                  ? const Icon(Icons.account_circle,
-                      size: 60, color: Colors.grey)
+                  ? MotionIcon(Icons.account_circle,
+                      size: 60, color: AppColors.textSecondary)
                   : Image.memory(
                       _imageBytes!,
                       width: 60,
@@ -1470,7 +1475,7 @@ class _ProfileAvatarState extends State<_ProfileAvatar> {
                 color: Colors.black.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(Icons.camera_alt,
+              child: const MotionIcon(Icons.camera_alt,
                   color: Colors.white, size: 24),
             ),
           ],
@@ -1535,15 +1540,15 @@ class _ObscureContactBoxState extends State<_ObscureContactBox> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(widget.title,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 9, color: AppColors.textSecondary)),
                   const SizedBox(height: 2),
                   FittedBox(
                     fit: BoxFit.scaleDown,
                     alignment: AlignmentDirectional.centerEnd,
-                    child: Text(
+                    child: CountText(
                       displayValue,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
                           color: AppColors.textPrimary),
@@ -1569,7 +1574,7 @@ class _ObscureContactBoxState extends State<_ObscureContactBox> {
               constraints: const BoxConstraints.tightFor(width: 34, height: 34),
               padding: EdgeInsets.zero,
               onPressed: _openContact,
-              icon: Icon(widget.icon,
+              icon: MotionIcon(widget.icon,
                   size: 18, color: AppColors.textPrimary),
             ),
           ],

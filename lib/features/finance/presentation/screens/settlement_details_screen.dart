@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/utils/app_locale_controller.dart';
-import '../../../../core/widgets/app_snack_bar.dart';
-import '../../../../core/widgets/finance_dialogs.dart';
-import '../../../../l10n/app_localizations.dart';
+
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/localization/app_locale_controller.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/widgets/app_snack_bar.dart';
+import 'package:barwah_app/features/finance/presentation/widgets/finance_dialogs.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
 
 class SettlementDetailsScreen extends StatefulWidget {
   final String id;
@@ -174,32 +178,32 @@ class _SettlementDetailsScreenState extends State<SettlementDetailsScreen> {
     return Directionality(
       textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF6F8FA),
+        backgroundColor: AppColors.scaffold,
         appBar: AppBar(
-          backgroundColor: Colors.white,
+          backgroundColor: AppColors.surface,
           elevation: 0.5,
           scrolledUnderElevation: 0,
           leading: IconButton(
-            icon: Icon(
+            icon: MotionIcon(
               isArabic ? Icons.arrow_forward_ios : Icons.arrow_back_ios,
               size: 19,
-              color: AppColors.primaryDark,
+              color: AppColors.ink,
             ),
             onPressed: () => Navigator.pop(context),
           ),
           title: Text(
             isArabic ? 'تفاصيل طلب التسوية' : 'Settlement Request Details',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: AppColors.primaryDark,
+              color: AppColors.ink,
             ),
           ),
           centerTitle: true,
           actions: [
             IconButton(
-              icon: const Icon(Icons.share_outlined,
-                  color: AppColors.primaryDark, size: 20),
+              icon: MotionIcon(Icons.share_outlined,
+                  color: AppColors.ink, size: 20),
               onPressed: () => _showFeedback(
                   isArabic ? 'تم نسخ رابط تفاصيل التسوية' : 'Link copied'),
             ),
@@ -208,17 +212,17 @@ class _SettlementDetailsScreenState extends State<SettlementDetailsScreen> {
         body: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            _buildHeaderCard(isArabic),
+            ScrollFx(child: _buildHeaderCard(isArabic)),
             const SizedBox(height: 12),
-            _buildFinancialOverview(isArabic),
+            ScrollFx(child: _buildFinancialOverview(isArabic)),
             const SizedBox(height: 12),
-            _buildBeneficiaryDetails(isArabic),
+            ScrollFx(child: _buildBeneficiaryDetails(isArabic)),
             const SizedBox(height: 12),
-            _buildDisputeAndReason(isArabic),
+            ScrollFx(child: _buildDisputeAndReason(isArabic)),
             const SizedBox(height: 12),
-            _buildAdminApprovalStatus(isArabic),
+            ScrollFx(child: _buildAdminApprovalStatus(isArabic)),
             const SizedBox(height: 20),
-            _buildActionButtons(isArabic),
+            ScrollFx(child: _buildActionButtons(isArabic)),
             const SizedBox(height: 24),
           ],
         ),
@@ -230,6 +234,9 @@ class _SettlementDetailsScreenState extends State<SettlementDetailsScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
+        gradient: AppColors.blueFill,
+        border: AppColors.blueEdge,
+        boxShadow: AppColors.blueGlow,
         color: AppColors.primaryDark,
         borderRadius: BorderRadius.circular(14),
       ),
@@ -247,8 +254,8 @@ class _SettlementDetailsScreenState extends State<SettlementDetailsScreen> {
                 ),
                 child: Text(
                   widget.badge,
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
+                  style: TextStyle(
+                    color: AppColors.ink,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                   ),
@@ -274,8 +281,8 @@ class _SettlementDetailsScreenState extends State<SettlementDetailsScreen> {
                 backgroundColor: widget.color,
                 child: Text(
                   widget.initials,
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
+                  style: TextStyle(
+                    color: AppColors.ink,
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
                   ),
@@ -316,7 +323,7 @@ class _SettlementDetailsScreenState extends State<SettlementDetailsScreen> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.access_time, color: Colors.white70, size: 14),
+                const MotionIcon(Icons.access_time, color: Colors.white70, size: 14),
                 const SizedBox(width: 6),
                 Text(
                   widget.age,
@@ -325,8 +332,8 @@ class _SettlementDetailsScreenState extends State<SettlementDetailsScreen> {
                 const Spacer(),
                 Text(
                   _currentStatus,
-                  style: const TextStyle(
-                    color: Color(0xFF68D391),
+                  style: TextStyle(
+                    color: AppColors.success,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                   ),
@@ -344,7 +351,7 @@ class _SettlementDetailsScreenState extends State<SettlementDetailsScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.cardBorder),
       ),
@@ -353,17 +360,17 @@ class _SettlementDetailsScreenState extends State<SettlementDetailsScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.account_balance_wallet_outlined,
+              MotionIcon(Icons.account_balance_wallet_outlined,
                   color: AppColors.info, size: 18),
               const SizedBox(width: 8),
               Text(
                 isArabic
                     ? 'المعلومات المالية والخصم من الضمان'
                     : 'Financial Details & Escrow',
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.primaryDark),
+                    color: AppColors.ink),
               ),
             ],
           ),
@@ -372,7 +379,7 @@ class _SettlementDetailsScreenState extends State<SettlementDetailsScreen> {
             title: isArabic ? 'مبلغ التسوية المطلوب' : 'Settlement Amount',
             value: '${widget.amount} $currency',
             isBold: true,
-            valueColor: AppColors.primaryDark,
+            valueColor: AppColors.ink,
           ),
           const SizedBox(height: 8),
           _buildInfoRow(
@@ -401,7 +408,7 @@ class _SettlementDetailsScreenState extends State<SettlementDetailsScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.cardBorder),
       ),
@@ -410,16 +417,16 @@ class _SettlementDetailsScreenState extends State<SettlementDetailsScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.person_outline, color: AppColors.info, size: 18),
+              MotionIcon(Icons.person_outline, color: AppColors.info, size: 18),
               const SizedBox(width: 8),
               Text(
                 isArabic
                     ? 'بيانات المستفيد والحساب'
                     : 'Beneficiary & Account Data',
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.primaryDark),
+                    color: AppColors.ink),
               ),
             ],
           ),
@@ -456,7 +463,7 @@ class _SettlementDetailsScreenState extends State<SettlementDetailsScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.cardBorder),
       ),
@@ -465,17 +472,17 @@ class _SettlementDetailsScreenState extends State<SettlementDetailsScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.balance_outlined,
+              MotionIcon(Icons.balance_outlined,
                   color: AppColors.warning, size: 18),
               const SizedBox(width: 8),
               Text(
                 isArabic
                     ? 'سند النزاع ومبرر التسوية'
                     : 'Dispute Reference & Justification',
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.primaryDark),
+                    color: AppColors.ink),
               ),
             ],
           ),
@@ -503,26 +510,26 @@ class _SettlementDetailsScreenState extends State<SettlementDetailsScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFF0F4F8),
+        color: AppColors.surfaceLight,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFD2DCE6)),
+        border: Border.all(color: AppColors.cardBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.admin_panel_settings_outlined,
-                  color: AppColors.primaryDark, size: 18),
+              MotionIcon(Icons.admin_panel_settings_outlined,
+                  color: AppColors.ink, size: 18),
               const SizedBox(width: 8),
               Text(
                 isArabic
                     ? 'موقف مصادقة مستخدم الإدارة (Admin)'
                     : 'Admin Approval Status',
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.primaryDark),
+                    color: AppColors.ink),
               ),
             ],
           ),
@@ -531,28 +538,28 @@ class _SettlementDetailsScreenState extends State<SettlementDetailsScreen> {
             isArabic
                 ? 'أي اعتماد لتسوية مالية يتطلب مصادقة نهائية من حساب الإدارة قبل تفعيل حركة الصرف البنكية.'
                 : 'Any settlement authorization requires final approval from the Admin before fund clearance.',
-            style: const TextStyle(
+            style: TextStyle(
                 fontSize: 10, color: AppColors.textSecondary, height: 1.4),
           ),
           const SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppColors.surface,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
               children: [
-                const Icon(Icons.check_circle, size: 14, color: AppColors.info),
+                MotionIcon(Icons.check_circle, size: 14, color: AppColors.info),
                 const SizedBox(width: 6),
                 Text(
                   isArabic
                       ? 'الحالة الحالية: $_currentStatus'
                       : 'Current State: $_currentStatus',
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.primaryDark),
+                      color: AppColors.ink),
                 ),
               ],
             ),
@@ -569,11 +576,11 @@ class _SettlementDetailsScreenState extends State<SettlementDetailsScreen> {
         height: 44,
         child: OutlinedButton.icon(
           onPressed: _handleRestore,
-          icon: const Icon(Icons.restore_outlined, size: 17),
+          icon: const MotionIcon(Icons.restore_outlined, size: 17),
           label: Text(AppLocalizations.of(context)!.frozenBankLinkRestore),
           style: OutlinedButton.styleFrom(
-            foregroundColor: AppColors.primaryDark,
-            side: const BorderSide(color: AppColors.cardBorder),
+            foregroundColor: AppColors.ink,
+            side: BorderSide(color: AppColors.cardBorder),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
             ),
@@ -596,7 +603,7 @@ class _SettlementDetailsScreenState extends State<SettlementDetailsScreen> {
                   borderRadius: BorderRadius.circular(10)),
             ),
             onPressed: _handleApprove,
-            icon: const Icon(Icons.verified_outlined, size: 18),
+            icon: const MotionIcon(Icons.verified_outlined, size: 18),
             label: Text(
               isArabic
                   ? 'اعتماد وإرسال للإدارة للموافقة'
@@ -614,12 +621,12 @@ class _SettlementDetailsScreenState extends State<SettlementDetailsScreen> {
                 child: OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.warning,
-                    side: const BorderSide(color: AppColors.warning),
+                    side: BorderSide(color: AppColors.warning),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10)),
                   ),
                   onPressed: _handleFreeze,
-                  icon: const Icon(Icons.pause_circle_outline, size: 16),
+                  icon: const MotionIcon(Icons.pause_circle_outline, size: 16),
                   label: Text(
                     isArabic ? 'تجميد احترازي' : 'Freeze Request',
                     style: const TextStyle(
@@ -635,12 +642,12 @@ class _SettlementDetailsScreenState extends State<SettlementDetailsScreen> {
                 child: TextButton.icon(
                   style: TextButton.styleFrom(
                     foregroundColor: AppColors.danger,
-                    backgroundColor: const Color(0xFFFFECEB),
+                    backgroundColor: AppColors.dangerLight,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10)),
                   ),
                   onPressed: _handleReject,
-                  icon: const Icon(Icons.cancel_outlined, size: 16),
+                  icon: const MotionIcon(Icons.cancel_outlined, size: 16),
                   label: Text(
                     isArabic ? 'رفض الطلب مع السبب' : 'Reject with Reason',
                     style: const TextStyle(
@@ -666,16 +673,16 @@ class _SettlementDetailsScreenState extends State<SettlementDetailsScreen> {
       children: [
         Text(
           title,
-          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+          style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
         ),
         Flexible(
-          child: Text(
+          child: CountText(
             value,
             textAlign: TextAlign.end,
             style: TextStyle(
               fontSize: 11,
               fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
-              color: valueColor ?? AppColors.primaryDark,
+              color: valueColor ?? AppColors.ink,
             ),
           ),
         ),

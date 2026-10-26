@@ -1,12 +1,24 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/widgets/account_conversations_screen.dart';
-import '../../data/head_supervisor_audit_store.dart';
-import '../../data/head_supervisor_complaint_store.dart';
-import '../../data/head_supervisor_roster_store.dart';
-import '../../../wasalny_supervisor/data/wasalny_local_event_store.dart';
-import '../head_supervisor_text.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/theme/app_palette.dart';
+import 'package:barwah_app/features/admin/data/datasources/admin_request_store.dart';
+import 'package:barwah_app/features/admin/data/services/head_access_policy.dart';
+import 'package:barwah_app/features/admin/domain/entities/admin_request.dart';
+import 'package:barwah_app/features/admin/domain/entities/head_account.dart';
+import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_audit_store.dart';
+import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_complaint_store.dart';
+import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_roster_store.dart';
+import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_audit_record.dart';
+import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_complaint.dart';
+import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_record.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/utils/head_supervisor_text.dart';
+import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
+import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
+import 'package:barwah_app/features/messaging/presentation/screens/account_conversations_screen.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class HeadSupervisorComplaintsScreen extends StatefulWidget {
   const HeadSupervisorComplaintsScreen({super.key});
@@ -266,7 +278,7 @@ class _HeadSupervisorComplaintsScreenState
     }).toList();
 
     return ColoredBox(
-      color: AppColors.background,
+      color: AppColors.scaffold,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         children: [
@@ -275,7 +287,7 @@ class _HeadSupervisorComplaintsScreenState
               padding: const EdgeInsets.only(bottom: 10),
               child: TextButton.icon(
                 onPressed: _loadComplaints,
-                icon: const Icon(Icons.refresh),
+                icon: const MotionIcon(Icons.refresh),
                 label: Text(headSupervisorText(context, arabic: 'تعذر تحميل الشكاوى. أعد المحاولة.', english: 'Could not load complaints. Retry.')),
               ),
             ),
@@ -284,7 +296,7 @@ class _HeadSupervisorComplaintsScreenState
               padding: EdgeInsets.all(28),
               child: Center(child: CircularProgressIndicator()),
             ),
-          Row(
+          ScrollFx(child: Row(
             children: [
               Expanded(
                 child: TextField(
@@ -294,11 +306,11 @@ class _HeadSupervisorComplaintsScreenState
                     hintText: headSupervisorText(context,
                         arabic: 'بحث برقم الشكوى أو اسم التاجر أو المشرف',
                         english: 'Search by complaint ID, merchant, or supervisor'),
-                    hintStyle: const TextStyle(
+                    hintStyle: TextStyle(
                         fontSize: 10, color: AppColors.textMuted),
-                    suffixIcon: const Icon(Icons.search, size: 19),
+                    suffixIcon: const MotionIcon(Icons.search, size: 19),
                     filled: true,
-                    fillColor: Colors.white,
+                    fillColor: AppColors.surface,
                     contentPadding: const EdgeInsets.symmetric(
                         horizontal: 13, vertical: 12),
                     border: OutlineInputBorder(
@@ -311,7 +323,7 @@ class _HeadSupervisorComplaintsScreenState
               const SizedBox(width: 8),
               FilledButton.icon(
                 onPressed: _addComplaint,
-                icon: const Icon(Icons.add, size: 16),
+                icon: const MotionIcon(Icons.add, size: 16),
                 label: Text(headSupervisorText(context,
                     arabic: 'إضافة شكوى', english: 'Add complaint')),
                 style: FilledButton.styleFrom(
@@ -325,9 +337,9 @@ class _HeadSupervisorComplaintsScreenState
                 ),
               ),
             ],
-          ),
+          )),
           const SizedBox(height: 10),
-          _ComplaintFilters(
+          ScrollFx(child: _ComplaintFilters(
             selected: _filter,
             counts: {
               'قيد المراجعة': _complaints
@@ -338,7 +350,7 @@ class _HeadSupervisorComplaintsScreenState
                   .length,
             },
             onChanged: (value) => setState(() => _filter = value),
-          ),
+          )),
           const SizedBox(height: 11),
           for (final complaint in complaints) ...[
             HeadSupervisorComplaintCard(
@@ -354,11 +366,11 @@ class _HeadSupervisorComplaintsScreenState
               padding: const EdgeInsets.symmetric(vertical: 42),
               child: Center(
                 child: Text(headSupervisorText(context, arabic: 'لا توجد شكاوى ضمن هذا التصنيف', english: 'No complaints in this category'),
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 11, color: AppColors.textSecondary)),
               ),
             ),
-          const _GovernanceNote(),
+          ScrollFx(child: const _GovernanceNote()),
         ],
       ),
     );
@@ -376,7 +388,7 @@ class _ComplaintFilters extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
-          color: const Color(0xFFE9EDF1),
+          color: AppColors.surfaceHighlight,
           borderRadius: BorderRadius.circular(14),
         ),
         child: Row(children: [
@@ -424,7 +436,7 @@ class _ComplaintFilterOption extends StatelessWidget {
           boxShadow: selected
               ? const [
                   BoxShadow(
-                    color: Color(0x180B294A),
+                    color: AppPalette.overlay180B294A,
                     blurRadius: 5,
                     offset: Offset(0, 2),
                   ),
@@ -441,7 +453,7 @@ class _ComplaintFilterOption extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(icon,
+                  MotionIcon(icon,
                       size: 16,
                       color: selected ? Colors.white : AppColors.textSecondary),
                   const SizedBox(width: 6),
@@ -467,16 +479,16 @@ class _ComplaintFilterOption extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: selected
                           ? Colors.white.withValues(alpha: .16)
-                          : Colors.white,
+                          : AppColors.surface,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Text(
+                    child: CountText(
                       '$count',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 9,
                         fontWeight: FontWeight.bold,
-                        color: selected ? Colors.white : AppColors.primaryDark,
+                        color: selected ? Colors.white : AppColors.ink,
                       ),
                     ),
                   ),
@@ -535,12 +547,12 @@ class HeadSupervisorComplaintCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final badgeColor = handled
-        ? const Color(0xFF3C765F)
+        ? AppColors.success
         : complaint.warning
-            ? const Color(0xFF315E9A)
+            ? AppColors.infoDark
             : AppColors.dangerDark;
     return Material(
-      color: Colors.white,
+      color: AppColors.surface,
       borderRadius: BorderRadius.circular(17),
       child: InkWell(
         onTap: onTap,
@@ -553,23 +565,23 @@ class HeadSupervisorComplaintCard extends StatelessWidget {
                   label: handled ? 'الأرشيف' : complaint.status,
                   color: badgeColor,
                   background: handled
-                      ? const Color(0xFFE4F2EA)
+                      ? AppColors.successBorder
                       : complaint.warning
-                          ? const Color(0xFFDCEAFF)
-                          : const Color(0xFFFFE0DD)),
+                          ? AppColors.infoBorder
+                          : AppColors.dangerBorder),
               const Spacer(),
               Text('#${complaint.id}',
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.primaryDark)),
+                      color: AppColors.ink)),
             ]),
             const SizedBox(height: 11),
             Text(complaint.title,
                 textAlign: TextAlign.right,
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 11,
                     height: 1.5,
                     fontWeight: FontWeight.bold,
@@ -579,7 +591,7 @@ class HeadSupervisorComplaintCard extends StatelessWidget {
                 textAlign: TextAlign.right,
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 9,
                     height: 1.45,
                     color: AppColors.textSecondary)),
@@ -587,7 +599,7 @@ class HeadSupervisorComplaintCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                  color: const Color(0xFFF1F3F5),
+                  color: AppColors.surfaceLight,
                   borderRadius: BorderRadius.circular(12)),
               child: Column(children: [
                 _InfoRow(
@@ -618,7 +630,7 @@ class HeadSupervisorComplaintCard extends StatelessWidget {
                     icon: Icons.attach_file,
                     label: 'الأدلة المرفقة:',
                     value: complaint.evidence,
-                    valueColor: AppColors.primaryDark,
+                    valueColor: AppColors.ink,
                   ),
                 ],
               ]),
@@ -629,7 +641,7 @@ class HeadSupervisorComplaintCard extends StatelessWidget {
                 width: double.infinity,
                 child: FilledButton.icon(
                   onPressed: onReopen,
-                  icon: const Icon(Icons.replay_outlined, size: 15),
+                  icon: const MotionIcon(Icons.replay_outlined, size: 15),
                   label: Text(headSupervisorText(context,
                       arabic: 'إعادة مراجعة الشكوى',
                       english: 'Review complaint again'),
@@ -649,10 +661,10 @@ class HeadSupervisorComplaintCard extends StatelessWidget {
                     complaint.actions.first.title,
                     maxLines: 2,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 8,
                         height: 1.3,
-                        color: AppColors.primaryDark,
+                        color: AppColors.ink,
                         fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -660,7 +672,7 @@ class HeadSupervisorComplaintCard extends StatelessWidget {
                 Expanded(
                   child: FilledButton.icon(
                     onPressed: onTap,
-                    icon: const Icon(Icons.open_in_new, size: 13),
+                    icon: const MotionIcon(Icons.open_in_new, size: 13),
                     label: Text(headSupervisorText(context, arabic: 'تفاصيل الشكوى', english: 'Complaint details'),
                         style: const TextStyle(fontSize: 8)),
                     style: FilledButton.styleFrom(
@@ -815,8 +827,8 @@ class HeadSupervisorComplaintDetailsScreenState
         details:
             '${selectedActions.join('، ')}.${draft.note.isEmpty ? '' : ' المذكرة الرقابية: ${draft.note}'}',
       );
-      await WasalnyLocalEventStore().publish(
-        WasalnyLocalEvent(
+      await LocalEventStore().publish(
+        LocalEvent(
           id: 'head-unblock-investigate-${widget.complaint.id}-${DateTime.now().millisecondsSinceEpoch}',
           recipient: widget.complaint.recipient,
           source: 'head',
@@ -850,6 +862,184 @@ class HeadSupervisorComplaintDetailsScreenState
     }
   }
 
+  Future<({String note, String action})?> _askEscalationNote() {
+    final controller = TextEditingController();
+    var action = '';
+    final amountController = TextEditingController();
+    return showDialog<({String note, String action})>(
+      context: context,
+      builder: (dialogContext) {
+        String? error;
+        String? amountError;
+        return StatefulBuilder(
+          builder: (_, setDialogState) => AlertDialog(
+            title: Text(headSupervisorText(dialogContext,
+                arabic: 'مبررات التصعيد إلى الأدمن',
+                english: 'Reasons for escalating to the admin')),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: controller,
+                  minLines: 3,
+                  maxLines: 5,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    hintText: headSupervisorText(dialogContext,
+                        arabic: 'اشرح لماذا تحتاج الحالة قراراً نهائياً من الأدمن',
+                        english: 'Explain why this needs a final admin decision'),
+                    errorText: error,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  initialValue: action,
+                  isExpanded: true,
+                  decoration: InputDecoration(
+                    labelText: headSupervisorText(dialogContext,
+                        arabic: 'إجراء يُنفَّذ عند اعتماد الأدمن',
+                        english: 'Action applied if the admin approves'),
+                  ),
+                  items: [
+                    for (final option in const [
+                      ('', 'بدون إجراء تلقائي', 'No automatic action'),
+                      ('liftAdBlock', 'فك حظر إعلانات التاجر', 'Lift merchant ad blocks'),
+                      ('suspendMerchant', 'إيقاف التاجر', 'Suspend the merchant'),
+                      ('compensateMerchant', 'تعويض التاجر (عبر المالية)', 'Compensate the merchant (via finance)'),
+                      ('refundCustomer', 'استرداد للعميل (عبر المالية)', 'Refund the customer (via finance)'),
+                    ])
+                      DropdownMenuItem(
+                        value: option.$1,
+                        child: Text(
+                          headSupervisorText(dialogContext,
+                              arabic: option.$2, english: option.$3),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ),
+                  ],
+                  onChanged: (value) => setDialogState(() {
+                    action = value ?? '';
+                    error = null;
+                  }),
+                ),
+                if (action == 'compensateMerchant' || action == 'refundCustomer')
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: TextField(
+                      controller: amountController,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        errorText: amountError,
+                        labelText: headSupervisorText(dialogContext,
+                            arabic: 'المبلغ (ج.م)', english: 'Amount (EGP)'),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: Text(headSupervisorText(dialogContext,
+                    arabic: 'إلغاء', english: 'Cancel')),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final text = controller.text.trim();
+                  if (text.isEmpty) {
+                    setDialogState(() => error = headSupervisorText(
+                        dialogContext,
+                        arabic: 'المبررات مطلوبة',
+                        english: 'Reasons are required'));
+                    return;
+                  }
+                  var requested = action;
+                  if (action == 'compensateMerchant' || action == 'refundCustomer') {
+                    final amount = double.tryParse(
+                        amountController.text.trim().replaceAll(',', ''));
+                    if (amount == null || amount <= 0) {
+                      setDialogState(() => amountError = headSupervisorText(
+                          dialogContext,
+                          arabic: 'أدخل مبلغًا صحيحًا',
+                          english: 'Enter a valid amount'));
+                      return;
+                    }
+                    requested = '$action:${amount.toStringAsFixed(2)}';
+                  }
+                  Navigator.pop(dialogContext, (note: text, action: requested));
+                },
+                child: Text(headSupervisorText(dialogContext,
+                    arabic: 'رفع للأدمن', english: 'Send to admin')),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// يرفع الشكوى إلى الأدمن بعد مرورها على رئيس المشرفين (المستوى 2 ← 3).
+  Future<void> _escalateToAdmin() async {
+    if (_sending) return;
+    if (!await ensureHeadPermission(context, HeadPermission.settleDisputes)) {
+      return;
+    }
+    if (!mounted) return;
+    final answer = await _askEscalationNote();
+    if (answer == null || !mounted) return;
+    final note = answer.note;
+    final complaint = widget.complaint;
+    setState(() => _sending = true);
+    try {
+      final now = DateTime.now();
+      await AdminRequestStore().submit(AdminRequest(
+        id: 'escalation-complaint-${complaint.id}',
+        kind: AdminRequestKind.escalation,
+        titleAr: complaint.title,
+        titleEn: complaint.title,
+        detailsAr:
+            'شكوى ${complaint.id} من ${complaint.merchant} ضد ${complaint.supervisor} (${complaint.department}). ${complaint.description} مبررات الرئيس: $note',
+        detailsEn:
+            'Complaint ${complaint.id} by ${complaint.merchant} against ${complaint.supervisor} (${complaint.department}). ${complaint.description} Head note: $note',
+        fromAr: 'رئيس المشرفين',
+        fromEn: 'Head of supervisors',
+        origin: 'head',
+        refId: complaint.id,
+        createdAt: now,
+        priority: complaint.warning
+            ? AdminRequestPriority.critical
+            : AdminRequestPriority.normal,
+        deadline: now.add(Duration(hours: complaint.warning ? 24 : 72)),
+        sourceAccount: complaint.recipient,
+        requestedAction: answer.action,
+        targetRef: complaint.merchantCode,
+      ));
+      await _recordAudit(
+        kind: 'complaint',
+        title: 'تصعيد الشكوى إلى الأدمن',
+        details: '${complaint.id}: $note',
+      );
+      await _saveReviewState(reopened: false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(headSupervisorText(context, arabic: 'تم رفع الشكوى إلى الأدمن لاتخاذ القرار النهائي.', english: 'The complaint was sent to the admin for the final decision.'))),
+      );
+      Navigator.of(context).pop(true);
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'Head supervisor complaint escalation',
+      ));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(headSupervisorText(context, arabic: 'تعذر رفع الشكوى للأدمن. حاول مرة أخرى.', english: 'Could not send the complaint to the admin. Please try again.'))),
+      );
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
   Future<void> _takeAction(HeadSupervisorComplaintAction action) async {
     if (_sending) return;
     setState(() => _sending = true);
@@ -859,8 +1049,8 @@ class HeadSupervisorComplaintDetailsScreenState
         title: action.title,
         details: '${widget.complaint.id}: ${action.detail}',
       );
-      await WasalnyLocalEventStore().publish(
-        WasalnyLocalEvent(
+      await LocalEventStore().publish(
+        LocalEvent(
           id: 'head-complaint-${widget.complaint.id}-${DateTime.now().millisecondsSinceEpoch}',
           recipient: widget.complaint.recipient,
           source: 'head',
@@ -987,8 +1177,8 @@ class HeadSupervisorComplaintDetailsScreenState
             'في نطاق ${replacement.area}/${replacement.city}، وتعليق المشرف الحالي '
             '${current.name} حتى انتهاء التحقيق. الشكوى: ${complaint.id}.',
       );
-      await WasalnyLocalEventStore().publish(
-        WasalnyLocalEvent(
+      await LocalEventStore().publish(
+        LocalEvent(
           id: 'head-reassignment-${complaint.id}-${DateTime.now().millisecondsSinceEpoch}',
           recipient: replacement.accountId,
           source: 'head',
@@ -1029,44 +1219,44 @@ class HeadSupervisorComplaintDetailsScreenState
   Widget build(BuildContext context) {
     final complaint = widget.complaint;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.scaffold,
       appBar: AppBar(
         title: Text(headSupervisorText(context, arabic: 'تفاصيل شكوى التاجر', english: 'Merchant complaint details'),
             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
         centerTitle: true,
         leading: IconButton(
             onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.arrow_back)),
+            icon: const MotionIcon(Icons.arrow_back)),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         children: [
-          _WhitePanel(
+          ScrollFx(child: _WhitePanel(
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Row(children: [
                 _ComplaintBadge(
                     label: _isArchived ? 'الأرشيف' : complaint.statusLabel,
                     color: _isArchived
-                        ? const Color(0xFF3C765F)
+                        ? AppColors.success
                         : complaint.warning
                             ? AppColors.dangerDark
-                            : const Color(0xFF315E9A),
+                            : AppColors.infoDark,
                     background: _isArchived
-                        ? const Color(0xFFE4F2EA)
+                        ? AppColors.successBorder
                         : complaint.warning
-                            ? const Color(0xFFFFE0DD)
-                            : const Color(0xFFDCEAFF)),
+                            ? AppColors.dangerBorder
+                            : AppColors.infoBorder),
                 const Spacer(),
                 Text('#${complaint.id}',
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.primaryDark)),
+                        color: AppColors.ink)),
               ]),
               const SizedBox(height: 12),
               Text(complaint.title,
                   textAlign: TextAlign.right,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 13,
                       height: 1.55,
                       fontWeight: FontWeight.bold,
@@ -1074,7 +1264,7 @@ class HeadSupervisorComplaintDetailsScreenState
               const SizedBox(height: 8),
               Text(complaint.description,
                   textAlign: TextAlign.right,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 10,
                       height: 1.6,
                       color: AppColors.textSecondary)),
@@ -1083,32 +1273,32 @@ class HeadSupervisorComplaintDetailsScreenState
               const Divider(height: 16),
               _InfoRow(icon: Icons.person_outline, label: 'المشكو في حقه', value: '${complaint.supervisor} • #${complaint.supervisorCode} • ${complaint.department}', valueColor: AppColors.dangerDark),
               const Divider(height: 16),
-              _InfoRow(icon: Icons.attach_file, label: 'الأدلة المرفقة', value: complaint.evidence, valueColor: const Color(0xFF315E9A)),
+              _InfoRow(icon: Icons.attach_file, label: 'الأدلة المرفقة', value: complaint.evidence, valueColor: AppColors.infoDark),
               if (complaint.assignedSupervisorName.isNotEmpty) ...[
                 const Divider(height: 16),
                 _InfoRow(
                   icon: Icons.assignment_ind_outlined,
                   label: 'المشرف المكلف بالمهمة',
                   value: '${complaint.assignedSupervisorName} • ${complaint.assignedSupervisorId}',
-                  valueColor: AppColors.primaryDark,
+                  valueColor: AppColors.ink,
                 ),
               ],
             ]),
-          ),
+          )),
           const SizedBox(height: 12),
-          _WhitePanel(
+          ScrollFx(child: _WhitePanel(
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Text(headSupervisorText(context, arabic: 'ملخص التحقيق والضرر', english: 'Investigation and impact summary'),
                   textAlign: TextAlign.right,
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.ink)),
               const SizedBox(height: 8),
               Text(complaint.description,
                   textAlign: TextAlign.right,
-                  style: const TextStyle(fontSize: 10, height: 1.55, color: AppColors.textSecondary)),
+                  style: TextStyle(fontSize: 10, height: 1.55, color: AppColors.textSecondary)),
               const SizedBox(height: 8),
-              _ComplaintBadge(label: complaint.urgency, color: complaint.warning ? AppColors.dangerDark : const Color(0xFF315E9A), background: complaint.warning ? const Color(0xFFFFF2D5) : const Color(0xFFE7EFFB)),
+              _ComplaintBadge(label: complaint.urgency, color: complaint.warning ? AppColors.dangerDark : AppColors.infoDark, background: complaint.warning ? AppColors.warningBorder : AppColors.infoLight),
             ]),
-          ),
+          )),
           if (_isArchived) ...[
             const SizedBox(height: 12),
             FutureBuilder<List<HeadSupervisorAuditRecord>>(
@@ -1122,19 +1312,19 @@ class HeadSupervisorComplaintDetailsScreenState
                     children: [
                       Text(headSupervisorText(context, arabic: 'سجل الإجراءات', english: 'Action history'),
                           textAlign: TextAlign.right,
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.ink)),
                       if (snapshot.connectionState == ConnectionState.waiting)
                         const Padding(padding: EdgeInsets.all(12), child: Center(child: CircularProgressIndicator()))
                       else if (records.isEmpty)
-                        Padding(padding: const EdgeInsets.only(top: 8), child: Text(headSupervisorText(context, arabic: 'لا توجد إجراءات مسجلة.', english: 'No actions have been recorded.'), textAlign: TextAlign.right, style: const TextStyle(fontSize: 9, color: AppColors.textSecondary)))
+                        Padding(padding: const EdgeInsets.only(top: 8), child: Text(headSupervisorText(context, arabic: 'لا توجد إجراءات مسجلة.', english: 'No actions have been recorded.'), textAlign: TextAlign.right, style: TextStyle(fontSize: 9, color: AppColors.textSecondary)))
                       else
                         for (final record in records) ...[
                           const Divider(height: 16),
-                          Text(record.title, textAlign: TextAlign.right, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                          Text(record.title, textAlign: TextAlign.right, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                           const SizedBox(height: 3),
-                          Text(record.details, textAlign: TextAlign.right, style: const TextStyle(fontSize: 9, height: 1.4, color: AppColors.textSecondary)),
+                          Text(record.details, textAlign: TextAlign.right, style: TextStyle(fontSize: 9, height: 1.4, color: AppColors.textSecondary)),
                           const SizedBox(height: 3),
-                          Text(record.occurredAt.toLocal().toString().substring(0, 16), textAlign: TextAlign.right, style: const TextStyle(fontSize: 8, color: AppColors.textMuted)),
+                          Text(record.occurredAt.toLocal().toString().substring(0, 16), textAlign: TextAlign.right, style: TextStyle(fontSize: 8, color: AppColors.textMuted)),
                         ],
                     ],
                   ),
@@ -1157,7 +1347,7 @@ class HeadSupervisorComplaintDetailsScreenState
           else ...[
             Text(headSupervisorText(context, arabic: 'الإجراءات الرقابية المتاحة', english: 'Available oversight actions'),
                 textAlign: TextAlign.right,
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.ink)),
             const SizedBox(height: 8),
             for (final action in complaint.actions) ...[
               HeadSupervisorComplaintActionButton(
@@ -1174,12 +1364,24 @@ class HeadSupervisorComplaintDetailsScreenState
               ),
               const SizedBox(height: 8),
             ],
+            HeadSupervisorComplaintActionButton(
+              action: HeadSupervisorComplaintAction(
+                title: 'تصعيد الشكوى إلى الأدمن',
+                detail:
+                    'رفع الشكوى مع مبررات رئيس المشرفين للأدمن لاتخاذ القرار النهائي.',
+                iconCodePoint: Icons.shield_outlined.codePoint,
+              ),
+              busy: _sending,
+              primary: false,
+              onPressed: _escalateToAdmin,
+            ),
+            const SizedBox(height: 8),
           ],
           SizedBox(
             height: 44,
             child: TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              style: TextButton.styleFrom(backgroundColor: const Color(0xFFE9ECEF)),
+              style: TextButton.styleFrom(backgroundColor: AppColors.surfaceHighlight),
               child: Text(headSupervisorText(context, arabic: 'العودة إلى قائمة الشكاوى', english: 'Back to complaints')),
             ),
           ),
@@ -1237,7 +1439,7 @@ class _ComplaintReassignmentSheetState
       child: Container(
         constraints:
             BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * .78),
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: AppColors.background,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
@@ -1249,7 +1451,7 @@ class _ComplaintReassignmentSheetState
               width: 42,
               height: 5,
               decoration: BoxDecoration(
-                color: const Color(0xFFDDE1E5),
+                color: AppColors.cardBorder,
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
@@ -1263,10 +1465,10 @@ class _ComplaintReassignmentSheetState
                         arabic: 'إعادة إسناد المهمة',
                         english: 'Reassign the task'),
                     textAlign: TextAlign.right,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.primaryDark,
+                      color: AppColors.ink,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -1275,14 +1477,14 @@ class _ComplaintReassignmentSheetState
                         arabic: 'اختر مشرفاً نشطاً من القسم والنطاق نفسيهما.',
                         english: 'Choose an active supervisor from the same department and area.'),
                     textAlign: TextAlign.right,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 9, color: AppColors.textSecondary),
                   ),
                   const SizedBox(height: 5),
-                  Text(
+                  CountText(
                     '${widget.complaint.department}${scope.isEmpty ? '' : ' • $scope'}',
                     textAlign: TextAlign.right,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 9, color: AppColors.textMuted),
                   ),
                 ],
@@ -1294,7 +1496,7 @@ class _ComplaintReassignmentSheetState
                 padding: const EdgeInsets.fromLTRB(20, 24, 20, 18),
                 child: Column(
                   children: [
-                    const Icon(Icons.person_search_outlined,
+                    MotionIcon(Icons.person_search_outlined,
                         size: 34, color: AppColors.textMuted),
                     const SizedBox(height: 10),
                     Text(
@@ -1302,10 +1504,10 @@ class _ComplaintReassignmentSheetState
                           arabic: 'لا يوجد مشرفون غيره في هذا النطاق.',
                           english: 'There are no other supervisors in this area.'),
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.primaryDark),
+                          color: AppColors.ink),
                     ),
                     const SizedBox(height: 6),
                     Text(
@@ -1313,7 +1515,7 @@ class _ComplaintReassignmentSheetState
                           arabic: 'يمكنك إحالة الأمر إلى الدردشات لمناقشة المشكلة.',
                           english: 'Send this issue to chats for discussion.'),
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 9, color: AppColors.textSecondary),
                     ),
                     const SizedBox(height: 16),
@@ -1324,7 +1526,7 @@ class _ComplaintReassignmentSheetState
                           const _ReassignmentResult(
                               discussWithoutReplacement: true),
                         ),
-                        icon: const Icon(Icons.chat_outlined, size: 17),
+                        icon: const MotionIcon(Icons.chat_outlined, size: 17),
                         label: Text(headSupervisorText(context,
                             arabic: 'مناقشة عبر الدردشات',
                             english: 'Discuss in chats')),
@@ -1346,11 +1548,11 @@ class _ComplaintReassignmentSheetState
                   padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
                   itemCount: widget.candidates.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 7),
-                  itemBuilder: (context, index) {
+                  itemBuilder: scrollFxItems((context, index) {
                     final supervisor = widget.candidates[index];
                     final selected = _selected?.id == supervisor.id;
                     return Material(
-                      color: selected ? const Color(0xFFE7EDF4) : Colors.white,
+                      color: selected ? AppColors.surfaceHighlight : AppColors.surface,
                       borderRadius: BorderRadius.circular(13),
                       child: InkWell(
                         borderRadius: BorderRadius.circular(13),
@@ -1363,17 +1565,17 @@ class _ComplaintReassignmentSheetState
                             border: Border.all(
                               color: selected
                                   ? AppColors.primaryDark
-                                  : const Color(0xFFE5E9ED),
+                                  : AppColors.surfaceHighlight,
                             ),
                           ),
                           child: Row(
                             children: [
-                              Icon(
+                              MotionIcon(
                                 selected
                                     ? Icons.radio_button_checked
                                     : Icons.radio_button_off,
                                 color: selected
-                                    ? AppColors.primaryDark
+                                    ? AppColors.ink
                                     : AppColors.textMuted,
                                 size: 19,
                               ),
@@ -1384,15 +1586,15 @@ class _ComplaintReassignmentSheetState
                                   children: [
                                     Text(supervisor.name,
                                         textAlign: TextAlign.right,
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                             fontSize: 11,
                                             fontWeight: FontWeight.bold,
-                                            color: AppColors.primaryDark)),
+                                            color: AppColors.ink)),
                                     const SizedBox(height: 3),
                                     Text(
                                       '${supervisor.department} • ${supervisor.area} / ${supervisor.city}',
                                       textAlign: TextAlign.right,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                           fontSize: 8,
                                           color: AppColors.textSecondary),
                                     ),
@@ -1414,7 +1616,7 @@ class _ComplaintReassignmentSheetState
                         ),
                       ),
                     );
-                  },
+                  }),
                 ),
               ),
               Padding(
@@ -1427,7 +1629,7 @@ class _ComplaintReassignmentSheetState
                         : () => Navigator.of(context).pop(
                               _ReassignmentResult(supervisor: _selected),
                             ),
-                    icon: const Icon(Icons.assignment_turned_in_outlined,
+                    icon: const MotionIcon(Icons.assignment_turned_in_outlined,
                         size: 17),
                     label: Text(headSupervisorText(context,
                         arabic: 'إسناد المهمة وتعليق المشرف الحالي',
@@ -1450,7 +1652,7 @@ class _ComplaintReassignmentSheetState
                   child: TextButton(
                     onPressed: () => Navigator.of(context).pop(),
                     style: TextButton.styleFrom(
-                        backgroundColor: const Color(0xFFE9ECEF),
+                        backgroundColor: AppColors.surfaceHighlight,
                         foregroundColor: AppColors.textPrimary),
                     child: Text(headSupervisorText(context,
                         arabic: 'إغلاق', english: 'Close')),
@@ -1526,8 +1728,8 @@ class _SummonSupervisorSheetState extends State<_SummonSupervisorSheet> {
         top: false,
         child: Container(
           height: MediaQuery.of(context).size.height * .86,
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(
+            color: AppColors.surface,
             borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
           ),
           child: Column(children: [
@@ -1536,7 +1738,7 @@ class _SummonSupervisorSheetState extends State<_SummonSupervisorSheet> {
               width: 42,
               height: 5,
               decoration: BoxDecoration(
-                  color: const Color(0xFFD5DCE4),
+                  color: AppColors.cardBorder,
                   borderRadius: BorderRadius.circular(8)),
             ),
             Padding(
@@ -1544,27 +1746,27 @@ class _SummonSupervisorSheetState extends State<_SummonSupervisorSheet> {
               child: Row(children: [
                 IconButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close, size: 19),
+                  icon: const MotionIcon(Icons.close, size: 19),
                   style: IconButton.styleFrom(
-                      backgroundColor: const Color(0xFFF0F2F4)),
+                      backgroundColor: AppColors.surfaceLight),
                 ),
                 const Spacer(),
                 Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                   Text(headSupervisorText(context, arabic: 'استدعاء المشرف وبدء شات فوري', english: 'Summon supervisor and start a live chat'),
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.primaryDark)),
+                          color: AppColors.ink)),
                   Text(headSupervisorText(context, arabic: 'فتح قناة تواصل إدارية مباشرة وموثقة', english: 'Open a direct, documented management channel'),
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 8, color: AppColors.textSecondary)),
                 ]),
                 const SizedBox(width: 8),
-                const CircleAvatar(
+                CircleAvatar(
                     radius: 18,
-                    backgroundColor: Color(0xFFE8EDF2),
-                    child: Icon(Icons.person_add_alt_1,
-                        size: 18, color: AppColors.primaryDark)),
+                    backgroundColor: AppColors.surfaceHighlight,
+                    child: MotionIcon(Icons.person_add_alt_1,
+                        size: 18, color: AppColors.ink)),
               ]),
             ),
             const Divider(height: 1),
@@ -1572,46 +1774,46 @@ class _SummonSupervisorSheetState extends State<_SummonSupervisorSheet> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 13, 16, 10),
                 children: [
-                  _WhitePanel(
+                  ScrollFx(child: _WhitePanel(
                     child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                       Text(complaint.supervisor,
                           textAlign: TextAlign.right,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color: AppColors.primaryDark)),
+                              color: AppColors.ink)),
                       const SizedBox(height: 3),
                       Text(
                           '#${complaint.supervisorCode} • ${complaint.department}',
                           textAlign: TextAlign.right,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 9, color: AppColors.textSecondary)),
                       const SizedBox(height: 8),
                       Row(children: [
-                        const Icon(Icons.circle,
-                            size: 8, color: Color(0xFF13AA7A)),
+                        MotionIcon(Icons.circle,
+                            size: 8, color: AppColors.success),
                         const SizedBox(width: 5),
                         Text(headSupervisorText(context, arabic: 'متصل الآن (نشط في الميدان)', english: 'Online now (active in field)'),
-                            style: const TextStyle(
-                                fontSize: 8, color: const Color(0xFF13805E))),
+                            style: TextStyle(
+                                fontSize: 8, color: AppColors.successDark)),
                         const Spacer(),
                         Text(
                             'الشكوى المرتبطة: ${complaint.id} (${complaint.merchant})',
                             textAlign: TextAlign.right,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 8, color: AppColors.textSecondary)),
                       ]),
                     ]),
-                  ),
+                  )),
                   const SizedBox(height: 14),
                   Text(headSupervisorText(context, arabic: 'موضوع الاستدعاء والتوجيه الرقابي', english: 'Summons topic and oversight instruction'),
                       textAlign: TextAlign.right,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.primaryDark)),
+                          color: AppColors.ink)),
                   const SizedBox(height: 7),
                   for (var index = 0; index < _topics.length; index++)
                     Padding(
@@ -1623,17 +1825,17 @@ class _SummonSupervisorSheetState extends State<_SummonSupervisorSheet> {
                       ),
                     ),
                   const SizedBox(height: 6),
-                  Row(children: [
+                  ScrollFx(child: Row(children: [
                     Text(headSupervisorText(context, arabic: 'قناة محادثة مسجلة', english: 'Recorded communication channel'),
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 8, color: AppColors.textMuted)),
                     const Spacer(),
                     Text(headSupervisorText(context, arabic: 'رسالة الاستدعاء الأولية للمشرف', english: 'Initial summons message to supervisor'),
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
-                            color: AppColors.primaryDark)),
-                  ]),
+                            color: AppColors.ink)),
+                  ])),
                   const SizedBox(height: 6),
                   TextField(
                     controller: _message,
@@ -1644,39 +1846,39 @@ class _SummonSupervisorSheetState extends State<_SummonSupervisorSheet> {
                     onChanged: (_) => setState(() => _error = null),
                     decoration: InputDecoration(
                       hintText: headSupervisorText(context, arabic: 'اكتب رسالة الاستدعاء للمشرف...', english: 'Enter the summons message for the supervisor...'),
-                      hintStyle: const TextStyle(
+                      hintStyle: TextStyle(
                           fontSize: 9, color: AppColors.textMuted),
                       errorText: _error,
                       filled: true,
-                      fillColor: const Color(0xFFF6F8FA),
+                      fillColor: AppColors.background,
                       border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide:
-                              const BorderSide(color: Color(0xFFE1E6EC))),
+                              BorderSide(color: AppColors.cardBorder)),
                     ),
                   ),
                   Align(
                     alignment: Alignment.centerRight,
                     child: Text(headSupervisorText(context, arabic: 'إرفاق مستند: ${complaint.id}', english: 'Attach document: ${complaint.id}'),
-                        style: const TextStyle(
-                            fontSize: 8, color: Color(0xFF315E9A))),
+                        style: TextStyle(
+                            fontSize: 8, color: AppColors.infoDark)),
                   ),
                   const SizedBox(height: 12),
-                  Container(
+                  ScrollFx(child: Container(
                     padding: const EdgeInsets.all(11),
                     decoration: BoxDecoration(
-                        color: const Color(0xFFFFFAE9),
+                        color: AppColors.warningLight,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFFFE08A))),
-                    child: const Text(
+                        border: Border.all(color: AppColors.warning)),
+                    child: Text(
                       'تنبيه رقابي ومصادقة إدارية: كافة الرسائل مسجلة وموثقة في ملف التحقيق الرقابي للمشرف وملف النزاع.',
                       textAlign: TextAlign.right,
                       style: TextStyle(
                           fontSize: 8,
                           height: 1.5,
-                          color: Color(0xFF925A0A)),
+                          color: AppColors.warningDark),
                     ),
-                  ),
+                  )),
                 ],
               ),
             ),
@@ -1688,7 +1890,7 @@ class _SummonSupervisorSheetState extends State<_SummonSupervisorSheet> {
                   height: 48,
                   child: FilledButton.icon(
                     onPressed: _submit,
-                    icon: const Icon(Icons.send, size: 17),
+                    icon: const MotionIcon(Icons.send, size: 17),
                     label: Text(headSupervisorText(context, arabic: 'بدء المحادثة الفورية مع المشرف الآن', english: 'Start an immediate conversation with supervisor'),
                         style: const TextStyle(
                             fontSize: 10, fontWeight: FontWeight.bold)),
@@ -1705,7 +1907,7 @@ class _SummonSupervisorSheetState extends State<_SummonSupervisorSheet> {
                   child: TextButton(
                     onPressed: () => Navigator.of(context).pop(),
                     style: TextButton.styleFrom(
-                        backgroundColor: const Color(0xFFE9ECEF),
+                        backgroundColor: AppColors.surfaceHighlight,
                         foregroundColor: AppColors.textPrimary),
                     child: Text(headSupervisorText(context, arabic: 'إلغاء وتراجع', english: 'Cancel')),
                   ),
@@ -1728,7 +1930,7 @@ class _SummonTopicOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: selected ? AppColors.primaryDark : const Color(0xFFF5F7F9),
+        color: selected ? AppColors.primaryDark : AppColors.background,
         borderRadius: BorderRadius.circular(11),
         child: InkWell(
           onTap: onTap,
@@ -1736,9 +1938,9 @@ class _SummonTopicOption extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 12),
             child: Row(children: [
-              Icon(selected ? Icons.radio_button_checked : Icons.radio_button_off,
+              MotionIcon(selected ? Icons.radio_button_checked : Icons.radio_button_off,
                   size: 16,
-                  color: selected ? Colors.white : const Color(0xFF8A9AB0)),
+                  color: selected ? Colors.white : AppColors.textMuted),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(title,
@@ -1820,8 +2022,8 @@ class _UnblockInvestigationSheetState
         top: false,
         child: Container(
           height: MediaQuery.of(context).size.height * .82,
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(
+            color: AppColors.surface,
             borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
           ),
           child: Column(children: [
@@ -1830,7 +2032,7 @@ class _UnblockInvestigationSheetState
               width: 42,
               height: 5,
               decoration: BoxDecoration(
-                  color: const Color(0xFFD5DCE4),
+                  color: AppColors.cardBorder,
                   borderRadius: BorderRadius.circular(8)),
             ),
             Padding(
@@ -1838,27 +2040,27 @@ class _UnblockInvestigationSheetState
               child: Row(children: [
                 IconButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close, size: 18),
+                  icon: const MotionIcon(Icons.close, size: 18),
                   style: IconButton.styleFrom(
-                      backgroundColor: const Color(0xFFF0F2F4)),
+                      backgroundColor: AppColors.surfaceLight),
                 ),
                 const Spacer(),
                 Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                   Text(headSupervisorText(context, arabic: 'إلغاء حظر الإعلان والتحقيق مع المشرف', english: 'Unblock advertisement and investigate supervisor'),
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.primaryDark)),
+                          color: AppColors.ink)),
                   Text(headSupervisorText(context, arabic: 'إجراء رقابي فوري ومباشر', english: 'Immediate oversight action'),
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 8, color: AppColors.textSecondary)),
                 ]),
                 const SizedBox(width: 8),
-                const CircleAvatar(
+                CircleAvatar(
                     radius: 18,
-                    backgroundColor: Color(0xFFE8F0FF),
-                    child: Icon(Icons.gavel_outlined,
-                        size: 18, color: AppColors.primaryDark)),
+                    backgroundColor: AppColors.infoLight,
+                    child: MotionIcon(Icons.gavel_outlined,
+                        size: 18, color: AppColors.ink)),
               ]),
             ),
             const Divider(height: 1),
@@ -1866,81 +2068,81 @@ class _UnblockInvestigationSheetState
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
                 children: [
-                  Container(
+                  ScrollFx(child: Container(
                     padding: const EdgeInsets.all(11),
                     decoration: BoxDecoration(
-                        color: const Color(0xFFF1F3F5),
+                        color: AppColors.surfaceLight,
                         borderRadius: BorderRadius.circular(12)),
                     child: Row(children: [
-                      const Icon(Icons.verified_user_outlined,
-                          color: AppColors.primaryDark, size: 17),
+                      MotionIcon(Icons.verified_user_outlined,
+                          color: AppColors.ink, size: 17),
                       const Spacer(),
                       Text(
                           '#${complaint.id}   •   ${complaint.merchant}   •   ${complaint.supervisor}',
                           textAlign: TextAlign.right,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 8,
                               fontWeight: FontWeight.bold,
-                              color: AppColors.primaryDark)),
+                              color: AppColors.ink)),
                     ]),
-                  ),
+                  )),
                   const SizedBox(height: 11),
-                  Container(
+                  ScrollFx(child: Container(
                     padding: const EdgeInsets.all(11),
                     decoration: BoxDecoration(
-                        color: const Color(0xFFF2F7FF),
+                        color: AppColors.infoLight,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFBDD5FF))),
-                    child: const Text(
+                        border: Border.all(color: AppColors.infoBorder)),
+                    child: Text(
                       'سيتم فك حظر الإعلان وإعادته للبث فوراً، مع فتح مساعدة إدارية للمشرف المعني.',
                       textAlign: TextAlign.right,
                       style: TextStyle(
                           fontSize: 9,
                           height: 1.5,
-                          color: Color(0xFF315E9A)),
+                          color: AppColors.infoDark),
                     ),
-                  ),
+                  )),
                   const SizedBox(height: 14),
                   Text(headSupervisorText(context, arabic: 'التدابير التنفيذية المحددة:', english: 'Selected enforcement measures:'),
                       textAlign: TextAlign.right,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
                           color: AppColors.textPrimary)),
                   const SizedBox(height: 7),
-                  _UnblockMeasure(
+                  ScrollFx(child: _UnblockMeasure(
                     title: 'فك حظر الإعلان وإعادته للبث فوراً',
                     detail: 'إشعار التاجر بسلاسة موقفه النظامي وتفعيل الظهور العام دون تأخير.',
                     badge: 'بث فوري',
                     selected: _releaseAdvertisement,
                     onChanged: (value) => setState(() =>
                         _releaseAdvertisement = value),
-                  ),
+                  )),
                   const SizedBox(height: 7),
-                  _UnblockMeasure(
+                  ScrollFx(child: _UnblockMeasure(
                     title: 'فتح تحقيق رسمي مع المشرف في سجل الأداء',
                     detail: 'إلزام المشرف بتقديم إفادة خطية مسببة خلال 24 ساعة للإدارة.',
                     badge: 'مساءلة',
                     selected: _investigateSupervisor,
                     onChanged: (value) => setState(() =>
                         _investigateSupervisor = value),
-                  ),
+                  )),
                   const SizedBox(height: 7),
-                  _UnblockMeasure(
+                  ScrollFx(child: _UnblockMeasure(
                     title: 'تعويض التاجر بعد فترة التوقف مجاناً',
                     detail: 'إضافة ترويج مميز لحساب المتجر تعويضاً عن ساعات التوقف.',
                     badge: '+3 أيام',
                     selected: _compensateMerchant,
                     onChanged: (value) => setState(() =>
                         _compensateMerchant = value),
-                  ),
+                  )),
                   const SizedBox(height: 12),
                   Text(headSupervisorText(context, arabic: 'مسوغات القرار الرقابي والتوجيه الإداري', english: 'Decision rationale and administrative instruction'),
                       textAlign: TextAlign.right,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.primaryDark)),
+                          color: AppColors.ink)),
                   const SizedBox(height: 6),
                   TextField(
                     controller: _note,
@@ -1951,15 +2153,15 @@ class _UnblockInvestigationSheetState
                     onChanged: (_) => setState(() => _error = null),
                     decoration: InputDecoration(
                       hintText: headSupervisorText(context, arabic: 'اكتب مسوغات فك الحجب والتوجيه الرقابي للمشرف...', english: 'Enter the rationale for lifting the restriction and instructing the supervisor...'),
-                      hintStyle: const TextStyle(
+                      hintStyle: TextStyle(
                           fontSize: 9, color: AppColors.textMuted),
                       errorText: _error,
                       filled: true,
-                      fillColor: const Color(0xFFF7F8FA),
+                      fillColor: AppColors.background,
                       border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide:
-                              const BorderSide(color: Color(0xFFE1E6EC))),
+                              BorderSide(color: AppColors.cardBorder)),
                     ),
                   ),
                 ],
@@ -1973,7 +2175,7 @@ class _UnblockInvestigationSheetState
                   height: 48,
                   child: FilledButton.icon(
                     onPressed: _submit,
-                    icon: const Icon(Icons.check_circle_outline, size: 18),
+                    icon: const MotionIcon(Icons.check_circle_outline, size: 18),
                     label: Text(headSupervisorText(context, arabic: 'تأكيد فك الحظر وبدء التحقيق فوراً', english: 'Confirm restriction removal and start investigation'),
                         style: const TextStyle(
                             fontSize: 10, fontWeight: FontWeight.bold)),
@@ -1990,7 +2192,7 @@ class _UnblockInvestigationSheetState
                   child: TextButton(
                     onPressed: () => Navigator.of(context).pop(),
                     style: TextButton.styleFrom(
-                        backgroundColor: const Color(0xFFE9ECEF),
+                        backgroundColor: AppColors.surfaceHighlight,
                         foregroundColor: AppColors.textPrimary),
                     child: Text(headSupervisorText(context, arabic: 'إلغاء وتراجع', english: 'Cancel')),
                   ),
@@ -2020,7 +2222,7 @@ class _UnblockMeasure extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(13),
         child: InkWell(
           onTap: () => onChanged(!selected),
@@ -2028,25 +2230,25 @@ class _UnblockMeasure extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.all(11),
             decoration: BoxDecoration(
-                border: Border.all(color: const Color(0xFFE5E9ED)),
+                border: Border.all(color: AppColors.surfaceHighlight),
                 borderRadius: BorderRadius.circular(13)),
             child: Row(children: [
-              Icon(selected ? Icons.check_box : Icons.check_box_outline_blank,
-                  color: selected ? AppColors.primaryDark : AppColors.textMuted,
+              MotionIcon(selected ? Icons.check_box : Icons.check_box_outline_blank,
+                  color: selected ? AppColors.ink : AppColors.textMuted,
                   size: 19),
               const SizedBox(width: 8),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                   Text(title,
                       textAlign: TextAlign.right,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.primaryDark)),
+                          color: AppColors.ink)),
                   const SizedBox(height: 4),
                   Text(detail,
                       textAlign: TextAlign.right,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 8,
                           height: 1.4,
                           color: AppColors.textSecondary)),
@@ -2056,13 +2258,13 @@ class _UnblockMeasure extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
                 decoration: BoxDecoration(
-                    color: const Color(0xFFEAF7F1),
+                    color: AppColors.successLight,
                     borderRadius: BorderRadius.circular(8)),
                 child: Text(badge,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 7,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF3C765F))),
+                        color: AppColors.success)),
               ),
             ]),
           ),
@@ -2082,7 +2284,7 @@ class HeadSupervisorComplaintActionButton extends StatelessWidget {
         width: double.infinity,
         child: FilledButton.icon(
           onPressed: busy ? null : onPressed,
-          icon: Icon(action.icon, size: 17),
+          icon: MotionIcon(action.icon, size: 17),
           label: Padding(
             padding: const EdgeInsets.symmetric(vertical: 11),
             child: Text(action.title,
@@ -2090,8 +2292,8 @@ class HeadSupervisorComplaintActionButton extends StatelessWidget {
                 style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
           ),
           style: FilledButton.styleFrom(
-            backgroundColor: primary ? AppColors.primaryDark : const Color(0xFFE9ECEF),
-            foregroundColor: primary ? Colors.white : AppColors.primaryDark,
+            backgroundColor: primary ? AppColors.primaryDark : AppColors.surfaceHighlight,
+            foregroundColor: primary ? Colors.white : AppColors.ink,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         ),
@@ -2107,16 +2309,16 @@ class _InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(children: [
-        Icon(icon, size: 15, color: const Color(0xFF315E9A)),
+        MotionIcon(icon, size: 15, color: AppColors.infoDark),
         const SizedBox(width: 6),
         Expanded(
-          child: Text(value,
+          child: CountText(value,
               textAlign: TextAlign.right,
               style: TextStyle(fontSize: 9, color: valueColor ?? AppColors.textPrimary, fontWeight: FontWeight.w600)),
         ),
         const SizedBox(width: 8),
         Text(label,
-            style: const TextStyle(fontSize: 8, color: AppColors.textSecondary)),
+            style: TextStyle(fontSize: 8, color: AppColors.textSecondary)),
       ]);
 }
 
@@ -2142,21 +2344,21 @@ class _GovernanceNote extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(15),
         decoration: BoxDecoration(
-            color: const Color(0xFFEFF2F5),
+            color: AppColors.surfaceLight,
             borderRadius: BorderRadius.circular(15)),
         child: Row(children: [
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
               Text(headSupervisorText(context, arabic: 'حقوق التجار والمساءلة الإدارية', english: 'Merchant rights and management accountability'),
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.ink)),
               const SizedBox(height: 6),
               Text(headSupervisorText(context, arabic: 'تخضع قرارات المشرفين للطعن والمراجعة أمام رئيس المشرفين لضمان الشفافية وحماية استثمارات التجار داخل المنصة.', english: 'Supervisor decisions may be appealed and reviewed by the head supervisor to ensure transparency and protect merchants’ investments on the platform.'),
                   textAlign: TextAlign.right,
-                  style: const TextStyle(fontSize: 8, height: 1.55, color: AppColors.textSecondary)),
+                  style: TextStyle(fontSize: 8, height: 1.55, color: AppColors.textSecondary)),
             ]),
           ),
           const SizedBox(width: 10),
-          const Icon(Icons.verified_user_outlined, color: AppColors.primaryDark),
+          MotionIcon(Icons.verified_user_outlined, color: AppColors.ink),
         ]),
       );
 }
@@ -2167,7 +2369,7 @@ class _WhitePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16)),
         child: child,
       );
 }

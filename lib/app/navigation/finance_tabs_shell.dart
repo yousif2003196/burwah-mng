@@ -1,19 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
-import '../../core/widgets/local_event_inbox_screen.dart';
-import '../../core/widgets/account_conversations_screen.dart';
-import '../../features/wasalny_supervisor/data/wasalny_local_event_store.dart';
-import '../../l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/rolling_app_bar.dart';
+import 'package:barwah_app/features/messaging/presentation/widgets/unread_events_dot.dart';
+import 'package:barwah_app/core/widgets/side_panel.dart';
+import 'package:barwah_app/core/widgets/edge_swipe_opener.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/features/admin/data/datasources/admin_request_store.dart';
+import 'package:barwah_app/features/finance/data/services/finance_admin_decision_sync.dart';
+import 'package:barwah_app/features/finance/domain/repositories/finance_repository.dart';
+import 'package:barwah_app/features/finance/presentation/screens/bank_reconciliation_screen.dart';
+import 'package:barwah_app/features/finance/presentation/screens/commissions_screen.dart';
+import 'package:barwah_app/features/finance/presentation/screens/finance_dashboard_screen.dart';
+import 'package:barwah_app/features/finance/presentation/screens/financial_activity_log_screen.dart';
+import 'package:barwah_app/features/finance/presentation/screens/profile_screen.dart';
+import 'package:barwah_app/features/finance/presentation/screens/settlements_screen.dart';
+import 'package:barwah_app/features/finance/presentation/widgets/finance_navigation.dart';
+import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
+import 'package:barwah_app/features/messaging/presentation/screens/account_conversations_screen.dart';
+import 'package:barwah_app/features/messaging/presentation/screens/local_event_inbox_screen.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
 
-import '../../features/finance/presentation/screens/financial_activity_log_screen.dart';
-import '../../features/finance/presentation/screens/bank_reconciliation_screen.dart';
-import '../../features/finance/presentation/screens/commissions_screen.dart';
-import '../../features/finance/presentation/screens/finance_dashboard_screen.dart';
-import '../../features/finance/presentation/screens/profile_screen.dart';
-import '../../features/finance/presentation/screens/settlements_screen.dart';
-import '../../features/finance/presentation/widgets/finance_navigation.dart';
-
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 class FinanceTabsShell extends StatefulWidget {
   final VoidCallback onLogout;
 
@@ -24,10 +33,12 @@ class FinanceTabsShell extends StatefulWidget {
 }
 
 class _FinanceTabsShellState extends State<FinanceTabsShell> {
-  final WasalnyLocalEventStore _eventStore = WasalnyLocalEventStore();
+  final LocalEventStore _eventStore = LocalEventStore();
   late final PageController _pageController = PageController(initialPage: 4);
   int _currentIndex = 4;
   bool _isBarsVisible = true;
+  // الشريط العلوي له حالة مستقلة: لا يرجع بالسحب لأعلى، فقط عند أول الصفحة.
+  bool _topDocked = true;
 
   late final _pages = <Widget>[
     const FinancialActivityLogScreen(showBottomNavigation: false),
@@ -40,8 +51,28 @@ class _FinanceTabsShellState extends State<FinanceTabsShell> {
     ),
   ];
 
+  late final FinanceAdminDecisionSync _decisionSync =
+      FinanceAdminDecisionSync(repository: sl<FinanceRepository>());
+
+  @override
+  void initState() {
+    super.initState();
+    AdminRequestStore.revision.addListener(_syncAdminDecisions);
+    _syncAdminDecisions();
+  }
+
+  /// يطبّق قرارات الأدمن النهائية (رفض/تجميد) على طلبات المالية المعتمدة مسبقًا.
+  Future<void> _syncAdminDecisions() async {
+    try {
+      await _decisionSync.run();
+    } catch (_) {
+      // يُعاد المحاولة عند أي تغيّر لاحق في طابور الأدمن.
+    }
+  }
+
   @override
   void dispose() {
+    AdminRequestStore.revision.removeListener(_syncAdminDecisions);
     _pageController.dispose();
     super.dispose();
   }
@@ -52,6 +83,14 @@ class _FinanceTabsShellState extends State<FinanceTabsShell> {
       _currentIndex = index;
       _isBarsVisible = true;
     });
+    // عند القفز لتبويب بعيد ننتقل أولاً لجاره مباشرة، ثم نحرّك خطوة واحدة،
+    // فلا تُبنى التبويبات الوسيطة ولا يظهر تقطيع.
+    if (_pageController.positions.length == 1) {
+      final from = (_pageController.page ?? _pageController.initialPage.toDouble()).round();
+      if ((index - from).abs() > 1) {
+        _pageController.jumpToPage(index > from ? index - 1 : index + 1);
+      }
+    }
     _pageController.animateToPage(
       index,
       duration: const Duration(milliseconds: 320),
@@ -70,23 +109,15 @@ class _FinanceTabsShellState extends State<FinanceTabsShell> {
       _ => l10n.navHome,
     };
 
-    final topPadding = MediaQuery.of(context).padding.top;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7F9),
+      backgroundColor: AppColors.scaffold,
+      extendBody: true,
       // شريط AppBar متجاوب يختفي عند التمرير لأسفل ويعود عند الصعود
-      appBar: PreferredSize(
-        preferredSize: Size.fromHeight(_isBarsVisible ? kToolbarHeight : 0.0),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 260),
-          curve: Curves.easeInOut,
-          height: _isBarsVisible ? (kToolbarHeight + topPadding) : 0.0,
-          child: SingleChildScrollView(
-            physics: const NeverScrollableScrollPhysics(),
-            child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 200),
-              opacity: _isBarsVisible ? 1.0 : 0.0,
-              child: FinancePageAppBar(
+      appBar: RollingAppBar(
+        docked: _topDocked,
+        badge: const UnreadEventsDot(recipient: 'finance'),
+        bar: FinancePageAppBar(
                 title: title,
                 subtitle: _currentIndex == 4
                     ? l10n.cfoRole
@@ -105,7 +136,7 @@ class _FinanceTabsShellState extends State<FinanceTabsShell> {
                         builder: (_) => const AccountConversationsScreen(accountId: 'finance'),
                       ),
                     ),
-                    icon: const AccountChatUnreadBadge(accountId: 'finance', child: Icon(Icons.chat_bubble_outline)),
+                    icon: const AccountChatUnreadBadge(accountId: 'finance', child: MotionIcon(Icons.chat_bubble_outline)),
                   ),
                   IconButton(
                     tooltip: l10n.productNotificationsTitle,
@@ -118,7 +149,7 @@ class _FinanceTabsShellState extends State<FinanceTabsShell> {
                       ),
                     ),
                     icon: ValueListenableBuilder<int>(
-                      valueListenable: WasalnyLocalEventStore.revision,
+                      valueListenable: LocalEventStore.revision,
                       builder: (context, revision, _) => FutureBuilder(
                         future: _eventStore.getEvents('finance'),
                         builder: (context, snapshot) {
@@ -129,7 +160,7 @@ class _FinanceTabsShellState extends State<FinanceTabsShell> {
                           return Stack(
                             clipBehavior: Clip.none,
                             children: [
-                              const Icon(Icons.notifications_none_outlined),
+                              const MotionIcon(Icons.notifications_none_outlined),
                               if (unreadCount > 0)
                                 Positioned(
                                   top: -7,
@@ -143,8 +174,8 @@ class _FinanceTabsShellState extends State<FinanceTabsShell> {
                                       horizontal: 4,
                                     ),
                                     alignment: Alignment.center,
-                                    decoration: const BoxDecoration(
-                                      color: Colors.red,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.danger,
                                       shape: BoxShape.circle,
                                     ),
                                     child: Text(
@@ -167,38 +198,63 @@ class _FinanceTabsShellState extends State<FinanceTabsShell> {
                   ),
                 ],
               ),
-            ),
-          ),
-        ),
       ),
-      body: NotificationListener<UserScrollNotification>(
+      body: NotificationListener<ScrollNotification>(
         onNotification: (notification) {
           if (notification.metrics.axis == Axis.vertical) {
-            if (notification.direction == ScrollDirection.reverse) {
-              if (_isBarsVisible) {
-                setState(() => _isBarsVisible = false);
-              }
-            } else if (notification.direction == ScrollDirection.forward) {
-              if (!_isBarsVisible) {
-                setState(() => _isBarsVisible = true);
-              }
+            final direction = notification is UserScrollNotification
+                ? notification.direction
+                : null;
+            final atTop = notification.metrics.pixels <= 4;
+            var bars = _isBarsVisible;
+            var top = _topDocked;
+            if (direction == ScrollDirection.reverse) {
+              bars = false;
+            } else if (direction == ScrollDirection.forward) {
+              bars = true;
+            }
+            if (atTop) {
+              top = true;
+            } else if (notification is ScrollUpdateNotification &&
+                (notification.scrollDelta ?? 0) > 0 &&
+                notification.metrics.pixels > 24) {
+              top = false;
+            }
+            if (bars != _isBarsVisible || top != _topDocked) {
+              setState(() {
+                _isBarsVisible = bars;
+                _topDocked = top;
+              });
             }
           }
           return false;
         },
-        child: PageView(
+        child: EdgeSwipeOpener(
+          controller: _pageController,
+          onOpen: () => showSidePanel<void>(
+            context,
+            (_) => LocalEventInboxScreen(
+              recipient: 'finance',
+              title: l10n.productNotificationsTitle,
+            ),
+          ),
+          child: PageView(
           controller: _pageController,
           pageSnapping: true,
           allowImplicitScrolling: true,
-          onPageChanged: (index) => setState(() => _currentIndex = index),
-          children: _pages,
+          onPageChanged: (index) => setState(() {
+              _currentIndex = index;
+              _topDocked = true;
+            }),
+          children: TabPageTransition.wrap(_pageController, _pages),
+        ),
         ),
       ),
       // شريط BottomNavigationBar متجاوب يختفي بسلاسة عند التمرير لأسفل ويعود عند الصعود
       bottomNavigationBar: AnimatedContainer(
         duration: const Duration(milliseconds: 260),
         curve: Curves.easeInOut,
-        height: _isBarsVisible ? 76.0 : 0.0,
+        height: _isBarsVisible ? FinanceBottomNavigationBar.heightOf(context) : 0,
         child: SingleChildScrollView(
           physics: const NeverScrollableScrollPhysics(),
           child: AnimatedOpacity(

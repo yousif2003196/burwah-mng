@@ -1,8 +1,8 @@
 import 'package:dartz/dartz.dart';
 
-import '../../../../core/errors/failures.dart';
-import '../entities/expense_request_entity.dart';
-import '../repositories/finance_repository.dart';
+import 'package:barwah_app/core/errors/failures.dart';
+import 'package:barwah_app/features/finance/domain/entities/expense_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/repositories/finance_repository.dart';
 
 class GetExpenseRequestsUseCase {
   final FinanceRepository repository;

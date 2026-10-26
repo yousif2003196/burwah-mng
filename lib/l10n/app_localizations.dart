@@ -767,7 +767,7 @@ abstract class AppLocalizations {
   /// No description provided for @servicesProfileCurrency.
   ///
   /// In ar, this message translates to:
-  /// **'ر.س'**
+  /// **'ج.م'**
   String get servicesProfileCurrency;
 
   /// No description provided for @servicesProfileOpenWallet.
@@ -1554,7 +1554,7 @@ abstract class AppLocalizations {
   /// No description provided for @servicesCurrency.
   ///
   /// In ar, this message translates to:
-  /// **'ر.س'**
+  /// **'ج.م'**
   String get servicesCurrency;
 
   /// No description provided for @servicesUrgentNotice.
@@ -6768,7 +6768,7 @@ abstract class AppLocalizations {
   /// No description provided for @adsCarPrice.
   ///
   /// In ar, this message translates to:
-  /// **'245,000 ر.س'**
+  /// **'245,000 ج.م'**
   String get adsCarPrice;
 
   /// No description provided for @adsPhoneMerchant.
@@ -6798,7 +6798,7 @@ abstract class AppLocalizations {
   /// No description provided for @adsPhonePrice.
   ///
   /// In ar, this message translates to:
-  /// **'4,699 ر.س'**
+  /// **'4,699 ج.م'**
   String get adsPhonePrice;
 
   /// No description provided for @adsVillaMerchant.
@@ -6828,7 +6828,7 @@ abstract class AppLocalizations {
   /// No description provided for @adsVillaPrice.
   ///
   /// In ar, this message translates to:
-  /// **'2,850,000 ر.س'**
+  /// **'2,850,000 ج.م'**
   String get adsVillaPrice;
 
   /// No description provided for @adsLicenseVerified.
@@ -9181,7 +9181,7 @@ abstract class AppLocalizations {
   /// No description provided for @productWalletBalanceAmount.
   ///
   /// In ar, this message translates to:
-  /// **'8,450 ر.س'**
+  /// **'8,450 ج.م'**
   String get productWalletBalanceAmount;
 
   /// No description provided for @productWalletReady.
@@ -9205,7 +9205,7 @@ abstract class AppLocalizations {
   /// No description provided for @productWalletTotalDuesAmount.
   ///
   /// In ar, this message translates to:
-  /// **'12,500 ر.س'**
+  /// **'12,500 ج.م'**
   String get productWalletTotalDuesAmount;
 
   /// No description provided for @productWalletDuesDetail.
@@ -9223,7 +9223,7 @@ abstract class AppLocalizations {
   /// No description provided for @productWalletPendingAmount.
   ///
   /// In ar, this message translates to:
-  /// **'4,050 ر.س'**
+  /// **'4,050 ج.م'**
   String get productWalletPendingAmount;
 
   /// No description provided for @productWalletPendingDetail.
@@ -9265,19 +9265,19 @@ abstract class AppLocalizations {
   /// No description provided for @productWalletWithdrawableHint.
   ///
   /// In ar, this message translates to:
-  /// **'سحب كامل المبلغ المتاح (8,450 ر.س)'**
+  /// **'سحب كامل المبلغ المتاح (8,450 ج.م)'**
   String get productWalletWithdrawableHint;
 
   /// No description provided for @productWalletCurrency.
   ///
   /// In ar, this message translates to:
-  /// **'ر.س'**
+  /// **'ج.م'**
   String get productWalletCurrency;
 
   /// No description provided for @productWalletLimitNote.
   ///
   /// In ar, this message translates to:
-  /// **'الحد الأدنى لعملية السحب 100 ر.س، الحد الأقصى اليومي 20,000 ر.س.'**
+  /// **'الحد الأدنى لعملية السحب 100 ج.م، الحد الأقصى اليومي 20,000 ج.م.'**
   String get productWalletLimitNote;
 
   /// No description provided for @productWalletChooseDestination.
@@ -9343,7 +9343,7 @@ abstract class AppLocalizations {
   /// No description provided for @productWalletFeeDetails.
   ///
   /// In ar, this message translates to:
-  /// **'رسوم المعالجة والتحويل: 0.5 ر.س (محفظة بالكامل للمشرف)'**
+  /// **'رسوم المعالجة والتحويل: 0.5 ج.م (محفظة بالكامل للمشرف)'**
   String get productWalletFeeDetails;
 
   /// No description provided for @productWalletSubmitRequest.
@@ -9355,7 +9355,7 @@ abstract class AppLocalizations {
   /// No description provided for @productWalletAmountError.
   ///
   /// In ar, this message translates to:
-  /// **'أدخل مبلغاً بين 100 و8,450 ر.س.'**
+  /// **'أدخل مبلغاً بين 100 و8,450 ج.م.'**
   String get productWalletAmountError;
 
   /// No description provided for @productWalletDetailsError.
@@ -9373,7 +9373,7 @@ abstract class AppLocalizations {
   /// No description provided for @productWalletConfirmMessage.
   ///
   /// In ar, this message translates to:
-  /// **'هل تريد تأكيد سحب مبلغ {amount} ر.س؟'**
+  /// **'هل تريد تأكيد سحب مبلغ {amount} ج.م؟'**
   String productWalletConfirmMessage(Object amount);
 
   /// No description provided for @productWalletConfirmAction.
@@ -9397,7 +9397,7 @@ abstract class AppLocalizations {
   /// No description provided for @productWalletBonusAmount.
   ///
   /// In ar, this message translates to:
-  /// **'+500 ر.س'**
+  /// **'+500 ج.م'**
   String get productWalletBonusAmount;
 
   /// No description provided for @productWalletBonusDescription.
@@ -10243,7 +10243,7 @@ abstract class AppLocalizations {
   /// No description provided for @productProfileWalletAmount.
   ///
   /// In ar, this message translates to:
-  /// **'14,850 ر.س'**
+  /// **'14,850 ج.م'**
   String get productProfileWalletAmount;
 
   /// No description provided for @productProfileWalletDetail.
@@ -10405,7 +10405,7 @@ abstract class AppLocalizations {
   /// No description provided for @adsDeliveryFee.
   ///
   /// In ar, this message translates to:
-  /// **'مبلغ ثابت (ر.س)'**
+  /// **'مبلغ ثابت (ج.م)'**
   String get adsDeliveryFee;
 
   /// No description provided for @adsUpdateDeliveryFee.
@@ -10903,7 +10903,7 @@ abstract class AppLocalizations {
   /// No description provided for @finRequestCurrency.
   ///
   /// In ar, this message translates to:
-  /// **'ر.س'**
+  /// **'ج.م'**
   String get finRequestCurrency;
 
   /// No description provided for @finRequestRestrictedStatus.
@@ -11467,13 +11467,13 @@ abstract class AppLocalizations {
   /// No description provided for @merchantWalletFullBalance.
   ///
   /// In ar, this message translates to:
-  /// **'سحب كامل الرصيد (8,450 ر.س)'**
+  /// **'سحب كامل الرصيد (8,450 ج.م)'**
   String get merchantWalletFullBalance;
 
   /// No description provided for @merchantWalletTransferLimit.
   ///
   /// In ar, this message translates to:
-  /// **'الحد الأدنى لعملية السحب 100 ر.س، الحد الأقصى اليومي 20,000 ر.س'**
+  /// **'الحد الأدنى لعملية السحب 100 ج.م، الحد الأقصى اليومي 20,000 ج.م'**
   String get merchantWalletTransferLimit;
 
   /// No description provided for @merchantWalletChooseMethod.
@@ -11551,7 +11551,7 @@ abstract class AppLocalizations {
   /// No description provided for @merchantWalletProcessingDetails.
   ///
   /// In ar, this message translates to:
-  /// **'سرعة المعالجة: فوري ومباشر على مدار الساعة\nرسوم المعالجة والتحويل: 0.5 ر.س (محفظة بالكامل للمشرف)'**
+  /// **'سرعة المعالجة: فوري ومباشر على مدار الساعة\nرسوم المعالجة والتحويل: 0.5 ج.م (محفظة بالكامل للمشرف)'**
   String get merchantWalletProcessingDetails;
 
   /// No description provided for @merchantWalletConfirmWithdrawal.
@@ -11911,7 +11911,7 @@ abstract class AppLocalizations {
   /// No description provided for @merchantInfoFixedAmount.
   ///
   /// In ar, this message translates to:
-  /// **'مبلغ ثابت بالأرقام (ر.س)'**
+  /// **'مبلغ ثابت بالأرقام (ج.م)'**
   String get merchantInfoFixedAmount;
 
   /// No description provided for @merchantInfoPercentage.
@@ -11935,7 +11935,7 @@ abstract class AppLocalizations {
   /// No description provided for @merchantInfoCommissionExample.
   ///
   /// In ar, this message translates to:
-  /// **'حاسبة تقريبية لعملية بيع بقيمة 100 ر.س:'**
+  /// **'حاسبة تقريبية لعملية بيع بقيمة 100 ج.م:'**
   String get merchantInfoCommissionExample;
 
   /// No description provided for @merchantInfoCommissionValue.
@@ -13045,13 +13045,13 @@ abstract class AppLocalizations {
   /// No description provided for @financeWalletInvalidWithdrawalAmount.
   ///
   /// In ar, this message translates to:
-  /// **'أدخل مبلغ سحب بين 100 و8,450 ر.س.'**
+  /// **'أدخل مبلغ سحب بين 100 و8,450 ج.م.'**
   String get financeWalletInvalidWithdrawalAmount;
 
   /// No description provided for @financeWalletInvalidDetails.
   ///
   /// In ar, this message translates to:
-  /// **'أدخل مبلغاً صحيحاً بين 100 و20,000 ر.س وحدد وجهة الدفع.'**
+  /// **'أدخل مبلغاً صحيحاً بين 100 و20,000 ج.م وحدد وجهة الدفع.'**
   String get financeWalletInvalidDetails;
 
   /// No description provided for @financeWalletConfirmDepositTitle.

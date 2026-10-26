@@ -3,17 +3,21 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/di/injection_container.dart';
-import '../../../../core/widgets/app_snack_bar.dart';
-import '../../../wasalny_supervisor/data/wasalny_local_event_store.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../../finance/domain/entities/withdrawal_request_entity.dart';
-import '../../../finance/domain/repositories/finance_repository.dart';
-import '../../data/merchant_advertisement_local_store.dart';
-import '../../data/merchant_supervisor_local_store.dart';
-import '../../domain/entities/merchant_entity.dart';
-import 'advertisement_review_details_screen.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/widgets/app_snack_bar.dart';
+import 'package:barwah_app/features/finance/domain/entities/withdrawal_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/repositories/finance_repository.dart';
+import 'package:barwah_app/features/merchants/data/datasources/merchant_advertisement_local_store.dart';
+import 'package:barwah_app/features/merchants/data/datasources/merchant_supervisor_local_store.dart';
+import 'package:barwah_app/features/merchants/domain/entities/merchant_entity.dart';
+import 'package:barwah_app/features/merchants/presentation/screens/advertisement_review_details_screen.dart';
+import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
+import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 enum _AdCategory { vehicles, electronics, realEstate }
 
@@ -61,12 +65,12 @@ class AdsManagementScreen extends StatefulWidget {
 
 class _AdsManagementScreenState extends State<AdsManagementScreen> {
   final TextEditingController _searchController = TextEditingController();
-  final List<_AdRecord> _ads = const [
+  final List<_AdRecord> _ads = [
     _AdRecord(
       id: 1,
       category: _AdCategory.vehicles,
       imageIcon: Icons.directions_car_filled_outlined,
-      imageColor: Color(0xFF476176),
+      imageColor: AppColors.infoDark,
       imageCount: 8,
       receivedMinutesAgo: 25,
       hasMarketPriceBadge: true,
@@ -77,7 +81,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
       id: 2,
       category: _AdCategory.electronics,
       imageIcon: Icons.smartphone,
-      imageColor: Color(0xFF8DA5B7),
+      imageColor: AppColors.info,
       imageCount: 5,
       receivedMinutesAgo: 40,
     ),
@@ -85,7 +89,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
       id: 3,
       category: _AdCategory.realEstate,
       imageIcon: Icons.villa_outlined,
-      imageColor: Color(0xFF6E765D),
+      imageColor: AppColors.textSecondary,
       imageCount: 14,
       receivedMinutesAgo: 120,
     ),
@@ -321,8 +325,8 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                 ? 'تم تجميد الإعلان للمراجعة الرقابية.'
                 : 'لم يسجل المشرف سبباً إضافياً.');
         try {
-          await WasalnyLocalEventStore().publish(
-            WasalnyLocalEvent(
+          await LocalEventStore().publish(
+            LocalEvent(
               id: 'head-merchant-ad-${ad.id}-${status!.name}-${DateTime.now().millisecondsSinceEpoch}',
               recipient: 'head',
               source: 'merchant',
@@ -521,7 +525,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
     final ads = _filteredAds(l10n);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7F9),
+      backgroundColor: AppColors.scaffold,
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         children: [
@@ -532,11 +536,11 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
               padding: const EdgeInsets.all(12),
               child: Text(l10n.adsLoadFailed),
             ),
-          _buildSummary(l10n),
+          ScrollFx(child: _buildSummary(l10n)),
           const SizedBox(height: 14),
-          _buildSearch(l10n),
+          ScrollFx(child: _buildSearch(l10n)),
           const SizedBox(height: 12),
-          _buildCategoryFilters(l10n),
+          ScrollFx(child: _buildCategoryFilters(l10n)),
           const SizedBox(height: 12),
           SegmentedButton<bool>(
             segments: [
@@ -551,15 +555,15 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                 setState(() => _showArchive = selection.first),
           ),
           const SizedBox(height: 18),
-          Row(
+          ScrollFx(child: Row(
             children: [
               Expanded(
                 child: Text(
                   _showArchive ? l10n.adsArchiveTitle : l10n.adsPendingHeading,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
+                  style: TextStyle(
+                    color: AppColors.ink,
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                   ),
@@ -568,8 +572,8 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
               const SizedBox(width: 6),
               _smallBadge(
                 l10n.adsUnderReviewCount,
-                const Color(0xFFD9E7FF),
-                AppColors.primaryDark,
+                AppColors.infoBorder,
+                AppColors.ink,
               ),
               const SizedBox(width: 8),
               InkWell(
@@ -588,14 +592,14 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                               : l10n.adsOldestSort,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 10,
                             color: AppColors.textSecondary,
                           ),
                         ),
                       ),
                       const SizedBox(width: 3),
-                      Icon(
+                      MotionIcon(
                         _newestFirst ? Icons.sort : Icons.swap_vert,
                         size: 15,
                         color: AppColors.textSecondary,
@@ -605,7 +609,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                 ),
               ),
             ],
-          ),
+          )),
           const SizedBox(height: 10),
           if (ads.isEmpty)
             Padding(
@@ -613,7 +617,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
               child: Text(
                 l10n.adsNoResults,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.textSecondary),
+                style: TextStyle(color: AppColors.textSecondary),
               ),
             ),
           ...ads.map((ad) => _buildAdCard(l10n, ad)),
@@ -626,6 +630,8 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
+        gradient: AppColors.blueFill,
+        border: AppColors.blueEdge,
         color: AppColors.primaryDark,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
@@ -640,7 +646,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.circle, color: Color(0xFFD92D35), size: 9),
+              MotionIcon(Icons.circle, color: AppColors.danger, size: 9),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
@@ -656,7 +662,10 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF3D1B2B),
+                    gradient: AppColors.blueFill,
+                    border: AppColors.blueEdge,
+                    boxShadow: AppColors.blueGlow,
+                    color: AppColors.primaryDark,
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Text(
@@ -709,7 +718,10 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
         decoration: BoxDecoration(
-          color: const Color(0xFF1A304B),
+          gradient: AppColors.blueFill,
+          border: AppColors.blueEdge,
+          boxShadow: AppColors.blueGlow,
+          color: AppColors.primaryDark,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
@@ -719,15 +731,15 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 9),
+              style: TextStyle(color: AppColors.infoBorder, fontSize: 9),
             ),
             const SizedBox(height: 5),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, size: 13, color: const Color(0xFF93B9F5)),
+                MotionIcon(icon, size: 13, color: AppColors.info),
                 const SizedBox(width: 4),
-                Text(
+                CountText(
                   value,
                   style: const TextStyle(
                     color: Colors.white,
@@ -750,14 +762,14 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
           height: 46,
           width: 46,
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: AppColors.surface,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: AppColors.cardBorder),
           ),
           child: IconButton(
             tooltip: l10n.adsSearchHint,
             onPressed: () => _showCategoryFilters(l10n),
-            icon: const Icon(Icons.tune, color: AppColors.primaryDark),
+            icon: MotionIcon(Icons.tune, color: AppColors.ink),
           ),
         ),
         const SizedBox(width: 8),
@@ -765,7 +777,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
           child: Container(
             height: 46,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppColors.surface,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: AppColors.cardBorder),
             ),
@@ -774,11 +786,11 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
               onChanged: (value) => setState(() => _searchQuery = value),
               decoration: InputDecoration(
                 hintText: l10n.adsSearchHint,
-                hintStyle: const TextStyle(
+                hintStyle: TextStyle(
                   color: AppColors.textMuted,
                   fontSize: 11,
                 ),
-                prefixIcon: const Icon(
+                prefixIcon: MotionIcon(
                   Icons.search,
                   color: AppColors.textMuted,
                   size: 19,
@@ -791,7 +803,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                           _searchController.clear();
                           setState(() => _searchQuery = '');
                         },
-                        icon: const Icon(Icons.close, size: 17),
+                        icon: const MotionIcon(Icons.close, size: 17),
                       ),
                 border: InputBorder.none,
                 contentPadding:
@@ -833,7 +845,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                   setState(() => _categoryFilter = filters[index].category),
               showCheckmark: false,
               selectedColor: AppColors.primaryDark,
-              backgroundColor: Colors.white,
+              backgroundColor: AppColors.surface,
               labelStyle: TextStyle(
                 color: _categoryFilter == filters[index].category
                     ? Colors.white
@@ -845,7 +857,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
               ),
               side: BorderSide(
                 color: _categoryFilter == filters[index].category
-                    ? AppColors.primaryDark
+                    ? AppColors.ink
                     : AppColors.cardBorder,
               ),
             ),
@@ -866,7 +878,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
         margin: const EdgeInsets.only(bottom: 14),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.cardBorder),
           boxShadow: [
@@ -885,15 +897,15 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
               children: [
                 CircleAvatar(
                   radius: 17,
-                  backgroundColor: const Color(0xFFF1F5F9),
-                  child: Icon(
+                  backgroundColor: AppColors.surfaceLight,
+                  child: MotionIcon(
                     ad.category == _AdCategory.vehicles
                         ? Icons.directions_car_outlined
                         : ad.category == _AdCategory.electronics
                             ? Icons.phone_iphone
                             : Icons.apartment,
                     size: 17,
-                    color: AppColors.primaryDark,
+                    color: AppColors.ink,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -906,8 +918,8 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.end,
-                        style: const TextStyle(
-                          color: AppColors.primaryDark,
+                        style: TextStyle(
+                          color: AppColors.ink,
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
                         ),
@@ -918,14 +930,14 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.end,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 10,
                         ),
                       ),
                       Text(
                         _adReference(ad),
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textMuted,
                           fontSize: 9,
                         ),
@@ -934,10 +946,10 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                       _smallBadge(
                         ad.isPremium ? l10n.adsPremium : l10n.adsRegular,
                         ad.isPremium
-                            ? const Color(0xFFFFE8B2)
-                            : const Color(0xFFE8EAED),
+                            ? AppColors.warningBorder
+                            : AppColors.surfaceHighlight,
                         ad.isPremium
-                            ? const Color(0xFF8A4B08)
+                            ? AppColors.warningDark
                             : AppColors.textSecondary,
                       ),
                     ],
@@ -959,8 +971,8 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.end,
-                style: const TextStyle(
-                  color: AppColors.primaryDark,
+                style: TextStyle(
+                  color: AppColors.ink,
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                 ),
@@ -973,19 +985,19 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
               children: [
                 _smallBadge(
                   '${l10n.adsLicenseVerified} ✓',
-                  const Color(0xFFEAF1FB),
-                  AppColors.primaryDark,
+                  AppColors.infoLight,
+                  AppColors.ink,
                 ),
                 if (ad.hasMarketPriceBadge)
                   _smallBadge(
                     l10n.adsMarketPriceMatched,
-                    const Color(0xFFEAF1FB),
-                    AppColors.primaryDark,
+                    AppColors.infoLight,
+                    AppColors.ink,
                   ),
                 if (ad.category != _AdCategory.electronics)
                   _smallBadge(
                     _adDetails(l10n, ad),
-                    const Color(0xFFF1F3F5),
+                    AppColors.surfaceLight,
                     AppColors.textSecondary,
                   ),
               ],
@@ -993,7 +1005,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
             const SizedBox(height: 8),
             Row(
               children: [
-                const Icon(Icons.location_on_outlined,
+                MotionIcon(Icons.location_on_outlined,
                     size: 14, color: AppColors.textSecondary),
                 const SizedBox(width: 3),
                 Expanded(
@@ -1001,7 +1013,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                     _merchantCategory(l10n, ad).split('•').last.trim(),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 10,
                     ),
@@ -1010,8 +1022,8 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                 if (ad.category != _AdCategory.electronics)
                   Text(
                     _adPrice(l10n, ad),
-                    style: const TextStyle(
-                      color: AppColors.primaryDark,
+                    style: TextStyle(
+                      color: AppColors.ink,
                       fontSize: 13,
                       fontWeight: FontWeight.w900,
                     ),
@@ -1079,7 +1091,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
           price: _adPrice(l10n, ad),
           photoCount: ad.imageCount,
           imageIcon: ad.imageIcon,
-          imageColor: ad.imageColor,
+          imageColor: AppColors.adapt(ad.imageColor),
           facts: details.facts,
           checklist: details.checklist,
           onApprove: () async {
@@ -1260,7 +1272,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                             ? l10n.adsHiddenStatus
                             : l10n.adsReviewHidden;
     final color = status == _AdStatus.suspended
-        ? const Color(0xFFAC6900)
+        ? AppColors.warningDark
         : status == _AdStatus.approved
             ? AppColors.successDark
             : status == _AdStatus.awaitingFinance ||
@@ -1281,13 +1293,13 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             decoration: BoxDecoration(
-              color: const Color(0xFFF0F2F4),
+              color: AppColors.surfaceLight,
               borderRadius: BorderRadius.circular(18),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.visibility_off_outlined,
+                MotionIcon(Icons.visibility_off_outlined,
                     size: 12, color: AppColors.textSecondary),
                 const SizedBox(width: 4),
                 Flexible(
@@ -1305,13 +1317,13 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: const Color(0xFFF5F6F7),
+              color: AppColors.surfaceLight,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.schedule,
+                MotionIcon(Icons.schedule,
                     size: 12, color: AppColors.textSecondary),
                 const SizedBox(width: 4),
                 Flexible(
@@ -1319,7 +1331,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                     age,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 9,
                     ),
@@ -1347,13 +1359,13 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    ad.imageColor.withValues(alpha: 0.65),
-                    const Color(0xFFDFE5E9),
-                    ad.imageColor.withValues(alpha: 0.8),
+                    AppColors.adapt(ad.imageColor).withValues(alpha: 0.65),
+                    AppColors.cardBorder,
+                    AppColors.adapt(ad.imageColor).withValues(alpha: 0.8),
                   ],
                 ),
               ),
-              child: Icon(
+              child: MotionIcon(
                 ad.imageIcon,
                 size: 104,
                 color: Colors.white.withValues(alpha: 0.82),
@@ -1371,13 +1383,13 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: AppColors.surface,
                   borderRadius: BorderRadius.circular(9),
                 ),
                 child: Text(
                   _adPrice(l10n, ad),
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
+                  style: TextStyle(
+                    color: AppColors.ink,
                     fontSize: 12,
                     fontWeight: FontWeight.w900,
                   ),
@@ -1397,8 +1409,8 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
           child: Container(
             height: 116,
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFE9EFF3), Color(0xFFCAD6DE)],
+              gradient: LinearGradient(
+                colors: [AppColors.surfaceHighlight, AppColors.infoBorder],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -1406,11 +1418,11 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
             ),
             child: Stack(
               children: [
-                const Center(
-                  child: Icon(
+                Center(
+                  child: MotionIcon(
                     Icons.phone_iphone,
                     size: 62,
-                    color: Color(0xFF5B7182),
+                    color: AppColors.textSecondary,
                   ),
                 ),
                 Positioned(
@@ -1433,8 +1445,8 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.end,
-                style: const TextStyle(
-                  color: AppColors.primaryDark,
+                style: TextStyle(
+                  color: AppColors.ink,
                   fontWeight: FontWeight.bold,
                   fontSize: 13,
                 ),
@@ -1443,7 +1455,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
               Text(
                 _adDetails(l10n, ad),
                 textAlign: TextAlign.end,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 10,
                 ),
@@ -1452,8 +1464,8 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
               Text(
                 _adPrice(l10n, ad),
                 textAlign: TextAlign.end,
-                style: const TextStyle(
-                  color: AppColors.primaryDark,
+                style: TextStyle(
+                  color: AppColors.ink,
                   fontWeight: FontWeight.w900,
                   fontSize: 14,
                 ),
@@ -1475,7 +1487,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.photo_camera_outlined,
+          const MotionIcon(Icons.photo_camera_outlined,
               size: 12, color: Colors.white),
           const SizedBox(width: 4),
           Text(
@@ -1500,7 +1512,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
             ? l10n.adsPremiumWaitingFinance
             : l10n.adsPremiumWaitingManagement,
         icon: Icons.hourglass_top,
-        background: const Color(0xFFEAF0FF),
+        background: AppColors.infoLight,
         foreground: AppColors.info,
         onPressed: null,
       );
@@ -1515,7 +1527,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                 icon: isHidden
                     ? Icons.visibility_outlined
                     : Icons.visibility_off_outlined,
-                background: const Color(0xFFF0F1F3),
+                background: AppColors.surfaceLight,
                 foreground: AppColors.textSecondary,
                 onPressed: () async {
                   await _setAdState(l10n, ad, hidden: !isHidden);
@@ -1536,8 +1548,8 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                 icon: status == _AdStatus.suspended
                     ? Icons.play_circle_outline
                     : Icons.pause_circle_outline,
-                background: const Color(0xFFF0F1F3),
-                foreground: AppColors.primaryDark,
+                background: AppColors.surfaceLight,
+                foreground: AppColors.ink,
                 onPressed: () => _setAdState(
                   l10n,
                   ad,
@@ -1556,8 +1568,8 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
               child: _actionButton(
                 label: l10n.adsRejectAction,
                 icon: Icons.close,
-                background: const Color(0xFFFFE0DD),
-                foreground: const Color(0xFFB42318),
+                background: AppColors.dangerBorder,
+                foreground: AppColors.dangerDark,
                 onPressed: () => _rejectAd(l10n, ad),
               ),
             ),
@@ -1590,7 +1602,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
       height: 42,
       child: ElevatedButton.icon(
         onPressed: onPressed,
-        icon: Icon(icon, size: 15),
+        icon: MotionIcon(icon, size: 15),
         label: Text(
           label,
           maxLines: 1,
@@ -1640,7 +1652,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
             ListTile(
               title: Text(l10n.adsAllFilter),
               trailing:
-                  _categoryFilter == null ? const Icon(Icons.check) : null,
+                  _categoryFilter == null ? const MotionIcon(Icons.check) : null,
               onTap: () {
                 setState(() => _categoryFilter = null);
                 Navigator.pop(sheetContext);
@@ -1649,7 +1661,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
             ListTile(
               title: Text(l10n.adsVehiclesFilter),
               trailing: _categoryFilter == _AdCategory.vehicles
-                  ? const Icon(Icons.check)
+                  ? const MotionIcon(Icons.check)
                   : null,
               onTap: () {
                 setState(() => _categoryFilter = _AdCategory.vehicles);
@@ -1659,7 +1671,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
             ListTile(
               title: Text(l10n.adsElectronicsFilter),
               trailing: _categoryFilter == _AdCategory.electronics
-                  ? const Icon(Icons.check)
+                  ? const MotionIcon(Icons.check)
                   : null,
               onTap: () {
                 setState(() => _categoryFilter = _AdCategory.electronics);
@@ -1669,7 +1681,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
             ListTile(
               title: Text(l10n.adsRealEstateFilter),
               trailing: _categoryFilter == _AdCategory.realEstate
-                  ? const Icon(Icons.check)
+                  ? const MotionIcon(Icons.check)
                   : null,
               onTap: () {
                 setState(() => _categoryFilter = _AdCategory.realEstate);
@@ -1702,8 +1714,8 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                 constraints: BoxConstraints(
                   maxHeight: MediaQuery.sizeOf(context).height * 0.84,
                 ),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
                   borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                 ),
                 child: Column(
@@ -1720,20 +1732,20 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                                 width: 42,
                                 height: 5,
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFC5C8CE),
+                                  color: AppColors.textMuted,
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                               ),
                             ),
                             const SizedBox(height: 12),
-                            Row(
+                            ScrollFx(child: Row(
                               children: [
                                 IconButton.filledTonal(
                                   onPressed: () => Navigator.pop(sheetContext),
                                   tooltip: l10n.adsCancelAction,
-                                  icon: const Icon(Icons.close, size: 18),
+                                  icon: const MotionIcon(Icons.close, size: 18),
                                   style: IconButton.styleFrom(
-                                    backgroundColor: const Color(0xFFF0F1F3),
+                                    backgroundColor: AppColors.surfaceLight,
                                     foregroundColor: AppColors.textSecondary,
                                   ),
                                 ),
@@ -1745,8 +1757,8 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                                       Text(
                                         l10n.adsRejectReasonTitle,
                                         textAlign: TextAlign.end,
-                                        style: const TextStyle(
-                                          color: AppColors.primaryDark,
+                                        style: TextStyle(
+                                          color: AppColors.ink,
                                           fontSize: 16,
                                           fontWeight: FontWeight.bold,
                                         ),
@@ -1756,7 +1768,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         textAlign: TextAlign.end,
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           color: AppColors.textSecondary,
                                           fontSize: 10,
                                         ),
@@ -1769,22 +1781,22 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                                   width: 38,
                                   height: 38,
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFFFE0DD),
+                                    color: AppColors.dangerBorder,
                                     borderRadius: BorderRadius.circular(20),
                                   ),
-                                  child: const Icon(
+                                  child: MotionIcon(
                                     Icons.gavel,
-                                    color: Color(0xFFB42318),
+                                    color: AppColors.dangerDark,
                                     size: 19,
                                   ),
                                 ),
                               ],
-                            ),
+                            )),
                             const SizedBox(height: 10),
                             Text(
                               l10n.adsRejectReasonInstructions,
                               textAlign: TextAlign.end,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: AppColors.textSecondary,
                                 fontSize: 11,
                                 height: 1.5,
@@ -1804,8 +1816,8 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                                     padding: const EdgeInsets.only(bottom: 6),
                                     child: Material(
                                       color: selected
-                                          ? const Color(0xFFFFF0EF)
-                                          : const Color(0xFFF1F3F5),
+                                          ? AppColors.dangerLight
+                                          : AppColors.surfaceLight,
                                       borderRadius: BorderRadius.circular(12),
                                       child: InkWell(
                                         borderRadius: BorderRadius.circular(12),
@@ -1822,13 +1834,13 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                                               Radio<_AdRejectionReason>(
                                                 value: option.reason,
                                                 activeColor:
-                                                    const Color(0xFFB42318),
+                                                    AppColors.dangerDark,
                                               ),
                                               Expanded(
                                                 child: Text(
                                                   option.label,
                                                   textAlign: TextAlign.end,
-                                                  style: const TextStyle(
+                                                  style: TextStyle(
                                                     color:
                                                         AppColors.textPrimary,
                                                     fontSize: 13,
@@ -1836,7 +1848,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                                                 ),
                                               ),
                                               const SizedBox(width: 8),
-                                              Icon(
+                                              MotionIcon(
                                                 option.icon,
                                                 size: 17,
                                                 color: AppColors.textSecondary,
@@ -1851,14 +1863,14 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                               ),
                             ),
                             const SizedBox(height: 6),
-                            Row(
+                            ScrollFx(child: Row(
                               children: [
                                 Expanded(
                                   child: Text(
                                     l10n.adsRejectGuidanceOptional,
                                     textAlign: TextAlign.end,
-                                    style: const TextStyle(
-                                      color: AppColors.primaryDark,
+                                    style: TextStyle(
+                                      color: AppColors.ink,
                                       fontSize: 11,
                                       fontWeight: FontWeight.w600,
                                     ),
@@ -1867,13 +1879,13 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                                 const SizedBox(width: 6),
                                 Text(
                                   l10n.adsRejectGuidanceDirectLabel,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     color: AppColors.textSecondary,
                                     fontSize: 9,
                                   ),
                                 ),
                               ],
-                            ),
+                            )),
                             const SizedBox(height: 6),
                             TextField(
                               key: const ValueKey('ad-rejection-guidance'),
@@ -1884,7 +1896,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                               decoration: InputDecoration(
                                 hintText: l10n.adsRejectGuidanceHint,
                                 filled: true,
-                                fillColor: const Color(0xFFF1F3F5),
+                                fillColor: AppColors.surfaceLight,
                                 counterText: '',
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
@@ -1911,11 +1923,11 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                                       guidance: guidance.trim(),
                                     ),
                                   ),
-                          icon: const Icon(Icons.outgoing_mail, size: 17),
+                          icon: const MotionIcon(Icons.outgoing_mail, size: 17),
                           label: Text(l10n.adsConfirmRejectAndNotify),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFB91C1C),
-                            disabledBackgroundColor: const Color(0xFFD9A6A3),
+                            backgroundColor: AppColors.dangerDark,
+                            disabledBackgroundColor: AppColors.danger,
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),

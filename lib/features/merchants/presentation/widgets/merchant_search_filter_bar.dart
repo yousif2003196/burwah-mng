@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../../../core/constants/app_colors.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../domain/entities/supervisor_stats_entity.dart';
+
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/features/merchants/domain/entities/supervisor_stats_entity.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class MerchantSearchFilterBar extends StatelessWidget {
   final TextEditingController searchController;
@@ -37,12 +39,12 @@ class MerchantSearchFilterBar extends StatelessWidget {
               height: 46,
               width: 46,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppColors.surface,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: AppColors.cardBorder),
               ),
               child: IconButton(
-                icon: const Icon(Icons.tune,
+                icon: MotionIcon(Icons.tune,
                     size: 20, color: AppColors.textPrimary),
                 onPressed: onFilterIconTap,
               ),
@@ -54,25 +56,25 @@ class MerchantSearchFilterBar extends StatelessWidget {
               child: Container(
                 height: 46,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: AppColors.surface,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: AppColors.cardBorder),
                 ),
                 child: TextField(
                   controller: searchController,
                   onChanged: onSearchChanged,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 12, color: AppColors.textPrimary),
                   decoration: InputDecoration(
                     hintText: l10n.searchMerchantsHint,
-                    hintStyle: const TextStyle(
+                    hintStyle: TextStyle(
                         fontSize: 11, color: AppColors.textMuted),
                     suffixIcon: searchController.text.isNotEmpty
                         ? IconButton(
-                            icon: const Icon(Icons.clear, size: 16),
+                            icon: const MotionIcon(Icons.clear, size: 16),
                             onPressed: onClearSearch,
                           )
-                        : const Icon(Icons.search,
+                        : MotionIcon(Icons.search,
                             size: 18, color: AppColors.textMuted),
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.symmetric(
@@ -149,11 +151,11 @@ class MerchantSearchFilterBar extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF07192F) : Colors.white,
+          color: isSelected ? AppColors.primaryDark : AppColors.surface,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: isSelected
-                ? const Color(0xFF07192F)
+                ? AppColors.primaryDark
                 : AppColors.cardBorder,
           ),
         ),
