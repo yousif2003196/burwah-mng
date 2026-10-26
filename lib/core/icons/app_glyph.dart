@@ -645,7 +645,7 @@ void _eye(Canvas c, _Pens p, double t, {required bool slash}) {
   }, sy: blink);
   if (slash) {
     final k = Curves.easeOut.transform(_seg(t, 0.1, 0.6));
-    final from = const Offset(12, 10);
+    const from = Offset(12, 10);
     final to = Offset.lerp(from, const Offset(52, 54), k)!;
     c.drawLine(from, to,
         Paint()

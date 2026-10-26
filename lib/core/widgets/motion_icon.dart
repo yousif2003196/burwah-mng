@@ -111,7 +111,7 @@ class _MotionIconState extends State<MotionIcon>
   void didChangeDependencies() {
     super.didChangeDependencies();
     _tabOn = TabPageActive.of(context);
-    _tickerOn = TickerMode.of(context);
+    _tickerOn = TickerMode.valuesOf(context).enabled;
     _reduceMotion = MediaQuery.disableAnimationsOf(context);
     _ensureScheduled();
   }

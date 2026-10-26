@@ -96,7 +96,7 @@ class _ShieldCheckPainter extends CustomPainter {
       ..cubicTo(33, 80, 20, 66, 20, 47)
       ..lineTo(20, 22)
       ..close();
-    final rect = Rect.fromLTWH(20, 12, 60, 77);
+    const rect = Rect.fromLTWH(20, 12, 60, 77);
     canvas.drawPath(
       shield,
       Paint()
