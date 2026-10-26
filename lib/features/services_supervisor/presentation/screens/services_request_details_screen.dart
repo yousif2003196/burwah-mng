@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/widgets/app_snack_bar.dart';
-import '../../../../l10n/app_localizations.dart';
-import 'service_provider_catalog.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/widgets/app_snack_bar.dart';
+import 'package:barwah_app/features/services_supervisor/data/datasources/service_provider_catalog.dart';
+import 'package:barwah_app/features/services_supervisor/domain/entities/service_provider.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 enum _ServiceCategory { maintenance, electrical, moving }
 
@@ -80,16 +84,16 @@ class _ServicesRequestDetailsScreenState
     return Directionality(
       textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF5F7F9),
+        backgroundColor: AppColors.scaffold,
         appBar: AppBar(
-          backgroundColor: const Color(0xFFF5F7F9),
-          foregroundColor: AppColors.primaryDark,
+          backgroundColor: AppColors.surface,
+          foregroundColor: AppColors.ink,
           elevation: 0,
           centerTitle: true,
           title: Text(
             l10n.servicesDetailsTitle,
-            style: const TextStyle(
-              color: AppColors.primaryDark,
+            style: TextStyle(
+              color: AppColors.ink,
               fontSize: 17,
               fontWeight: FontWeight.bold,
             ),
@@ -97,19 +101,19 @@ class _ServicesRequestDetailsScreenState
           leading: IconButton(
             tooltip: l10n.servicesBackToRequests,
             onPressed: () => Navigator.of(context).maybePop(),
-            icon: Icon(
+            icon: MotionIcon(
               isArabic ? Icons.arrow_forward : Icons.arrow_back,
-              color: AppColors.primaryDark,
+              color: AppColors.ink,
             ),
           ),
-          actions: const [
+          actions: [
             Padding(
               padding: EdgeInsetsDirectional.only(end: 14),
               child: CircleAvatar(
                 radius: 16,
                 backgroundColor: AppColors.primaryDark,
                 child:
-                    Icon(Icons.person_outline, color: Colors.white, size: 18),
+                    MotionIcon(Icons.person_outline, color: Colors.white, size: 18),
               ),
             ),
           ],
@@ -117,17 +121,17 @@ class _ServicesRequestDetailsScreenState
         body: ListView(
           padding: const EdgeInsets.fromLTRB(18, 4, 18, 92),
           children: [
-            _requestHeader(l10n, isArabic),
+            ScrollFx(child: _requestHeader(l10n, isArabic)),
             const SizedBox(height: 14),
-            _costCard(l10n),
+            ScrollFx(child: _costCard(l10n)),
             const SizedBox(height: 14),
-            _serviceWorkCard(l10n),
+            ScrollFx(child: _serviceWorkCard(l10n)),
             const SizedBox(height: 14),
-            _additionalInfoCard(l10n),
+            ScrollFx(child: _additionalInfoCard(l10n)),
             const SizedBox(height: 14),
-            _classificationCard(l10n),
+            ScrollFx(child: _classificationCard(l10n)),
             const SizedBox(height: 14),
-            _assignmentCard(l10n, isArabic),
+            ScrollFx(child: _assignmentCard(l10n, isArabic)),
           ],
         ),
         bottomNavigationBar: SafeArea(
@@ -136,7 +140,7 @@ class _ServicesRequestDetailsScreenState
             height: 50,
             child: FilledButton.icon(
               onPressed: _confirmRequest,
-              icon: const Icon(Icons.person_add_alt_1_outlined, size: 19),
+              icon: const MotionIcon(Icons.person_add_alt_1_outlined, size: 19),
               label: Text(
                 l10n.servicesPublishConfirm,
                 style: const TextStyle(fontWeight: FontWeight.bold),
@@ -170,14 +174,14 @@ class _ServicesRequestDetailsScreenState
                         widget.requestedAt,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 10,
                         ),
                       ),
                     ),
                     const SizedBox(width: 4),
-                    const Icon(
+                    MotionIcon(
                       Icons.access_time,
                       color: AppColors.textSecondary,
                       size: 13,
@@ -188,7 +192,7 @@ class _ServicesRequestDetailsScreenState
               const SizedBox(width: 5),
               _Pill(
                 label: l10n.servicesUnderReview,
-                background: const Color(0xFFD9EFFF),
+                background: AppColors.infoBorder,
                 foreground: AppColors.infoDark,
               ),
               const SizedBox(width: 7),
@@ -210,8 +214,8 @@ class _ServicesRequestDetailsScreenState
                       widget.provider,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.primaryDark,
+                      style: TextStyle(
+                        color: AppColors.ink,
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
@@ -219,7 +223,7 @@ class _ServicesRequestDetailsScreenState
                     const SizedBox(height: 3),
                     Text(
                       widget.service,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 12,
                       ),
@@ -232,10 +236,13 @@ class _ServicesRequestDetailsScreenState
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
+                  gradient: AppColors.blueFill,
+                  border: AppColors.blueEdge,
+                  boxShadow: AppColors.blueGlow,
                   color: AppColors.primaryDark,
                   borderRadius: BorderRadius.circular(13),
                 ),
-                child: Icon(widget.icon, color: Colors.white, size: 25),
+                child: MotionIcon(widget.icon, color: Colors.white, size: 25),
               ),
             ],
           ),
@@ -285,7 +292,7 @@ class _ServicesRequestDetailsScreenState
           const SizedBox(height: 10),
           Text(
             widget.description,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 13,
               height: 1.6,
@@ -295,7 +302,7 @@ class _ServicesRequestDetailsScreenState
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(
+              MotionIcon(
                 Icons.location_on_outlined,
                 color: AppColors.infoDark,
                 size: 19,
@@ -307,7 +314,7 @@ class _ServicesRequestDetailsScreenState
                   children: [
                     Text(
                       l10n.servicesRequestLocationLabel,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 11,
                       ),
@@ -315,7 +322,7 @@ class _ServicesRequestDetailsScreenState
                     const SizedBox(height: 3),
                     Text(
                       widget.location,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textPrimary,
                         fontWeight: FontWeight.w700,
                       ),
@@ -329,8 +336,8 @@ class _ServicesRequestDetailsScreenState
             const SizedBox(height: 14),
             Text(
               l10n.servicesRequestPhotosTitle,
-              style: const TextStyle(
-                color: AppColors.primaryDark,
+              style: TextStyle(
+                color: AppColors.ink,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -353,7 +360,7 @@ class _ServicesRequestDetailsScreenState
                       height: 110,
                       color: AppColors.surfaceLight,
                       alignment: Alignment.center,
-                      child: const Icon(
+                      child: MotionIcon(
                         Icons.broken_image_outlined,
                         color: AppColors.textMuted,
                       ),
@@ -366,7 +373,7 @@ class _ServicesRequestDetailsScreenState
             const SizedBox(height: 12),
             Text(
               l10n.servicesRequestNoPhotos,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textMuted,
                 fontSize: 11,
               ),
@@ -399,7 +406,7 @@ class _ServicesRequestDetailsScreenState
           const SizedBox(height: 5),
           Text(
             l10n.servicesRequestAssignmentDescription,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 11,
               height: 1.5,
@@ -432,14 +439,14 @@ class _ServicesRequestDetailsScreenState
               padding: const EdgeInsets.only(top: 8),
               child: Text(
                 l10n.servicesRequestNoMatchingProviders,
-                style: const TextStyle(color: AppColors.danger, fontSize: 11),
+                style: TextStyle(color: AppColors.danger, fontSize: 11),
               ),
             ),
           if (_selectedProvider != null) ...[
             const SizedBox(height: 9),
             Text(
               isArabic ? _selectedProvider!.cityAr : _selectedProvider!.cityEn,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 11,
               ),
@@ -463,7 +470,7 @@ class _ServicesRequestDetailsScreenState
                         ),
                       );
                     },
-              icon: const Icon(Icons.assignment_turned_in_outlined, size: 18),
+              icon: const MotionIcon(Icons.assignment_turned_in_outlined, size: 18),
               label: Text(l10n.servicesRequestAssignProvider),
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.primaryDark,
@@ -485,7 +492,7 @@ class _ServicesRequestDetailsScreenState
             title: l10n.servicesEstimatedCost,
             trailing: _Pill(
               label: l10n.servicesApprovedEstimate,
-              background: const Color(0xFFD9EFFF),
+              background: AppColors.infoBorder,
               foreground: AppColors.infoDark,
             ),
           ),
@@ -501,13 +508,13 @@ class _ServicesRequestDetailsScreenState
                 Expanded(
                   child: Text(
                     l10n.servicesEstimatedCostTotal,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 11,
                     ),
                   ),
                 ),
-                const Icon(
+                MotionIcon(
                   Icons.request_quote_outlined,
                   color: AppColors.infoDark,
                   size: 18,
@@ -516,17 +523,17 @@ class _ServicesRequestDetailsScreenState
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(
+                    CountText(
                       widget.price,
-                      style: const TextStyle(
-                        color: AppColors.primaryDark,
+                      style: TextStyle(
+                        color: AppColors.ink,
                         fontSize: 23,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     Text(
                       l10n.servicesCurrency,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 10,
                       ),
@@ -573,7 +580,7 @@ class _ServicesRequestDetailsScreenState
           const SizedBox(height: 8),
           Text(
             l10n.servicesRequestMoreInfoDescription,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 11,
               height: 1.45,
@@ -588,7 +595,7 @@ class _ServicesRequestDetailsScreenState
               hintText: l10n.servicesRequestMoreInfoHint,
               filled: true,
               fillColor: AppColors.surfaceLight,
-              hintStyle: const TextStyle(
+              hintStyle: TextStyle(
                 color: AppColors.textMuted,
                 fontSize: 12,
               ),
@@ -601,7 +608,7 @@ class _ServicesRequestDetailsScreenState
                 borderRadius: BorderRadius.circular(12),
               ),
               focusedBorder: OutlineInputBorder(
-                borderSide: const BorderSide(color: AppColors.info),
+                borderSide: BorderSide(color: AppColors.info),
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
@@ -614,7 +621,7 @@ class _ServicesRequestDetailsScreenState
                 onChanged: (value) =>
                     setState(() => _requiresPhotos = value ?? false),
                 visualDensity: VisualDensity.compact,
-                activeColor: AppColors.primaryDark,
+                activeColor: AppColors.ink,
               ),
               Expanded(
                 child: Text(
@@ -625,11 +632,11 @@ class _ServicesRequestDetailsScreenState
               const SizedBox(width: 8),
               FilledButton.icon(
                 onPressed: _sendInfoRequest,
-                icon: const Icon(Icons.send_outlined, size: 15),
+                icon: const MotionIcon(Icons.send_outlined, size: 15),
                 label: Text(l10n.servicesSendInfoRequest),
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFFE8F0FF),
-                  foregroundColor: AppColors.primaryDark,
+                  backgroundColor: AppColors.infoLight,
+                  foregroundColor: AppColors.ink,
                   minimumSize: const Size(0, 38),
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   textStyle: const TextStyle(fontSize: 10),
@@ -659,7 +666,7 @@ class _ServicesRequestDetailsScreenState
           const SizedBox(height: 12),
           Text(
             l10n.servicesApprovedClassification,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 11,
             ),
@@ -688,7 +695,7 @@ class _ServicesRequestDetailsScreenState
           const SizedBox(height: 10),
           Text(
             l10n.servicesExecutionPeriod,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 11,
             ),
@@ -718,11 +725,11 @@ class _ServicesRequestDetailsScreenState
             height: 42,
             child: FilledButton.icon(
               onPressed: _saveClassification,
-              icon: const Icon(Icons.sync, size: 17),
+              icon: const MotionIcon(Icons.sync, size: 17),
               label: Text(l10n.servicesSaveClassification),
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFE8EAEC),
-                foregroundColor: AppColors.primaryDark,
+                backgroundColor: AppColors.surfaceHighlight,
+                foregroundColor: AppColors.ink,
               ),
             ),
           ),
@@ -735,7 +742,7 @@ class _ServicesRequestDetailsScreenState
     return InputDecoration(
       filled: true,
       fillColor: AppColors.surfaceLight,
-      prefixIcon: const Icon(
+      prefixIcon: MotionIcon(
         Icons.assignment_outlined,
         color: AppColors.infoDark,
         size: 20,
@@ -804,7 +811,7 @@ class _DetailCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.cardBorder),
       ),
@@ -828,13 +835,13 @@ class _SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, color: AppColors.infoDark, size: 19),
+        MotionIcon(icon, color: AppColors.infoDark, size: 19),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
             title,
-            style: const TextStyle(
-              color: AppColors.primaryDark,
+            style: TextStyle(
+              color: AppColors.ink,
               fontSize: 15,
               fontWeight: FontWeight.bold,
             ),
@@ -894,7 +901,7 @@ class _ContactButton extends StatelessWidget {
       height: 44,
       child: FilledButton.icon(
         onPressed: onTap,
-        icon: Icon(icon, size: 17, color: AppColors.infoDark),
+        icon: MotionIcon(icon, size: 17, color: AppColors.infoDark),
         label: Text(
           label,
           maxLines: 1,
@@ -926,7 +933,7 @@ class _CostBreakdown extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       '$label: $amount $currency',
-      style: const TextStyle(
+      style: TextStyle(
         color: AppColors.textSecondary,
         fontSize: 9,
       ),
@@ -951,7 +958,7 @@ class _PeriodButton extends StatelessWidget {
       height: 42,
       child: FilledButton.icon(
         onPressed: onTap,
-        icon: Icon(
+        icon: MotionIcon(
           selected ? Icons.nightlight_outlined : Icons.wb_sunny_outlined,
           size: 17,
         ),

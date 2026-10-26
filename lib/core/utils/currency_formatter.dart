@@ -6,7 +6,7 @@ class CurrencyFormatter {
   static String _currencySymbol = 'ج.م';
 
   static void setLocale(String languageCode) {
-    _currencySymbol = languageCode == 'ar' ? 'ج.م' : 'Egy';
+    _currencySymbol = languageCode == 'ar' ? 'ج.م' : 'EGP';
   }
 
   static String format(

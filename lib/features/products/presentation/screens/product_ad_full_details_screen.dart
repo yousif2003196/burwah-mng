@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../domain/entities/product_review.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/theme/app_palette.dart';
+import 'package:barwah_app/features/products/domain/entities/product_review.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class ProductAdFullDetailsScreen extends StatefulWidget {
   final ProductReview product;
@@ -67,25 +71,25 @@ class _ProductAdFullDetailsScreenState
     final isPending = product.status == ProductReviewStatus.pending;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7F9),
+      backgroundColor: AppColors.scaffold,
       appBar: AppBar(
         title: Text(l10n.productFullDetailsTitle),
         centerTitle: true,
-        backgroundColor: Colors.white,
-        foregroundColor: AppColors.primaryDark,
+        backgroundColor: AppColors.surface,
+        foregroundColor: AppColors.ink,
         elevation: 0,
         leading: IconButton(
           tooltip: l10n.productBackToReview,
           onPressed: () => Navigator.of(context).maybePop(),
-          icon: const Icon(Icons.arrow_back_ios_new, size: 19),
+          icon: const MotionIcon(Icons.arrow_back_ios_new, size: 19),
         ),
-        actions: const [
+        actions: [
           Padding(
             padding: EdgeInsetsDirectional.only(end: 12),
             child: CircleAvatar(
               radius: 15,
               backgroundColor: AppColors.primaryDark,
-              child: Icon(Icons.person_outline, color: Colors.white, size: 17),
+              child: MotionIcon(Icons.person_outline, color: Colors.white, size: 17),
             ),
           ),
         ],
@@ -93,8 +97,8 @@ class _ProductAdFullDetailsScreenState
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
         children: [
-          _sectionTitle(l10n.productPhotoDocumentationTitle,
-              Icons.photo_library_outlined),
+          ScrollFx(child: _sectionTitle(l10n.productPhotoDocumentationTitle,
+              Icons.photo_library_outlined)),
           if (product.isFeatured) ...[
             const SizedBox(height: 8),
             Align(
@@ -103,19 +107,19 @@ class _ProductAdFullDetailsScreenState
             ),
           ],
           const SizedBox(height: 8),
-          _photoGallery(l10n, product),
+          ScrollFx(child: _photoGallery(l10n, product)),
           const SizedBox(height: 10),
-          _photoThumbnails(product),
+          ScrollFx(child: _photoThumbnails(product)),
           const SizedBox(height: 16),
-          _inquiryCard(l10n),
+          ScrollFx(child: _inquiryCard(l10n)),
           const SizedBox(height: 16),
-          _editAdCard(l10n, product, title, merchant),
+          ScrollFx(child: _editAdCard(l10n, product, title, merchant)),
           const SizedBox(height: 16),
-          _adHistoryCard(l10n),
+          ScrollFx(child: _adHistoryCard(l10n)),
           const SizedBox(height: 12),
-          _permissionNotice(l10n),
+          ScrollFx(child: _permissionNotice(l10n)),
           const SizedBox(height: 12),
-          _finalDecisionNotice(l10n),
+          ScrollFx(child: _finalDecisionNotice(l10n)),
         ],
       ),
       bottomNavigationBar: SafeArea(
@@ -133,11 +137,11 @@ class _ProductAdFullDetailsScreenState
                             onPressed: _isSubmitting
                                 ? null
                                 : () => _submit(ProductReviewStatus.rejected),
-                            icon: const Icon(Icons.cancel_outlined, size: 17),
+                            icon: const MotionIcon(Icons.cancel_outlined, size: 17),
                             label: Text(l10n.productRejectAction),
                             style: FilledButton.styleFrom(
-                              foregroundColor: const Color(0xFFB42318),
-                              backgroundColor: const Color(0xFFFFD9D5),
+                              foregroundColor: AppColors.dangerDark,
+                              backgroundColor: AppColors.dangerBorder,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(13),
                               ),
@@ -153,7 +157,7 @@ class _ProductAdFullDetailsScreenState
                             onPressed: _isSubmitting
                                 ? null
                                 : () => _submit(ProductReviewStatus.hidden),
-                            icon: const Icon(Icons.visibility_off_outlined,
+                            icon: const MotionIcon(Icons.visibility_off_outlined,
                                 size: 17),
                             label: Text(l10n.productHideAction),
                           ),
@@ -168,12 +172,12 @@ class _ProductAdFullDetailsScreenState
                             onPressed: _isSubmitting
                                 ? null
                                 : () => _submit(ProductReviewStatus.suspended),
-                            icon: const Icon(Icons.pause_circle_outline,
+                            icon: const MotionIcon(Icons.pause_circle_outline,
                                 size: 18),
                             label: Text(l10n.productSuspendAction),
                             style: FilledButton.styleFrom(
-                              foregroundColor: const Color(0xFF885D00),
-                              backgroundColor: const Color(0xFFFFF1D6),
+                              foregroundColor: AppColors.warningDark,
+                              backgroundColor: AppColors.warningBorder,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(13),
                               ),
@@ -199,7 +203,7 @@ class _ProductAdFullDetailsScreenState
                                 color: Colors.white,
                               ),
                             )
-                          : const Icon(Icons.check_circle, size: 19),
+                          : const MotionIcon(Icons.check_circle, size: 19),
                       label: Text(l10n.productApproveAndPublishNow),
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColors.primaryDark,
@@ -219,7 +223,7 @@ class _ProductAdFullDetailsScreenState
                       onPressed: _isSubmitting
                           ? null
                           : () => _submit(ProductReviewStatus.pending),
-                      icon: const Icon(Icons.restart_alt),
+                      icon: const MotionIcon(Icons.restart_alt),
                       label: Text(widget.isArabic
                           ? 'إعادة للمراجعة'
                           : 'Return to review'),
@@ -234,21 +238,21 @@ class _ProductAdFullDetailsScreenState
   Widget _sectionTitle(String title, IconData icon) {
     return Row(
       children: [
-        Icon(icon, color: AppColors.info, size: 20),
+        MotionIcon(icon, color: AppColors.info, size: 20),
         const SizedBox(width: 7),
         Expanded(
           child: Text(
             title,
-            style: const TextStyle(
-              color: AppColors.primaryDark,
+            style: TextStyle(
+              color: AppColors.ink,
               fontSize: 13,
               fontWeight: FontWeight.w600,
             ),
           ),
         ),
-        Text(
+        CountText(
           '${widget.product.photoCount} ${AppLocalizations.of(context)!.productPhotoCount}',
-          style: const TextStyle(color: AppColors.textSecondary, fontSize: 9),
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 9),
         ),
       ],
     );
@@ -258,18 +262,18 @@ class _ProductAdFullDetailsScreenState
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF3D6),
+        color: AppColors.warningBorder,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.star, size: 14, color: Color(0xFFB77900)),
+          MotionIcon(Icons.star, size: 14, color: AppColors.warningDark),
           const SizedBox(width: 4),
           Text(
             label,
-            style: const TextStyle(
-              color: Color(0xFF885D00),
+            style: TextStyle(
+              color: AppColors.warningDark,
               fontSize: 10,
               fontWeight: FontWeight.w700,
             ),
@@ -293,8 +297,8 @@ class _ProductAdFullDetailsScreenState
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    const Color(0xFF101E2C),
-                    const Color(0xFF33485E),
+                    AppColors.primaryDark,
+                    AppColors.infoDark,
                     _accent(product.imageKind),
                   ],
                 ),
@@ -309,22 +313,22 @@ class _ProductAdFullDetailsScreenState
                 angle: -0.16,
                 child: Container(
                   decoration: BoxDecoration(
-                    color: const Color(0xFF24374C),
+                    color: AppColors.infoDark,
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(
-                      color: const Color(0xFF7293B2),
+                      color: AppColors.info,
                       width: 2,
                     ),
-                    boxShadow: const [
+                    boxShadow: [
                       BoxShadow(
-                        color: Colors.black38,
+                        color: AppColors.textMuted,
                         blurRadius: 20,
                         offset: Offset(0, 12),
                       ),
                     ],
                   ),
                   child: Center(
-                    child: Icon(
+                    child: MotionIcon(
                       _icon(product.imageKind),
                       size: 130,
                       color: Colors.white.withValues(alpha: 0.78),
@@ -359,17 +363,17 @@ class _ProductAdFullDetailsScreenState
                   vertical: 10,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.95),
+                  color: AppColors.surface.withValues(alpha: 0.95),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Row(
                   children: [
                     CircleAvatar(
                       radius: 12,
-                      backgroundColor: const Color(0xFFD6E6FA),
+                      backgroundColor: AppColors.infoBorder,
                       child: Text(
                         widget.isArabic ? 'س' : 'S',
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.info,
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
@@ -378,21 +382,21 @@ class _ProductAdFullDetailsScreenState
                     ),
                     const SizedBox(width: 7),
                     Expanded(
-                      child: Text(
+                      child: FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart, child: CountText(
                         '${l10n.productSellerLabel} ${widget.isArabic ? product.merchantNameAr : product.merchantNameEn}',
                         maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.primaryDark,
+ softWrap: false,
+                        style: TextStyle(
+                          color: AppColors.ink,
                           fontSize: 10,
                         ),
-                      ),
+                      )),
                     ),
-                    const Icon(Icons.verified, color: AppColors.info, size: 15),
+                    MotionIcon(Icons.verified, color: AppColors.info, size: 15),
                     const SizedBox(width: 4),
                     Text(
                       l10n.productSellerVerified,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.info,
                         fontSize: 9,
                       ),
@@ -411,13 +415,13 @@ class _ProductAdFullDetailsScreenState
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xDD102A48),
+        color: AppPalette.overlayDD102A48,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: Colors.white, size: 13),
+          MotionIcon(icon, color: Colors.white, size: 13),
           const SizedBox(width: 4),
           Text(
             label,
@@ -443,8 +447,8 @@ class _ProductAdFullDetailsScreenState
             width: 74,
             decoration: BoxDecoration(
               color: index.isEven
-                  ? const Color(0xFFE1E6EA)
-                  : const Color(0xFFCFD8DF),
+                  ? AppColors.cardBorder
+                  : AppColors.cardBorder,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: _selectedPhotoIndex == index
@@ -453,11 +457,11 @@ class _ProductAdFullDetailsScreenState
                 width: 2,
               ),
             ),
-            child: Icon(
+            child: MotionIcon(
               index % 3 == 0
                   ? Icons.receipt_long_outlined
                   : _icon(product.imageKind),
-              color: AppColors.primaryDark.withValues(alpha: 0.72),
+              color: AppColors.ink.withValues(alpha: 0.72),
             ),
           ),
         ),
@@ -469,7 +473,7 @@ class _ProductAdFullDetailsScreenState
     return _whiteCard(
       child: Row(
         children: [
-          const Icon(Icons.chat_outlined, color: AppColors.primaryDark),
+          MotionIcon(Icons.chat_outlined, color: AppColors.ink),
           const SizedBox(width: 9),
           Expanded(
             child: Column(
@@ -477,15 +481,15 @@ class _ProductAdFullDetailsScreenState
               children: [
                 Text(
                   l10n.productSellerInquiryTitle,
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
+                  style: TextStyle(
+                    color: AppColors.ink,
                     fontWeight: FontWeight.bold,
                     fontSize: 13,
                   ),
                 ),
                 Text(
                   l10n.productSellerInquiryHint,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 10,
                   ),
@@ -495,11 +499,11 @@ class _ProductAdFullDetailsScreenState
           ),
           OutlinedButton.icon(
             onPressed: () => _showInquiry(context, l10n),
-            icon: const Icon(Icons.send_outlined, size: 14),
+            icon: const MotionIcon(Icons.send_outlined, size: 14),
             label: Text(l10n.productSendInquiry),
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.primaryDark,
-              backgroundColor: const Color(0xFFE7E9EC),
+              foregroundColor: AppColors.ink,
+              backgroundColor: AppColors.surfaceHighlight,
               side: BorderSide.none,
               padding: const EdgeInsets.symmetric(horizontal: 10),
             ),
@@ -524,23 +528,23 @@ class _ProductAdFullDetailsScreenState
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
+                  style: TextStyle(
+                    color: AppColors.ink,
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
-              const Icon(
+              MotionIcon(
                 Icons.person_pin_circle_outlined,
                 color: AppColors.textSecondary,
                 size: 17,
               ),
             ],
           ),
-          Text(
+          CountText(
             '${l10n.productSellerLabel} $merchant',
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 10,
             ),
@@ -570,7 +574,7 @@ class _ProductAdFullDetailsScreenState
             controller: _priceController,
             keyboardType: TextInputType.number,
             decoration: _inputDecoration(
-              suffix: Text(widget.isArabic ? 'ر.س' : 'SAR'),
+              suffix: Text(widget.isArabic ? 'ج.م' : 'EGP'),
             ),
           ),
           const SizedBox(height: 13),
@@ -582,7 +586,7 @@ class _ProductAdFullDetailsScreenState
               ),
               Text(
                 l10n.productWarrantyLabel,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.info,
                   fontSize: 9,
                 ),
@@ -624,7 +628,7 @@ class _ProductAdFullDetailsScreenState
               l10n.productDescriptionCharacterCount(
                 _descriptionController.text.length,
               ),
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.info,
                 fontSize: 9,
               ),
@@ -633,7 +637,7 @@ class _ProductAdFullDetailsScreenState
           const SizedBox(height: 5),
           Text(
             l10n.productDescriptionSafetyCheck,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 9,
             ),
@@ -648,15 +652,15 @@ class _ProductAdFullDetailsScreenState
       TextSpan(
         children: [
           if (required)
-            const TextSpan(
+            TextSpan(
               text: '* ',
               style: TextStyle(color: AppColors.danger, fontSize: 13),
             ),
           TextSpan(text: label),
         ],
       ),
-      style: const TextStyle(
-        color: AppColors.primaryDark,
+      style: TextStyle(
+        color: AppColors.ink,
         fontSize: 12,
         fontWeight: FontWeight.w600,
       ),
@@ -673,7 +677,7 @@ class _ProductAdFullDetailsScreenState
       suffix: suffix,
       counterText: counterText,
       filled: true,
-      fillColor: const Color(0xFFF0F2F4),
+      fillColor: AppColors.surfaceLight,
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
@@ -695,12 +699,12 @@ class _ProductAdFullDetailsScreenState
         children: [
           Row(
             children: [
-              const Icon(Icons.history, color: AppColors.info, size: 19),
+              MotionIcon(Icons.history, color: AppColors.info, size: 19),
               const SizedBox(width: 7),
               Text(
                 l10n.productAdHistoryTitle,
-                style: const TextStyle(
-                  color: AppColors.primaryDark,
+                style: TextStyle(
+                  color: AppColors.ink,
                   fontWeight: FontWeight.bold,
                   fontSize: 14,
                 ),
@@ -736,16 +740,16 @@ class _ProductAdFullDetailsScreenState
             width: 24,
             child: Column(
               children: [
-                Icon(
+                MotionIcon(
                   icon,
                   size: 19,
-                  color: isLast ? AppColors.info : AppColors.primaryDark,
+                  color: isLast ? AppColors.info : AppColors.ink,
                 ),
                 if (!isLast)
                   Expanded(
                     child: Container(
                       width: 1.5,
-                      color: const Color(0xFFD7DFE6),
+                      color: AppColors.cardBorder,
                     ),
                   ),
               ],
@@ -761,7 +765,7 @@ class _ProductAdFullDetailsScreenState
                   Text(
                     title,
                     style: TextStyle(
-                      color: isLast ? AppColors.primaryDark : AppColors.info,
+                      color: isLast ? AppColors.ink : AppColors.info,
                       fontSize: 10,
                       fontWeight: isLast ? FontWeight.bold : FontWeight.normal,
                     ),
@@ -769,7 +773,7 @@ class _ProductAdFullDetailsScreenState
                   if (time.isNotEmpty)
                     Text(
                       time,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 9,
                       ),
@@ -787,18 +791,18 @@ class _ProductAdFullDetailsScreenState
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF0F2F4),
+        color: AppColors.surfaceLight,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.security_outlined, color: AppColors.info, size: 19),
+          MotionIcon(Icons.security_outlined, color: AppColors.info, size: 19),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               l10n.productEditPermissionHint,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 9,
                 height: 1.4,
@@ -815,13 +819,13 @@ class _ProductAdFullDetailsScreenState
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Row(
         children: [
-          const Icon(Icons.verified_user_outlined,
+          MotionIcon(Icons.verified_user_outlined,
               color: AppColors.info, size: 18),
           const SizedBox(width: 7),
           Expanded(
             child: Text(
               l10n.productFinalDecisionLabel,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 10,
               ),
@@ -836,7 +840,7 @@ class _ProductAdFullDetailsScreenState
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(17),
       ),
       child: child,
@@ -847,12 +851,12 @@ class _ProductAdFullDetailsScreenState
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFFEDEFF1),
+        color: AppColors.surfaceLight,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
         label,
-        style: const TextStyle(
+        style: TextStyle(
           color: AppColors.textSecondary,
           fontSize: 8,
         ),
@@ -882,7 +886,7 @@ class _ProductAdFullDetailsScreenState
       return;
     }
 
-    final localizedPrice = widget.isArabic ? '$price ر.س' : 'SAR $price';
+    final localizedPrice = widget.isArabic ? '$price ج.م' : 'EGP $price';
     final updatedProduct = widget.product.copyWith(
       category: _category,
       condition: _condition,
@@ -947,12 +951,12 @@ class _ProductAdFullDetailsScreenState
       };
 
   Color _accent(ProductImageKind kind) => switch (kind) {
-        ProductImageKind.watch => const Color(0xFF7995AF),
-        ProductImageKind.appliance => const Color(0xFF93A2AB),
-        ProductImageKind.camera => const Color(0xFF414C57),
-        ProductImageKind.phone => const Color(0xFF798A9D),
-        ProductImageKind.fragrance => const Color(0xFF947F68),
-        ProductImageKind.tool => const Color(0xFF7C8872),
+        ProductImageKind.watch => AppColors.info,
+        ProductImageKind.appliance => AppColors.textMuted,
+        ProductImageKind.camera => AppColors.textPrimary,
+        ProductImageKind.phone => AppColors.textSecondary,
+        ProductImageKind.fragrance => AppColors.textSecondary,
+        ProductImageKind.tool => AppColors.textSecondary,
       };
 
   Future<void> _showInquiry(

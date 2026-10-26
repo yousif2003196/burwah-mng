@@ -1,7 +1,7 @@
 import 'package:dartz/dartz.dart';
 
-import '../../../../core/errors/failures.dart';
-import '../repositories/finance_repository.dart';
+import 'package:barwah_app/core/errors/failures.dart';
+import 'package:barwah_app/features/finance/domain/repositories/finance_repository.dart';
 
 class RequestIbanCertificateUseCase {
   final FinanceRepository repository;

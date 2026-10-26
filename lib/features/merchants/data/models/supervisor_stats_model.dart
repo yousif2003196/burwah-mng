@@ -1,4 +1,4 @@
-import '../../domain/entities/supervisor_stats_entity.dart';
+import 'package:barwah_app/features/merchants/domain/entities/supervisor_stats_entity.dart';
 
 class SupervisorStatsModel extends SupervisorStatsEntity {
   const SupervisorStatsModel({

@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
-import '../../../domain/entities/bank_account_edit_request_entity.dart';
-import '../../../domain/entities/bank_account_entity.dart';
+
+import 'package:barwah_app/features/finance/domain/entities/bank_account_edit_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/bank_account_entity.dart';
 
 abstract class BankAccountsState extends Equatable {
   const BankAccountsState();

@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/di/injection_container.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../../finance/domain/entities/withdrawal_request_entity.dart';
-import '../../../finance/domain/repositories/finance_repository.dart';
-import '../../../finance/presentation/utils/financial_request_notifications.dart';
-import '../../../finance/presentation/widgets/withdrawal_request_details_sheet.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/features/finance/domain/entities/withdrawal_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/repositories/finance_repository.dart';
+import 'package:barwah_app/features/finance/presentation/utils/financial_request_notifications.dart';
+import 'package:barwah_app/features/finance/presentation/widgets/withdrawal_request_details_sheet.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 enum _WalletPayoutMethod { instapay, mobileWallet, bank }
 
@@ -122,16 +125,16 @@ class _ServicesSupervisorWalletScreenState
     return Directionality(
       textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF5F7F9),
+        backgroundColor: AppColors.scaffold,
         appBar: AppBar(
-          backgroundColor: Colors.white,
+          backgroundColor: AppColors.surface,
           foregroundColor: AppColors.textPrimary,
           elevation: 0,
           centerTitle: true,
           leading: IconButton(
             tooltip: l10n.servicesWalletBack,
             onPressed: () => Navigator.of(context).maybePop(),
-            icon: Icon(isArabic ? Icons.arrow_forward : Icons.arrow_back),
+            icon: MotionIcon(isArabic ? Icons.arrow_forward : Icons.arrow_back),
           ),
           title: Text(
             l10n.servicesWalletTitle,
@@ -141,13 +144,13 @@ class _ServicesSupervisorWalletScreenState
         body: ListView(
           padding: const EdgeInsets.fromLTRB(18, 10, 18, 24),
           children: [
-            _WalletSummaryCard(l10n: l10n),
+            ScrollFx(child: _WalletSummaryCard(l10n: l10n)),
             const SizedBox(height: 15),
-            _buildWithdrawalForm(l10n),
+            ScrollFx(child: _buildWithdrawalForm(l10n)),
             const SizedBox(height: 18),
-            _buildHistory(l10n),
+            ScrollFx(child: _buildHistory(l10n)),
             const SizedBox(height: 14),
-            _buildComplianceNote(l10n),
+            ScrollFx(child: _buildComplianceNote(l10n)),
           ],
         ),
       ),
@@ -158,9 +161,9 @@ class _ServicesSupervisorWalletScreenState
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5EAF0)),
+        border: Border.all(color: AppColors.surfaceHighlight),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -172,14 +175,14 @@ class _ServicesSupervisorWalletScreenState
                   _operationType == FinancialOperationType.withdrawal
                       ? l10n.servicesWalletWithdrawalTitle
                       : l10n.financeWalletDepositTitle,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
-              const Icon(
+              MotionIcon(
                 Icons.currency_exchange_outlined,
                 color: AppColors.infoDark,
               ),
@@ -222,7 +225,7 @@ class _ServicesSupervisorWalletScreenState
             _operationType == FinancialOperationType.withdrawal
                 ? l10n.financeWalletWithdrawalNote
                 : l10n.financeWalletDepositNote,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 11,
               height: 1.45,
@@ -231,7 +234,7 @@ class _ServicesSupervisorWalletScreenState
           const SizedBox(height: 12),
           Text(
             l10n.servicesWalletAmountLabel,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 12,
             ),
@@ -245,7 +248,7 @@ class _ServicesSupervisorWalletScreenState
             decoration: InputDecoration(
               suffixText: l10n.servicesProfileCurrency,
               filled: true,
-              fillColor: const Color(0xFFF1F3F5),
+              fillColor: AppColors.surfaceLight,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
@@ -280,7 +283,7 @@ class _ServicesSupervisorWalletScreenState
           const SizedBox(height: 16),
           Text(
             l10n.servicesWalletMethodTitle,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textPrimary,
               fontWeight: FontWeight.w700,
               fontSize: 13,
@@ -350,13 +353,13 @@ class _ServicesSupervisorWalletScreenState
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFFF1F3F5),
+              color: AppColors.surfaceLight,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(
+                MotionIcon(
                   Icons.policy_outlined,
                   color: AppColors.infoDark,
                   size: 19,
@@ -365,7 +368,7 @@ class _ServicesSupervisorWalletScreenState
                 Expanded(
                   child: Text(
                     l10n.servicesWalletReviewNote,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 11,
                       height: 1.55,
@@ -381,7 +384,7 @@ class _ServicesSupervisorWalletScreenState
             child: FilledButton.icon(
               key: const ValueKey('services_wallet_submit'),
               onPressed: _isSubmitting ? null : () => _submitRequest(l10n),
-              icon: const Icon(Icons.check_circle_outline),
+              icon: const MotionIcon(Icons.check_circle_outline),
               label: Text(
                 _operationType == FinancialOperationType.withdrawal
                     ? l10n.servicesWalletSubmit
@@ -415,9 +418,9 @@ class _ServicesSupervisorWalletScreenState
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFEDF3FF) : const Color(0xFFF1F3F5),
+          color: isSelected ? AppColors.infoLight : AppColors.surfaceLight,
           border: Border.all(
-            color: isSelected ? const Color(0xFFD7E3F7) : Colors.transparent,
+            color: isSelected ? AppColors.infoBorder : Colors.transparent,
           ),
           borderRadius: BorderRadius.circular(13),
         ),
@@ -426,7 +429,7 @@ class _ServicesSupervisorWalletScreenState
           children: [
             Row(
               children: [
-                Icon(icon, color: AppColors.infoDark, size: 20),
+                MotionIcon(icon, color: AppColors.infoDark, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Column(
@@ -434,7 +437,7 @@ class _ServicesSupervisorWalletScreenState
                     children: [
                       Text(
                         title,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
@@ -442,7 +445,7 @@ class _ServicesSupervisorWalletScreenState
                       ),
                       Text(
                         subtitle,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 10,
                         ),
@@ -468,7 +471,7 @@ class _ServicesSupervisorWalletScreenState
   InputDecoration _destinationDecoration(String label) => InputDecoration(
         labelText: label,
         filled: true,
-        fillColor: Colors.white,
+        fillColor: AppColors.surface,
         isDense: true,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
@@ -485,7 +488,7 @@ class _ServicesSupervisorWalletScreenState
             Expanded(
               child: Text(
                 l10n.servicesWalletHistoryTitle,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
@@ -494,7 +497,7 @@ class _ServicesSupervisorWalletScreenState
             ),
             TextButton.icon(
               onPressed: _isLoadingRequests ? null : _loadRequests,
-              icon: const Icon(Icons.refresh, size: 16),
+              icon: const MotionIcon(Icons.refresh, size: 16),
               label: Text(l10n.refreshBalances),
             ),
           ],
@@ -504,7 +507,7 @@ class _ServicesSupervisorWalletScreenState
         else if (_requestsLoadFailed)
           TextButton.icon(
             onPressed: _loadRequests,
-            icon: const Icon(Icons.refresh),
+            icon: const MotionIcon(Icons.refresh),
             label: Text(l10n.financeWalletHistoryLoadError),
           )
         else if (_requests.isEmpty)
@@ -513,7 +516,7 @@ class _ServicesSupervisorWalletScreenState
             child: Text(
               l10n.financeWalletNoRequests,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.textSecondary),
+              style: TextStyle(color: AppColors.textSecondary),
             ),
           )
         else
@@ -538,12 +541,12 @@ class _ServicesSupervisorWalletScreenState
     return Container(
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: const Color(0xFFF1F3F5),
+        color: AppColors.surfaceLight,
         borderRadius: BorderRadius.circular(13),
       ),
       child: Row(
         children: [
-          const Icon(Icons.security_outlined, color: AppColors.infoDark),
+          MotionIcon(Icons.security_outlined, color: AppColors.infoDark),
           const SizedBox(width: 9),
           Expanded(
             child: Column(
@@ -551,8 +554,8 @@ class _ServicesSupervisorWalletScreenState
               children: [
                 Text(
                   l10n.servicesWalletComplianceTitle,
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
+                  style: TextStyle(
+                    color: AppColors.ink,
                     fontWeight: FontWeight.w800,
                     fontSize: 12,
                   ),
@@ -560,7 +563,7 @@ class _ServicesSupervisorWalletScreenState
                 const SizedBox(height: 4),
                 Text(
                   l10n.servicesWalletComplianceBody,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 10,
                     height: 1.5,
@@ -719,6 +722,8 @@ class _WalletSummaryCard extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
+          gradient: AppColors.blueFill,
+          border: AppColors.blueEdge,
           color: AppColors.primaryDark,
           borderRadius: BorderRadius.circular(17),
           boxShadow: [
@@ -734,17 +739,17 @@ class _WalletSummaryCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(
+                MotionIcon(
                   Icons.account_balance_wallet_outlined,
-                  color: Color(0xFFA7C8FF),
+                  color: AppColors.infoBorder,
                   size: 20,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     l10n.servicesWalletSummaryTitle,
-                    style: const TextStyle(
-                      color: Color(0xFFB5C7DF),
+                    style: TextStyle(
+                      color: AppColors.info,
                       fontSize: 12,
                     ),
                   ),
@@ -758,13 +763,13 @@ class _WalletSummaryCard extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.circle,
-                          color: Color(0xFF28C88A), size: 7),
+                      MotionIcon(Icons.circle,
+                          color: AppColors.success, size: 7),
                       const SizedBox(width: 5),
                       Text(
                         l10n.servicesWalletLiveUpdate,
-                        style: const TextStyle(
-                          color: Color(0xFFD7E2EF),
+                        style: TextStyle(
+                          color: AppColors.cardBorder,
                           fontSize: 9,
                         ),
                       ),
@@ -776,8 +781,8 @@ class _WalletSummaryCard extends StatelessWidget {
             const SizedBox(height: 18),
             Text(
               l10n.servicesWalletTotalBalance,
-              style: const TextStyle(
-                color: Color(0xFFB5C7DF),
+              style: TextStyle(
+                color: AppColors.info,
                 fontSize: 11,
               ),
             ),
@@ -795,8 +800,8 @@ class _WalletSummaryCard extends StatelessWidget {
                   ),
                   TextSpan(
                     text: l10n.servicesProfileCurrency,
-                    style: const TextStyle(
-                      color: Color(0xFFD7E2EF),
+                    style: TextStyle(
+                      color: AppColors.cardBorder,
                       fontSize: 13,
                     ),
                   ),
@@ -812,7 +817,7 @@ class _WalletSummaryCard extends StatelessWidget {
                     amount: '4,850',
                     detail: l10n.servicesWalletReadyForTransfer,
                     icon: Icons.circle,
-                    iconColor: const Color(0xFF28C88A),
+                    iconColor: AppColors.success,
                     l10n: l10n,
                   ),
                 ),
@@ -823,7 +828,7 @@ class _WalletSummaryCard extends StatelessWidget {
                     amount: '1,200',
                     detail: l10n.servicesWalletExpectedThisWeek,
                     icon: Icons.hourglass_bottom,
-                    iconColor: const Color(0xFFFFD54F),
+                    iconColor: AppColors.warning,
                     l10n: l10n,
                   ),
                 ),
@@ -838,22 +843,22 @@ class _WalletSummaryCard extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Icon(
+                  MotionIcon(
                     Icons.verified_user_outlined,
-                    color: Color(0xFFA7C8FF),
+                    color: AppColors.infoBorder,
                     size: 17,
                   ),
                   const SizedBox(width: 7),
                   Expanded(
                     child: Text(
                       l10n.servicesWalletMonthlyCommissions,
-                      style: const TextStyle(
-                        color: Color(0xFFD7E2EF),
+                      style: TextStyle(
+                        color: AppColors.cardBorder,
                         fontSize: 10,
                       ),
                     ),
                   ),
-                  Text(
+                  CountText(
                     '3,500 ${l10n.servicesProfileCurrency}',
                     style: const TextStyle(
                       color: Colors.white,
@@ -901,17 +906,17 @@ class _BalanceMetric extends StatelessWidget {
                 Expanded(
                   child: Text(
                     title,
-                    style: const TextStyle(
-                      color: Color(0xFFB5C7DF),
+                    style: TextStyle(
+                      color: AppColors.info,
                       fontSize: 9,
                     ),
                   ),
                 ),
-                Icon(icon, color: iconColor, size: 9),
+                MotionIcon(icon, color: iconColor, size: 9),
               ],
             ),
             const SizedBox(height: 7),
-            Text(
+            CountText(
               '$amount ${l10n.servicesProfileCurrency}',
               style: const TextStyle(
                 color: Colors.white,
@@ -948,7 +953,7 @@ class _AmountPreset extends StatelessWidget {
           style: FilledButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 6),
             backgroundColor:
-                emphasized ? AppColors.primaryDark : const Color(0xFFF1F3F5),
+                emphasized ? AppColors.primaryDark : AppColors.surfaceLight,
             foregroundColor:
                 emphasized ? Colors.white : AppColors.textSecondary,
             textStyle:
@@ -993,12 +998,12 @@ class _WalletTransaction {
       RequestStatus.rejected => l10n.withdrawalDetailsStatusRejected,
     };
     final statusColor = switch (request.status) {
-      RequestStatus.pending => const Color(0xFFFFF0C2),
+      RequestStatus.pending => AppColors.warningBorder,
       RequestStatus.underInvestigation ||
       RequestStatus.frozen =>
-        const Color(0xFFFFE1E1),
-      RequestStatus.approved => const Color(0xFFDDF5EA),
-      RequestStatus.rejected => const Color(0xFFFFE1E1),
+        AppColors.dangerLight,
+      RequestStatus.approved => AppColors.successBorder,
+      RequestStatus.rejected => AppColors.dangerLight,
     };
     return _WalletTransaction(
       amount: request.netAmount.toStringAsFixed(
@@ -1019,7 +1024,7 @@ class _WalletTransaction {
                   request.status == RequestStatus.frozen ||
                   request.status == RequestStatus.underInvestigation
               ? AppColors.danger
-              : const Color(0xFFCF7900),
+              : AppColors.warningDark,
       statusColor: statusColor,
     );
   }
@@ -1038,16 +1043,16 @@ class _TransactionTile extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(11),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFE8EDF2)),
+          border: Border.all(color: AppColors.surfaceHighlight),
         ),
         child: Row(
           children: [
             CircleAvatar(
               radius: 17,
               backgroundColor: transaction.statusColor,
-              child: Icon(transaction.icon, color: transaction.color, size: 18),
+              child: MotionIcon(transaction.icon, color: transaction.color, size: 18),
             ),
             const SizedBox(width: 9),
             Expanded(
@@ -1057,9 +1062,9 @@ class _TransactionTile extends StatelessWidget {
                   Row(
                     children: [
                       Expanded(
-                        child: Text(
+                        child: CountText(
                           '${transaction.amount} ${l10n.servicesProfileCurrency}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: AppColors.textPrimary,
                             fontWeight: FontWeight.w800,
                             fontSize: 14,
@@ -1070,7 +1075,7 @@ class _TransactionTile extends StatelessWidget {
                         child: Text(
                           transaction.title,
                           textAlign: TextAlign.end,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: AppColors.textSecondary,
                             fontSize: 10,
                           ),
@@ -1084,7 +1089,7 @@ class _TransactionTile extends StatelessWidget {
                       Expanded(
                         child: Text(
                           '#${transaction.reference}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: AppColors.textMuted,
                             fontSize: 9,
                           ),
@@ -1094,7 +1099,7 @@ class _TransactionTile extends StatelessWidget {
                         child: Text(
                           transaction.detail,
                           textAlign: TextAlign.end,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: AppColors.textSecondary,
                             fontSize: 9,
                           ),

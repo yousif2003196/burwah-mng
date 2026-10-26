@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/widgets/app_snack_bar.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../data/merchant_advertisement_local_store.dart';
-import '../../data/merchant_supervisor_local_store.dart';
-import '../../domain/entities/merchant_entity.dart';
-import 'merchant_conversation_screen.dart';
-import 'merchant_pending_operations_screen.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/widgets/app_snack_bar.dart';
+import 'package:barwah_app/features/merchants/data/datasources/merchant_advertisement_local_store.dart';
+import 'package:barwah_app/features/merchants/data/datasources/merchant_supervisor_local_store.dart';
+import 'package:barwah_app/features/merchants/domain/entities/merchant_entity.dart';
+import 'package:barwah_app/features/merchants/domain/entities/merchant_supervisor_audit_event.dart';
+import 'package:barwah_app/features/merchants/presentation/screens/merchant_conversation_screen.dart';
+import 'package:barwah_app/features/merchants/presentation/screens/merchant_pending_operations_screen.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class MerchantDetailsScreen extends StatefulWidget {
   final MerchantEntity merchant;
@@ -130,16 +134,16 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
     final isArabic = l10n.localeName.startsWith('ar');
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7F9),
+      backgroundColor: AppColors.scaffold,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: AppColors.primaryDark,
+        backgroundColor: AppColors.surface,
+        foregroundColor: AppColors.ink,
         elevation: 0,
         centerTitle: true,
         automaticallyImplyLeading: false,
         leading: IconButton(
           tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-          icon: Icon(isArabic ? Icons.arrow_forward : Icons.arrow_back),
+          icon: MotionIcon(isArabic ? Icons.arrow_forward : Icons.arrow_back),
           onPressed: () => Navigator.of(context).maybePop(),
         ),
         title: Text(
@@ -151,10 +155,10 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
             padding: const EdgeInsetsDirectional.only(end: 12),
             child: Semantics(
               label: l10n.merchantInfoProfile,
-              child: const CircleAvatar(
+              child: CircleAvatar(
                 radius: 15,
                 backgroundColor: AppColors.primaryDark,
-                child: Icon(
+                child: MotionIcon(
                   Icons.person_outline,
                   color: Colors.white,
                   size: 18,
@@ -173,17 +177,17 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
               margin: const EdgeInsets.only(bottom: 16),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: const Color(0xFFE2E8F0),
+                color: AppColors.cardBorder,
                 borderRadius: BorderRadius.circular(18),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.circle, color: Color(0xFF10B981), size: 8),
+                  MotionIcon(Icons.circle, color: AppColors.success, size: 8),
                   const SizedBox(width: 6),
                   Text(
                     l10n.merchantInfoLiveMonitoring,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 10,
                     ),
@@ -192,17 +196,17 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
               ),
             ),
           ),
-          _buildSummaryCard(l10n, isArabic),
+          ScrollFx(child: _buildSummaryCard(l10n, isArabic)),
           const SizedBox(height: 18),
-          _buildActionButtons(l10n),
+          ScrollFx(child: _buildActionButtons(l10n)),
           const SizedBox(height: 18),
-          _buildSettingsCard(l10n),
+          ScrollFx(child: _buildSettingsCard(l10n)),
           const SizedBox(height: 18),
-          _buildBusinessInfoCard(l10n, isArabic),
+          ScrollFx(child: _buildBusinessInfoCard(l10n, isArabic)),
           const SizedBox(height: 18),
-          _buildAdvertisementsCard(l10n, isArabic),
+          ScrollFx(child: _buildAdvertisementsCard(l10n, isArabic)),
           const SizedBox(height: 18),
-          _buildInvestigationHistoryCard(l10n, isArabic),
+          ScrollFx(child: _buildInvestigationHistoryCard(l10n, isArabic)),
         ],
       ),
     );
@@ -219,8 +223,8 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
             isArabic
                 ? 'سجل التحقيقات والإجراءات'
                 : 'Investigation & action history',
-            style: const TextStyle(
-                fontWeight: FontWeight.bold, color: AppColors.primaryDark),
+            style: TextStyle(
+                fontWeight: FontWeight.bold, color: AppColors.ink),
           ),
           const SizedBox(height: 8),
           if (_merchantAuditEvents.isEmpty)
@@ -229,13 +233,13 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
                   ? 'لا توجد إجراءات رقابية مسجلة لهذا التاجر حتى الآن.'
                   : 'No supervisory actions have been recorded for this merchant yet.',
               style:
-                  const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                  TextStyle(color: AppColors.textSecondary, fontSize: 12),
             )
           else
             ..._merchantAuditEvents.map((event) => ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.policy_outlined,
-                      color: AppColors.primaryDark),
+                  leading: MotionIcon(Icons.policy_outlined,
+                      color: AppColors.ink),
                   title: Text(event.action,
                       style: const TextStyle(
                           fontSize: 13, fontWeight: FontWeight.w600)),
@@ -249,7 +253,7 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
                 ? 'يعرض هذا السجل الإجراءات المحفوظة في التطبيق على هذا الجهاز.'
                 : 'This history includes actions saved locally on this device.',
             style:
-                const TextStyle(color: AppColors.textSecondary, fontSize: 10),
+                TextStyle(color: AppColors.textSecondary, fontSize: 10),
           ),
         ],
       ),
@@ -268,10 +272,10 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
                 width: 64,
                 height: 64,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF315782),
+                  color: AppColors.infoDark,
                   borderRadius: BorderRadius.circular(13),
                 ),
-                child: Icon(
+                child: MotionIcon(
                   merchant.logoIcon ?? merchant.categoryIcon,
                   size: 34,
                   color: Colors.white,
@@ -285,8 +289,8 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
                     _badge(
                       _statusLabel(l10n),
                       _isSuspended
-                          ? const Color(0xFFFFE8E6)
-                          : const Color(0xFFE7F8F1),
+                          ? AppColors.dangerLight
+                          : AppColors.successBorder,
                       _isSuspended ? AppColors.danger : AppColors.success,
                     ),
                     const SizedBox(height: 10),
@@ -295,8 +299,8 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
                       textAlign: TextAlign.end,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.primaryDark,
+                      style: TextStyle(
+                        color: AppColors.ink,
                         fontWeight: FontWeight.bold,
                         fontSize: 17,
                       ),
@@ -308,7 +312,7 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
                       ),
                       textAlign: TextAlign.end,
                       maxLines: 2,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 10,
                       ),
@@ -338,7 +342,7 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
                                 _countAds(MerchantAdvertisementStatus.approved))
                             .toString(),
                       ),
-                      const Color(0xFFE0F5EC),
+                      AppColors.successBorder,
                       AppColors.success,
                     ),
                     const SizedBox(height: 5),
@@ -350,8 +354,8 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
                                 ))
                             .toString(),
                       ),
-                      const Color(0xFFFFF3D6),
-                      const Color(0xFFAC6900),
+                      AppColors.warningBorder,
+                      AppColors.warningDark,
                     ),
                   ],
                 ),
@@ -360,10 +364,10 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
                 width: 34,
                 height: 34,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEAF0FF),
+                  color: AppColors.infoLight,
                   borderRadius: BorderRadius.circular(9),
                 ),
-                child: const Icon(
+                child: MotionIcon(
                   Icons.query_stats,
                   color: AppColors.info,
                   size: 18,
@@ -383,8 +387,8 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
           child: _actionButton(
             l10n.merchantInfoPendingOperations,
             Icons.pause,
-            const Color(0xFFFFD9D6),
-            const Color(0xFFB42318),
+            AppColors.dangerBorder,
+            AppColors.dangerDark,
             () => Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) =>
@@ -402,7 +406,7 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
             _isSuspended
                 ? Icons.play_circle_outline
                 : Icons.warning_amber_rounded,
-            _isSuspended ? AppColors.successDark : const Color(0xFFF59E0B),
+            _isSuspended ? AppColors.successDark : AppColors.warning,
             _isSuspended ? Colors.white : AppColors.primaryDark,
             _isSuspended ? _liftMerchantSuspension : _showSuspensionSheet,
           ),
@@ -533,7 +537,7 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 16),
+            MotionIcon(icon, size: 16),
             const SizedBox(width: 4),
             Flexible(
               child: Text(
@@ -566,7 +570,7 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
           Text(
             l10n.merchantInfoFinancialSettingsDescription,
             textAlign: TextAlign.end,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 10,
             ),
@@ -575,21 +579,21 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFFF1F3F5),
+              color: AppColors.surfaceLight,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFD2D8DE)),
+              border: Border.all(color: AppColors.cardBorder),
             ),
             child: Row(
               children: [
-                const Icon(Icons.verified_user_outlined,
+                MotionIcon(Icons.verified_user_outlined,
                     color: AppColors.info, size: 18),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     l10n.merchantInfoCfoPermission,
                     textAlign: TextAlign.end,
-                    style: const TextStyle(
-                      color: AppColors.primaryDark,
+                    style: TextStyle(
+                      color: AppColors.ink,
                       fontSize: 10,
                     ),
                   ),
@@ -604,26 +608,29 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
+                  gradient: AppColors.blueFill,
+                  border: AppColors.blueEdge,
+                  boxShadow: AppColors.blueGlow,
                   color: AppColors.primaryDark,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.payments_outlined,
+                child: const MotionIcon(Icons.payments_outlined,
                     color: Colors.white, size: 18),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   l10n.merchantInfoSalesCommission,
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
+                  style: TextStyle(
+                    color: AppColors.ink,
                     fontWeight: FontWeight.w600,
                     fontSize: 13,
                   ),
                 ),
               ),
-              Text(
+              CountText(
                 '${_commissionPercent.toStringAsFixed(1)}%',
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.info,
                   fontWeight: FontWeight.bold,
                   fontSize: 15,
@@ -645,8 +652,8 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
               Expanded(
                 child: _badge(
                   l10n.merchantInfoPercentage,
-                  Colors.white,
-                  AppColors.primaryDark,
+                  AppColors.surface,
+                  AppColors.ink,
                 ),
               ),
             ],
@@ -655,7 +662,7 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppColors.surface,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: AppColors.cardBorder),
             ),
@@ -673,7 +680,7 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
                     Expanded(
                       child: FilledButton.icon(
                         onPressed: _isSavingCommission ? null : _saveCommission,
-                        icon: const Icon(Icons.save_outlined, size: 15),
+                        icon: const MotionIcon(Icons.save_outlined, size: 15),
                         label: Text(l10n.merchantInfoSave),
                         style: FilledButton.styleFrom(
                           backgroundColor: AppColors.primaryDark,
@@ -708,7 +715,7 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
                 Text(
                   l10n.merchantInfoCommissionExample,
                   textAlign: TextAlign.end,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 9,
                   ),
@@ -725,7 +732,7 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
                     l10n.finRequestCurrency,
                   ),
                   textAlign: TextAlign.end,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.success,
                     fontWeight: FontWeight.bold,
                     fontSize: 13,
@@ -803,7 +810,7 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF1F3F5),
+                  color: AppColors.surfaceLight,
                   borderRadius: BorderRadius.circular(11),
                 ),
                 child: Row(
@@ -812,12 +819,12 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
                       width: 38,
                       height: 38,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFE1E4E7),
+                        color: AppColors.cardBorder,
                         borderRadius: BorderRadius.circular(9),
                       ),
-                      child: Icon(
+                      child: MotionIcon(
                         merchant.adsIcon,
-                        color: AppColors.primaryDark,
+                        color: AppColors.ink,
                         size: 20,
                       ),
                     ),
@@ -831,8 +838,8 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             textAlign: TextAlign.end,
-                            style: const TextStyle(
-                              color: AppColors.primaryDark,
+                            style: TextStyle(
+                              color: AppColors.ink,
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                             ),
@@ -840,7 +847,7 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
                           Text(
                             '${ad.reference} • ${ad.price} ${l10n.finRequestCurrency}',
                             textAlign: TextAlign.end,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: AppColors.textSecondary,
                               fontSize: 9,
                             ),
@@ -875,14 +882,14 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
   }) {
     return Row(
       children: [
-        Icon(icon, color: AppColors.primaryDark, size: 18),
+        MotionIcon(icon, color: AppColors.ink, size: 18),
         const SizedBox(width: 7),
         Expanded(
           child: Text(
             title,
             textAlign: TextAlign.end,
-            style: const TextStyle(
-              color: AppColors.primaryDark,
+            style: TextStyle(
+              color: AppColors.ink,
               fontWeight: FontWeight.bold,
               fontSize: 14,
             ),
@@ -896,7 +903,7 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
               borderRadius: BorderRadius.circular(18),
               child: _badge(
                 trailing,
-                const Color(0xFFEAF0FF),
+                AppColors.infoLight,
                 AppColors.info,
               ),
             ),
@@ -911,15 +918,15 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF1F3F5),
+        color: AppColors.surfaceLight,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
           CircleAvatar(
             radius: 16,
-            backgroundColor: const Color(0xFFE7E9EC),
-            child: Icon(icon, size: 16, color: AppColors.textSecondary),
+            backgroundColor: AppColors.surfaceHighlight,
+            child: MotionIcon(icon, size: 16, color: AppColors.textSecondary),
           ),
           const SizedBox(width: 6),
           Expanded(
@@ -929,18 +936,18 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
                 Text(
                   title,
                   textAlign: TextAlign.start,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 9,
                   ),
                 ),
                 const SizedBox(height: 2),
-                Text(
+                CountText(
                   value,
                   textAlign: TextAlign.start,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 13,
                   ),
@@ -965,24 +972,24 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
             width: 34,
             height: 34,
             decoration: BoxDecoration(
-              color: const Color(0xFFEAF0FF),
+              color: AppColors.infoLight,
               borderRadius: BorderRadius.circular(9),
             ),
-            child: Icon(icon, color: AppColors.info, size: 18),
+            child: MotionIcon(icon, color: AppColors.info, size: 18),
           ),
           const SizedBox(width: 6),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(value,
+                CountText(value,
                     style: const TextStyle(
                         fontSize: 14, fontWeight: FontWeight.bold)),
                 Text(
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: AppColors.textSecondary, fontSize: 8),
                 ),
               ],
@@ -995,10 +1002,10 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
 
   Widget _merchantTierBadge(AppLocalizations l10n, bool isFeatured) {
     final foreground =
-        isFeatured ? const Color(0xFF9A6700) : AppColors.textSecondary;
+        isFeatured ? AppColors.warningDark : AppColors.textSecondary;
     return _badge(
       isFeatured ? l10n.merchantFeaturedBadge : l10n.merchantStandardBadge,
-      isFeatured ? const Color(0xFFFFF4CC) : const Color(0xFFF1F3F5),
+      isFeatured ? AppColors.warningBorder : AppColors.surfaceLight,
       foreground,
     );
   }
@@ -1025,7 +1032,7 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
   }
 
   BoxDecoration _cardDecoration() => BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.cardBorder),
       );
@@ -1071,8 +1078,8 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
             maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.78,
           ),
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(
+            color: AppColors.surface,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Column(
@@ -1082,15 +1089,15 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
                 width: 42,
                 height: 5,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFC5C8CE),
+                  color: AppColors.textMuted,
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
               const SizedBox(height: 14),
               Text(
                 l10n.merchantInfoShowAll(advertisements.length.toString()),
-                style: const TextStyle(
-                  color: AppColors.primaryDark,
+                style: TextStyle(
+                  color: AppColors.ink,
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
                 ),
@@ -1155,14 +1162,14 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
     MerchantAdvertisementStatus status,
   ) =>
       switch (status) {
-        MerchantAdvertisementStatus.approved => const Color(0xFFE0F5EC),
+        MerchantAdvertisementStatus.approved => AppColors.successBorder,
         MerchantAdvertisementStatus.awaitingFinance ||
         MerchantAdvertisementStatus.awaitingManagement =>
-          const Color(0xFFEAF0FF),
-        MerchantAdvertisementStatus.underReview => const Color(0xFFFFF3D6),
-        MerchantAdvertisementStatus.rejected => const Color(0xFFFFE8E6),
-        MerchantAdvertisementStatus.frozen => const Color(0xFFE8EAED),
-        MerchantAdvertisementStatus.hidden => const Color(0xFFE8EAED),
+          AppColors.infoLight,
+        MerchantAdvertisementStatus.underReview => AppColors.warningBorder,
+        MerchantAdvertisementStatus.rejected => AppColors.dangerLight,
+        MerchantAdvertisementStatus.frozen => AppColors.surfaceHighlight,
+        MerchantAdvertisementStatus.hidden => AppColors.surfaceHighlight,
       };
 
   Color _advertisementStatusForeground(
@@ -1173,9 +1180,9 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
         MerchantAdvertisementStatus.awaitingFinance ||
         MerchantAdvertisementStatus.awaitingManagement =>
           AppColors.info,
-        MerchantAdvertisementStatus.underReview => const Color(0xFFAC6900),
+        MerchantAdvertisementStatus.underReview => AppColors.warningDark,
         MerchantAdvertisementStatus.rejected => AppColors.danger,
-        MerchantAdvertisementStatus.frozen => const Color(0xFF805800),
+        MerchantAdvertisementStatus.frozen => AppColors.warningDark,
         MerchantAdvertisementStatus.hidden => AppColors.textSecondary,
       };
 
@@ -1256,8 +1263,8 @@ class _MerchantSuspensionSheetState extends State<_MerchantSuspensionSheet> {
           constraints: BoxConstraints(
             maxHeight: MediaQuery.sizeOf(context).height * .92,
           ),
-          decoration: const BoxDecoration(
-            color: Color(0xFFF5F7F9),
+          decoration: BoxDecoration(
+            color: AppColors.background,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Column(
@@ -1270,7 +1277,7 @@ class _MerchantSuspensionSheetState extends State<_MerchantSuspensionSheet> {
                       width: 36,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFCBD2D9),
+                        color: AppColors.cardBorder,
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),
@@ -1281,7 +1288,7 @@ class _MerchantSuspensionSheetState extends State<_MerchantSuspensionSheet> {
                           tooltip: MaterialLocalizations.of(context)
                               .closeButtonTooltip,
                           onPressed: () => Navigator.pop(context),
-                          icon: const Icon(Icons.close),
+                          icon: const MotionIcon(Icons.close),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
@@ -1293,8 +1300,8 @@ class _MerchantSuspensionSheetState extends State<_MerchantSuspensionSheet> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 textAlign: TextAlign.end,
-                                style: const TextStyle(
-                                  color: AppColors.primaryDark,
+                                style: TextStyle(
+                                  color: AppColors.ink,
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -1304,7 +1311,7 @@ class _MerchantSuspensionSheetState extends State<_MerchantSuspensionSheet> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 textAlign: TextAlign.end,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: AppColors.textSecondary,
                                   fontSize: 10,
                                 ),
@@ -1316,8 +1323,8 @@ class _MerchantSuspensionSheetState extends State<_MerchantSuspensionSheet> {
                         Flexible(
                           child: _badge(
                             l10n.merchantSuspendBadge,
-                            const Color(0xFFFFD9D6),
-                            const Color(0xFFB42318),
+                            AppColors.dangerBorder,
+                            AppColors.dangerDark,
                           ),
                         ),
                       ],
@@ -1329,13 +1336,13 @@ class _MerchantSuspensionSheetState extends State<_MerchantSuspensionSheet> {
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
                   children: [
-                    _buildMerchantCard(l10n, isArabic),
+                    ScrollFx(child: _buildMerchantCard(l10n, isArabic)),
                     const SizedBox(height: 12),
-                    _buildDetailsCard(l10n),
+                    ScrollFx(child: _buildDetailsCard(l10n)),
                     const SizedBox(height: 12),
-                    _buildAttachmentsCard(l10n),
+                    ScrollFx(child: _buildAttachmentsCard(l10n)),
                     const SizedBox(height: 12),
-                    _buildDurationCard(l10n),
+                    ScrollFx(child: _buildDurationCard(l10n)),
                   ],
                 ),
               ),
@@ -1348,10 +1355,10 @@ class _MerchantSuspensionSheetState extends State<_MerchantSuspensionSheet> {
                       height: 52,
                       child: FilledButton.icon(
                         onPressed: () => _confirmSuspension(l10n),
-                        icon: const Icon(Icons.block),
+                        icon: const MotionIcon(Icons.block),
                         label: Text(l10n.merchantSuspendConfirm),
                         style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFFC51D1D),
+                          backgroundColor: AppColors.dangerDark,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -1365,8 +1372,8 @@ class _MerchantSuspensionSheetState extends State<_MerchantSuspensionSheet> {
                       child: TextButton(
                         onPressed: () => Navigator.pop(context),
                         style: TextButton.styleFrom(
-                          backgroundColor: const Color(0xFFE9ECEF),
-                          foregroundColor: AppColors.primaryDark,
+                          backgroundColor: AppColors.surfaceHighlight,
+                          foregroundColor: AppColors.ink,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -1399,8 +1406,8 @@ class _MerchantSuspensionSheetState extends State<_MerchantSuspensionSheet> {
                       textAlign: TextAlign.end,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.primaryDark,
+                      style: TextStyle(
+                        color: AppColors.ink,
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
                       ),
@@ -1409,7 +1416,7 @@ class _MerchantSuspensionSheetState extends State<_MerchantSuspensionSheet> {
                     Text(
                       '${l10n.crShortLabel}: ${widget.merchant.crNumber}  •  ${l10n.merchantInfoVerifiedBadge}',
                       textAlign: TextAlign.end,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 9,
                       ),
@@ -1422,10 +1429,13 @@ class _MerchantSuspensionSheetState extends State<_MerchantSuspensionSheet> {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
+                  gradient: AppColors.blueFill,
+                  border: AppColors.blueEdge,
+                  boxShadow: AppColors.blueGlow,
                   color: AppColors.primaryDark,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(
+                child: MotionIcon(
                   widget.merchant.logoIcon ?? widget.merchant.categoryIcon,
                   color: Colors.white,
                 ),
@@ -1437,19 +1447,19 @@ class _MerchantSuspensionSheetState extends State<_MerchantSuspensionSheet> {
             width: double.infinity,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFFF1F3F5),
+              color: AppColors.surfaceLight,
               borderRadius: BorderRadius.circular(10),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.info, color: Color(0xFFC51D1D), size: 17),
+                MotionIcon(Icons.info, color: AppColors.dangerDark, size: 17),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     l10n.merchantSuspendImpact,
                     textAlign: TextAlign.end,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 10,
                       height: 1.5,
@@ -1486,7 +1496,7 @@ class _MerchantSuspensionSheetState extends State<_MerchantSuspensionSheet> {
               hintText: l10n.merchantSuspendDetailsHint,
               hintMaxLines: 3,
               filled: true,
-              fillColor: const Color(0xFFF1F3F5),
+              fillColor: AppColors.surfaceLight,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
@@ -1497,14 +1507,14 @@ class _MerchantSuspensionSheetState extends State<_MerchantSuspensionSheet> {
           const SizedBox(height: 6),
           Row(
             children: [
-              const Icon(Icons.visibility_outlined,
+              MotionIcon(Icons.visibility_outlined,
                   color: AppColors.textSecondary, size: 16),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   l10n.merchantSuspendPrivateNote,
                   textAlign: TextAlign.end,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 9,
                   ),
@@ -1530,22 +1540,22 @@ class _MerchantSuspensionSheetState extends State<_MerchantSuspensionSheet> {
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFFF1F3F5),
+                color: AppColors.surfaceLight,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE1E5E9)),
+                border: Border.all(color: AppColors.cardBorder),
               ),
               child: Column(
                 children: [
-                  const CircleAvatar(
-                    backgroundColor: Color(0xFFE5E8EB),
-                    child: Icon(Icons.upload_file_outlined,
-                        color: AppColors.primaryDark),
+                  CircleAvatar(
+                    backgroundColor: AppColors.surfaceHighlight,
+                    child: MotionIcon(Icons.upload_file_outlined,
+                        color: AppColors.ink),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     l10n.merchantSuspendUpload,
-                    style: const TextStyle(
-                      color: AppColors.primaryDark,
+                    style: TextStyle(
+                      color: AppColors.ink,
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                     ),
@@ -1554,7 +1564,7 @@ class _MerchantSuspensionSheetState extends State<_MerchantSuspensionSheet> {
                   Text(
                     l10n.merchantSuspendFileTypes,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 9,
                     ),
@@ -1599,30 +1609,30 @@ class _MerchantSuspensionSheetState extends State<_MerchantSuspensionSheet> {
               child: Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF1F3F5),
+                  color: AppColors.surfaceLight,
                   borderRadius: BorderRadius.circular(11),
                   border: Border.all(
                     color: _selectedReason == index
-                        ? const Color(0xFFCBD7E6)
+                        ? AppColors.infoBorder
                         : Colors.transparent,
                   ),
                 ),
                 child: Row(
                   children: [
-                    Icon(
+                    MotionIcon(
                       _selectedReason == index
                           ? Icons.radio_button_checked
                           : Icons.radio_button_unchecked,
                       color: _selectedReason == index
-                          ? AppColors.primaryDark
-                          : const Color(0xFFD5DADF),
+                          ? AppColors.ink
+                          : AppColors.cardBorder,
                       size: 20,
                     ),
                     const SizedBox(width: 8),
-                    Icon(
+                    MotionIcon(
                       icons[index],
                       color: _selectedReason == index
-                          ? AppColors.primaryDark
+                          ? AppColors.ink
                           : AppColors.textSecondary,
                       size: 18,
                     ),
@@ -1634,8 +1644,8 @@ class _MerchantSuspensionSheetState extends State<_MerchantSuspensionSheet> {
                           Text(
                             reasons[index],
                             textAlign: TextAlign.end,
-                            style: const TextStyle(
-                              color: AppColors.primaryDark,
+                            style: TextStyle(
+                              color: AppColors.ink,
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
                             ),
@@ -1643,7 +1653,7 @@ class _MerchantSuspensionSheetState extends State<_MerchantSuspensionSheet> {
                           Text(
                             descriptions[index],
                             textAlign: TextAlign.end,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: AppColors.info,
                               fontSize: 9,
                             ),
@@ -1665,7 +1675,7 @@ class _MerchantSuspensionSheetState extends State<_MerchantSuspensionSheet> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(15),
         border: Border.all(color: AppColors.cardBorder),
       ),
@@ -1676,7 +1686,7 @@ class _MerchantSuspensionSheetState extends State<_MerchantSuspensionSheet> {
   Widget _sectionHeading(String title, IconData icon, {String? trailing}) {
     return Row(
       children: [
-        Icon(icon, color: AppColors.info, size: 18),
+        MotionIcon(icon, color: AppColors.info, size: 18),
         const SizedBox(width: 6),
         Expanded(
           child: Text(
@@ -1684,8 +1694,8 @@ class _MerchantSuspensionSheetState extends State<_MerchantSuspensionSheet> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.end,
-            style: const TextStyle(
-              color: AppColors.primaryDark,
+            style: TextStyle(
+              color: AppColors.ink,
               fontSize: 14,
               fontWeight: FontWeight.bold,
             ),
@@ -1699,7 +1709,7 @@ class _MerchantSuspensionSheetState extends State<_MerchantSuspensionSheet> {
               trailing,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 9,
               ),

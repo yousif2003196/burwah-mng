@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/di/injection_container.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../../finance/presentation/utils/financial_request_notifications.dart';
-import '../../../finance/domain/entities/withdrawal_request_entity.dart';
-import '../../../finance/domain/repositories/finance_repository.dart';
-import '../../../finance/presentation/widgets/withdrawal_request_details_sheet.dart';
-import '../../domain/entities/product_supervisor_audit_entry.dart';
-import '../../domain/repositories/product_supervisor_audit_repository.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/theme/app_palette.dart';
+import 'package:barwah_app/features/finance/domain/entities/withdrawal_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/repositories/finance_repository.dart';
+import 'package:barwah_app/features/finance/presentation/utils/financial_request_notifications.dart';
+import 'package:barwah_app/features/finance/presentation/widgets/withdrawal_request_details_sheet.dart';
+import 'package:barwah_app/features/products/domain/entities/product_supervisor_audit_entry.dart';
+import 'package:barwah_app/features/products/domain/repositories/product_supervisor_audit_repository.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 enum _PayoutDestination { instapay, wallet, bank }
 
@@ -257,33 +261,33 @@ class _ProductSupervisorWalletScreenState
     return Directionality(
       textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
       child: Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: AppColors.scaffold,
         appBar: AppBar(
-          backgroundColor: AppColors.backgroundLight,
-          foregroundColor: AppColors.primaryDark,
+          backgroundColor: AppColors.surface,
+          foregroundColor: AppColors.ink,
           elevation: 0,
           centerTitle: true,
           leading: IconButton(
             tooltip: l10n.productWalletBack,
             onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.chevron_left, size: 30),
+            icon: const MotionIcon(Icons.chevron_left, size: 30),
           ),
           title: Text(
             l10n.productWalletTitle,
-            style: const TextStyle(
-              color: AppColors.primaryDark,
+            style: TextStyle(
+              color: AppColors.ink,
               fontWeight: FontWeight.bold,
               fontSize: 16,
             ),
           ),
-          actions: const [
+          actions: [
             Padding(
               padding: EdgeInsetsDirectional.only(end: 16),
               child: CircleAvatar(
                 radius: 16,
                 backgroundColor: AppColors.primaryDark,
                 child:
-                    Icon(Icons.person_outline, size: 19, color: Colors.white),
+                    MotionIcon(Icons.person_outline, size: 19, color: Colors.white),
               ),
             ),
           ],
@@ -291,20 +295,20 @@ class _ProductSupervisorWalletScreenState
         body: ListView(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
           children: [
-            _IdentityStrip(
+            ScrollFx(child: _IdentityStrip(
               idLabel: l10n.productWalletSupervisorId,
               roleLabel: l10n.productSupervisorRoleBadge,
               statusLabel: l10n.productWalletVerified,
-            ),
+            )),
             const SizedBox(height: 16),
-            _AvailableBalanceCard(
+            ScrollFx(child: _AvailableBalanceCard(
               title: l10n.productWalletAvailableForWithdrawal,
               amount: l10n.productWalletBalanceAmount,
               status: l10n.productWalletReady,
               note: l10n.productWalletBalanceNote,
-            ),
+            )),
             const SizedBox(height: 8),
-            Row(
+            ScrollFx(child: Row(
               children: [
                 Expanded(
                   child: _MetricCard(
@@ -326,28 +330,28 @@ class _ProductSupervisorWalletScreenState
                   ),
                 ),
               ],
-            ),
+            )),
             const SizedBox(height: 20),
-            _InfoStrip(
+            ScrollFx(child: _InfoStrip(
               icon: Icons.auto_graph_rounded,
               text: l10n.productWalletSettlementRate,
               trailing: l10n.productWalletSettlementPercent,
-            ),
+            )),
             const SizedBox(height: 18),
-            _withdrawalCard(context, l10n),
+            ScrollFx(child: _withdrawalCard(context, l10n)),
             const SizedBox(height: 22),
-            _BonusBanner(
+            ScrollFx(child: _BonusBanner(
               title: l10n.productWalletBonusTitle,
               amount: l10n.productWalletBonusAmount,
               description: l10n.productWalletBonusDescription,
-            ),
+            )),
             const SizedBox(height: 22),
-            _buildFinanceRequestHistory(l10n),
+            ScrollFx(child: _buildFinanceRequestHistory(l10n)),
             const SizedBox(height: 18),
-            _AuditFooter(
+            ScrollFx(child: _AuditFooter(
               title: l10n.productWalletAuditTitle,
               subtitle: l10n.productWalletAuditCode,
-            ),
+            )),
           ],
         ),
       ),
@@ -358,7 +362,7 @@ class _ProductSupervisorWalletScreenState
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.cardBorder),
       ),
@@ -367,13 +371,13 @@ class _ProductSupervisorWalletScreenState
         children: [
           Row(
             children: [
-              const Icon(Icons.currency_exchange,
-                  color: AppColors.primaryDark, size: 22),
+              MotionIcon(Icons.currency_exchange,
+                  color: AppColors.ink, size: 22),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   l10n.financeWalletRequestTitle,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: AppColors.textPrimary,
                     fontSize: 14,
@@ -418,7 +422,7 @@ class _ProductSupervisorWalletScreenState
           const SizedBox(height: 8),
           Text(
             l10n.financeWalletOperationNote,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 10,
               height: 1.4,
@@ -430,7 +434,7 @@ class _ProductSupervisorWalletScreenState
               Expanded(
                 child: Text(
                   l10n.financeWalletAmountLabel,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 12, color: AppColors.textSecondary),
                 ),
               ),
@@ -440,7 +444,7 @@ class _ProductSupervisorWalletScreenState
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.end,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: AppColors.infoDark,
                       fontSize: 10,
                       fontWeight: FontWeight.w600),
@@ -490,12 +494,12 @@ class _ProductSupervisorWalletScreenState
           Text(
             l10n.productWalletLimitNote,
             style:
-                const TextStyle(fontSize: 10, color: AppColors.textMutedDark),
+                TextStyle(fontSize: 10, color: AppColors.textMutedDark),
           ),
           const SizedBox(height: 16),
           Text(
             l10n.productWalletChooseDestination,
-            style: const TextStyle(fontSize: 12, color: AppColors.textPrimary),
+            style: TextStyle(fontSize: 12, color: AppColors.textPrimary),
           ),
           const SizedBox(height: 8),
           Row(
@@ -539,7 +543,7 @@ class _ProductSupervisorWalletScreenState
             _destination == _PayoutDestination.bank
                 ? l10n.productWalletIbanAddress
                 : l10n.productWalletPaymentAddress,
-            style: const TextStyle(fontSize: 12, color: AppColors.textPrimary),
+            style: TextStyle(fontSize: 12, color: AppColors.textPrimary),
           ),
           const SizedBox(height: 7),
           _WalletTextField(
@@ -578,7 +582,7 @@ class _ProductSupervisorWalletScreenState
             height: 50,
             child: FilledButton.icon(
               onPressed: _isSubmitting ? null : _confirmWithdrawal,
-              icon: const Icon(Icons.currency_exchange, size: 19),
+              icon: const MotionIcon(Icons.currency_exchange, size: 19),
               label: Text(
                 l10n.financeWalletSubmitRequest,
                 style: const TextStyle(fontWeight: FontWeight.bold),
@@ -610,7 +614,7 @@ class _ProductSupervisorWalletScreenState
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.cardBorder),
       ),
@@ -622,7 +626,7 @@ class _ProductSupervisorWalletScreenState
               Expanded(
                 child: Text(
                   l10n.productWalletHistoryTitle,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textPrimary,
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
@@ -632,7 +636,7 @@ class _ProductSupervisorWalletScreenState
               IconButton(
                 tooltip: l10n.refreshBalances,
                 onPressed: _isLoadingRequests ? null : _loadFinancialRequests,
-                icon: const Icon(Icons.refresh),
+                icon: const MotionIcon(Icons.refresh),
               ),
             ],
           ),
@@ -641,7 +645,7 @@ class _ProductSupervisorWalletScreenState
           else if (_requestsLoadFailed)
             TextButton.icon(
               onPressed: _loadFinancialRequests,
-              icon: const Icon(Icons.refresh),
+              icon: const MotionIcon(Icons.refresh),
               label: Text(l10n.financeWalletHistoryLoadError),
             )
           else if (_financialRequests.isEmpty)
@@ -650,13 +654,13 @@ class _ProductSupervisorWalletScreenState
               child: Text(
                 l10n.financeWalletNoRequests,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.textSecondary),
+                style: TextStyle(color: AppColors.textSecondary),
               ),
             )
           else
             for (final request in _financialRequests)
               Material(
-                color: Colors.white,
+                color: AppColors.surface,
                 child: ListTile(
                   contentPadding: EdgeInsets.zero,
                   title: Text(
@@ -673,11 +677,11 @@ class _ProductSupervisorWalletScreenState
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  trailing: Text(
+                  trailing: CountText(
                     '${request.netAmount.toStringAsFixed(2)} ${l10n.finRequestCurrency}',
                     textAlign: TextAlign.end,
-                    style: const TextStyle(
-                      color: AppColors.primaryDark,
+                    style: TextStyle(
+                      color: AppColors.ink,
                       fontWeight: FontWeight.bold,
                       fontSize: 11,
                     ),
@@ -715,15 +719,15 @@ class _IdentityStrip extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.end,
-            style: const TextStyle(color: AppColors.infoDark, fontSize: 11),
+            style: TextStyle(color: AppColors.infoDark, fontSize: 11),
           ),
         ),
         const SizedBox(width: 6),
-        const Icon(Icons.circle, color: AppColors.infoDark, size: 9),
+        MotionIcon(Icons.circle, color: AppColors.infoDark, size: 9),
         const SizedBox(width: 4),
         Text(
           statusLabel,
-          style: const TextStyle(color: AppColors.textSecondary, fontSize: 10),
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 10),
         ),
       ],
     );
@@ -748,11 +752,13 @@ class _AvailableBalanceCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
+        gradient: AppColors.blueFill,
+        border: AppColors.blueEdge,
         color: AppColors.primaryDark,
         borderRadius: BorderRadius.circular(18),
         boxShadow: const [
           BoxShadow(
-              color: Color(0x18071228), blurRadius: 14, offset: Offset(0, 7)),
+              color: AppPalette.overlay18071228, blurRadius: 14, offset: Offset(0, 7)),
         ],
       ),
       child: Column(
@@ -770,12 +776,12 @@ class _AvailableBalanceCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              const Icon(Icons.account_balance_wallet_outlined,
+              const MotionIcon(Icons.account_balance_wallet_outlined,
                   color: Colors.white, size: 22),
             ],
           ),
           const SizedBox(height: 16),
-          Text(
+          CountText(
             amount,
             textAlign: TextAlign.end,
             style: const TextStyle(
@@ -814,7 +820,7 @@ class _MetricCard extends StatelessWidget {
       height: 112,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(15),
         border: Border.all(color: AppColors.cardBorder),
       ),
@@ -823,7 +829,7 @@ class _MetricCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, color: AppColors.infoDark, size: 17),
+              MotionIcon(icon, color: AppColors.infoDark, size: 17),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
@@ -831,14 +837,14 @@ class _MetricCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.end,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: AppColors.textSecondary, fontSize: 10),
                 ),
               ),
             ],
           ),
           const Spacer(),
-          Text(
+          CountText(
             amount,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -853,7 +859,7 @@ class _MetricCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.end,
             style:
-                const TextStyle(color: AppColors.textSecondary, fontSize: 10),
+                TextStyle(color: AppColors.textSecondary, fontSize: 10),
           ),
         ],
       ),
@@ -879,15 +885,15 @@ class _InfoStrip extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(icon, color: AppColors.infoDark, size: 18),
+          MotionIcon(icon, color: AppColors.infoDark, size: 18),
           const SizedBox(width: 8),
           Expanded(
             child: Text(text,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 10, color: AppColors.textPrimary)),
           ),
           Text(trailing,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 10,
                   color: AppColors.textPrimary,
                   fontWeight: FontWeight.bold)),
@@ -920,27 +926,27 @@ class _BonusBanner extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 15,
-                        color: AppColors.primaryDark,
+                        color: AppColors.ink,
                         fontWeight: FontWeight.bold)),
                 const SizedBox(height: 5),
                 Text(description,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 11, color: AppColors.textSecondary)),
               ],
             ),
           ),
           const SizedBox(width: 8),
-          Text(amount,
-              style: const TextStyle(
-                  color: AppColors.primaryDark,
+          CountText(amount,
+              style: TextStyle(
+                  color: AppColors.ink,
                   fontWeight: FontWeight.bold,
                   fontSize: 17)),
           const SizedBox(width: 10),
-          const CircleAvatar(
-            backgroundColor: Color(0xFFDCE8FF),
-            child: Icon(Icons.workspace_premium_outlined,
+          CircleAvatar(
+            backgroundColor: AppColors.infoBorder,
+            child: MotionIcon(Icons.workspace_premium_outlined,
                 color: AppColors.infoDark),
           ),
         ],
@@ -977,7 +983,7 @@ class _DestinationButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 10),
           child: Column(
             children: [
-              Icon(icon, color: foreground, size: 20),
+              MotionIcon(icon, color: foreground, size: 20),
               const SizedBox(height: 5),
               Text(
                 title,
@@ -1026,7 +1032,7 @@ class _WalletTextField extends StatelessWidget {
       decoration: InputDecoration(
         filled: true,
         fillColor: AppColors.surfaceLight,
-        prefixIcon: Icon(icon, color: AppColors.infoDark, size: 19),
+        prefixIcon: MotionIcon(icon, color: AppColors.infoDark, size: 19),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         border: OutlineInputBorder(
@@ -1048,11 +1054,11 @@ class _DetailRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, color: AppColors.infoDark, size: 16),
+        MotionIcon(icon, color: AppColors.infoDark, size: 16),
         const SizedBox(width: 7),
         Expanded(
           child: Text(text,
-              style: const TextStyle(
+              style: TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 10,
                   fontWeight: FontWeight.w600)),
@@ -1082,7 +1088,7 @@ class _SmallBadge extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon,
+            MotionIcon(icon,
                 size: 12, color: dark ? Colors.white : AppColors.infoDark),
             const SizedBox(width: 4),
           ],
@@ -1113,14 +1119,14 @@ class _AuditFooter extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.lock_outline,
+            MotionIcon(Icons.lock_outline,
                 color: AppColors.textMutedDark, size: 13),
             const SizedBox(width: 5),
             Flexible(
               child: Text(
                 title,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                     color: AppColors.textMutedDark, fontSize: 10),
               ),
             ),
@@ -1130,7 +1136,7 @@ class _AuditFooter extends StatelessWidget {
         Text(
           subtitle,
           textAlign: TextAlign.center,
-          style: const TextStyle(color: AppColors.textMutedDark, fontSize: 9),
+          style: TextStyle(color: AppColors.textMutedDark, fontSize: 9),
         ),
       ],
     );

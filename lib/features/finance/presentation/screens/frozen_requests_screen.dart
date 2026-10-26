@@ -1,18 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/di/injection_container.dart';
-import '../../../../core/utils/currency_formatter.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../../../core/widgets/app_snack_bar.dart';
-import '../../../../core/widgets/finance_dialogs.dart';
-import '../../domain/entities/bank_link_request_entity.dart';
-import '../../domain/entities/withdrawal_request_entity.dart';
-import '../controllers/bank_reconciliation/bank_reconciliation_cubit.dart';
-import '../controllers/bank_reconciliation/bank_reconciliation_state.dart';
-import '../controllers/frozen_requests/frozen_requests_cubit.dart';
-import '../controllers/frozen_requests/frozen_requests_state.dart';
-import '../widgets/finance_navigation.dart';
+
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/utils/currency_formatter.dart';
+import 'package:barwah_app/core/widgets/app_snack_bar.dart';
+import 'package:barwah_app/features/finance/domain/entities/bank_link_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/withdrawal_request_entity.dart';
+import 'package:barwah_app/features/finance/presentation/controllers/bank_reconciliation/bank_reconciliation_cubit.dart';
+import 'package:barwah_app/features/finance/presentation/controllers/bank_reconciliation/bank_reconciliation_state.dart';
+import 'package:barwah_app/features/finance/presentation/controllers/frozen_requests/frozen_requests_cubit.dart';
+import 'package:barwah_app/features/finance/presentation/controllers/frozen_requests/frozen_requests_state.dart';
+import 'package:barwah_app/features/finance/presentation/widgets/finance_dialogs.dart';
+import 'package:barwah_app/features/finance/presentation/widgets/finance_navigation.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
 
 class FrozenRequestsScreen extends StatefulWidget {
   const FrozenRequestsScreen({super.key});
@@ -65,7 +69,7 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
       child: Directionality(
         textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
         child: Scaffold(
-          backgroundColor: AppColors.backgroundLight,
+          backgroundColor: AppColors.scaffold,
           appBar: FinancePageAppBar(
             title: l10n.frozenScreenTitle,
             subtitle: l10n.financialDepartment,
@@ -77,9 +81,9 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
                 BlocBuilder<FrozenRequestsCubit, FrozenRequestsState>(
               builder: (context, state) {
                 if (state.isLoading) {
-                  return const Center(
+                  return Center(
                       child: CircularProgressIndicator(
-                          color: AppColors.primaryDark));
+                          color: AppColors.ink));
                 } else if (state.errorMessage != null) {
                   return Center(
                     child: Column(
@@ -126,7 +130,7 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               // 1. Top Card
-                              Container(
+                              ScrollFx(child: Container(
                                 padding: const EdgeInsets.all(20),
                                 decoration: BoxDecoration(
                                   color: AppColors.primaryExtraDark,
@@ -154,7 +158,7 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
                                               crossAxisAlignment:
                                                   CrossAxisAlignment.end,
                                               children: [
-                                                Text(
+                                                CountText(
                                                   CurrencyFormatter.format(
                                                       totalAmount),
                                                   style: const TextStyle(
@@ -198,7 +202,7 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
                                                   .withValues(alpha: 0.1),
                                               shape: BoxShape.circle,
                                             ),
-                                            child: const Icon(
+                                            child: const MotionIcon(
                                                 Icons.lock_outline,
                                                 color: Colors.white70,
                                                 size: 16),
@@ -209,7 +213,7 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
                                               crossAxisAlignment:
                                                   CrossAxisAlignment.start,
                                               children: [
-                                                Text(
+                                                CountText(
                                                   '$totalCount ${l10n.frozenRequestCount}',
                                                   style: const TextStyle(
                                                       color: Colors.white,
@@ -232,7 +236,7 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
                                     ),
                                   ],
                                 ),
-                              ),
+                              )),
                               const SizedBox(height: 20),
 
                               // 2. Filters
@@ -289,7 +293,7 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
                                       padding:
                                           const EdgeInsets.only(bottom: 16),
                                       child: _buildRequestCard(req, context),
-                                    )),
+                                    )).staggered(),
                               if (filteredBankLinks.isNotEmpty) ...[
                                 const SizedBox(height: 8),
                                 _buildFrozenBankLinksSection(
@@ -306,7 +310,7 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: AppColors.surface,
                           boxShadow: [
                             BoxShadow(
                                 color: Colors.black.withValues(alpha: 0.05),
@@ -321,7 +325,7 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
                               width: double.infinity,
                               child: ElevatedButton.icon(
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFFE2E8F0),
+                                  backgroundColor: AppColors.cardBorder,
                                   foregroundColor: AppColors.textPrimary,
                                   padding:
                                       const EdgeInsets.symmetric(vertical: 14),
@@ -329,7 +333,7 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
                                       borderRadius: BorderRadius.circular(10)),
                                   elevation: 0,
                                 ),
-                                icon: const Icon(Icons.ios_share, size: 18),
+                                icon: const MotionIcon(Icons.ios_share, size: 18),
                                 onPressed: () {},
                                 label: Text(l10n.frozenExport,
                                     style: const TextStyle(
@@ -343,7 +347,7 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
                               child: OutlinedButton.icon(
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: AppColors.textSecondary,
-                                  backgroundColor: const Color(0xFFF8FAFC),
+                                  backgroundColor: AppColors.background,
                                   side: const BorderSide(
                                       color: Colors.transparent),
                                   padding:
@@ -351,7 +355,7 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
                                   shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(10)),
                                 ),
-                                icon: const Icon(Icons.sync, size: 18),
+                                icon: const MotionIcon(Icons.sync, size: 18),
                                 onPressed: () {
                                   _cubit.loadRequests();
                                   _bankLinkCubit.loadRequests();
@@ -468,8 +472,8 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
           padding: const EdgeInsets.only(bottom: 10),
           child: Text(
             l10n.frozenBankLinksTitle,
-            style: const TextStyle(
-              color: AppColors.primaryDark,
+            style: TextStyle(
+              color: AppColors.ink,
               fontSize: 15,
               fontWeight: FontWeight.bold,
             ),
@@ -479,7 +483,7 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
           (request) => Card(
             key: ValueKey('frozen-bank-link-${request.id}'),
             margin: const EdgeInsets.only(bottom: 12),
-            color: Colors.white,
+            color: AppColors.surface,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
               side: BorderSide(color: AppColors.warning.withValues(alpha: 0.5)),
@@ -491,7 +495,7 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
                 children: [
                   Text(
                     '${request.id} · ${request.getCommercialName(isArabic)}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textPrimary,
                       fontWeight: FontWeight.bold,
                     ),
@@ -501,16 +505,16 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
                     '${request.getBankName(isArabic)} · ${request.iban}',
                     textDirection: TextDirection.ltr,
                     textAlign: TextAlign.start,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 12,
                     ),
                   ),
                   if (request.decisionReason != null) ...[
                     const SizedBox(height: 8),
-                    Text(
+                    CountText(
                       '${l10n.frozenBankLinkReason} ${request.decisionReason}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 12,
                       ),
@@ -532,7 +536,7 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
                                     context,
                                     request,
                                   ),
-                          icon: const Icon(Icons.lock_open, size: 16),
+                          icon: const MotionIcon(Icons.lock_open, size: 16),
                           label: Text(
                             l10n.frozenBankLinkRestore,
                             maxLines: 2,
@@ -556,9 +560,9 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
                                   ),
                           style: TextButton.styleFrom(
                             foregroundColor: AppColors.dangerDark,
-                            backgroundColor: const Color(0xFFFFE0DE),
+                            backgroundColor: AppColors.dangerBorder,
                           ),
-                          icon: const Icon(Icons.block, size: 16),
+                          icon: const MotionIcon(Icons.block, size: 16),
                           label: Text(
                             l10n.frozenBankLinkReject,
                             maxLines: 2,
@@ -646,14 +650,14 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primaryDark : const Color(0xFFF1F5F9),
+          color: isSelected ? AppColors.primaryDark : AppColors.surfaceLight,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (icon != null) ...[
-              Icon(icon,
+              MotionIcon(icon,
                   size: 16,
                   color: isSelected ? Colors.white : AppColors.textSecondary),
               const SizedBox(width: 6),
@@ -681,7 +685,7 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
     final l10n = AppLocalizations.of(context)!;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.cardBorder),
       ),
@@ -697,18 +701,18 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: req['type'] == l10n.frozenMerchantsFilter
-                        ? Colors.red.shade50
+                        ? AppColors.dangerLight
                         : (req['type'] == l10n.frozenProvidersFilter
-                            ? Colors.blue.shade50
+                            ? AppColors.infoLight
                             : AppColors.surfaceLight),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(req['icon'],
+                  child: MotionIcon(req['icon'],
                       size: 20,
                       color: req['type'] == l10n.frozenMerchantsFilter
-                          ? Colors.red.shade700
+                          ? AppColors.dangerDark
                           : (req['type'] == l10n.frozenProvidersFilter
-                              ? Colors.blue.shade700
+                              ? AppColors.infoDark
                               : AppColors.primaryDark)),
                 ),
                 const SizedBox(width: 12),
@@ -717,13 +721,13 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(req['title'],
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
                               color: AppColors.textPrimary)),
                       const SizedBox(height: 2),
                       Text(req['subtitle'],
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 10, color: AppColors.textSecondary)),
                     ],
                   ),
@@ -743,7 +747,7 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
                       children: [
                         Flexible(
                           child: Text(req['status'],
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 10,
                                   color: AppColors.danger,
                                   fontWeight: FontWeight.bold),
@@ -751,7 +755,7 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
                               overflow: TextOverflow.ellipsis),
                         ),
                         const SizedBox(width: 4),
-                        Icon(
+                        MotionIcon(
                             req['ibanError'] != null
                                 ? Icons.warning_amber_rounded
                                 : Icons.pause_circle_outline,
@@ -764,7 +768,7 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
               ],
             ),
           ),
-          const Divider(height: 1, color: AppColors.cardBorder),
+          Divider(height: 1, color: AppColors.cardBorder),
 
           // Amounts
           Container(
@@ -782,7 +786,7 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
                               : l10n.frozenHeldAmount,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 11, color: AppColors.textSecondary)),
                     ),
                     const SizedBox(width: 8),
@@ -792,18 +796,17 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Flexible(
-                              child: Text(
+                              child: FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart, child: CountText(
                                   CurrencyFormatter.format(req['amount'],
                                       includeCurrency: false),
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                       fontSize: 20,
                                       fontWeight: FontWeight.bold,
                                       color: AppColors.textPrimary),
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 1)),
+                                  maxLines: 1))),
                           const SizedBox(width: 4),
                           Text(AppLocalizations.of(context)!.currencyEgy,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 12,
                                   color: AppColors.textPrimary,
                                   fontWeight: FontWeight.bold)),
@@ -818,25 +821,24 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
                   children: [
                     if (req['ibanError'] != null)
                       Expanded(
-                          child: Text(
+                          child: CountText(
                               '${l10n.frozenRegisteredIban} ${req['ibanError']}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 11, color: AppColors.textSecondary),
                               textDirection: TextDirection.ltr,
                               textAlign: TextAlign.left,
                               overflow: TextOverflow.ellipsis))
                     else
                       Flexible(
-                          child: Text(
+                          child: FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart, child: CountText(
                               '${l10n.frozenGrossTransaction} ${CurrencyFormatter.format(req['grossAmount'])}',
-                              style: const TextStyle(
-                                  fontSize: 11, color: AppColors.textSecondary),
-                              overflow: TextOverflow.ellipsis)),
+                              style: TextStyle(
+                                  fontSize: 11, color: AppColors.textSecondary)))),
                     const SizedBox(width: 8),
                     if (req['ibanError'] != null)
                       Flexible(
                         child: Text(l10n.frozenAccountNameMismatch,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 11,
                                 color: AppColors.danger,
                                 fontWeight: FontWeight.bold),
@@ -845,17 +847,16 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
                       )
                     else
                       Flexible(
-                          child: Text(
+                          child: FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart, child: CountText(
                               '${l10n.frozenPlatformFeeDeduction} ${CurrencyFormatter.format(req['feeAmount'])}',
-                              style: const TextStyle(
-                                  fontSize: 11, color: AppColors.textSecondary),
-                              overflow: TextOverflow.ellipsis)),
+                              style: TextStyle(
+                                  fontSize: 11, color: AppColors.textSecondary)))),
                   ],
                 ),
               ],
             ),
           ),
-          const Divider(height: 1, color: AppColors.cardBorder),
+          Divider(height: 1, color: AppColors.cardBorder),
 
           // Reason & Details
           Padding(
@@ -865,7 +866,7 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
+                    MotionIcon(
                         req['ibanError'] != null
                             ? Icons.do_not_disturb_alt
                             : Icons.warning_amber_rounded,
@@ -875,7 +876,7 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
                     Expanded(
                       child: Text(
                         req['reason'],
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 11,
                             color: AppColors.textPrimary,
                             height: 1.4),
@@ -892,17 +893,17 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.assignment_ind_outlined,
+                            MotionIcon(Icons.assignment_ind_outlined,
                                 size: 14, color: AppColors.textMuted),
                             const SizedBox(width: 6),
                             Flexible(
-                              child: Text(
+                              child: FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart, child: CountText(
                                   '${l10n.frozenSupervisorLabel} ${req['supervisor']}',
                                   maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
+ softWrap: false,
+                                  style: TextStyle(
                                       fontSize: 10,
-                                      color: AppColors.textSecondary)),
+                                      color: AppColors.textSecondary))),
                             ),
                           ],
                         ),
@@ -911,11 +912,11 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
                       const SizedBox(),
                     Row(
                       children: [
-                        const Icon(Icons.access_time,
+                        MotionIcon(Icons.access_time,
                             size: 14, color: AppColors.textMuted),
                         const SizedBox(width: 6),
                         Text(req['timeText'],
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 10, color: AppColors.textSecondary)),
                       ],
                     ),
@@ -940,7 +941,7 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10)),
                     ),
-                    icon: Icon(req['actionIcon'] ?? Icons.lock_open, size: 16),
+                    icon: MotionIcon(req['actionIcon'] ?? Icons.lock_open, size: 16),
                     onPressed: context
                                 .read<FrozenRequestsCubit>()
                                 .state
@@ -991,7 +992,7 @@ class _FrozenRequestsScreenState extends State<FrozenRequestsScreen> {
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10)),
                     ),
-                    icon: const Icon(Icons.highlight_off, size: 16),
+                    icon: const MotionIcon(Icons.highlight_off, size: 16),
                     onPressed: context
                                 .read<FrozenRequestsCubit>()
                                 .state

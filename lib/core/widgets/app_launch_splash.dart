@@ -2,8 +2,17 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../../l10n/app_localizations.dart';
-import 'app_brand_mark.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/theme/app_palette.dart';
+import 'package:barwah_app/core/widgets/app_brand_mark.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+
+// ألوان الاسبلاش في الوضع الداكن (تتبع مود الجهاز وقت التشغيل).
+const Color _darkInk = Color(0xFFF2F6FF);
+const Color _darkShield = Color(0xFF5B8DEF);
+
+// يتبع المظهر المختار داخل التطبيق (فاتح/داكن/حسب الجهاز).
+bool _splashDark(BuildContext context) => AppColors.isDark;
 
 class AppLaunchSplash extends StatefulWidget {
   final VoidCallback? onAnimationComplete;
@@ -71,9 +80,12 @@ class _AppLaunchSplashState extends State<AppLaunchSplash>
   @override
   Widget build(BuildContext context) {
     final tagline = AppLocalizations.of(context)!.appSubtitle;
+    final dark = _splashDark(context);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7FAFC),
+      // شفاف: خلفية التطبيق المتحركة (الموجة) ترسم خلف الاسبلاش ثم تكمل خلف
+      // شاشة الدخول بدون أي انقطاع.
+      backgroundColor: Colors.transparent,
       body: LayoutBuilder(
         builder: (context, constraints) {
           final center = Offset(
@@ -84,7 +96,6 @@ class _AppLaunchSplashState extends State<AppLaunchSplash>
           return Stack(
             fit: StackFit.expand,
             children: [
-              const _LightBackdrop(),
               Positioned(
                 left: center.dx - 76,
                 top: center.dy - 76,
@@ -102,6 +113,7 @@ class _AppLaunchSplashState extends State<AppLaunchSplash>
                 progress: _controller,
                 viewport: Size(constraints.maxWidth, constraints.maxHeight),
                 center: center,
+                dark: dark,
               ),
               Positioned(
                 left: 16,
@@ -109,7 +121,7 @@ class _AppLaunchSplashState extends State<AppLaunchSplash>
                 top: center.dy + 97,
                 child: Column(
                   children: [
-                    _AnimatedWordmark(progress: _controller),
+                    _AnimatedWordmark(progress: _controller, dark: dark),
                     const SizedBox(height: 12),
                     FadeTransition(
                       opacity: _textOpacity,
@@ -119,10 +131,10 @@ class _AppLaunchSplashState extends State<AppLaunchSplash>
                           width: 48,
                           height: 3,
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(
+                            gradient: LinearGradient(
                               colors: [
-                                Color(0xFF43C6AC),
-                                Color(0xFF258F9D),
+                                AppColors.info,
+                                AppColors.backdropGlow,
                               ],
                             ),
                             borderRadius: BorderRadius.circular(4),
@@ -143,7 +155,7 @@ class _AppLaunchSplashState extends State<AppLaunchSplash>
                     tagline,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
-                      color: Color(0xFF75869A),
+                      color: AppPalette.blue75869A,
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 0.35,
@@ -159,88 +171,13 @@ class _AppLaunchSplashState extends State<AppLaunchSplash>
   }
 }
 
-class _LightBackdrop extends StatelessWidget {
-  const _LightBackdrop();
-
-  @override
-  Widget build(BuildContext context) {
-    return const IgnorePointer(
-      child: Stack(
-        children: [
-          DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: Alignment(0, -0.2),
-                radius: 0.9,
-                colors: [Color(0xFFFFFFFF), Color(0xFFF0F6FA)],
-                stops: [0.15, 1],
-              ),
-            ),
-            child: SizedBox.expand(),
-          ),
-          Positioned(
-            top: -200,
-            right: -140,
-            child: _LightRing(size: 420),
-          ),
-          Positioned(
-            bottom: -220,
-            left: -170,
-            child: _LightRing(size: 440),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            top: 0,
-            child: SizedBox(
-              height: 3,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Color(0x0043C6AC),
-                      Color(0x8843C6AC),
-                      Color(0x0043C6AC),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _LightRing extends StatelessWidget {
-  const _LightRing({required this.size});
-
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: size,
-      height: size,
-      child: const DecoratedBox(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.fromBorderSide(
-            BorderSide(color: Color(0x14718AA0), width: 1),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _AnimatedWordmark extends StatelessWidget {
-  const _AnimatedWordmark({required this.progress});
+  const _AnimatedWordmark({required this.progress, required this.dark});
 
   static const String _wordmark = 'borwah_mng';
 
   final Animation<double> progress;
+  final bool dark;
 
   @override
   Widget build(BuildContext context) {
@@ -258,6 +195,7 @@ class _AnimatedWordmark extends StatelessWidget {
                   character: _wordmark[index],
                   index: index,
                   progress: progress,
+                  dark: dark,
                 ),
             ],
           ),
@@ -272,8 +210,10 @@ class _AnimatedLetter extends StatelessWidget {
     required this.character,
     required this.index,
     required this.progress,
+    required this.dark,
   });
 
+  final bool dark;
   final String character;
   final int index;
   final Animation<double> progress;
@@ -305,14 +245,14 @@ class _AnimatedLetter extends StatelessWidget {
                   character,
                   key: ValueKey('brand-letter-$index'),
                   style: TextStyle(
-                    color: const Color(0xFF142D49),
+                    color: dark ? _darkInk : AppPalette.blue142D49,
                     fontSize: 27,
                     letterSpacing: 1.2,
                     fontWeight: FontWeight.w700,
                     shadows: value < 1
                         ? [
                             Shadow(
-                              color: const Color(0xFF43C6AC)
+                              color: AppPalette.teal43C6AC
                                   .withValues(alpha: (1 - value) * 0.6),
                               blurRadius: 16 * (1 - value),
                             ),
@@ -334,18 +274,22 @@ class _ShieldAssembly extends StatelessWidget {
     required this.progress,
     required this.viewport,
     required this.center,
+    required this.dark,
   });
+
+  final bool dark;
 
   final Animation<double> progress;
   final Size viewport;
   final Offset center;
 
   static const double _shieldSize = 62;
-  static const List<Color> _colors = [
-    Color(0xFF43AFA2),
-    Color(0xFF173457),
-    Color(0xFF268EA0),
-    Color(0xFF71BFB5),
+  List<Color> get _colors => [
+    // قطع الدرع المتطايرة بدرجات الأزرق لتتماشى مع خلفية التطبيق.
+    dark ? _darkShield : const Color(0xFF3A7BD5),
+    dark ? const Color(0xFF8FB0FF) : AppPalette.blue173457,
+    dark ? const Color(0xFF3A7BD5) : const Color(0xFF4F8DF5),
+    dark ? const Color(0xFF9DB8FF) : const Color(0xFF8EBBFF),
   ];
   static const List<double> _delays = [0, 0.07, 0.14, 0.21];
 
@@ -552,27 +496,7 @@ class _FinishedBrandMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 152,
-      height: 152,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF43C6AC).withValues(alpha: 0.18),
-            blurRadius: 42,
-            spreadRadius: 4,
-          ),
-          BoxShadow(
-            color: const Color(0xFF173457).withValues(alpha: 0.09),
-            blurRadius: 28,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
-      child: const AppBrandMark(size: 112, iconSize: 68),
-    );
+    // الشعار مباشرة بدون دائرة خلفه.
+    return const Center(child: AppBrandMark(size: 140, iconSize: 84));
   }
 }

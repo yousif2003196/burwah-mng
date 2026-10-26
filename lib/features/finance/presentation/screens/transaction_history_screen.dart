@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/utils/currency_formatter.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../utils/finance_localizer.dart';
-import '../widgets/finance_navigation.dart';
+
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/utils/currency_formatter.dart';
+import 'package:barwah_app/features/finance/presentation/utils/finance_localizer.dart';
+import 'package:barwah_app/features/finance/presentation/widgets/finance_navigation.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
 
 class TransactionHistoryScreen extends StatefulWidget {
   final String title;
@@ -34,7 +38,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     return Directionality(
       textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
       child: Scaffold(
-        backgroundColor: AppColors.backgroundLight,
+        backgroundColor: AppColors.scaffold,
         appBar: FinancePageAppBar(
           title: l10n.transactionHistoryTitle,
           subtitle: l10n.transactionFinancialSubtitle,
@@ -51,7 +55,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                 child: Column(
                   children: [
                     // 1. Top Card
-                    Container(
+                    ScrollFx(child: Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
                         color: AppColors.primaryExtraDark,
@@ -75,7 +79,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                   color: Colors.white.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(10),
                                 ),
-                                child: const Icon(Icons.business,
+                                child: const MotionIcon(Icons.business,
                                     color: Colors.white, size: 24),
                               ),
                               const SizedBox(width: 12),
@@ -103,7 +107,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                   color: Colors.white.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(10),
                                 ),
-                                child: const Icon(Icons.picture_as_pdf_outlined,
+                                child: const MotionIcon(Icons.picture_as_pdf_outlined,
                                     color: Colors.white, size: 20),
                               ),
                             ],
@@ -188,7 +192,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                                     fontSize: 10)),
                                           ),
                                           const SizedBox(width: 4),
-                                          const Icon(Icons.arrow_upward,
+                                          MotionIcon(Icons.arrow_upward,
                                               color: AppColors.dangerLight,
                                               size: 12),
                                         ],
@@ -202,7 +206,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                           crossAxisAlignment:
                                               CrossAxisAlignment.end,
                                           children: [
-                                            const Text('-147,500',
+                                            const CountText('-147,500',
                                                 style: TextStyle(
                                                     color: Colors.white,
                                                     fontSize: 16,
@@ -246,8 +250,8 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                                     fontSize: 10)),
                                           ),
                                           const SizedBox(width: 4),
-                                          const Icon(Icons.arrow_downward,
-                                              color: Colors.greenAccent,
+                                          MotionIcon(Icons.arrow_downward,
+                                              color: AppColors.success,
                                               size: 12),
                                         ],
                                       ),
@@ -260,7 +264,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                           crossAxisAlignment:
                                               CrossAxisAlignment.end,
                                           children: [
-                                            const Text('+560,300',
+                                            const CountText('+560,300',
                                                 style: TextStyle(
                                                     color: Colors.white,
                                                     fontSize: 16,
@@ -282,18 +286,18 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                           ),
                         ],
                       ),
-                    ),
+                    )),
                     const SizedBox(height: 20),
 
                     // 2. Section Title and Filter
-                    Row(
+                    ScrollFx(child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Expanded(
                           child: Text(l10n.transactionApprovedHistory,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
                                   color: AppColors.textPrimary)),
@@ -308,18 +312,18 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                           child: Row(
                             children: [
                               Text(l10n.transactionThisMonth,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                       fontSize: 10,
-                                      color: AppColors.primaryDark,
+                                      color: AppColors.ink,
                                       fontWeight: FontWeight.bold)),
                               const SizedBox(width: 4),
-                              const Icon(Icons.calendar_today_outlined,
-                                  size: 12, color: AppColors.primaryDark),
+                              MotionIcon(Icons.calendar_today_outlined,
+                                  size: 12, color: AppColors.ink),
                             ],
                           ),
                         ),
                       ],
-                    ),
+                    )),
                     const SizedBox(height: 12),
 
                     // 3. Filters
@@ -340,10 +344,10 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                     const SizedBox(height: 24),
 
                     // 4. Group: Today
-                    _buildDateHeader(l10n.transactionTodayGroup,
-                        l10n.transactionTwoOperations),
+                    ScrollFx(child: _buildDateHeader(l10n.transactionTodayGroup,
+                        l10n.transactionTwoOperations)),
                     const SizedBox(height: 12),
-                    _buildTransactionItem(
+                    ScrollFx(child: _buildTransactionItem(
                       title: l10n.transactionDepositSales,
                       subtitle: l10n.transactionNationalGateway,
                       amount: '+2,500.00 ${l10n.currencyEgy}',
@@ -352,8 +356,8 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                       ref: '#DEP-99412',
                       time: l10n.transactionTimeTodayDeposit,
                       balanceAfter: '412,800.00 ${l10n.currencyEgy}',
-                    ),
-                    _buildTransactionItem(
+                    )),
+                    ScrollFx(child: _buildTransactionItem(
                       title: l10n.transactionProfitWithdrawal,
                       subtitle: l10n.transactionFastNetwork,
                       amount: '-50,000.00 ${l10n.currencyEgy}',
@@ -362,15 +366,15 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                       ref: '#WTH-88204',
                       time: l10n.transactionTimeTodayWithdrawal,
                       balanceAfter: '388,300.00 ${l10n.currencyEgy}',
-                    ),
+                    )),
 
                     const SizedBox(height: 24),
 
                     // 5. Group: Yesterday
-                    _buildDateHeader(l10n.transactionYesterdayGroup,
-                        l10n.transactionTwoOperations),
+                    ScrollFx(child: _buildDateHeader(l10n.transactionYesterdayGroup,
+                        l10n.transactionTwoOperations)),
                     const SizedBox(height: 12),
-                    _buildTransactionItem(
+                    ScrollFx(child: _buildTransactionItem(
                       title: l10n.transactionWaslniDeposit,
                       subtitle: l10n.transactionAutomatedSettlement,
                       amount: '+8,350.00 ${l10n.currencyEgy}',
@@ -379,8 +383,8 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                       ref: '#DEP-99120',
                       time: l10n.transactionTimeYesterdayDeposit,
                       balanceAfter: '438,300.00 ${l10n.currencyEgy}',
-                    ),
-                    _buildTransactionItem(
+                    )),
+                    ScrollFx(child: _buildTransactionItem(
                       title: l10n.transactionSnbWithdrawal,
                       subtitle: l10n.transactionCorporateVerification,
                       amount: '-35,000.00 ${l10n.currencyEgy}',
@@ -389,15 +393,15 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                       ref: '#WTH-87410',
                       time: l10n.transactionTimeYesterdayWithdrawal,
                       balanceAfter: '429,950.00 ${l10n.currencyEgy}',
-                    ),
+                    )),
 
                     const SizedBox(height: 24),
 
                     // 6. Group: Last week
-                    _buildDateHeader(l10n.transactionLastWeekGroup,
-                        l10n.transactionTwoOperations),
+                    ScrollFx(child: _buildDateHeader(l10n.transactionLastWeekGroup,
+                        l10n.transactionTwoOperations)),
                     const SizedBox(height: 12),
-                    _buildTransactionItem(
+                    ScrollFx(child: _buildTransactionItem(
                       title: l10n.transactionMerchantDisputeDeposit,
                       subtitle: l10n.transactionArbitrationDecision,
                       amount: '+1,200.00 ${l10n.currencyEgy}',
@@ -407,8 +411,8 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                       time: l10n.transactionTimeLastWeekDeposit,
                       balanceAfter: '464,950.00 ${l10n.currencyEgy}',
                       iconOverride: Icons.gavel,
-                    ),
-                    _buildTransactionItem(
+                    )),
+                    ScrollFx(child: _buildTransactionItem(
                       title: l10n.transactionWithdrawalReview,
                       subtitle: l10n.transactionAmlReview,
                       amount: '-12,500.00 ${l10n.currencyEgy}',
@@ -418,10 +422,10 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                       time: l10n.transactionTimeLastWeekWithdrawal,
                       balanceAfter: '12,500.00 ${l10n.currencyEgy}',
                       balanceLabel: l10n.transactionHeldBalance,
-                      statusColor: Colors.blue.shade50,
-                      statusTextColor: Colors.blue.shade800,
+                      statusColor: AppColors.infoLight,
+                      statusTextColor: AppColors.infoDark,
                       iconOverride: Icons.assignment_late_outlined,
-                    ),
+                    )),
                   ],
                 ),
               ),
@@ -431,7 +435,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppColors.surface,
                 boxShadow: [
                   BoxShadow(
                       color: Colors.black.withValues(alpha: 0.05),
@@ -447,8 +451,8 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                       color: AppColors.surfaceLight,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(Icons.security,
-                        color: AppColors.primaryDark, size: 20),
+                    child: MotionIcon(Icons.security,
+                        color: AppColors.ink, size: 20),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -461,7 +465,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                             borderRadius: BorderRadius.circular(12)),
                         elevation: 0,
                       ),
-                      icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                      icon: const MotionIcon(Icons.picture_as_pdf_outlined, size: 18),
                       onPressed: () {},
                       label: Text(l10n.transactionDownloadStatement,
                           style: const TextStyle(
@@ -488,7 +492,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primaryExtraDark : Colors.white,
+          color: isSelected ? AppColors.primaryExtraDark : AppColors.surface,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
               color: isSelected
@@ -499,7 +503,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (isSelected && filterId == 'all')
-              const Icon(Icons.list, size: 14, color: Colors.white),
+              const MotionIcon(Icons.list, size: 14, color: Colors.white),
             if (isSelected && filterId == 'all') const SizedBox(width: 4),
             Text(
               title,
@@ -522,13 +526,13 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
         Expanded(
           child: Row(
             children: [
-              const Icon(Icons.circle, size: 6, color: AppColors.textSecondary),
+              MotionIcon(Icons.circle, size: 6, color: AppColors.textSecondary),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(date,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
                         color: AppColors.textSecondary)),
@@ -537,9 +541,9 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
           ),
         ),
         const SizedBox(width: 8),
-        Text(count,
+        CountText(count,
             style:
-                const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                TextStyle(fontSize: 10, color: AppColors.textSecondary)),
       ],
     );
   }
@@ -564,7 +568,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.cardBorder),
         boxShadow: [
@@ -585,7 +589,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                   color: AppColors.surfaceLight,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(
+                child: MotionIcon(
                     iconOverride ??
                         (isPositive ? Icons.call_received : Icons.call_made),
                     color: AppColors.textSecondary,
@@ -597,13 +601,13 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(title,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
                             color: AppColors.textPrimary)),
                     const SizedBox(height: 4),
                     Text(subtitle,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 10,
                             color: AppColors.textSecondary,
                             height: 1.4)),
@@ -613,7 +617,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(amount,
+                  CountText(amount,
                       style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
@@ -638,7 +642,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          const Divider(height: 1, color: AppColors.cardBorder),
+          Divider(height: 1, color: AppColors.cardBorder),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -647,18 +651,18 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                 child: Row(
                   children: [
                     Text(ref,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 9, color: AppColors.textSecondary),
                         textDirection: TextDirection.ltr),
                     const SizedBox(width: 4),
-                    const Icon(Icons.circle,
+                    MotionIcon(Icons.circle,
                         size: 4, color: AppColors.cardBorder),
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(time,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 9, color: AppColors.textSecondary)),
                     ),
                   ],
@@ -672,12 +676,12 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                       TextSpan(
                         text:
                             '${balanceLabel ?? l10n.transactionBalanceAfter} ',
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 9, color: AppColors.textSecondary),
                       ),
                       TextSpan(
                         text: balanceAfter,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 10,
                             color: AppColors.textPrimary,
                             fontWeight: FontWeight.w600),

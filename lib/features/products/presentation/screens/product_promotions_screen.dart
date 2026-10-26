@@ -3,16 +3,21 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/di/injection_container.dart';
-import '../../../../features/finance/domain/entities/withdrawal_request_entity.dart';
-import '../../../../features/finance/domain/repositories/finance_repository.dart';
-import '../../../../features/wasalny_supervisor/data/wasalny_local_event_store.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../data/product_promotion_local_store.dart';
-import '../../domain/entities/product_promotion_request.dart';
-import '../../domain/entities/product_supervisor_audit_entry.dart';
-import '../../domain/repositories/product_supervisor_audit_repository.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/theme/app_palette.dart';
+import 'package:barwah_app/features/finance/domain/entities/withdrawal_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/repositories/finance_repository.dart';
+import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
+import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
+import 'package:barwah_app/features/products/data/datasources/product_promotion_local_store.dart';
+import 'package:barwah_app/features/products/domain/entities/product_promotion_request.dart';
+import 'package:barwah_app/features/products/domain/entities/product_supervisor_audit_entry.dart';
+import 'package:barwah_app/features/products/domain/repositories/product_supervisor_audit_repository.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 enum _PromotionFilter { all, pending, active, completed }
 
@@ -41,6 +46,27 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
     super.initState();
     _requests = _sampleRequests();
     _loadRequests();
+    LocalEventStore.revision.addListener(_onEventsChanged);
+  }
+
+  @override
+  void dispose() {
+    LocalEventStore.revision.removeListener(_onEventsChanged);
+    super.dispose();
+  }
+
+  bool _refreshingFinance = false;
+
+  /// Picks up finance decisions as soon as they are published, instead of
+  /// only when the screen is opened.
+  Future<void> _onEventsChanged() async {
+    if (_refreshingFinance || _isLoading || !mounted) return;
+    _refreshingFinance = true;
+    try {
+      await _refreshFinanceDecisions();
+    } finally {
+      _refreshingFinance = false;
+    }
   }
 
   String get _accountKey => widget.isWasalny ? 'wasalny' : 'products';
@@ -79,8 +105,8 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
       (item) => item.status == ProductPromotionStatus.pending,
     )) {
       try {
-        await WasalnyLocalEventStore().publish(
-          WasalnyLocalEvent(
+        await LocalEventStore().publish(
+          LocalEvent(
             id: 'wasalny-new-product-${request.id}',
             recipient: 'wasalny',
             source: 'wasalny',
@@ -150,8 +176,8 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
       if (changed) await _saveRequests(updatedRequests);
       for (final notice in financeNotices) {
         final approved = notice.status == RequestStatus.approved;
-        await WasalnyLocalEventStore().publish(
-          WasalnyLocalEvent(
+        await LocalEventStore().publish(
+          LocalEvent(
             id: 'product-finance-decision-${notice.request.id}-${notice.status.name}',
             recipient: 'products',
             source: 'finance',
@@ -336,16 +362,16 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
           : ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               children: [
-                _buildIntro(l10n),
+                ScrollFx(child: _buildIntro(l10n)),
                 const SizedBox(height: 12),
-                Row(
+                ScrollFx(child: Row(
                   children: [
                     Expanded(
                       child: _SummaryCard(
                         label: l10n.productPromotionPending,
                         value: pendingCount.toString(),
                         icon: Icons.pending_actions_outlined,
-                        tint: const Color(0xFFFFF3D6),
+                        tint: AppColors.warningBorder,
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -354,7 +380,7 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
                         label: l10n.productPromotionActive,
                         value: activeCount.toString(),
                         icon: Icons.bolt_rounded,
-                        tint: const Color(0xFFE4F6EF),
+                        tint: AppColors.successBorder,
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -363,18 +389,18 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
                         label: l10n.productPromotionTotal,
                         value: _requests.length.toString(),
                         icon: Icons.campaign_outlined,
-                        tint: const Color(0xFFEAF0FF),
+                        tint: AppColors.infoLight,
                       ),
                     ),
                   ],
-                ),
+                )),
                 const SizedBox(height: 16),
-                _buildPlanInfo(l10n),
+                ScrollFx(child: _buildPlanInfo(l10n)),
                 const SizedBox(height: 18),
                 Text(
                   l10n.productPromotionRequests,
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
+                  style: TextStyle(
+                    color: AppColors.ink,
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                   ),
@@ -411,7 +437,7 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
                     child: Text(
                       l10n.productPromotionEmpty,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: AppColors.textSecondary),
+                      style: TextStyle(color: AppColors.textSecondary),
                     ),
                   ),
                 for (final request in visibleRequests) ...[
@@ -450,7 +476,7 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
                 Text(
                   l10n.productPromotionDisclaimer,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textMuted,
                     fontSize: 10,
                   ),
@@ -464,14 +490,17 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
+        gradient: AppColors.blueFill,
+        border: AppColors.blueEdge,
+        boxShadow: AppColors.blueGlow,
         color: AppColors.primaryDark,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         children: [
           const CircleAvatar(
-            backgroundColor: Color(0x22FFFFFF),
-            child: Icon(Icons.workspace_premium_outlined, color: Colors.white),
+            backgroundColor: AppPalette.overlay22FFFFFF,
+            child: MotionIcon(Icons.workspace_premium_outlined, color: Colors.white),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -510,18 +539,18 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.cardBorder),
       ),
       child: Row(
         children: [
-          const Icon(Icons.info_outline, color: AppColors.infoDark),
+          MotionIcon(Icons.info_outline, color: AppColors.infoDark),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               l10n.productPromotionPlanInfo,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 11,
               ),
@@ -580,20 +609,20 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
                     color: AppColors.surfaceLight,
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: const Icon(Icons.inventory_2_outlined,
-                      color: AppColors.primaryDark, size: 76),
+                  child: MotionIcon(Icons.inventory_2_outlined,
+                      color: AppColors.ink, size: 76),
                 ),
                 const SizedBox(height: 14),
                 Text(
                   isArabic ? request.productNameAr : request.productNameEn,
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
+                  style: TextStyle(
+                    color: AppColors.ink,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 const SizedBox(height: 8),
-                Text(
+                CountText(
                     '${l10n.productSellerLabel} ${isArabic ? request.merchantNameAr : request.merchantNameEn}'),
                 Text(
                     '${l10n.productPromotionPaymentStatusTitle}: ${request.adReference}'),
@@ -601,7 +630,7 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
                     '${l10n.productPromotionPlanInfo}: ${request.packageKey == 'premium' ? l10n.productPromotionPremiumPlan : l10n.productPromotionFeaturedPlan}'),
                 Text(
                     '${l10n.productDetailsPrice}: ${request.price} ${l10n.productWalletCurrency}'),
-                Text('${request.durationDays} ${l10n.productPromotionDays}'),
+                CountText('${request.durationDays} ${l10n.productPromotionDays}'),
                 const SizedBox(height: 12),
                 OutlinedButton(
                   onPressed: () => Navigator.pop(sheetContext),
@@ -649,8 +678,8 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
             .toList();
         await _saveRequests(updatedRequests);
         if (mounted) setState(() => _requests = updatedRequests);
-        await WasalnyLocalEventStore().publish(
-          WasalnyLocalEvent(
+        await LocalEventStore().publish(
+          LocalEvent(
             id: 'finance-promotion-${financialRequest.id}',
             recipient: 'finance',
             source: _accountKey,
@@ -661,9 +690,9 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
                 ? 'New Wasalny promotion request'
                 : 'New product promotion request',
             messageAr:
-                '${request.productNameAr} - ${request.price} ر.س. بانتظار مراجعة المشرف المالي.',
+                '${request.productNameAr} - ${request.price} ج.م. بانتظار مراجعة المشرف المالي.',
             messageEn:
-                '${request.productNameEn} - ${request.price} SAR awaits finance review.',
+                '${request.productNameEn} - ${request.price} EGP awaits finance review.',
             createdAt: DateTime.now(),
           ),
         );
@@ -797,8 +826,8 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
               children: [
                 Text(
                   l10n.productPromotionPaymentStatusTitle,
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
+                  style: TextStyle(
+                    color: AppColors.ink,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
@@ -812,7 +841,7 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
                   ),
                   child: Row(
                     children: [
-                      Icon(
+                      MotionIcon(
                         isPaid ? Icons.verified_outlined : Icons.error_outline,
                         color: statusColor,
                       ),
@@ -838,7 +867,7 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
                           _title(request, l10n.localeName.startsWith('ar')),
                         )
                       : l10n.productPromotionUnpaidMessage,
-                  style: const TextStyle(color: AppColors.textSecondary),
+                  style: TextStyle(color: AppColors.textSecondary),
                 ),
                 const SizedBox(height: 20),
                 if (isPaid && allowApproval)
@@ -929,7 +958,7 @@ class _SummaryCard extends StatelessWidget {
       height: 92,
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.cardBorder),
       ),
@@ -939,19 +968,19 @@ class _SummaryCard extends StatelessWidget {
           CircleAvatar(
             radius: 14,
             backgroundColor: tint,
-            child: Icon(icon, color: AppColors.primaryDark, size: 15),
+            child: MotionIcon(icon, color: AppColors.ink, size: 15),
           ),
           const Spacer(),
-          Text(value,
-              style: const TextStyle(
-                  color: AppColors.primaryDark,
+          CountText(value,
+              style: TextStyle(
+                  color: AppColors.ink,
                   fontSize: 17,
                   fontWeight: FontWeight.bold)),
           Text(
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: 9),
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 9),
           ),
         ],
       ),
@@ -995,7 +1024,7 @@ class _PromotionRequestCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(15),
           border: Border.all(color: AppColors.cardBorder),
         ),
@@ -1004,10 +1033,10 @@ class _PromotionRequestCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const CircleAvatar(
-                  backgroundColor: Color(0xFFEAF0FF),
-                  child: Icon(Icons.campaign_outlined,
-                      color: AppColors.primaryDark),
+                CircleAvatar(
+                  backgroundColor: AppColors.infoLight,
+                  child: MotionIcon(Icons.campaign_outlined,
+                      color: AppColors.ink),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -1020,20 +1049,20 @@ class _PromotionRequestCard extends StatelessWidget {
                             : request.productNameEn,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.primaryDark,
+                        style: TextStyle(
+                          color: AppColors.ink,
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       const SizedBox(height: 3),
-                      Text(
+                      FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart, child: CountText(
                         '${l10n.productSellerLabel} ${isArabic ? request.merchantNameAr : request.merchantNameEn}',
                         maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+ softWrap: false,
+                        style: TextStyle(
                             color: AppColors.textSecondary, fontSize: 10),
-                      ),
+                      )),
                     ],
                   ),
                 ),
@@ -1067,32 +1096,32 @@ class _PromotionRequestCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            Text(
+            CountText(
               '${l10n.productPromotionRequestedAt} ${DateFormat('yyyy/MM/dd  HH:mm').format(request.requestedAt)}',
               textDirection: ui.TextDirection.ltr,
               textAlign: TextAlign.start,
-              style: const TextStyle(color: AppColors.textMuted, fontSize: 10),
+              style: TextStyle(color: AppColors.textMuted, fontSize: 10),
             ),
             if (request.decisionNote != null) ...[
               const SizedBox(height: 6),
               Text(
                 '${l10n.productPromotionDecisionNote}: ${request.decisionNote}',
                 style:
-                    const TextStyle(color: AppColors.dangerDark, fontSize: 10),
+                    TextStyle(color: AppColors.dangerDark, fontSize: 10),
               ),
             ],
             if (isPending && request.financeReviewPending) ...[
               const SizedBox(height: 12),
               FilledButton.tonalIcon(
                 onPressed: isSaving ? null : onShowPaymentStatus,
-                icon: const Icon(Icons.hourglass_top, size: 17),
+                icon: const MotionIcon(Icons.hourglass_top, size: 17),
                 label: Text(l10n.productPromotionViewPaymentStatus),
               ),
             ] else if (isPending) ...[
               const SizedBox(height: 12),
               OutlinedButton.icon(
                 onPressed: isSaving ? null : onShowPaymentStatus,
-                icon: const Icon(Icons.payments_outlined, size: 17),
+                icon: const MotionIcon(Icons.payments_outlined, size: 17),
                 label: Text(l10n.productPromotionViewPaymentStatus),
               ),
               const SizedBox(height: 8),
@@ -1101,11 +1130,11 @@ class _PromotionRequestCard extends StatelessWidget {
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: isSaving ? null : onReject,
-                      icon: const Icon(Icons.close, size: 17),
+                      icon: const MotionIcon(Icons.close, size: 17),
                       label: Text(l10n.productPromotionReject),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.dangerDark,
-                        side: const BorderSide(color: AppColors.dangerBorder),
+                        side: BorderSide(color: AppColors.dangerBorder),
                       ),
                     ),
                   ),
@@ -1115,7 +1144,7 @@ class _PromotionRequestCard extends StatelessWidget {
                     Expanded(
                       child: FilledButton.icon(
                         onPressed: isSaving ? null : onApprove,
-                        icon: const Icon(Icons.check, size: 17),
+                        icon: const MotionIcon(Icons.check, size: 17),
                         label: Text(
                           request.paymentConfirmedByFinance
                               ? l10n.productPromotionApprove
@@ -1132,14 +1161,14 @@ class _PromotionRequestCard extends StatelessWidget {
               const SizedBox(height: 10),
               OutlinedButton.icon(
                 onPressed: isSaving ? null : onSuspend,
-                icon: const Icon(Icons.pause_circle_outline, size: 17),
+                icon: const MotionIcon(Icons.pause_circle_outline, size: 17),
                 label: Text(isArabic ? 'تعليق الترويج' : 'Suspend promotion'),
               ),
             ] else ...[
               const SizedBox(height: 10),
               OutlinedButton.icon(
                 onPressed: isSaving ? null : onReactivate,
-                icon: const Icon(Icons.restart_alt, size: 17),
+                icon: const MotionIcon(Icons.restart_alt, size: 17),
                 label: Text(isArabic ? 'إعادة التفعيل' : 'Reactivate'),
               ),
             ],
@@ -1215,11 +1244,11 @@ class _DetailBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: AppColors.infoDark, size: 13),
+          MotionIcon(icon, color: AppColors.infoDark, size: 13),
           const SizedBox(width: 4),
           Text(text,
               style:
-                  const TextStyle(color: AppColors.textSecondary, fontSize: 9)),
+                  TextStyle(color: AppColors.textSecondary, fontSize: 9)),
         ],
       ),
     );

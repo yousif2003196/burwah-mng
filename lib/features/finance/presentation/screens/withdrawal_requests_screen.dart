@@ -1,20 +1,27 @@
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/features/finance/data/services/finance_approval_policy.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' as intl;
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/di/injection_container.dart';
-import '../../../../core/utils/currency_formatter.dart';
-import '../../../../core/widgets/app_snack_bar.dart';
-import '../../../../core/widgets/finance_dialogs.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../../merchants/domain/entities/merchant_entity.dart';
-import '../../../merchants/data/merchant_advertisement_local_store.dart';
-import '../../../wasalny_supervisor/data/wasalny_local_event_store.dart';
-import '../../domain/entities/withdrawal_request_entity.dart';
-import '../../domain/repositories/finance_repository.dart';
-import '../utils/finance_localizer.dart';
-import '../widgets/finance_navigation.dart';
-import '../widgets/withdrawal_request_details_sheet.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/utils/currency_formatter.dart';
+import 'package:barwah_app/core/widgets/app_snack_bar.dart';
+import 'package:barwah_app/features/admin/data/datasources/admin_request_store.dart';
+import 'package:barwah_app/features/admin/domain/entities/admin_request.dart';
+import 'package:barwah_app/features/finance/domain/entities/withdrawal_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/repositories/finance_repository.dart';
+import 'package:barwah_app/features/finance/presentation/utils/finance_localizer.dart';
+import 'package:barwah_app/features/finance/presentation/widgets/finance_dialogs.dart';
+import 'package:barwah_app/features/finance/presentation/widgets/finance_navigation.dart';
+import 'package:barwah_app/features/finance/presentation/widgets/withdrawal_request_details_sheet.dart';
+import 'package:barwah_app/features/merchants/data/datasources/merchant_advertisement_local_store.dart';
+import 'package:barwah_app/features/merchants/domain/entities/merchant_entity.dart';
+import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
+import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
 
 enum _RequestQueue { merchant, supervisor }
 
@@ -290,6 +297,19 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
           reason: reason,
         );
       }
+      if (decision == RequestStatus.approved &&
+          await FinanceApprovalPolicy.needsAdmin(request.netAmount,
+              instantReady: request.isInstantTransferReady)) {
+        await forwardFinanceRequestToAdmin(
+        kind: AdminRequestKind.withdrawal,
+        refId: request.requestNumber,
+        titleAr: 'طلب مالي بانتظار المصادقة النهائية',
+        titleEn: 'Financial request awaiting final authorization',
+        detailsAr: '${request.beneficiaryName} (${request.beneficiaryRole}) — صافي ${request.netAmount.toStringAsFixed(2)} ج.م عبر ${request.bankName}.',
+        detailsEn: '${request.beneficiaryName} (${request.beneficiaryRole}) — net EGP ${request.netAmount.toStringAsFixed(2)} via ${request.bankName}.',
+        amount: request.netAmount,
+      );
+      }
       if (!mounted) return;
       setState(() {
         final index = _requests.indexWhere(
@@ -426,7 +446,7 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
                 request.sourceOfFunds?.contains('وصلني') == true
             ? 'wasalny'
             : 'products';
-    await WasalnyLocalEventStore().publish(WasalnyLocalEvent(
+    await LocalEventStore().publish(LocalEvent(
       id: 'finance-${approved ? 'approved' : onHold ? 'on-hold' : 'rejected'}-${request.id}',
       recipient: recipient,
       source: 'finance',
@@ -477,7 +497,7 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
     if (source == null) return;
     final approved = decision == RequestStatus.approved;
     final rejected = decision == RequestStatus.rejected;
-    await WasalnyLocalEventStore().publish(WasalnyLocalEvent(
+    await LocalEventStore().publish(LocalEvent(
       id: 'finance-${decision.name}-${request.id}',
       recipient: source,
       source: 'finance',
@@ -521,7 +541,7 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
     return Directionality(
       textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF5F7F9),
+        backgroundColor: AppColors.scaffold,
         appBar: FinancePageAppBar(
           title: l10n.navWithdrawalOrders,
           subtitle: l10n.financialManagementSubtitle,
@@ -531,7 +551,7 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
             IconButton(
               tooltip: isArabic ? 'تحديث الطلبات' : 'Refresh requests',
               onPressed: _loading ? null : _loadRequests,
-              icon: const Icon(Icons.refresh),
+              icon: const MotionIcon(Icons.refresh),
             ),
           ],
         ),
@@ -543,7 +563,7 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
                   children: [
-                    Row(
+                    ScrollFx(child: Row(
                       children: [
                         Expanded(
                           child: _metricCard(
@@ -569,14 +589,14 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
                           ),
                         ),
                       ],
-                    ),
+                    )),
                     const SizedBox(height: 18),
-                    _buildFiltersPanel(
+                    ScrollFx(child: _buildFiltersPanel(
                       l10n: l10n,
                       isArabic: isArabic,
                       pendingCount: pending.length,
                       archiveCount: _requests.length - pending.length,
-                    ),
+                    )),
                     const SizedBox(height: 16),
                     if (visible.isEmpty)
                       Padding(
@@ -588,7 +608,7 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
                         ),
                       )
                     else
-                      ...visible.map((entry) => _requestCard(l10n, entry)),
+                      ...visible.map((entry) => _requestCard(l10n, entry)).staggered(),
                   ],
                 ),
               ),
@@ -609,7 +629,7 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.cardBorder),
         boxShadow: [
@@ -632,9 +652,9 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
                   color: AppColors.primaryDark.withValues(alpha: .07),
                   borderRadius: BorderRadius.circular(13),
                 ),
-                child: const Icon(
+                child: MotionIcon(
                   Icons.tune_rounded,
-                  color: AppColors.primaryDark,
+                  color: AppColors.ink,
                   size: 21,
                 ),
               ),
@@ -645,7 +665,7 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
                   children: [
                     Text(
                       isArabic ? 'البحث والتصفية' : 'Search and filters',
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textPrimary,
                         fontWeight: FontWeight.w800,
                         fontSize: 15,
@@ -656,7 +676,7 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
                       isArabic
                           ? 'اعرض الطلبات التي تحتاجها بسرعة'
                           : 'Find the requests you need',
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 12,
                       ),
@@ -668,7 +688,7 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
                 IconButton(
                   tooltip: isArabic ? 'مسح كل المرشحات' : 'Clear all filters',
                   onPressed: _clearFilters,
-                  icon: const Icon(Icons.filter_alt_off_outlined),
+                  icon: const MotionIcon(Icons.filter_alt_off_outlined),
                   color: AppColors.textSecondary,
                 ),
             ],
@@ -678,14 +698,14 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
             segments: [
               ButtonSegment<bool>(
                 value: false,
-                icon: const Icon(Icons.pending_actions_outlined),
+                icon: const MotionIcon(Icons.pending_actions_outlined),
                 label: Text(
                   '${l10n.financeRequestsInProgressTab} ($pendingCount)',
                 ),
               ),
               ButtonSegment<bool>(
                 value: true,
-                icon: const Icon(Icons.archive_outlined),
+                icon: const MotionIcon(Icons.archive_outlined),
                 label: Text(
                   '${l10n.financeRequestsArchiveTab} ($archiveCount)',
                 ),
@@ -709,7 +729,7 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
                   states.contains(WidgetState.selected)
                       ? Colors.white
                       : AppColors.textSecondary),
-              side: const WidgetStatePropertyAll(
+              side: WidgetStatePropertyAll(
                 BorderSide(color: AppColors.cardBorder),
               ),
             ),
@@ -719,13 +739,13 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
             controller: _searchController,
             onChanged: (value) => setState(() => _query = value),
             decoration: InputDecoration(
-              prefixIcon: const Icon(Icons.search_rounded),
+              prefixIcon: const MotionIcon(Icons.search_rounded),
               hintText: isArabic
                   ? 'ابحث باسم المستفيد أو رقم الطلب'
                   : 'Search beneficiary or request number',
               isDense: true,
               filled: true,
-              fillColor: const Color(0xFFF8FAFC),
+              fillColor: AppColors.background,
               suffixIcon: _query.isEmpty
                   ? null
                   : IconButton(
@@ -736,22 +756,22 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
                           _searchController.clear();
                         });
                       },
-                      icon: const Icon(Icons.close_rounded),
+                      icon: const MotionIcon(Icons.close_rounded),
                     ),
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(13),
-                borderSide: const BorderSide(color: AppColors.cardBorder),
+                borderSide: BorderSide(color: AppColors.cardBorder),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(13),
-                borderSide: const BorderSide(color: AppColors.cardBorder),
+                borderSide: BorderSide(color: AppColors.cardBorder),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(13),
-                borderSide: const BorderSide(
-                  color: AppColors.primaryDark,
+                borderSide: BorderSide(
+                  color: AppColors.ink,
                   width: 1.4,
                 ),
               ),
@@ -763,7 +783,7 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
               Expanded(
                 child: Text(
                   isArabic ? 'تصفية حسب' : 'FILTER BY',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
@@ -774,8 +794,8 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
               if (_hasActiveFilters)
                 Text(
                   isArabic ? 'فلتر نشط' : 'Filter active',
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
+                  style: TextStyle(
+                    color: AppColors.ink,
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                   ),
@@ -840,7 +860,7 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: _selectDateRange,
-                  icon: const Icon(Icons.calendar_month_outlined, size: 18),
+                  icon: const MotionIcon(Icons.calendar_month_outlined, size: 18),
                   label: Text(
                     dateLabel,
                     maxLines: 1,
@@ -850,8 +870,8 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
                     alignment: AlignmentDirectional.centerStart,
                     foregroundColor: _dateRange == null
                         ? AppColors.textSecondary
-                        : AppColors.primaryDark,
-                    side: const BorderSide(color: AppColors.cardBorder),
+                        : AppColors.ink,
+                    side: BorderSide(color: AppColors.cardBorder),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
                       vertical: 12,
@@ -867,7 +887,7 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
                 IconButton(
                   tooltip: isArabic ? 'مسح التاريخ' : 'Clear date filter',
                   onPressed: () => setState(() => _dateRange = null),
-                  icon: const Icon(Icons.close_rounded),
+                  icon: const MotionIcon(Icons.close_rounded),
                   color: AppColors.textSecondary,
                 ),
               ],
@@ -906,17 +926,17 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
                   ))
               .toList(),
           child: Chip(
-            avatar: Icon(
+            avatar: MotionIcon(
               Icons.filter_list,
               size: 16,
-              color: active ? AppColors.primaryDark : AppColors.textSecondary,
+              color: active ? AppColors.ink : AppColors.textSecondary,
             ),
             label: Text(currentLabel),
             backgroundColor: active
                 ? AppColors.primaryDark.withValues(alpha: .08)
-                : Colors.white,
+                : AppColors.surface,
             side: BorderSide(
-              color: active ? AppColors.primaryDark : AppColors.cardBorder,
+              color: active ? AppColors.ink : AppColors.cardBorder,
             ),
           ),
         ),
@@ -929,7 +949,7 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
             visualDensity: VisualDensity.compact,
             constraints: const BoxConstraints.tightFor(width: 32, height: 32),
             padding: EdgeInsets.zero,
-            icon: const Icon(Icons.close_rounded, size: 17),
+            icon: const MotionIcon(Icons.close_rounded, size: 17),
           ),
       ],
     );
@@ -945,26 +965,32 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
       Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: AppColors.cardBorder),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: color),
+            MotionIcon(icon, color: color),
             const SizedBox(height: 8),
             Text(title,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 12, color: AppColors.textSecondary)),
             const SizedBox(height: 4),
-            Text(value,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                    fontSize: 20, fontWeight: FontWeight.bold, color: color)),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: AlignmentDirectional.centerStart,
+              child: CountText(value,
+                  maxLines: 1,
+                  softWrap: false,
+                  style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: color)),
+            ),
             Text(subtitle,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 12, color: AppColors.textSecondary)),
           ],
         ),
@@ -978,7 +1004,7 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
     final statusColor = _statusColor(request.status);
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      color: Colors.white,
+      color: AppColors.surface,
       child: Padding(
         padding: const EdgeInsets.all(17),
         child: Column(
@@ -988,7 +1014,7 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
               children: [
                 CircleAvatar(
                   backgroundColor: statusColor.withValues(alpha: .12),
-                  child: Icon(_operationIcon(request.operationType),
+                  child: MotionIcon(_operationIcon(request.operationType),
                       color: statusColor, size: 19),
                 ),
                 const SizedBox(width: 10),
@@ -1003,7 +1029,7 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
                               fontWeight: FontWeight.bold, fontSize: 16)),
                       Text(
                           '${request.requestNumber} · ${_beneficiaryLabel(l10n, request.beneficiaryType)}',
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 12, color: AppColors.textSecondary)),
                     ],
                   ),
@@ -1035,13 +1061,13 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
               const SizedBox(height: 8),
               Text(request.alertNotice!,
                   style:
-                      const TextStyle(color: AppColors.danger, fontSize: 11)),
+                      TextStyle(color: AppColors.danger, fontSize: 11)),
             ],
             const SizedBox(height: 10),
             OutlinedButton.icon(
               onPressed: () =>
                   showWithdrawalRequestDetailsSheet(context, request),
-              icon: const Icon(Icons.receipt_long_outlined, size: 17),
+              icon: const MotionIcon(Icons.receipt_long_outlined, size: 17),
               label: Text(l10n.withdrawalRequestDetails),
             ),
             if (_archive &&
@@ -1056,15 +1082,15 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
                         dimension: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Icon(Icons.undo_rounded),
+                    : const MotionIcon(Icons.undo_rounded),
                 label: Text(
                   isArabic
                       ? 'التراجع عن الإجراء وإعادة الطلب للمراجعة'
                       : 'Reverse action and return to review',
                 ),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.primaryDark,
-                  side: const BorderSide(color: AppColors.primaryDark),
+                  foregroundColor: AppColors.ink,
+                  side: BorderSide(color: AppColors.ink),
                   padding: const EdgeInsets.symmetric(vertical: 13),
                 ),
               ),
@@ -1082,7 +1108,7 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
                           ? const SizedBox.square(
                               dimension: 15,
                               child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Icon(Icons.check, size: 17),
+                          : const MotionIcon(Icons.check, size: 17),
                       label: Text(
                         isArabic ? 'اعتماد' : 'Approve',
                         maxLines: 1,
@@ -1101,7 +1127,7 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
                           ? const SizedBox.square(
                               dimension: 15,
                               child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Icon(Icons.close, size: 17),
+                          : const MotionIcon(Icons.close, size: 17),
                       label: Text(
                         isArabic ? 'رفض' : 'Reject',
                         maxLines: 1,
@@ -1124,7 +1150,7 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
                           ? const SizedBox.square(
                               dimension: 15,
                               child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Icon(Icons.pause_circle_outline, size: 17),
+                          : const MotionIcon(Icons.pause_circle_outline, size: 17),
                       label: Text(
                         isArabic ? 'تجميد' : 'Freeze',
                         maxLines: 1,
@@ -1132,7 +1158,7 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
                       ),
                       style: _decisionButtonStyle(
                         backgroundColor: AppColors.warning,
-                        foregroundColor: AppColors.primaryDark,
+                        foregroundColor: AppColors.ink,
                       ),
                     ),
                   ),
@@ -1164,9 +1190,9 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(label,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 12, color: AppColors.textSecondary)),
-            Text(CurrencyFormatter.format(amount),
+            CountText(CurrencyFormatter.format(amount),
                 style:
                     const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
           ],

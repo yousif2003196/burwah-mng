@@ -3,12 +3,18 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/di/injection_container.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../data/wasalny_local_event_store.dart';
-import '../../../products/domain/entities/product_supervisor_audit_entry.dart';
-import '../../../products/domain/repositories/product_supervisor_audit_repository.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/theme/app_palette.dart';
+import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
+import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
+import 'package:barwah_app/features/products/domain/entities/product_supervisor_audit_entry.dart';
+import 'package:barwah_app/features/products/domain/repositories/product_supervisor_audit_repository.dart';
+import 'package:barwah_app/features/wasalny_supervisor/data/datasources/wasalny_request_store.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 enum _RequestStage { communication, sold }
 
@@ -62,9 +68,65 @@ class _WasalnyRequest {
     required this.icon,
     required this.color,
   });
+
+  /// Applies the persisted progress / head-flag state on top of the seed.
+  _WasalnyRequest withState(WasalnyRequestState? state) {
+    if (state == null) return this;
+    var stage = this.stage;
+    var status = this.status;
+    var noteAr = statusNoteAr;
+    var noteEn = statusNoteEn;
+    if (state.isSold) {
+      stage = _RequestStage.sold;
+      status = _RequestStatus.sold;
+      noteAr = 'تم البيع وإتمام التسليم بنجاح';
+      noteEn = 'Sold and delivered successfully';
+    }
+    final flag = state.flagStatus;
+    if (flag != null && !state.isSold) {
+      noteAr = '${state.flagKind?.labelAr ?? ''}: ${flag.labelAr}';
+      noteEn = switch (flag) {
+        WasalnyRequestFlagStatus.pendingHead =>
+          'Flagged to the head supervisor, awaiting decision',
+        WasalnyRequestFlagStatus.returned =>
+          'Returned by the head for review',
+        WasalnyRequestFlagStatus.escalatedToAdmin =>
+          'Escalated by the head to the admin',
+        WasalnyRequestFlagStatus.decided => 'Decided by the head supervisor',
+      };
+      if (flag == WasalnyRequestFlagStatus.pendingHead ||
+          flag == WasalnyRequestFlagStatus.escalatedToAdmin) {
+        status = _RequestStatus.underReview;
+      }
+    }
+    return _WasalnyRequest(
+      id: id,
+      titleAr: titleAr,
+      titleEn: titleEn,
+      sellerAr: sellerAr,
+      sellerEn: sellerEn,
+      buyerAr: buyerAr,
+      buyerEn: buyerEn,
+      sellerPhone: sellerPhone,
+      buyerPhone: buyerPhone,
+      price: price,
+      statusNoteAr: noteAr,
+      statusNoteEn: noteEn,
+      locationAr: locationAr,
+      locationEn: locationEn,
+      productDetailsAr: productDetailsAr,
+      productDetailsEn: productDetailsEn,
+      ageAr: ageAr,
+      ageEn: ageEn,
+      stage: stage,
+      status: status,
+      icon: icon,
+      color: color,
+    );
+  }
 }
 
-const _sampleRequests = <_WasalnyRequest>[
+List<_WasalnyRequest> get _sampleRequests => <_WasalnyRequest>[
   _WasalnyRequest(
     id: 'W-1042',
     titleAr: 'كاميرا كانون EOS R6 (نظيفة جداً)',
@@ -89,7 +151,7 @@ const _sampleRequests = <_WasalnyRequest>[
     stage: _RequestStage.communication,
     status: _RequestStatus.communication,
     icon: Icons.camera_alt_outlined,
-    color: Color(0xFF253B54),
+    color: AppColors.infoDark,
   ),
   _WasalnyRequest(
     id: 'W-1038',
@@ -115,7 +177,7 @@ const _sampleRequests = <_WasalnyRequest>[
     stage: _RequestStage.communication,
     status: _RequestStatus.underReview,
     icon: Icons.sports_esports_outlined,
-    color: Color(0xFF5D8097),
+    color: AppColors.info,
   ),
   _WasalnyRequest(
     id: 'W-1031',
@@ -141,7 +203,7 @@ const _sampleRequests = <_WasalnyRequest>[
     stage: _RequestStage.communication,
     status: _RequestStatus.awaitingApproval,
     icon: Icons.laptop_mac_outlined,
-    color: Color(0xFF796B56),
+    color: AppColors.textSecondary,
   ),
   _WasalnyRequest(
     id: 'W-1024',
@@ -167,7 +229,7 @@ const _sampleRequests = <_WasalnyRequest>[
     stage: _RequestStage.sold,
     status: _RequestStatus.sold,
     icon: Icons.phone_iphone_outlined,
-    color: Color(0xFF51627A),
+    color: AppColors.textSecondary,
   ),
 ];
 
@@ -181,12 +243,45 @@ class WasalnyRequestsScreen extends StatefulWidget {
 class _WasalnyRequestsScreenState extends State<WasalnyRequestsScreen> {
   _RequestStage? _selectedStage;
   final Set<String> _revealedRequestIds = {};
+  final _requestStore = WasalnyRequestStore();
+  Map<String, WasalnyRequestState> _states = const {};
 
   @override
   void initState() {
     super.initState();
     _loadRevealedRequests();
+    LocalEventStore.revision.addListener(_loadStates);
+    WasalnyRequestStore.revision.addListener(_loadStates);
+    _loadStates();
   }
+
+  @override
+  void dispose() {
+    LocalEventStore.revision.removeListener(_loadStates);
+    WasalnyRequestStore.revision.removeListener(_loadStates);
+    super.dispose();
+  }
+
+  Future<void> _loadStates() async {
+    try {
+      final states = await _requestStore.refresh();
+      if (!mounted) return;
+      setState(() => _states = states);
+    } catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'Wasalny requests',
+          context: ErrorDescription('while loading request states'),
+        ),
+      );
+    }
+  }
+
+  List<_WasalnyRequest> get _effectiveRequests => [
+        for (final r in _sampleRequests) r.withState(_states[r.id]),
+      ];
 
   Future<void> _loadRevealedRequests() async {
     try {
@@ -213,28 +308,26 @@ class _WasalnyRequestsScreenState extends State<WasalnyRequestsScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final isArabic = l10n.localeName.startsWith('ar');
-    final requests = _sampleRequests
+    final all = _effectiveRequests;
+    final requests = all
         .where((request) =>
             _selectedStage == null || request.stage == _selectedStage)
         .toList();
-    final communicationCount = _sampleRequests
-        .where((request) => request.stage == _RequestStage.communication)
-        .length;
-    final soldCount = _sampleRequests
-        .where((request) => request.stage == _RequestStage.sold)
-        .length;
-    final completionRate = _sampleRequests.isEmpty
-        ? 0
-        : (soldCount * 100 / _sampleRequests.length).round();
+    final communicationCount =
+        all.where((request) => request.stage == _RequestStage.communication).length;
+    final soldCount =
+        all.where((request) => request.stage == _RequestStage.sold).length;
+    final completionRate =
+        all.isEmpty ? 0 : (soldCount * 100 / all.length).round();
 
     return Directionality(
       textDirection: isArabic ? ui.TextDirection.rtl : ui.TextDirection.ltr,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         children: [
-          _SafetyBanner(l10n: l10n),
+          ScrollFx(child: _SafetyBanner(l10n: l10n)),
           const SizedBox(height: 14),
-          Row(
+          ScrollFx(child: Row(
             children: [
               Expanded(
                 child: _SummaryCard(
@@ -246,13 +339,13 @@ class _WasalnyRequestsScreenState extends State<WasalnyRequestsScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: _SummaryCard(
-                  value: '${_sampleRequests.length - soldCount}',
+                  value: '${all.length - soldCount}',
                   label: l10n.wasalnyRequestsActiveDeals,
                   icon: Icons.handshake_outlined,
                 ),
               ),
             ],
-          ),
+          )),
           const SizedBox(height: 14),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -260,7 +353,7 @@ class _WasalnyRequestsScreenState extends State<WasalnyRequestsScreen> {
               children: [
                 _StageChip(
                   label: l10n.wasalnyRequestsAll,
-                  count: _sampleRequests.length,
+                  count: all.length,
                   selected: _selectedStage == null,
                   onTap: () => setState(() => _selectedStage = null),
                 ),
@@ -289,7 +382,7 @@ class _WasalnyRequestsScreenState extends State<WasalnyRequestsScreen> {
               child: Text(
                 l10n.wasalnyRequestsEmpty,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.textSecondary),
+                style: TextStyle(color: AppColors.textSecondary),
               ),
             ),
           for (final request in requests) ...[
@@ -321,7 +414,7 @@ class _WasalnyRequestsScreenState extends State<WasalnyRequestsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        icon: const Icon(Icons.lock_open_outlined),
+        icon: const MotionIcon(Icons.lock_open_outlined),
         title: Text(l10n.wasalnyRequestsRevealTitle),
         content: Text(l10n.wasalnyRequestsRevealConfirmation),
         actions: [
@@ -352,7 +445,7 @@ class _WasalnyRequestsScreenState extends State<WasalnyRequestsScreen> {
         await showDialog<void>(
           context: context,
           builder: (context) => AlertDialog(
-            icon: const Icon(Icons.workspace_premium_outlined),
+            icon: const MotionIcon(Icons.workspace_premium_outlined),
             title: Text(l10n.wasalnyRequestsMonthlyLimitTitle),
             content: Text(l10n.wasalnyRequestsMonthlyLimitMessage),
             actions: [
@@ -406,6 +499,188 @@ class _WasalnyRequestsScreenState extends State<WasalnyRequestsScreen> {
         disclosureCount + 1,
       );
       setState(() => _revealedRequestIds.add(request.id));
+      await _checkRevealAnomaly();
+    }
+  }
+
+  /// Alerts the head when an unusual number of contact reveals happen in a day.
+  Future<void> _checkRevealAnomaly() async {
+    const threshold = 5;
+    try {
+      final entries = await sl<ProductSupervisorAuditRepository>().getEntries();
+      final now = DateTime.now();
+      final today = entries
+          .where((e) =>
+              e.actionKey == 'wasalny_request_contact_revealed' &&
+              e.occurredAt.year == now.year &&
+              e.occurredAt.month == now.month &&
+              e.occurredAt.day == now.day)
+          .length;
+      if (today < threshold) return;
+      final day =
+          '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+      await LocalEventStore().publish(
+        LocalEvent(
+          id: 'head-wasalny-reveal-alert-$day',
+          recipient: 'head',
+          source: 'wasalny',
+          titleAr: 'نشاط غير معتاد: كشف أرقام التواصل',
+          titleEn: 'Unusual contact-reveal activity',
+          messageAr:
+              'تنبيه كشف أرقام: نشاط كشف أرقام غير معتاد في وصلني — تم كشف $today رقم/طلب اليوم (الحد المعتاد $threshold). السبب: مراجعة نشاط المشرف',
+          messageEn:
+              'Reveal alert: unusual Wasalny contact reveals — $today today (usual limit $threshold). Reason: review supervisor activity',
+          createdAt: now,
+        ),
+      );
+    } catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'Wasalny requests',
+          context: ErrorDescription('while checking reveal activity'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _markSold(_WasalnyRequest request, bool isArabic) async {
+    try {
+      await _requestStore.markSold(request.id);
+      await sl<ProductSupervisorAuditRepository>().recordEntry(
+        ProductSupervisorAuditEntry(
+          id: DateTime.now().microsecondsSinceEpoch.toString(),
+          actionKey: 'wasalny_request_marked_sold',
+          subject: isArabic ? request.titleAr : request.titleEn,
+          details: request.id,
+          occurredAt: DateTime.now(),
+        ),
+      );
+    } catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'Wasalny requests',
+          context: ErrorDescription('while marking a request as sold'),
+        ),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(isArabic ? 'تعذر الحفظ' : 'Could not save')),
+        );
+      }
+    }
+  }
+
+  Future<void> _flagRequest(_WasalnyRequest request, bool isArabic) async {
+    var kind = WasalnyRequestFlagKind.suspicious;
+    final controller = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setLocal) => Directionality(
+          textDirection: isArabic ? ui.TextDirection.rtl : ui.TextDirection.ltr,
+          child: AlertDialog(
+            title: Text(isArabic ? 'رفع لرئيس المشرفين' : 'Flag to the head'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SegmentedButton<WasalnyRequestFlagKind>(
+                  segments: [
+                    ButtonSegment(
+                      value: WasalnyRequestFlagKind.suspicious,
+                      label: Text(isArabic ? 'شبهة' : 'Suspicious'),
+                    ),
+                    ButtonSegment(
+                      value: WasalnyRequestFlagKind.banSeller,
+                      label: Text(isArabic ? 'حظر البائع' : 'Ban seller'),
+                    ),
+                  ],
+                  selected: {kind},
+                  onSelectionChanged: (v) => setLocal(() => kind = v.first),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  isArabic
+                      ? 'يمر دائماً على رئيس المشرفين، وهو من يقرر رفعه للأدمن.'
+                      : 'Always goes through the head, who decides on admin escalation.',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: controller,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    labelText: isArabic ? 'السبب (إلزامي)' : 'Reason (required)',
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: Text(isArabic ? 'إلغاء' : 'Cancel'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  if (controller.text.trim().length < 5) return;
+                  Navigator.of(dialogContext).pop(true);
+                },
+                child: Text(isArabic ? 'رفع' : 'Send'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    final reason = controller.text;
+    controller.dispose();
+    if (confirmed != true) return;
+    try {
+      await _requestStore.flagToHead(
+        id: request.id,
+        title: isArabic ? request.titleAr : request.titleEn,
+        sellerName: isArabic ? request.sellerAr : request.sellerEn,
+        kind: kind,
+        reason: reason,
+      );
+      await sl<ProductSupervisorAuditRepository>().recordEntry(
+        ProductSupervisorAuditEntry(
+          id: DateTime.now().microsecondsSinceEpoch.toString(),
+          actionKey: 'wasalny_request_flagged',
+          subject: isArabic ? request.titleAr : request.titleEn,
+          details: '${request.id} • ${kind.labelAr}',
+          occurredAt: DateTime.now(),
+        ),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isArabic ? 'تم الرفع لرئيس المشرفين' : 'Sent to the head supervisor',
+          ),
+        ),
+      );
+    } catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'Wasalny requests',
+          context: ErrorDescription('while flagging a request'),
+        ),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(isArabic ? 'تعذر الرفع' : 'Could not send')),
+        );
+      }
     }
   }
 
@@ -420,8 +695,8 @@ class _WasalnyRequestsScreenState extends State<WasalnyRequestsScreen> {
     final now = DateTime.now();
     final month = '${now.year}${now.month.toString().padLeft(2, '0')}';
     try {
-      await WasalnyLocalEventStore().publish(
-        WasalnyLocalEvent(
+      await LocalEventStore().publish(
+        LocalEvent(
           id: 'buyer-$eventType-$buyerId-$month-$requestCount',
           recipient: 'buyer:$buyerId',
           source: 'wasalny',
@@ -557,7 +832,7 @@ class _WasalnyRequestsScreenState extends State<WasalnyRequestsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Row(
+                ScrollFx(child: Row(
                   children: [
                     Expanded(
                       child: Text(
@@ -573,17 +848,17 @@ class _WasalnyRequestsScreenState extends State<WasalnyRequestsScreen> {
                       icon: _requestStatusIcon(request.status),
                     ),
                   ],
-                ),
+                )),
                 const SizedBox(height: 14),
-                _RequestPhotoGallery(request: request, title: title),
+                ScrollFx(child: _RequestPhotoGallery(request: request, title: title)),
                 const SizedBox(height: 18),
-                _DetailsSection(
+                ScrollFx(child: _DetailsSection(
                   title: isArabic ? 'بيانات المنتج' : 'Product details',
                   icon: Icons.inventory_2_outlined,
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
@@ -592,7 +867,7 @@ class _WasalnyRequestsScreenState extends State<WasalnyRequestsScreen> {
                     const SizedBox(height: 6),
                     Text(
                       productDetails,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 12,
                         height: 1.6,
@@ -604,9 +879,9 @@ class _WasalnyRequestsScreenState extends State<WasalnyRequestsScreen> {
                       value: '${request.price} ${l10n.productWalletCurrency}',
                     ),
                   ],
-                ),
+                )),
                 const SizedBox(height: 12),
-                _DetailsSection(
+                ScrollFx(child: _DetailsSection(
                   title: isArabic ? 'معلومات الطلب' : 'Request information',
                   icon: Icons.receipt_long_outlined,
                   children: [
@@ -627,9 +902,9 @@ class _WasalnyRequestsScreenState extends State<WasalnyRequestsScreen> {
                       value: isArabic ? request.ageAr : request.ageEn,
                     ),
                   ],
-                ),
+                )),
                 const SizedBox(height: 12),
-                _DetailsSection(
+                ScrollFx(child: _DetailsSection(
                   title: isArabic ? 'أطراف الطلب' : 'People in this request',
                   icon: Icons.people_outline,
                   children: [
@@ -649,7 +924,50 @@ class _WasalnyRequestsScreenState extends State<WasalnyRequestsScreen> {
                       icon: Icons.person_outline,
                     ),
                   ],
-                ),
+                )),
+                const SizedBox(height: 12),
+                ScrollFx(child: _DetailsSection(
+                  title: isArabic ? 'إجراءات المشرف' : 'Supervisor actions',
+                  icon: Icons.gavel_outlined,
+                  children: [
+                    if (_states[request.id]?.flagStatus != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          '${_states[request.id]!.flagKind?.labelAr ?? ''} — ${_states[request.id]!.flagStatus!.labelAr}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    if (request.stage != _RequestStage.sold)
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          _markSold(request, isArabic);
+                        },
+                        icon: const MotionIcon(Icons.check_circle_outline),
+                        label: Text(
+                          isArabic ? 'تأكيد إتمام البيع' : 'Confirm sale completed',
+                        ),
+                      ),
+                    if ((_states[request.id]?.canFlag ?? true) &&
+                        request.stage != _RequestStage.sold)
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          _flagRequest(request, isArabic);
+                        },
+                        icon: const MotionIcon(Icons.flag_outlined),
+                        label: Text(
+                          isArabic
+                              ? 'رفع شبهة / طلب حظر لرئيس المشرفين'
+                              : 'Flag / request seller ban via head',
+                        ),
+                      ),
+                  ],
+                )),
               ],
             ),
           ),
@@ -669,21 +987,20 @@ class _SafetyBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF18375C), Color(0xFF08213E)],
+        gradient: AppColors.blueFill ?? LinearGradient(
+          colors: [AppColors.infoDark, AppColors.primaryDark],
         ),
+        border: AppColors.blueEdge,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1A000000),
+        boxShadow: [...?AppColors.blueGlow, BoxShadow(
+            color: AppPalette.overlay1A000000,
             blurRadius: 8,
             offset: Offset(0, 3),
-          ),
-        ],
+          ),],
       ),
       child: Row(
         children: [
-          const Icon(Icons.shield_outlined, color: Colors.white, size: 28),
+          const MotionIcon(Icons.shield_outlined, color: Colors.white, size: 28),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -700,8 +1017,8 @@ class _SafetyBanner extends StatelessWidget {
                 const SizedBox(height: 5),
                 Text(
                   l10n.wasalnyRequestsSafetyDescription,
-                  style: const TextStyle(
-                    color: Color(0xFFD6E1EF),
+                  style: TextStyle(
+                    color: AppColors.cardBorder,
                     height: 1.5,
                     fontSize: 10,
                   ),
@@ -731,7 +1048,7 @@ class _SummaryCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(15),
       ),
       child: Column(
@@ -739,22 +1056,22 @@ class _SummaryCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
+              CountText(
                 value,
-                style: const TextStyle(
-                  color: AppColors.primaryDark,
+                style: TextStyle(
+                  color: AppColors.ink,
                   fontSize: 23,
                   fontWeight: FontWeight.w800,
                 ),
               ),
               const SizedBox(width: 3),
-              Icon(icon, color: AppColors.primaryDark, size: 15),
+              MotionIcon(icon, color: AppColors.ink, size: 15),
             ],
           ),
           Text(
             label,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 10,
             ),
@@ -793,7 +1110,7 @@ class _StageChip extends StatelessWidget {
               decoration: BoxDecoration(
                 color: selected
                     ? Colors.white.withValues(alpha: 0.18)
-                    : const Color(0xFFE4E6E9),
+                    : AppColors.cardBorder,
                 shape: BoxShape.circle,
               ),
               child: Text(
@@ -852,11 +1169,11 @@ class _RequestCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x10000000),
+            color: AppPalette.overlay10000000,
             blurRadius: 7,
             offset: Offset(0, 3),
           ),
@@ -873,7 +1190,7 @@ class _RequestCard extends StatelessWidget {
               const Spacer(),
               Text(
                 age,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 9,
                 ),
@@ -884,7 +1201,7 @@ class _RequestCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: const Color(0xFFF6F7F8),
+              color: AppColors.background,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
@@ -897,7 +1214,7 @@ class _RequestCard extends StatelessWidget {
                         title,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
@@ -906,7 +1223,7 @@ class _RequestCard extends StatelessWidget {
                       const SizedBox(height: 5),
                       Text(
                         '${l10n.wasalnyRequestsEstimatedValue}: ${request.price} ${l10n.productWalletCurrency}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 9,
                         ),
@@ -922,7 +1239,7 @@ class _RequestCard extends StatelessWidget {
                     color: request.color,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(request.icon, color: Colors.white, size: 32),
+                  child: MotionIcon(request.icon, color: Colors.white, size: 32),
                 ),
               ],
             ),
@@ -969,8 +1286,8 @@ class _RequestCard extends StatelessWidget {
                   child: _CardButton(
                     label: l10n.wasalnyRequestsPreviewAction,
                     icon: Icons.visibility_outlined,
-                    background: const Color(0xFFEDEFF1),
-                    foreground: AppColors.primaryDark,
+                    background: AppColors.surfaceLight,
+                    foreground: AppColors.ink,
                     onPressed: onPreview,
                   ),
                 ),
@@ -1002,15 +1319,15 @@ class _RequestCard extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
             decoration: BoxDecoration(
-              color: const Color(0xFFE9EAEC),
+              color: AppColors.surfaceHighlight,
               borderRadius: BorderRadius.circular(10),
             ),
             child: Row(
               children: [
-                Icon(
+                MotionIcon(
                   isRevealed ? Icons.lock_open_outlined : Icons.lock_outline,
                   size: 15,
-                  color: AppColors.primaryDark,
+                  color: AppColors.ink,
                 ),
                 const SizedBox(width: 6),
                 Expanded(
@@ -1018,7 +1335,7 @@ class _RequestCard extends StatelessWidget {
                     isRevealed ? '$statusNote • $location' : statusNote,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 9,
                     ),
@@ -1060,18 +1377,18 @@ class _StatusPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: const Color(0xFFDCE8FF),
+        color: AppColors.infoBorder,
         borderRadius: BorderRadius.circular(18),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 12, color: AppColors.primaryDark),
+          MotionIcon(icon, size: 12, color: AppColors.ink),
           const SizedBox(width: 4),
           Text(
             label,
-            style: const TextStyle(
-              color: AppColors.primaryDark,
+            style: TextStyle(
+              color: AppColors.ink,
               fontSize: 9,
               fontWeight: FontWeight.w600,
             ),
@@ -1098,12 +1415,12 @@ class _PersonPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
       decoration: BoxDecoration(
-        color: const Color(0xFFE9EAEC),
+        color: AppColors.surfaceHighlight,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
         children: [
-          Icon(icon, color: AppColors.primaryDark, size: 15),
+          MotionIcon(icon, color: AppColors.ink, size: 15),
           const SizedBox(width: 4),
           Expanded(
             child: Column(
@@ -1111,7 +1428,7 @@ class _PersonPill extends StatelessWidget {
               children: [
                 Text(
                   role,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 8,
                   ),
@@ -1120,7 +1437,7 @@ class _PersonPill extends StatelessWidget {
                   name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 9,
                     fontWeight: FontWeight.w700,
@@ -1166,7 +1483,7 @@ class _RequestPhotoGallery extends StatelessWidget {
           child: Stack(
             children: [
               Center(
-                child: Icon(
+                child: MotionIcon(
                   request.icon,
                   color: Colors.white.withValues(alpha: 0.92),
                   size: 66,
@@ -1182,7 +1499,7 @@ class _RequestPhotoGallery extends StatelessWidget {
                     color: Colors.black.withValues(alpha: 0.32),
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Text(
+                  child: CountText(
                     '${isArabic ? 'صورة' : 'Photo'} ${index + 1}',
                     style: const TextStyle(
                       color: Colors.white,
@@ -1231,7 +1548,7 @@ class _DetailsSection extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.cardBorder),
       ),
@@ -1240,12 +1557,12 @@ class _DetailsSection extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, color: AppColors.primaryDark, size: 18),
+              MotionIcon(icon, color: AppColors.ink, size: 18),
               const SizedBox(width: 7),
               Text(
                 title,
-                style: const TextStyle(
-                  color: AppColors.primaryDark,
+                style: TextStyle(
+                  color: AppColors.ink,
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
                 ),
@@ -1280,7 +1597,7 @@ class _PersonDetails extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, color: AppColors.primaryDark, size: 19),
+        MotionIcon(icon, color: AppColors.ink, size: 19),
         const SizedBox(width: 8),
         Expanded(
           child: Column(
@@ -1288,7 +1605,7 @@ class _PersonDetails extends StatelessWidget {
             children: [
               Text(
                 role,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 10,
                 ),
@@ -1296,7 +1613,7 @@ class _PersonDetails extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 name,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
@@ -1309,7 +1626,7 @@ class _PersonDetails extends StatelessWidget {
                 style: TextStyle(
                   color: phone == null
                       ? AppColors.textSecondary
-                      : AppColors.primaryDark,
+                      : AppColors.ink,
                   fontSize: 10,
                 ),
               ),
@@ -1332,7 +1649,7 @@ class _PhonePill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(7),
       decoration: BoxDecoration(
-        color: const Color(0xFFF0F4FA),
+        color: AppColors.infoLight,
         borderRadius: BorderRadius.circular(9),
       ),
       child: Text(
@@ -1340,8 +1657,8 @@ class _PhonePill extends StatelessWidget {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         textAlign: TextAlign.center,
-        style: const TextStyle(
-          color: AppColors.primaryDark,
+        style: TextStyle(
+          color: AppColors.ink,
           fontSize: 9,
           fontWeight: FontWeight.w600,
         ),
@@ -1378,7 +1695,7 @@ class _CardButton extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: foreground, size: 16),
+              MotionIcon(icon, color: foreground, size: 16),
               const SizedBox(width: 5),
               Flexible(
                 child: Text(
@@ -1417,16 +1734,16 @@ class _DetailLine extends StatelessWidget {
             width: 120,
             child: Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 11,
               ),
             ),
           ),
           Expanded(
-            child: Text(
+            child: CountText(
               value,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textPrimary,
                 fontSize: 11,
                 fontWeight: FontWeight.w600,

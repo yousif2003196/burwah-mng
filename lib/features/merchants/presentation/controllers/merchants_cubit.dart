@@ -1,9 +1,10 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../domain/entities/merchant_entity.dart';
-import '../../domain/usecases/get_merchants_usecase.dart';
-import '../../domain/usecases/get_supervised_merchants_usecase.dart';
-import '../../domain/usecases/get_supervisor_stats_usecase.dart';
-import 'merchants_state.dart';
+
+import 'package:barwah_app/features/merchants/domain/entities/merchant_entity.dart';
+import 'package:barwah_app/features/merchants/domain/usecases/get_merchants_usecase.dart';
+import 'package:barwah_app/features/merchants/domain/usecases/get_supervised_merchants_usecase.dart';
+import 'package:barwah_app/features/merchants/domain/usecases/get_supervisor_stats_usecase.dart';
+import 'package:barwah_app/features/merchants/presentation/controllers/merchants_state.dart';
 
 class MerchantsCubit extends Cubit<MerchantsState> {
   final GetMerchantsUseCase getMerchantsUseCase;

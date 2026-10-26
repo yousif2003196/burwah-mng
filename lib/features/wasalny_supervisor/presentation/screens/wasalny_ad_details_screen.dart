@@ -4,10 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../features/merchants/presentation/screens/merchant_conversation_screen.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../domain/entities/wasalny_ad.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/theme/app_palette.dart';
+import 'package:barwah_app/features/merchants/presentation/screens/merchant_conversation_screen.dart';
+import 'package:barwah_app/features/wasalny_supervisor/domain/entities/wasalny_ad.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class WasalnyAdDetailsScreen extends StatelessWidget {
   final WasalnyAd ad;
@@ -41,26 +45,26 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
     return Directionality(
       textDirection: isArabic ? ui.TextDirection.rtl : ui.TextDirection.ltr,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF5F7F9),
+        backgroundColor: AppColors.scaffold,
         appBar: AppBar(
           title: Text(l10n.wasalnyAdDetailsTitle),
           centerTitle: true,
-          backgroundColor: const Color(0xFFF5F7F9),
-          foregroundColor: AppColors.primaryDark,
+          backgroundColor: AppColors.surface,
+          foregroundColor: AppColors.ink,
           elevation: 0,
           leading: IconButton(
             tooltip: l10n.productBackToReview,
             onPressed: () => Navigator.of(context).maybePop(),
-            icon: const Icon(Icons.arrow_back_ios_new, size: 19),
+            icon: const MotionIcon(Icons.arrow_back_ios_new, size: 19),
           ),
-          actions: const [
+          actions: [
             Padding(
               padding: EdgeInsetsDirectional.only(end: 12),
               child: CircleAvatar(
                 radius: 15,
                 backgroundColor: AppColors.primaryDark,
                 child:
-                    Icon(Icons.person_outline, color: Colors.white, size: 17),
+                    MotionIcon(Icons.person_outline, color: Colors.white, size: 17),
               ),
             ),
           ],
@@ -68,23 +72,23 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
         body: ListView(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
           children: [
-            _PermissionBanner(
+            ScrollFx(child: _PermissionBanner(
               text:
                   canTakeAction ? l10n.wasalnyAdDetailsPermission : statusLabel,
-            ),
+            )),
             const SizedBox(height: 12),
-            _SellerCard(
+            ScrollFx(child: _SellerCard(
               ad: ad,
               seller: seller,
               l10n: l10n,
               showContactActions: canTakeAction,
               onChat: () => _openChat(context, seller),
               onCall: () => _callSeller(context, ad, l10n),
-            ),
+            )),
             const SizedBox(height: 14),
-            _PhotoGallery(ad: ad, l10n: l10n),
+            ScrollFx(child: _PhotoGallery(ad: ad, l10n: l10n)),
             const SizedBox(height: 14),
-            _InfoPanel(
+            ScrollFx(child: _InfoPanel(
               title: l10n.wasalnyAdDetailsCategory,
               icon: Icons.category_outlined,
               child: Column(
@@ -97,16 +101,16 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text(
                     l10n.wasalnyAdDetailsCategoryMatch,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 11,
                     ),
                   ),
                 ],
               ),
-            ),
+            )),
             const SizedBox(height: 14),
-            _InfoPanel(
+            ScrollFx(child: _InfoPanel(
               title: l10n.wasalnyAdDetailsPrice,
               icon: Icons.sell_outlined,
               child: Column(
@@ -121,9 +125,9 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
                   _PriceRange(ad: ad, l10n: l10n),
                 ],
               ),
-            ),
+            )),
             const SizedBox(height: 14),
-            _InfoPanel(
+            ScrollFx(child: _InfoPanel(
               title: l10n.wasalnyAdDetailsDescription,
               icon: Icons.edit_note_outlined,
               child: Column(
@@ -132,12 +136,12 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(13),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF0F2F4),
+                      color: AppColors.surfaceLight,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
                       description.isEmpty ? title : description,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 12,
                         height: 1.7,
@@ -147,20 +151,20 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
                   const SizedBox(height: 10),
                   Row(
                     children: [
-                      const Icon(Icons.circle, color: AppColors.info, size: 8),
+                      MotionIcon(Icons.circle, color: AppColors.info, size: 8),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           l10n.wasalnyAdDetailsAutoCheck,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: AppColors.textSecondary,
                             fontSize: 10,
                           ),
                         ),
                       ),
-                      Text(
+                      CountText(
                         '${description.isEmpty ? title.length : description.length} ${l10n.wasalnyAdDetailsCharacters}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 10,
                         ),
@@ -169,14 +173,14 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
                   ),
                 ],
               ),
-            ),
+            )),
             if (canTakeAction) ...[
               const SizedBox(height: 16),
               _DetailActionButton(
                 key: const ValueKey('chat-or-call-action-button'),
                 label: l10n.wasalnyChatOrCallSeller,
                 icon: Icons.forum_outlined,
-                background: const Color(0xFF1E293B),
+                background: AppColors.primaryDark,
                 foreground: Colors.white,
                 onPressed: () => _showContactOptions(context, ad, seller, l10n),
               ),
@@ -209,7 +213,7 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
               _DetailActionButton(
                 label: l10n.wasalnyAdDetailsReject,
                 icon: Icons.cancel_outlined,
-                background: const Color(0xFFFFDAD6),
+                background: AppColors.dangerBorder,
                 foreground: AppColors.dangerDark,
                 onPressed: () => _submit(context, WasalnyAdStatus.rejected),
               ),
@@ -241,16 +245,16 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            const Icon(Icons.phone_in_talk_outlined,
-                color: AppColors.primaryDark, size: 24),
+            MotionIcon(Icons.phone_in_talk_outlined,
+                color: AppColors.ink, size: 24),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 l10n.wasalnyCallSeller,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.primaryDark,
+                  color: AppColors.ink,
                 ),
               ),
             ),
@@ -262,7 +266,7 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
           children: [
             Text(
               isArabic ? ad.sellerNameAr : ad.sellerNameEn,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
                 color: AppColors.textPrimary,
@@ -272,18 +276,18 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
-                color: const Color(0xFFF0F2F4),
+                color: AppColors.surfaceLight,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.phone_android,
-                      size: 18, color: AppColors.primaryDark),
+                  MotionIcon(Icons.phone_android,
+                      size: 18, color: AppColors.ink),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       ad.sellerPhone,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 1,
@@ -293,7 +297,7 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.copy, size: 18),
+                    icon: const MotionIcon(Icons.copy, size: 18),
                     tooltip: l10n.wasalnyCopyPhone,
                     onPressed: () async {
                       await Clipboard.setData(
@@ -329,7 +333,7 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
-            icon: const Icon(Icons.phone, size: 16),
+            icon: const MotionIcon(Icons.phone, size: 16),
             label: Text(l10n.wasalnyCallNow),
             onPressed: () {
               Navigator.of(dialogContext).pop();
@@ -369,7 +373,7 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
                   width: 38,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
+                    color: AppColors.cardBorder,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -377,10 +381,10 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
               const SizedBox(height: 14),
               Row(
                 children: [
-                  const CircleAvatar(
-                    backgroundColor: Color(0xFFE8EEF5),
-                    child: Icon(Icons.contact_phone_outlined,
-                        color: AppColors.primaryDark),
+                  CircleAvatar(
+                    backgroundColor: AppColors.surfaceLight,
+                    child: MotionIcon(Icons.contact_phone_outlined,
+                        color: AppColors.ink),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -389,7 +393,7 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
                       children: [
                         Text(
                           l10n.wasalnyContactSellerTitle,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.bold,
                             color: AppColors.textPrimary,
@@ -397,7 +401,7 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
                         ),
                         Text(
                           seller,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
                             color: AppColors.textSecondary,
                           ),
@@ -413,10 +417,10 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                tileColor: const Color(0xFFF5F7F9),
-                leading: const CircleAvatar(
+                tileColor: AppColors.background,
+                leading: CircleAvatar(
                   backgroundColor: AppColors.primaryDark,
-                  child: Icon(Icons.chat_bubble_outline,
+                  child: MotionIcon(Icons.chat_bubble_outline,
                       color: Colors.white, size: 20),
                 ),
                 title: Text(
@@ -426,10 +430,10 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
                 ),
                 subtitle: Text(
                   seller,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 11, color: AppColors.textSecondary),
                 ),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+                trailing: const MotionIcon(Icons.arrow_forward_ios, size: 14),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
                   _openChat(context, seller);
@@ -441,11 +445,11 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                tileColor: const Color(0xFFF5F7F9),
-                leading: const CircleAvatar(
+                tileColor: AppColors.background,
+                leading: CircleAvatar(
                   backgroundColor: AppColors.success,
                   child:
-                      Icon(Icons.phone_outlined, color: Colors.white, size: 20),
+                      MotionIcon(Icons.phone_outlined, color: Colors.white, size: 20),
                 ),
                 title: Text(
                   l10n.wasalnyCallSeller,
@@ -455,10 +459,10 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
                 subtitle: Text(
                   ad.sellerPhone,
                   textDirection: ui.TextDirection.ltr,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 11, color: AppColors.textSecondary),
                 ),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+                trailing: const MotionIcon(Icons.arrow_forward_ios, size: 14),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
                   _callSeller(context, ad, l10n);
@@ -503,23 +507,23 @@ class _PermissionBanner extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: const Color(0xFFE8EAEC),
+          color: AppColors.surfaceHighlight,
           borderRadius: BorderRadius.circular(15),
         ),
         child: Row(
           children: [
-            const Icon(Icons.lock_outline, color: AppColors.primaryDark),
+            MotionIcon(Icons.lock_outline, color: AppColors.ink),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
                 text,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 11,
                 ),
               ),
             ),
-            const Icon(Icons.shield_outlined, color: AppColors.primaryDark),
+            MotionIcon(Icons.shield_outlined, color: AppColors.ink),
           ],
         ),
       );
@@ -546,7 +550,7 @@ class _SellerCard extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: const Color(0xFFF0F2F4),
+          color: AppColors.surfaceLight,
           borderRadius: BorderRadius.circular(15),
         ),
         child: Column(
@@ -554,7 +558,7 @@ class _SellerCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.lock_person_outlined,
+                MotionIcon(Icons.lock_person_outlined,
                     color: AppColors.textSecondary, size: 18),
                 const SizedBox(width: 8),
                 Expanded(
@@ -563,7 +567,7 @@ class _SellerCard extends StatelessWidget {
                     children: [
                       Text(
                         l10n.wasalnyAdDetailsReadOnly,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 10,
                         ),
@@ -571,7 +575,7 @@ class _SellerCard extends StatelessWidget {
                       const SizedBox(height: 7),
                       Text(
                         seller,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textPrimary,
                           fontWeight: FontWeight.bold,
                           fontSize: 15,
@@ -579,7 +583,7 @@ class _SellerCard extends StatelessWidget {
                       ),
                       Text(
                         '${l10n.wasalnyAdDetailsSubmitted}: ${DateFormat('yyyy/MM/dd - HH:mm').format(ad.submittedAt)}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 10,
                         ),
@@ -592,13 +596,13 @@ class _SellerCard extends StatelessWidget {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFFF1CC),
+                            color: AppColors.warningBorder,
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
                             l10n.wasalnyPremiumCustomer,
-                            style: const TextStyle(
-                              color: Color(0xFF805800),
+                            style: TextStyle(
+                              color: AppColors.warningDark,
                               fontSize: 9,
                               fontWeight: FontWeight.bold,
                             ),
@@ -610,15 +614,15 @@ class _SellerCard extends StatelessWidget {
                 ),
                 Column(
                   children: [
-                    const CircleAvatar(
-                      backgroundColor: Colors.white,
-                      child: Icon(Icons.person_outline,
-                          color: AppColors.primaryDark),
+                    CircleAvatar(
+                      backgroundColor: AppColors.surface,
+                      child: MotionIcon(Icons.person_outline,
+                          color: AppColors.ink),
                     ),
                     const SizedBox(height: 5),
                     Text(
                       l10n.wasalnyAdDetailsSellerVerified,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.info,
                         fontSize: 9,
                         fontWeight: FontWeight.bold,
@@ -630,7 +634,7 @@ class _SellerCard extends StatelessWidget {
             ),
             if (showContactActions) ...[
               const SizedBox(height: 12),
-              const Divider(height: 1, color: Color(0xFFDDE1E5)),
+              Divider(height: 1, color: AppColors.cardBorder),
               const SizedBox(height: 10),
               Row(
                 children: [
@@ -638,7 +642,7 @@ class _SellerCard extends StatelessWidget {
                     child: FilledButton.icon(
                       key: const ValueKey('chat-with-seller-button'),
                       onPressed: onChat,
-                      icon: const Icon(Icons.chat_bubble_outline, size: 16),
+                      icon: const MotionIcon(Icons.chat_bubble_outline, size: 16),
                       label: Text(
                         l10n.wasalnyChatWithSeller,
                         maxLines: 1,
@@ -664,7 +668,7 @@ class _SellerCard extends StatelessWidget {
                     child: OutlinedButton.icon(
                       key: const ValueKey('call-seller-button'),
                       onPressed: onCall,
-                      icon: const Icon(Icons.phone_outlined, size: 16),
+                      icon: const MotionIcon(Icons.phone_outlined, size: 16),
                       label: Text(
                         l10n.wasalnyCallSeller,
                         maxLines: 1,
@@ -675,9 +679,9 @@ class _SellerCard extends StatelessWidget {
                         ),
                       ),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.primaryDark,
-                        backgroundColor: Colors.white,
-                        side: const BorderSide(color: Color(0xFFCFD5DB)),
+                        foregroundColor: AppColors.ink,
+                        backgroundColor: AppColors.surface,
+                        side: BorderSide(color: AppColors.cardBorder),
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 11),
                         shape: RoundedRectangleBorder(
@@ -715,7 +719,7 @@ class _PhotoGallery extends StatelessWidget {
             Expanded(
               child: Text(
                 l10n.wasalnyAdDetailsImageGallery,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textPrimary,
                   fontWeight: FontWeight.bold,
                   fontSize: 15,
@@ -755,9 +759,9 @@ class _PhotoPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = [
-      const Color(0xFF30434A),
-      const Color(0xFF293A46),
-      const Color(0xFF405158),
+      AppColors.textPrimary,
+      AppColors.infoDark,
+      AppColors.textPrimary,
     ];
     return AspectRatio(
       aspectRatio: 0.9,
@@ -768,24 +772,24 @@ class _PhotoPlaceholder extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [colors[index], const Color(0xFF172431)],
+              colors: [colors[index], AppColors.primaryDark],
             ),
           ),
           child: Stack(
             fit: StackFit.expand,
             children: [
-              Icon(
+              MotionIcon(
                 index == 1 ? Icons.camera_outlined : Icons.camera_alt_outlined,
                 color: Colors.white.withValues(alpha: 0.86),
                 size: 54,
               ),
-              const Positioned(
+              Positioned(
                 left: 7,
                 top: 7,
                 child: CircleAvatar(
                   radius: 12,
                   backgroundColor: AppColors.dangerDark,
-                  child: Icon(
+                  child: MotionIcon(
                     Icons.delete_outline,
                     color: Colors.white,
                     size: 15,
@@ -832,11 +836,11 @@ class _InfoPanel extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(16),
           boxShadow: const [
             BoxShadow(
-              color: Color(0x0A000000),
+              color: AppPalette.overlay0A000000,
               blurRadius: 8,
               offset: Offset(0, 3),
             ),
@@ -847,19 +851,19 @@ class _InfoPanel extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(icon, color: AppColors.primaryDark, size: 18),
+                MotionIcon(icon, color: AppColors.ink, size: 18),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
-                const Icon(Icons.lock_outline,
+                MotionIcon(Icons.lock_outline,
                     color: AppColors.textMuted, size: 15),
               ],
             ),
@@ -880,24 +884,24 @@ class _ReadOnlyValue extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         decoration: BoxDecoration(
-          color: const Color(0xFFF0F2F4),
+          color: AppColors.surfaceLight,
           borderRadius: BorderRadius.circular(13),
         ),
         child: Row(
           children: [
-            Icon(icon, color: AppColors.textSecondary, size: 18),
+            MotionIcon(icon, color: AppColors.textSecondary, size: 18),
             const SizedBox(width: 8),
             Expanded(
-              child: Text(
+              child: CountText(
                 value,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
               ),
             ),
-            const Icon(Icons.expand_more, color: AppColors.textSecondary),
+            MotionIcon(Icons.expand_more, color: AppColors.textSecondary),
           ],
         ),
       );
@@ -916,15 +920,15 @@ class _PriceRange extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF5F6F7),
+        color: AppColors.surfaceLight,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
+          CountText(
             '${l10n.wasalnyAdDetailsPriceRange}: ${NumberFormat('#,###').format(minPrice)} - ${NumberFormat('#,###').format(maxPrice)} ${l10n.productWalletCurrency}',
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 10,
             ),
@@ -932,17 +936,17 @@ class _PriceRange extends StatelessWidget {
           const SizedBox(height: 8),
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: const LinearProgressIndicator(
+            child: LinearProgressIndicator(
               value: 0.64,
               minHeight: 7,
-              backgroundColor: Color(0xFFDDE1E5),
+              backgroundColor: AppColors.cardBorder,
               valueColor: AlwaysStoppedAnimation<Color>(AppColors.info),
             ),
           ),
           const SizedBox(height: 6),
           Text(
             l10n.wasalnyAdDetailsPriceMatch,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.info,
               fontSize: 10,
               fontWeight: FontWeight.w600,
@@ -963,13 +967,13 @@ class _Pill extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
         decoration: BoxDecoration(
-          color: const Color(0xFFDDE8FA),
+          color: AppColors.infoBorder,
           borderRadius: BorderRadius.circular(18),
         ),
         child: Text(
           label,
-          style: const TextStyle(
-            color: AppColors.primaryDark,
+          style: TextStyle(
+            color: AppColors.ink,
             fontSize: 9,
             fontWeight: FontWeight.bold,
           ),
@@ -999,7 +1003,7 @@ class _DetailActionButton extends StatelessWidget {
         height: 50,
         child: FilledButton.icon(
           onPressed: onPressed,
-          icon: Icon(icon, size: 19),
+          icon: MotionIcon(icon, size: 19),
           label: Text(
             label,
             maxLines: 1,

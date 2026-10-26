@@ -1,4 +1,4 @@
-import '../../domain/entities/product_review.dart';
+import 'package:barwah_app/features/products/domain/entities/product_review.dart';
 
 abstract class ProductReviewState {
   const ProductReviewState();

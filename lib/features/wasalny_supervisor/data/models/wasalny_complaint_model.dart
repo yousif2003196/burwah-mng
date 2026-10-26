@@ -1,4 +1,4 @@
-import '../../domain/entities/wasalny_complaint.dart';
+import 'package:barwah_app/features/wasalny_supervisor/domain/entities/wasalny_complaint.dart';
 
 class WasalnyComplaintModel extends WasalnyComplaint {
   const WasalnyComplaintModel({
@@ -126,6 +126,8 @@ class WasalnyComplaintModel extends WasalnyComplaint {
       'escalated_to_chief' => WasalnyComplaintStatus.escalatedToChief,
       'action_taken_blocked' => WasalnyComplaintStatus.actionTakenBlocked,
       'resolved' => WasalnyComplaintStatus.resolved,
+      'returned_by_head' => WasalnyComplaintStatus.returnedByHead,
+      'escalated_to_admin' => WasalnyComplaintStatus.escalatedToAdmin,
       _ => throw FormatException('Unsupported complaint status "$value".'),
     };
   }

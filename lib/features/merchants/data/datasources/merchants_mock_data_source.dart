@@ -2,11 +2,12 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../../../core/constants/app_colors.dart';
-import '../../domain/entities/merchant_entity.dart';
-import '../models/merchant_model.dart';
-import '../models/supervisor_stats_model.dart';
-import 'merchants_data_source.dart';
+
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/features/merchants/data/datasources/merchants_data_source.dart';
+import 'package:barwah_app/features/merchants/data/models/merchant_model.dart';
+import 'package:barwah_app/features/merchants/data/models/supervisor_stats_model.dart';
+import 'package:barwah_app/features/merchants/domain/entities/merchant_entity.dart';
 
 class MerchantsMockDataSource implements MerchantsDataSource {
   final SupervisorStatsModel _stats = const SupervisorStatsModel(
@@ -33,7 +34,7 @@ class MerchantsMockDataSource implements MerchantsDataSource {
   );
 
   /// The standard merchants list for MerchantsDashboardScreen
-  final List<MerchantModel> _merchants = const [
+  final List<MerchantModel> _merchants = [
     MerchantModel(
       id: 'MER-101',
       name: 'مؤسسة الأفق لتجارة السيارات',
@@ -251,7 +252,7 @@ class MerchantsMockDataSource implements MerchantsDataSource {
   ];
 
   /// The 18 supervised merchants for SupervisedMerchantsScreen
-  final List<MerchantModel> _supervisedMerchants = const [
+  final List<MerchantModel> _supervisedMerchants = [
     // 1. مؤسسة الأفق لتجارة السيارات
     MerchantModel(
       id: 'MER-8821',
@@ -380,7 +381,7 @@ class MerchantsMockDataSource implements MerchantsDataSource {
       delegateName: 'المفوض: فيصل بن سعد الدوسري',
       delegateNameEn: 'Delegate: Faisal bin Saad Al-Dosari',
       financialWithdrawalAlert:
-          'طلب سحب أرباح معلق بمبلغ 42,000 ر.س يتطلب مطابقة الفواتير',
+          'طلب سحب أرباح معلق بمبلغ 42,000 ج.م يتطلب مطابقة الفواتير',
       adsCount: 8,
       adsCountLabel: '8 إعلانات',
       adsCountLabelEn: '8 Ads',

@@ -3,6 +3,8 @@ enum WasalnyComplaintStatus {
   escalatedToChief,
   actionTakenBlocked,
   resolved,
+  returnedByHead,
+  escalatedToAdmin,
 }
 
 enum WasalnyComplaintFilter {

@@ -1,22 +1,28 @@
+import 'dart:async';
 import 'dart:ui' as ui;
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/di/injection_container.dart';
-import '../../../../core/utils/currency_formatter.dart';
-import '../controllers/bank_accounts/bank_accounts_cubit.dart';
-import '../controllers/bank_accounts/bank_accounts_state.dart';
-import '../controllers/expenses/expense_requests_cubit.dart';
-import '../controllers/expenses/expense_requests_state.dart';
-import '../../domain/entities/expense_request_entity.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../../../core/widgets/app_snack_bar.dart';
-import '../../../../core/widgets/finance_dialogs.dart';
-import '../utils/finance_localizer.dart';
-import '../widgets/finance_navigation.dart';
+
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/utils/currency_formatter.dart';
+import 'package:barwah_app/core/widgets/app_snack_bar.dart';
+import 'package:barwah_app/features/admin/data/datasources/admin_request_store.dart';
+import 'package:barwah_app/features/admin/domain/entities/admin_request.dart';
+import 'package:barwah_app/features/finance/domain/entities/expense_request_entity.dart';
+import 'package:barwah_app/features/finance/presentation/controllers/bank_accounts/bank_accounts_cubit.dart';
+import 'package:barwah_app/features/finance/presentation/controllers/bank_accounts/bank_accounts_state.dart';
+import 'package:barwah_app/features/finance/presentation/controllers/expenses/expense_requests_cubit.dart';
+import 'package:barwah_app/features/finance/presentation/controllers/expenses/expense_requests_state.dart';
+import 'package:barwah_app/features/finance/presentation/utils/finance_localizer.dart';
+import 'package:barwah_app/features/finance/presentation/widgets/finance_dialogs.dart';
+import 'package:barwah_app/features/finance/presentation/widgets/finance_navigation.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class ExpensesManagementScreen extends StatelessWidget {
   const ExpensesManagementScreen({super.key});
@@ -66,9 +72,58 @@ class _ExpensesManagementScreenState
   String? _requestBankAccountFilter;
   int _dateFilterDays = 0;
   bool _showRequests = false;
+  StreamSubscription<ExpenseRequestsState>? _stateSubscription;
+  bool _applyingAdminDecisions = false;
+
+  @override
+  void initState() {
+    super.initState();
+    AdminRequestStore.revision.addListener(_applyAdminDecisions);
+    _stateSubscription = context
+        .read<ExpenseRequestsCubit>()
+        .stream
+        .listen((_) => _applyAdminDecisions());
+    _applyAdminDecisions();
+  }
+
+  /// يطبّق قرارات الأدمن (اعتماد/رفض) على طلبات المصروف المعلّقة.
+  Future<void> _applyAdminDecisions() async {
+    if (_applyingAdminDecisions || !mounted) return;
+    _applyingAdminDecisions = true;
+    try {
+      final cubit = context.read<ExpenseRequestsCubit>();
+      final store = AdminRequestStore();
+      final decided = (await store.getAll()).where((item) =>
+          item.kind == AdminRequestKind.expense &&
+          !item.applied &&
+          (item.status == AdminRequestStatus.approved ||
+              item.status == AdminRequestStatus.rejected));
+      for (final item in decided) {
+        if (!mounted) return;
+        final matches = cubit.state.requests.where((request) =>
+            request.id == item.refId &&
+            request.status == ExpenseRequestStatus.pendingAdminApproval);
+        if (matches.isEmpty) continue;
+        final result = await cubit.updateRequestStatus(
+          requestId: item.refId,
+          status: item.status == AdminRequestStatus.approved
+              ? ExpenseRequestStatus.approved
+              : ExpenseRequestStatus.rejected,
+          reason: item.decisionNote.isEmpty ? null : item.decisionNote,
+        );
+        if (result.isRight()) await store.markApplied(item.id);
+      }
+    } catch (_) {
+      // يُعاد المحاولة عند أول تغيّر في الحالة أو المخزن.
+    } finally {
+      _applyingAdminDecisions = false;
+    }
+  }
 
   @override
   void dispose() {
+    AdminRequestStore.revision.removeListener(_applyAdminDecisions);
+    _stateSubscription?.cancel();
     _amountController.dispose();
     _reasonController.dispose();
     _beneficiaryController.dispose();
@@ -85,7 +140,7 @@ class _ExpensesManagementScreenState
           ? ui.TextDirection.rtl
           : ui.TextDirection.ltr,
       child: Scaffold(
-        backgroundColor: AppColors.backgroundLight,
+        backgroundColor: AppColors.scaffold,
         appBar: FinancePageAppBar(
           title: l10n.expensesManagementTitle,
           subtitle: l10n.financialDepartment,
@@ -111,14 +166,14 @@ class _ExpensesManagementScreenState
                 segments: [
                   ButtonSegment(
                     value: false,
-                    icon: const Icon(Icons.add_card_outlined, size: 17),
+                    icon: const MotionIcon(Icons.add_card_outlined, size: 17),
                     label: Text(l10n.localeName.startsWith('ar')
                         ? 'طلب مصروف'
                         : 'New expense'),
                   ),
                   ButtonSegment(
                     value: true,
-                    icon: const Icon(Icons.receipt_long_outlined, size: 17),
+                    icon: const MotionIcon(Icons.receipt_long_outlined, size: 17),
                     label: Text(l10n.localeName.startsWith('ar')
                         ? 'الطلبات'
                         : 'Requests'),
@@ -143,7 +198,7 @@ class _ExpensesManagementScreenState
                           ? Colors.white
                           : AppColors.textSecondary),
                   side: WidgetStateProperty.all(
-                    const BorderSide(color: AppColors.cardBorder),
+                    BorderSide(color: AppColors.cardBorder),
                   ),
                   shape: WidgetStateProperty.all(RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12))),
@@ -182,7 +237,7 @@ class _ExpensesManagementScreenState
                           keyboardType: const TextInputType.numberWithOptions(
                               decimal: true),
                           textAlign: TextAlign.start,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
                               color: AppColors.textPrimary),
@@ -206,9 +261,9 @@ class _ExpensesManagementScreenState
                 child: BlocBuilder<BankAccountsCubit, BankAccountsState>(
                   builder: (context, state) {
                     if (state is BankAccountsLoading) {
-                      return const Center(
+                      return Center(
                           child: CircularProgressIndicator(
-                              color: AppColors.primaryDark));
+                              color: AppColors.ink));
                     } else if (state is BankAccountsLoaded) {
                       final accounts = state.accounts;
                       if (accounts.isEmpty) {
@@ -261,7 +316,7 @@ class _ExpensesManagementScreenState
                       l10n.localeName.startsWith('ar')
                           ? 'تصنيف المصروف'
                           : 'Expense category',
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 11, color: AppColors.textSecondary),
                     ),
                     const SizedBox(height: 8),
@@ -290,7 +345,7 @@ class _ExpensesManagementScreenState
                       l10n.localeName.startsWith('ar')
                           ? 'الجهة المستفيدة'
                           : 'Beneficiary',
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 11, color: AppColors.textSecondary),
                     ),
                     const SizedBox(height: 8),
@@ -311,7 +366,7 @@ class _ExpensesManagementScreenState
                     ),
                     const SizedBox(height: 14),
                     Text(l10n.detailedExpenseReason,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 11, color: AppColors.textSecondary)),
                     const SizedBox(height: 8),
                     TextFormField(
@@ -320,7 +375,7 @@ class _ExpensesManagementScreenState
                       maxLines: 2,
                       decoration: InputDecoration(
                         hintText: l10n.expenseDetailsHint,
-                        hintStyle: const TextStyle(
+                        hintStyle: TextStyle(
                             fontSize: 12, color: AppColors.textMuted),
                         filled: true,
                         fillColor: AppColors.surfaceLight,
@@ -334,7 +389,7 @@ class _ExpensesManagementScreenState
                     ),
                     const SizedBox(height: 16),
                     Text(l10n.invoiceSupportDocument,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 11, color: AppColors.textSecondary)),
                     const SizedBox(height: 8),
                     InkWell(
@@ -345,24 +400,24 @@ class _ExpensesManagementScreenState
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         decoration: BoxDecoration(
                           color: _attachmentName != null
-                              ? Colors.green.shade50
+                              ? AppColors.successLight
                               : AppColors.surfaceLight,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: _attachmentName != null
-                                ? Colors.green.shade300
+                                ? AppColors.successBorder
                                 : Colors.transparent,
                           ),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(
+                            MotionIcon(
                               _attachmentName != null
                                   ? Icons.check_circle
                                   : Icons.attach_file,
                               color: _attachmentName != null
-                                  ? Colors.green.shade700
+                                  ? AppColors.successDark
                                   : AppColors.info,
                               size: 16,
                             ),
@@ -376,8 +431,8 @@ class _ExpensesManagementScreenState
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
                                     color: _attachmentName != null
-                                        ? Colors.green.shade800
-                                        : Colors.blue.shade800),
+                                        ? AppColors.successDark
+                                        : AppColors.infoDark),
                               ),
                             ),
                           ],
@@ -411,7 +466,7 @@ class _ExpensesManagementScreenState
                       decoration: BoxDecoration(
                           color: AppColors.surfaceLight,
                           borderRadius: BorderRadius.circular(8)),
-                      child: const Icon(Icons.gavel,
+                      child: MotionIcon(Icons.gavel,
                           color: AppColors.textSecondary, size: 20),
                     ),
                     const SizedBox(width: 12),
@@ -420,7 +475,7 @@ class _ExpensesManagementScreenState
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(l10n.strictFinancialDisbursementGovernance,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
                                   color: AppColors.textPrimary)),
@@ -429,7 +484,7 @@ class _ExpensesManagementScreenState
                             l10n.disbursementGovernanceNote,
                             style: TextStyle(
                                 fontSize: 10,
-                                color: Colors.grey.shade600,
+                                color: AppColors.textSecondary,
                                 height: 1.4),
                           ),
                         ],
@@ -459,7 +514,7 @@ class _ExpensesManagementScreenState
                             color: Colors.white,
                           ),
                         )
-                      : const Icon(Icons.send_outlined, size: 18),
+                      : const MotionIcon(Icons.send_outlined, size: 18),
                   onPressed: state.isSubmitting
                       ? null
                       : () => _submitExpenseRequest(context, l10n),
@@ -554,7 +609,7 @@ class _ExpensesManagementScreenState
             alignment: AlignmentDirectional.centerStart,
             child: Text(
               isArabic ? 'تعذر تحميل بعض الطلبات' : 'Could not load requests',
-              style: const TextStyle(color: AppColors.danger, fontSize: 11),
+              style: TextStyle(color: AppColors.danger, fontSize: 11),
             ),
           ),
         ],
@@ -576,14 +631,14 @@ class _ExpensesManagementScreenState
               Text(title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: AppColors.textSecondary, fontSize: 10)),
               const SizedBox(height: 5),
-              Text(value,
+              FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart, child: CountText(value,
                   maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+ softWrap: false,
                   style: TextStyle(
-                      color: color, fontSize: 14, fontWeight: FontWeight.bold)),
+                      color: color, fontSize: 14, fontWeight: FontWeight.bold))),
             ],
           ),
         ),
@@ -634,16 +689,16 @@ class _ExpensesManagementScreenState
           onChanged: (_) => setState(() {}),
           decoration: InputDecoration(
             hintText: isArabic ? 'ابحث في الطلبات' : 'Search requests',
-            prefixIcon: const Icon(Icons.search),
+            prefixIcon: const MotionIcon(Icons.search),
             filled: true,
             fillColor: AppColors.surface,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.cardBorder),
+              borderSide: BorderSide(color: AppColors.cardBorder),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.cardBorder),
+              borderSide: BorderSide(color: AppColors.cardBorder),
             ),
           ),
         ),
@@ -656,7 +711,7 @@ class _ExpensesManagementScreenState
             fillColor: AppColors.surface,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.cardBorder),
+              borderSide: BorderSide(color: AppColors.cardBorder),
             ),
           ),
           items: [
@@ -679,7 +734,7 @@ class _ExpensesManagementScreenState
             fillColor: AppColors.surface,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.cardBorder),
+              borderSide: BorderSide(color: AppColors.cardBorder),
             ),
           ),
           items: [
@@ -706,7 +761,7 @@ class _ExpensesManagementScreenState
                 fillColor: AppColors.surface,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.cardBorder),
+                  borderSide: BorderSide(color: AppColors.cardBorder),
                 ),
               ),
               items: [
@@ -734,7 +789,7 @@ class _ExpensesManagementScreenState
             fillColor: AppColors.surface,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.cardBorder),
+              borderSide: BorderSide(color: AppColors.cardBorder),
             ),
           ),
           items: [
@@ -759,7 +814,7 @@ class _ExpensesManagementScreenState
                 _requestBankAccountFilter = null;
                 _dateFilterDays = 0;
               }),
-              icon: const Icon(Icons.filter_alt_off_outlined, size: 16),
+              icon: const MotionIcon(Icons.filter_alt_off_outlined, size: 16),
               label: Text(isArabic ? 'مسح المرشحات' : 'Clear filters'),
             ),
           ),
@@ -768,7 +823,7 @@ class _ExpensesManagementScreenState
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: OutlinedButton.icon(
               onPressed: () => context.read<ExpenseRequestsCubit>().loadRequests(),
-              icon: const Icon(Icons.refresh),
+              icon: const MotionIcon(Icons.refresh),
               label: Text(isArabic ? 'إعادة تحميل الطلبات' : 'Retry loading'),
             ),
           ),
@@ -816,8 +871,6 @@ class _ExpensesManagementScreenState
       final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: const ['pdf', 'png', 'jpg', 'jpeg'],
-        allowMultiple: false,
-        withData: false,
       );
       if (!mounted || result.isEmpty) return;
       final file = result.single;
@@ -1020,8 +1073,29 @@ class _ExpensesManagementScreenState
     result.fold(
       (_) =>
           _showExpenseMessage(l10n.expenseRequestSendFailed, AppColors.danger),
-      (_) {
+      (created) {
         final isArabic = l10n.localeName.startsWith('ar');
+        if (editingRequestId == null) {
+          final amountText = CurrencyFormatter.format(created.amount);
+          AdminRequestStore()
+              .submit(AdminRequest(
+                id: 'expense-${created.id}',
+                kind: AdminRequestKind.expense,
+                titleAr: 'طلب اعتماد مصروف',
+                titleEn: 'Expense approval request',
+                detailsAr:
+                    '$amountText إلى ${created.beneficiaryName}. السبب: ${created.reason}',
+                detailsEn:
+                    '$amountText to ${created.beneficiaryName}. Reason: ${created.reason}',
+                fromAr: 'المشرف المالي',
+                fromEn: 'Finance supervisor',
+                origin: 'finance',
+                refId: created.id,
+                amount: created.amount,
+                createdAt: DateTime.now(),
+              ))
+              .catchError((Object _) {});
+        }
         _amountController.clear();
         _reasonController.clear();
         _beneficiaryController.clear();
@@ -1089,7 +1163,7 @@ class _ExpensesManagementScreenState
         children: [
           Row(
             children: [
-              Icon(
+              MotionIcon(
                 isPending
                     ? Icons.hourglass_top_rounded
                     : request.status == ExpenseRequestStatus.approved
@@ -1122,7 +1196,7 @@ class _ExpensesManagementScreenState
               Text(
                 '${l10n.expenseRequestNumber}: ${request.id}',
                 textDirection: ui.TextDirection.ltr,
-                style: const TextStyle(fontSize: 10, color: Colors.black54),
+                style: TextStyle(fontSize: 10, color: AppColors.textSecondary),
               ),
             ],
           ),
@@ -1144,7 +1218,7 @@ class _ExpensesManagementScreenState
             DateFormat('yyyy/MM/dd - HH:mm', l10n.localeName)
                 .format(request.submittedAt),
             textDirection: ui.TextDirection.ltr,
-            style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+            style: TextStyle(fontSize: 10, color: AppColors.textSecondary),
           ),
           if (request.attachmentName != null) ...[
             const SizedBox(height: 4),
@@ -1156,6 +1230,14 @@ class _ExpensesManagementScreenState
                 style: TextStyle(color: statusColor, fontSize: 11)),
           ],
           if (isPending) ...[
+            const SizedBox(height: 8),
+            Text(
+              isArabic
+                  ? 'بانتظار قرار الأدمن — الاعتماد والرفض من صلاحياته فقط.'
+                  : 'Awaiting the admin decision — only the admin can approve or reject.',
+              style: TextStyle(
+                  fontSize: 11, color: AppColors.warningDark),
+            ),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
@@ -1163,34 +1245,8 @@ class _ExpensesManagementScreenState
               children: [
                 OutlinedButton.icon(
                   onPressed: () => _editExpenseRequest(request, isArabic),
-                  icon: const Icon(Icons.edit_outlined, size: 16),
+                  icon: const MotionIcon(Icons.edit_outlined, size: 16),
                   label: Text(isArabic ? 'تعديل' : 'Edit'),
-                ),
-                FilledButton.icon(
-                  onPressed: () => _changeExpenseStatus(
-                    context,
-                    request,
-                    ExpenseRequestStatus.approved,
-                    l10n,
-                  ),
-                  icon: const Icon(Icons.check, size: 16),
-                  label: Text(isArabic ? 'اعتماد' : 'Approve'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primaryDark,
-                  ),
-                ),
-                OutlinedButton.icon(
-                  onPressed: () => _changeExpenseStatus(
-                    context,
-                    request,
-                    ExpenseRequestStatus.rejected,
-                    l10n,
-                  ),
-                  icon: const Icon(Icons.close, size: 16),
-                  label: Text(isArabic ? 'رفض' : 'Reject'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.danger,
-                  ),
                 ),
                 TextButton.icon(
                   onPressed: () => _changeExpenseStatus(
@@ -1199,7 +1255,7 @@ class _ExpensesManagementScreenState
                     ExpenseRequestStatus.cancelled,
                     l10n,
                   ),
-                  icon: const Icon(Icons.undo, size: 16),
+                  icon: const MotionIcon(Icons.undo, size: 16),
                   label: Text(isArabic ? 'إلغاء الطلب' : 'Cancel request'),
                   style: TextButton.styleFrom(
                     foregroundColor: AppColors.textSecondary,
@@ -1233,13 +1289,13 @@ class _ExpensesManagementScreenState
         children: [
           Row(
             children: [
-              Icon(icon, color: AppColors.info, size: 18),
+              MotionIcon(icon, color: AppColors.info, size: 18),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
                         color: AppColors.textPrimary)),
@@ -1266,10 +1322,10 @@ class _ExpensesManagementScreenState
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.blue.shade50 : AppColors.surfaceLight,
+          color: isSelected ? AppColors.infoLight : AppColors.surfaceLight,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-              color: isSelected ? Colors.blue.shade200 : Colors.transparent),
+              color: isSelected ? AppColors.infoBorder : Colors.transparent),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1284,10 +1340,10 @@ class _ExpensesManagementScreenState
                           fontWeight: FontWeight.bold,
                           color: isSelected
                               ? AppColors.textPrimary
-                              : Colors.black87)),
+                              : AppColors.textPrimary)),
                   const SizedBox(height: 4),
                   Text(subtitle,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 10, color: AppColors.textSecondary),
                       textDirection: ui.TextDirection.ltr,
                       textAlign: TextAlign.start),
@@ -1295,15 +1351,15 @@ class _ExpensesManagementScreenState
                   Row(
                     children: [
                       Flexible(
-                        child: Text(balanceLabel,
+                        child: FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart, child: CountText(balanceLabel,
                             maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontSize: 10, color: AppColors.textSecondary)),
+ softWrap: false,
+                            style: TextStyle(
+                                fontSize: 10, color: AppColors.textSecondary))),
                       ),
                       const SizedBox(width: 4),
-                      Text(balanceValue,
-                          style: const TextStyle(
+                      CountText(balanceValue,
+                          style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
                               color: AppColors.textPrimary)),

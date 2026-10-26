@@ -1,17 +1,19 @@
-import 'package:flutter/foundation.dart';
 import 'package:dartz/dartz.dart';
-import '../../../../core/errors/failures.dart';
-import '../../domain/entities/bank_account_edit_request_entity.dart';
-import '../../domain/entities/bank_link_request_entity.dart';
-import '../../domain/entities/bank_account_entity.dart';
-import '../../domain/entities/department_wallet_entity.dart';
-import '../../domain/entities/expense_request_entity.dart';
-import '../../domain/entities/finance_summary_entity.dart';
-import '../../domain/entities/subscription_request_entity.dart';
-import '../../domain/entities/withdrawal_request_entity.dart';
-import '../../domain/repositories/finance_repository.dart';
-import '../datasources/finance_remote_data_source.dart';
-import '../finance_audit_store.dart';
+import 'package:flutter/foundation.dart';
+
+import 'package:barwah_app/core/errors/failures.dart';
+import 'package:barwah_app/features/finance/data/datasources/finance_audit_store.dart';
+import 'package:barwah_app/features/finance/data/datasources/finance_remote_data_source.dart';
+import 'package:barwah_app/features/finance/domain/entities/bank_account_edit_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/bank_account_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/bank_link_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/department_wallet_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/expense_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/finance_audit_entry.dart';
+import 'package:barwah_app/features/finance/domain/entities/finance_summary_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/subscription_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/withdrawal_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/repositories/finance_repository.dart';
 
 class FinanceRepositoryImpl implements FinanceRepository {
   final FinanceRemoteDataSource remoteDataSource;

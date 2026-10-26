@@ -1,64 +1,18 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../data/finance_audit_store.dart';
+import 'package:barwah_app/core/payments/payment_method.dart';
+import 'package:barwah_app/core/payments/payment_method_store.dart';
+import 'package:barwah_app/core/payments/payment_validators.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/features/finance/data/datasources/finance_audit_store.dart';
+import 'package:barwah_app/features/finance/domain/entities/finance_audit_entry.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
 
-enum _WithdrawalMethodType { bank, wallet }
-
-class _PersonalWithdrawalMethod {
-  final String id;
-  final _WithdrawalMethodType type;
-  final String provider;
-  final String holderName;
-  final String identifier;
-  final bool isDefault;
-
-  const _PersonalWithdrawalMethod({
-    required this.id,
-    required this.type,
-    required this.provider,
-    required this.holderName,
-    required this.identifier,
-    required this.isDefault,
-  });
-
-  _PersonalWithdrawalMethod copyWith({bool? isDefault}) =>
-      _PersonalWithdrawalMethod(
-        id: id,
-        type: type,
-        provider: provider,
-        holderName: holderName,
-        identifier: identifier,
-        isDefault: isDefault ?? this.isDefault,
-      );
-
-  Map<String, Object?> toJson() => {
-        'id': id,
-        'type': type.name,
-        'provider': provider,
-        'holderName': holderName,
-        'identifier': identifier,
-        'isDefault': isDefault,
-      };
-
-  factory _PersonalWithdrawalMethod.fromJson(Map<String, dynamic> json) =>
-      _PersonalWithdrawalMethod(
-        id: json['id'] as String,
-        type: _WithdrawalMethodType.values.firstWhere(
-          (type) => type.name == json['type'],
-          orElse: () => _WithdrawalMethodType.bank,
-        ),
-        provider: json['provider'] as String,
-        holderName: json['holderName'] as String? ?? '',
-        identifier: json['identifier'] as String,
-        isDefault: json['isDefault'] as bool? ?? false,
-      );
-}
-
+/// وسائل السحب الشخصية للمشرف المالي: IBAN، إنستاباي، محافظ، فيزا.
+/// كل وسيلة (جديدة أو معدّلة) تُرسل للأدمن وتبقى غير قابلة للاستخدام حتى يعتمدها.
 class PersonalWithdrawalMethodsScreen extends StatefulWidget {
   const PersonalWithdrawalMethodsScreen({super.key});
 
@@ -69,8 +23,10 @@ class PersonalWithdrawalMethodsScreen extends StatefulWidget {
 
 class _PersonalWithdrawalMethodsScreenState
     extends State<PersonalWithdrawalMethodsScreen> {
-  static const _storageKey = 'finance_profile_withdrawal_methods_v1';
-  List<_PersonalWithdrawalMethod> _methods = [];
+  static const _ownerId = 'finance';
+  static const _ownerRole = 'finance';
+  final _store = PaymentMethodStore();
+  List<PaymentMethod> _methods = [];
   bool _isLoading = true;
   Object? _loadError;
 
@@ -82,26 +38,19 @@ class _PersonalWithdrawalMethodsScreenState
   @override
   void initState() {
     super.initState();
+    PaymentMethodStore.revision.addListener(_load);
     _load();
+  }
+
+  @override
+  void dispose() {
+    PaymentMethodStore.revision.removeListener(_load);
+    super.dispose();
   }
 
   Future<void> _load() async {
     try {
-      final preferences = await SharedPreferences.getInstance();
-      final saved = preferences.getString(_storageKey);
-      final methods = <_PersonalWithdrawalMethod>[];
-      if (saved != null) {
-        final decoded = jsonDecode(saved);
-        if (decoded is! List) {
-          throw const FormatException('Withdrawal methods must be a list.');
-        }
-        for (final value in decoded) {
-          if (value is! Map<String, dynamic>) {
-            throw const FormatException('Invalid withdrawal method.');
-          }
-          methods.add(_PersonalWithdrawalMethod.fromJson(value));
-        }
-      }
+      final methods = await _store.forOwner(_ownerId);
       if (!mounted) return;
       setState(() {
         _methods = methods;
@@ -123,150 +72,248 @@ class _PersonalWithdrawalMethodsScreenState
     }
   }
 
-  Future<void> _persist(List<_PersonalWithdrawalMethod> methods) async {
-    final preferences = await SharedPreferences.getInstance();
-    final saved = await preferences.setString(
-      _storageKey,
-      jsonEncode(methods.map((method) => method.toJson()).toList()),
-    );
-    if (!saved) throw StateError('Could not save withdrawal methods.');
-  }
+  String _errorText(String code) => switch (code) {
+        'holder' => _copy('اكتب الاسم الثنائي على الأقل', 'Enter at least two names'),
+        'bank' => _copy('اكتب اسم البنك', 'Enter the bank name'),
+        'iban' => _copy('IBAN مصري غير صحيح (EG + 27 رقم)', 'Invalid Egyptian IBAN (EG + 27 digits)'),
+        'instapay' => _copy('عنوان إنستاباي أو رقم موبايل غير صحيح', 'Invalid InstaPay address or mobile'),
+        'mobile' => _copy('رقم موبايل مصري غير صحيح', 'Invalid Egyptian mobile number'),
+        'provider' => _copy('اختر المحفظة', 'Choose the wallet'),
+        'walletMismatch' => _copy('رقم الموبايل لا يتبع المحفظة المختارة', 'The number does not belong to this wallet'),
+        'card' => _copy('رقم البطاقة غير صحيح', 'Invalid card number'),
+        'visaOnly' => _copy('مسموح ببطاقات فيزا فقط', 'Only Visa cards are accepted'),
+        'expiry' => _copy('تاريخ الانتهاء غير صحيح أو منتهي', 'Invalid or expired date'),
+        _ => _copy('بيانات غير صحيحة', 'Invalid data'),
+      };
 
-  Future<void> _editMethod([_PersonalWithdrawalMethod? existing]) async {
+  PaymentMethodInput _inputFrom(PaymentMethod m) => PaymentMethodInput(
+        type: m.type,
+        walletProvider: m.walletProvider,
+        holderName: m.holderName,
+        bankName: m.type == PaymentMethodType.iban ? m.providerName : '',
+        identifier: m.identifier,
+      );
+
+  Future<void> _editMethod([PaymentMethod? existing]) async {
     final formKey = GlobalKey<FormState>();
-    var type = existing?.type ?? _WithdrawalMethodType.bank;
-    final providerController = TextEditingController(
-      text: existing?.provider ?? '',
+    var type = existing?.type ?? PaymentMethodType.iban;
+    var provider = existing?.walletProvider;
+    final holder = TextEditingController(text: existing?.holderName ?? '');
+    final bank = TextEditingController(
+      text: existing?.type == PaymentMethodType.iban ? existing!.providerName : '',
     );
-    final holderController = TextEditingController(
-      text: existing?.holderName ?? '',
-    );
-    final identifierController = TextEditingController(
-      text: existing?.identifier ?? '',
-    );
+    final identifier = TextEditingController(text: existing?.identifier ?? '');
+    final month = TextEditingController();
+    final year = TextEditingController();
     try {
-      final result = await showDialog<_PersonalWithdrawalMethod>(
+      final input = await showDialog<PaymentMethodInput>(
         context: context,
         builder: (dialogContext) => StatefulBuilder(
-          builder: (context, setDialogState) => AlertDialog(
-            title: Text(existing == null
-                ? _copy('إضافة وسيلة سحب', 'Add withdrawal method')
-                : _copy('تعديل وسيلة السحب', 'Edit withdrawal method')),
-            content: Form(
-              key: formKey,
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    DropdownButtonFormField<_WithdrawalMethodType>(
-                      initialValue: type,
-                      decoration: InputDecoration(
-                        labelText: _copy('نوع الوسيلة', 'Method type'),
-                      ),
-                      items: [
-                        DropdownMenuItem(
-                          value: _WithdrawalMethodType.bank,
-                          child: Text(_copy('حساب بنكي', 'Bank account')),
+          builder: (context, setDialogState) {
+            PaymentMethodInput build() => PaymentMethodInput(
+                  type: type,
+                  walletProvider: provider,
+                  holderName: holder.text,
+                  bankName: bank.text,
+                  identifier: identifier.text,
+                  expiryMonth: int.tryParse(normalizeDigits(month.text)),
+                  expiryYear: int.tryParse(normalizeDigits(year.text)),
+                );
+            String? check(String code, String? value) =>
+                validatePaymentMethodInput(build()) == code
+                    ? _errorText(code)
+                    : null;
+            return AlertDialog(
+              title: Text(existing == null
+                  ? _copy('إضافة وسيلة سحب', 'Add withdrawal method')
+                  : _copy('تعديل وسيلة السحب', 'Edit withdrawal method')),
+              content: Form(
+                key: formKey,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      DropdownButtonFormField<PaymentMethodType>(
+                        initialValue: type,
+                        decoration: InputDecoration(
+                          labelText: _copy('نوع الوسيلة', 'Method type'),
                         ),
-                        DropdownMenuItem(
-                          value: _WithdrawalMethodType.wallet,
-                          child: Text(_copy('محفظة شخصية', 'Personal wallet')),
-                        ),
-                      ],
-                      onChanged: (value) {
-                        if (value != null) setDialogState(() => type = value);
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: providerController,
-                      decoration: InputDecoration(
-                        labelText: type == _WithdrawalMethodType.bank
-                            ? _copy('اسم البنك', 'Bank name')
-                            : _copy('اسم المحفظة', 'Wallet provider'),
+                        items: [
+                          for (final t in PaymentMethodType.values)
+                            DropdownMenuItem(
+                              value: t,
+                              child: Text(_copy(t.labelAr, t.labelEn)),
+                            ),
+                        ],
+                        onChanged: existing != null
+                            ? null
+                            : (value) {
+                                if (value != null) {
+                                  setDialogState(() => type = value);
+                                }
+                              },
                       ),
-                      validator: (value) => value == null || value.trim().isEmpty
-                          ? _copy('هذا الحقل مطلوب', 'This field is required')
-                          : null,
-                    ),
-                    const SizedBox(height: 12),
-                    if (type == _WithdrawalMethodType.bank) ...[
+                      const SizedBox(height: 12),
                       TextFormField(
-                        controller: holderController,
+                        controller: holder,
                         decoration: InputDecoration(
                           labelText: _copy('اسم صاحب الحساب', 'Account holder'),
                         ),
-                        validator: (value) => value == null || value.trim().isEmpty
-                            ? _copy('هذا الحقل مطلوب', 'This field is required')
-                            : null,
+                        validator: (v) => check('holder', v),
                       ),
                       const SizedBox(height: 12),
-                    ],
-                    TextFormField(
-                      controller: identifierController,
-                      textDirection: TextDirection.ltr,
-                      keyboardType: type == _WithdrawalMethodType.bank
-                          ? TextInputType.text
-                          : TextInputType.phone,
-                      decoration: InputDecoration(
-                        labelText: type == _WithdrawalMethodType.bank
-                            ? 'IBAN'
-                            : _copy('رقم الجوال المرتبط بالمحفظة', 'Wallet phone number'),
-                        hintText: type == _WithdrawalMethodType.bank
-                            ? 'SA00 0000 0000 0000 0000 0000'
-                            : '+9665XXXXXXXX',
+                      if (type == PaymentMethodType.iban) ...[
+                        TextFormField(
+                          controller: bank,
+                          decoration: InputDecoration(
+                            labelText: _copy('اسم البنك', 'Bank name'),
+                          ),
+                          validator: (v) => check('bank', v),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      if (type == PaymentMethodType.wallet) ...[
+                        DropdownButtonFormField<WalletProvider>(
+                          initialValue: provider,
+                          decoration: InputDecoration(
+                            labelText: _copy('المحفظة', 'Wallet'),
+                          ),
+                          items: [
+                            for (final w in WalletProvider.values)
+                              DropdownMenuItem(
+                                value: w,
+                                child: Text(_copy(w.labelAr, w.labelEn)),
+                              ),
+                          ],
+                          onChanged: (value) =>
+                              setDialogState(() => provider = value),
+                          validator: (v) => check('provider', null),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      TextFormField(
+                        controller: identifier,
+                        textDirection: TextDirection.ltr,
+                        keyboardType: type == PaymentMethodType.iban ||
+                                type == PaymentMethodType.instapay
+                            ? TextInputType.text
+                            : TextInputType.phone,
+                        decoration: InputDecoration(
+                          labelText: switch (type) {
+                            PaymentMethodType.iban => 'IBAN',
+                            PaymentMethodType.instapay =>
+                              _copy('عنوان إنستاباي أو رقم الموبايل', 'InstaPay address or mobile'),
+                            PaymentMethodType.wallet =>
+                              _copy('رقم موبايل المحفظة', 'Wallet mobile number'),
+                            PaymentMethodType.card =>
+                              _copy('رقم البطاقة', 'Card number'),
+                          },
+                          hintText: switch (type) {
+                            PaymentMethodType.iban => 'EG00 0000 0000 0000 0000 0000 0000 0',
+                            PaymentMethodType.instapay => 'name@instapay',
+                            PaymentMethodType.wallet => '01XXXXXXXXX',
+                            PaymentMethodType.card => '4XXX XXXX XXXX XXXX',
+                          },
+                        ),
+                        validator: (v) {
+                          final code = validatePaymentMethodInput(build());
+                          const ids = {'iban', 'instapay', 'mobile', 'walletMismatch', 'card', 'visaOnly'};
+                          return ids.contains(code) ? _errorText(code!) : null;
+                        },
                       ),
-                      validator: (value) => value == null || value.trim().isEmpty
-                          ? _copy('هذا الحقل مطلوب', 'This field is required')
-                          : null,
-                    ),
-                  ],
+                      if (type == PaymentMethodType.card) ...[
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: month,
+                                keyboardType: TextInputType.number,
+                                decoration: InputDecoration(
+                                  labelText: _copy('الشهر', 'Month'),
+                                  hintText: 'MM',
+                                ),
+                                validator: (v) => check('expiry', v),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: TextFormField(
+                                controller: year,
+                                keyboardType: TextInputType.number,
+                                decoration: InputDecoration(
+                                  labelText: _copy('السنة', 'Year'),
+                                  hintText: 'YY',
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _copy(
+                            'لا نحفظ رقم البطاقة كاملاً ولا رمز CVV؛ نحتفظ بآخر 4 أرقام فقط.',
+                            'The full number and CVV are never stored; only the last 4 digits are kept.',
+                          ),
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      Text(
+                        _copy(
+                          'تُرسل الوسيلة للأدمن للاعتماد، ولا يمكن السحب عليها قبل ذلك.',
+                          'The method is sent to the admin and cannot be used until approved.',
+                        ),
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: Text(_copy('إلغاء', 'Cancel')),
-              ),
-              FilledButton(
-                onPressed: () {
-                  if (!formKey.currentState!.validate()) return;
-                  Navigator.pop(
-                    dialogContext,
-                    _PersonalWithdrawalMethod(
-                      id: existing?.id ??
-                          'withdrawal-${DateTime.now().microsecondsSinceEpoch}',
-                      type: type,
-                      provider: providerController.text.trim(),
-                      holderName: type == _WithdrawalMethodType.bank
-                          ? holderController.text.trim()
-                          : '',
-                      identifier: identifierController.text.trim(),
-                      isDefault: existing?.isDefault ?? _methods.isEmpty,
-                    ),
-                  );
-                },
-                child: Text(_copy('حفظ', 'Save')),
-              ),
-            ],
-          ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: Text(_copy('إلغاء', 'Cancel')),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    if (!formKey.currentState!.validate()) return;
+                    Navigator.pop(dialogContext, build());
+                  },
+                  child: Text(_copy('إرسال للاعتماد', 'Submit for approval')),
+                ),
+              ],
+            );
+          },
         ),
       );
-      if (result == null || !mounted) return;
-      final methods = [
-        for (final method in _methods)
-          if (method.id != result.id)
-            result.isDefault ? method.copyWith(isDefault: false) : method,
-        result,
-      ];
-      await _persist(methods);
+      if (input == null || !mounted) return;
+      final saved = existing == null
+          ? await _store.submit(input, ownerId: _ownerId, ownerRole: _ownerRole)
+          : await _store.update(existing.id, input);
       await _recordAudit(
-        result,
+        saved,
         existing == null ? 'withdrawal_method_added' : 'withdrawal_method_updated',
         previous: existing,
       );
-      if (mounted) setState(() => _methods = methods);
+      if (mounted) {
+        _showMessage(_copy(
+          'تم إرسال الوسيلة للأدمن بانتظار الاعتماد.',
+          'Sent to the admin for approval.',
+        ));
+      }
+    } on StateError catch (error) {
+      if (mounted) {
+        _showMessage(error.message == 'duplicate'
+            ? _copy('هذه الوسيلة مسجلة بالفعل.', 'This method already exists.')
+            : _copy('تعذر حفظ وسيلة السحب.', 'Could not save the method.'));
+      }
     } catch (error, stackTrace) {
       FlutterError.reportError(FlutterErrorDetails(
         exception: error,
@@ -275,21 +322,18 @@ class _PersonalWithdrawalMethodsScreenState
       ));
       if (mounted) _showMessage(_copy('تعذر حفظ وسيلة السحب.', 'Could not save the method.'));
     } finally {
-      providerController.dispose();
-      holderController.dispose();
-      identifierController.dispose();
+      holder.dispose();
+      bank.dispose();
+      identifier.dispose();
+      month.dispose();
+      year.dispose();
     }
   }
 
-  Future<void> _setDefault(_PersonalWithdrawalMethod selected) async {
-    final methods = [
-      for (final method in _methods)
-        method.copyWith(isDefault: method.id == selected.id),
-    ];
+  Future<void> _setDefault(PaymentMethod selected) async {
     try {
-      await _persist(methods);
+      await _store.setDefault(selected.id);
       await _recordAudit(selected, 'withdrawal_method_default_changed');
-      if (mounted) setState(() => _methods = methods);
     } catch (error, stackTrace) {
       FlutterError.reportError(FlutterErrorDetails(
         exception: error,
@@ -300,7 +344,7 @@ class _PersonalWithdrawalMethodsScreenState
     }
   }
 
-  Future<void> _delete(_PersonalWithdrawalMethod selected) async {
+  Future<void> _delete(PaymentMethod selected) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -322,14 +366,9 @@ class _PersonalWithdrawalMethodsScreenState
       ),
     );
     if (confirm != true || !mounted) return;
-    final remaining = _methods.where((method) => method.id != selected.id).toList();
-    if (selected.isDefault && remaining.isNotEmpty) {
-      remaining[0] = remaining[0].copyWith(isDefault: true);
-    }
     try {
-      await _persist(remaining);
+      await _store.delete(selected.id);
       await _recordAudit(selected, 'withdrawal_method_deleted');
-      if (mounted) setState(() => _methods = remaining);
     } catch (error, stackTrace) {
       FlutterError.reportError(FlutterErrorDetails(
         exception: error,
@@ -347,24 +386,13 @@ class _PersonalWithdrawalMethodsScreenState
   }
 
   Future<void> _recordAudit(
-    _PersonalWithdrawalMethod method,
-    String actionKey,
-    { _PersonalWithdrawalMethod? previous }
-   ) async {
+    PaymentMethod method,
+    String actionKey, {
+    PaymentMethod? previous,
+  }) async {
     final now = DateTime.now();
-    final isBank = method.type == _WithdrawalMethodType.bank;
-    final identifierSuffix = method.identifier.length <= 4
-        ? method.identifier
-        : method.identifier.substring(method.identifier.length - 4);
-    String summary(_PersonalWithdrawalMethod value, bool arabic) {
-      final suffix = value.identifier.length <= 4
-          ? value.identifier
-          : value.identifier.substring(value.identifier.length - 4);
-      final type = value.type == _WithdrawalMethodType.bank
-          ? (arabic ? 'بنك' : 'Bank')
-          : (arabic ? 'محفظة' : 'Wallet');
-      return '$type: ${value.provider} · ${arabic ? 'آخر أرقام' : 'ending'} $suffix';
-    }
+    String summary(PaymentMethod value, bool arabic) =>
+        '${arabic ? value.channelLabelAr : value.channelLabelEn} · ${value.masked}';
     try {
       await FinanceAuditStore().record(FinanceAuditEntry(
         id: '$actionKey-${now.microsecondsSinceEpoch}',
@@ -382,10 +410,10 @@ class _PersonalWithdrawalMethodsScreenState
           _ => 'Personal withdrawal method deleted',
         },
         detailsAr: previous == null
-            ? '${isBank ? 'بنك' : 'محفظة'}: ${method.provider} · آخر أرقام: $identifierSuffix'
+            ? summary(method, true)
             : 'قبل: ${summary(previous, true)} → بعد: ${summary(method, true)}',
         detailsEn: previous == null
-            ? '${isBank ? 'Bank' : 'Wallet'}: ${method.provider} · ending $identifierSuffix'
+            ? summary(method, false)
             : 'Before: ${summary(previous, false)} → After: ${summary(method, false)}',
         reference: method.id,
         actor: 'finance',
@@ -406,17 +434,17 @@ class _PersonalWithdrawalMethodsScreenState
     return Directionality(
       textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
       child: Scaffold(
-        backgroundColor: AppColors.backgroundLight,
+        backgroundColor: AppColors.scaffold,
         appBar: AppBar(
-          backgroundColor: Colors.white,
-          foregroundColor: AppColors.primaryDark,
+          backgroundColor: AppColors.surface,
+          foregroundColor: AppColors.ink,
           title: Text(_copy('معلومات السحب الشخصية', 'Personal withdrawal details')),
         ),
         floatingActionButton: FloatingActionButton.extended(
           onPressed: _isLoading || _loadError != null ? null : () => _editMethod(),
           backgroundColor: AppColors.primaryDark,
           foregroundColor: Colors.white,
-          icon: const Icon(Icons.add),
+          icon: const MotionIcon(Icons.add),
           label: Text(_copy('إضافة وسيلة', 'Add method')),
         ),
         body: _isLoading
@@ -432,80 +460,79 @@ class _PersonalWithdrawalMethodsScreenState
                       ],
                     ),
                   )
-                : _methods.isEmpty
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(28),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.account_balance_wallet_outlined,
-                                  color: AppColors.info, size: 46),
-                              const SizedBox(height: 12),
-                              Text(
+                : ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                    children: [
+                      ScrollFx(child: Container(
+                        padding: const EdgeInsets.all(13),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceLight,
+                          borderRadius: BorderRadius.circular(13),
+                        ),
+                        child: Row(
+                          children: [
+                            MotionIcon(Icons.info_outline, color: AppColors.infoDark),
+                            const SizedBox(width: 9),
+                            Expanded(
+                              child: Text(
                                 _copy(
-                                  'لا توجد وسائل سحب شخصية محفوظة. أضف حسابك البنكي أو محفظتك.',
-                                  'No personal withdrawal methods saved. Add a bank account or wallet.',
+                                  'كل وسيلة سحب (جديدة أو معدّلة) يعتمدها الأدمن قبل استخدامها، وبعد تعديل وسيلة معتمدة يُوقف السحب عليها 24 ساعة.',
+                                  'Every withdrawal method (new or edited) must be approved by the admin; an edited method is blocked for 24 hours after re-approval.',
                                 ),
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(color: AppColors.textSecondary),
+                                style: TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 12,
+                                ),
                               ),
-                              const SizedBox(height: 14),
-                              FilledButton.icon(
-                                onPressed: () => _editMethod(),
-                                icon: const Icon(Icons.add),
-                                label: Text(_copy('إضافة وسيلة', 'Add method')),
-                              ),
-                            ],
+                            ),
+                          ],
+                        ),
+                      )),
+                      const SizedBox(height: 12),
+                      if (_methods.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 40),
+                          child: Text(
+                            _copy(
+                              'لا توجد وسائل سحب محفوظة. أضف حساباً بنكياً أو إنستاباي أو محفظة أو بطاقة.',
+                              'No withdrawal methods yet. Add a bank account, InstaPay, wallet or card.',
+                            ),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: AppColors.textSecondary),
                           ),
                         ),
-                      )
-                    : ListView(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(13),
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceLight,
-                              borderRadius: BorderRadius.circular(13),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.info_outline, color: AppColors.infoDark),
-                                const SizedBox(width: 9),
-                                Expanded(
-                                  child: Text(
-                                    _copy(
-                                      'هذه بيانات سحبك الشخصية، وهي منفصلة عن حسابات التشغيل.',
-                                      'These personal withdrawal details are separate from operational accounts.',
-                                    ),
-                                    style: const TextStyle(
-                                      color: AppColors.textSecondary,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          for (final method in _methods)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: _buildMethodCard(method),
-                            ),
-                        ],
-                      ),
+                      for (final method in _methods)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _buildMethodCard(method),
+                        ),
+                    ],
+                  ),
       ),
     );
   }
 
-  Widget _buildMethodCard(_PersonalWithdrawalMethod method) {
-    final isBank = method.type == _WithdrawalMethodType.bank;
+  IconData _iconOf(PaymentMethodType type) => switch (type) {
+        PaymentMethodType.iban => Icons.account_balance_outlined,
+        PaymentMethodType.instapay => Icons.bolt_rounded,
+        PaymentMethodType.wallet => Icons.account_balance_wallet_outlined,
+        PaymentMethodType.card => Icons.credit_card_outlined,
+      };
+
+  (Color, Color) _statusColors(PaymentMethodStatus status) => switch (status) {
+        PaymentMethodStatus.active => (AppColors.successLight, AppColors.successDark),
+        PaymentMethodStatus.pendingAdmin => (AppColors.surfaceLight, AppColors.infoDark),
+        PaymentMethodStatus.rejected => (AppColors.dangerLight, AppColors.dangerDark),
+        PaymentMethodStatus.suspended => (AppColors.dangerLight, AppColors.dangerDark),
+      };
+
+  Widget _buildMethodCard(PaymentMethod method) {
+    final (bg, fg) = _statusColors(method.status);
+    final cooling = method.status == PaymentMethodStatus.active && method.isCooling;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(15),
         border: Border.all(color: AppColors.cardBorder),
       ),
@@ -516,36 +543,32 @@ class _PersonalWithdrawalMethodsScreenState
             children: [
               CircleAvatar(
                 backgroundColor: AppColors.surfaceLight,
-                child: Icon(
-                  isBank
-                      ? Icons.account_balance_outlined
-                      : Icons.account_balance_wallet_outlined,
-                  color: AppColors.primaryDark,
-                ),
+                child: MotionIcon(_iconOf(method.type), color: AppColors.ink),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(method.provider,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.bold,
-                        )),
                     Text(
-                      _copy(isBank ? 'حساب بنكي' : 'محفظة شخصية',
-                          isBank ? 'Bank account' : 'Personal wallet'),
-                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                      _copy(method.channelLabelAr, method.channelLabelEn),
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      method.holderName,
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
                     ),
                   ],
                 ),
               ),
-              if (method.isDefault)
+              if (method.isDefault && method.isUsable())
                 Chip(
                   label: Text(_copy('افتراضية', 'Default')),
                   visualDensity: VisualDensity.compact,
-                  labelStyle: const TextStyle(fontSize: 10, color: AppColors.successDark),
+                  labelStyle: TextStyle(fontSize: 10, color: AppColors.successDark),
                   backgroundColor: AppColors.successLight,
                   side: BorderSide.none,
                 ),
@@ -556,8 +579,9 @@ class _PersonalWithdrawalMethodsScreenState
                   if (action == 'delete') _delete(method);
                 },
                 itemBuilder: (context) => [
-                  PopupMenuItem(value: 'edit', child: Text(_copy('تعديل', 'Edit'))),
-                  if (!method.isDefault)
+                  if (method.type != PaymentMethodType.card)
+                    PopupMenuItem(value: 'edit', child: Text(_copy('تعديل', 'Edit'))),
+                  if (!method.isDefault && method.isUsable())
                     PopupMenuItem(value: 'default', child: Text(_copy('تعيين كافتراضية', 'Set as default'))),
                   PopupMenuItem(value: 'delete', child: Text(_copy('حذف', 'Delete'))),
                 ],
@@ -565,26 +589,67 @@ class _PersonalWithdrawalMethodsScreenState
             ],
           ),
           const Divider(height: 22),
-          if (isBank) ...[
-            Text(_copy('صاحب الحساب', 'Account holder'),
-                style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
-            const SizedBox(height: 3),
-            Text(method.holderName,
-                style: const TextStyle(color: AppColors.textPrimary, fontSize: 12)),
-            const SizedBox(height: 9),
+          if (method.type == PaymentMethodType.iban && method.providerName.isNotEmpty) ...[
+            Text(method.providerName,
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+            const SizedBox(height: 6),
           ],
-          Text(isBank ? 'IBAN' : _copy('رقم الجوال', 'Phone number'),
-              style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
-          const SizedBox(height: 3),
-          SelectableText(
-            method.identifier,
-            textDirection: TextDirection.ltr,
-            style: const TextStyle(
-              color: AppColors.primaryDark,
-              fontWeight: FontWeight.w600,
-              fontSize: 12,
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  method.masked,
+                  textDirection: TextDirection.ltr,
+                  style: TextStyle(
+                    color: AppColors.ink,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+              if (method.type != PaymentMethodType.card)
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  tooltip: _copy('نسخ', 'Copy'),
+                  icon: const MotionIcon(Icons.copy, size: 16),
+                  onPressed: () =>
+                      Clipboard.setData(ClipboardData(text: method.identifier)),
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              _copy(method.status.labelAr, method.status.labelEn),
+              style: TextStyle(color: fg, fontSize: 10, fontWeight: FontWeight.bold),
             ),
           ),
+          if (cooling)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                _copy(
+                  'السحب على هذه الوسيلة متوقف حتى انتهاء فترة الحماية بعد التعديل.',
+                  'Payouts are blocked until the post-edit protection period ends.',
+                ),
+                style: TextStyle(color: AppColors.warning, fontSize: 10),
+              ),
+            ),
+          if (method.decisionNote.isNotEmpty &&
+              (method.status == PaymentMethodStatus.rejected ||
+                  method.status == PaymentMethodStatus.suspended))
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                '${_copy('ملاحظة الأدمن', 'Admin note')}: ${method.decisionNote}',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 10),
+              ),
+            ),
         ],
       ),
     );

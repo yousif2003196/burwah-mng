@@ -1,21 +1,28 @@
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/features/finance/data/services/finance_approval_policy.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' as intl;
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/di/injection_container.dart';
-import '../../../../core/utils/currency_formatter.dart';
-import '../../domain/repositories/finance_repository.dart';
-import '../../domain/entities/withdrawal_request_entity.dart';
-import '../../domain/usecases/get_merchant_withdrawals_usecase.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../../../core/widgets/app_snack_bar.dart';
-import '../../../../core/widgets/finance_dialogs.dart';
-import '../../../merchants/data/merchant_advertisement_local_store.dart';
-import '../../../merchants/domain/entities/merchant_entity.dart';
-import '../../../wasalny_supervisor/data/wasalny_local_event_store.dart';
-import '../widgets/finance_navigation.dart';
-import '../widgets/withdrawal_request_details_sheet.dart';
-import '../utils/finance_localizer.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/utils/currency_formatter.dart';
+import 'package:barwah_app/core/widgets/app_snack_bar.dart';
+import 'package:barwah_app/features/admin/data/datasources/admin_request_store.dart';
+import 'package:barwah_app/features/admin/domain/entities/admin_request.dart';
+import 'package:barwah_app/features/finance/domain/entities/withdrawal_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/repositories/finance_repository.dart';
+import 'package:barwah_app/features/finance/domain/usecases/get_merchant_withdrawals_usecase.dart';
+import 'package:barwah_app/features/finance/presentation/utils/finance_localizer.dart';
+import 'package:barwah_app/features/finance/presentation/widgets/finance_dialogs.dart';
+import 'package:barwah_app/features/finance/presentation/widgets/finance_navigation.dart';
+import 'package:barwah_app/features/finance/presentation/widgets/withdrawal_request_details_sheet.dart';
+import 'package:barwah_app/features/merchants/data/datasources/merchant_advertisement_local_store.dart';
+import 'package:barwah_app/features/merchants/domain/entities/merchant_entity.dart';
+import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
+import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
 
 class MerchantWithdrawalsScreen extends StatefulWidget {
   const MerchantWithdrawalsScreen({super.key});
@@ -177,8 +184,8 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
     String? reason,
   }) async {
     try {
-      await WasalnyLocalEventStore().publish(
-        WasalnyLocalEvent(
+      await LocalEventStore().publish(
+        LocalEvent(
           id: 'finance-${approved ? 'approved' : isOnHold ? 'on-hold' : 'rejected'}-${request.id}',
           recipient: _promotionRecipient(request),
           source: 'finance',
@@ -290,6 +297,18 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
       );
       if (_isPromotionRequest(request)) {
         await _notifyPromotionDecision(request, approved: true);
+      }
+      if (await FinanceApprovalPolicy.needsAdmin(request.netAmount,
+          instantReady: request.isInstantTransferReady)) {
+        await forwardFinanceRequestToAdmin(
+        kind: AdminRequestKind.withdrawal,
+        refId: request.requestNumber,
+        titleAr: 'طلب مالي بانتظار المصادقة النهائية',
+        titleEn: 'Financial request awaiting final authorization',
+        detailsAr: '${request.beneficiaryName} (${request.beneficiaryRole}) — صافي ${request.netAmount.toStringAsFixed(2)} ج.م عبر ${request.bankName}.',
+        detailsEn: '${request.beneficiaryName} (${request.beneficiaryRole}) — net EGP ${request.netAmount.toStringAsFixed(2)} via ${request.bankName}.',
+        amount: request.netAmount,
+      );
       }
       if (!mounted) return;
       _replaceRequest(request.copyWith(
@@ -441,7 +460,7 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
           ? TextDirection.rtl
           : TextDirection.ltr,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF9FAFB),
+        backgroundColor: AppColors.scaffold,
         appBar: FinancePageAppBar(
           title: l10n.navWithdrawalOrders,
           subtitle: l10n.financialManagementSubtitle,
@@ -449,8 +468,8 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
           onBackPressed: () => Navigator.pop(context),
         ),
         body: _isLoading
-            ? const Center(
-                child: CircularProgressIndicator(color: AppColors.primaryDark))
+            ? Center(
+                child: CircularProgressIndicator(color: AppColors.ink))
             : Stack(
                 children: [
                   ListView(
@@ -464,7 +483,7 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: Colors.blue.shade50,
+                            color: AppColors.infoLight,
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Row(
@@ -475,14 +494,14 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                                     l10n.bankingAndCashSurveillanceGateway,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                        color: AppColors.primaryDark,
+                                    style: TextStyle(
+                                        color: AppColors.ink,
                                         fontSize: 10,
                                         fontWeight: FontWeight.bold)),
                               ),
                               const SizedBox(width: 4),
-                              Icon(Icons.verified,
-                                  color: Colors.blue.shade700, size: 14),
+                              MotionIcon(Icons.verified,
+                                  color: AppColors.infoDark, size: 14),
                             ],
                           ),
                         ),
@@ -492,22 +511,22 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                       // 2. Titles
                       Text(
                         l10n.merchantWithdrawalsHeaderTitle,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w900,
-                            color: AppColors.primaryDark,
+                            color: AppColors.ink,
                             height: 1.3),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         l10n.merchantWithdrawalsHeaderSubtitle,
                         style:
-                            const TextStyle(fontSize: 12, color: Colors.grey),
+                            TextStyle(fontSize: 12, color: AppColors.textSecondary),
                       ),
                       const SizedBox(height: 20),
 
                       // 3. Metric Cards
-                      Row(
+                      ScrollFx(child: Row(
                         children: [
                           Expanded(
                             child: _buildMetricMiniCard(
@@ -530,11 +549,11 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                             ),
                           ),
                         ],
-                      ),
+                      )),
                       const SizedBox(height: 20),
 
                       // 4. Filters
-                      Row(
+                      ScrollFx(child: Row(
                         children: [
                           _buildQueueChip(
                             l10n.financeRequestsInProgressTab,
@@ -546,9 +565,9 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                             true,
                           ),
                         ],
-                      ),
+                      )),
                       const SizedBox(height: 12),
-                      Wrap(
+                      ScrollFx(child: Wrap(
                         spacing: 8,
                         runSpacing: 8,
                         children: [
@@ -556,9 +575,9 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                           _buildFilterChip('التجار'),
                           _buildFilterChip('المستخدمين'),
                         ],
-                      ),
+                      )),
                       const SizedBox(height: 12),
-                      Wrap(
+                      ScrollFx(child: Wrap(
                         spacing: 8,
                         runSpacing: 8,
                         crossAxisAlignment: WrapCrossAlignment.center,
@@ -586,7 +605,7 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                           ),
                           OutlinedButton.icon(
                             onPressed: _selectDateRange,
-                            icon: const Icon(Icons.date_range_outlined),
+                            icon: const MotionIcon(Icons.date_range_outlined),
                             label: Text(_dateRange == null
                                 ? (l10n.localeName.startsWith('ar')
                                     ? 'تصفية بالتاريخ'
@@ -600,31 +619,31 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                                   : 'Clear date filter',
                               onPressed: () =>
                                   setState(() => _dateRange = null),
-                              icon: const Icon(Icons.close),
+                              icon: const MotionIcon(Icons.close),
                             ),
                         ],
-                      ),
+                      )),
                       const SizedBox(height: 12),
                       TextField(
                         controller: _searchController,
                         onChanged: (value) =>
                             setState(() => _searchQuery = value),
                         decoration: InputDecoration(
-                          prefixIcon: const Icon(Icons.search),
+                          prefixIcon: const MotionIcon(Icons.search),
                           hintText: l10n.localeName.startsWith('ar')
                               ? 'ابحث باسم المستفيد أو رقم الطلب'
                               : 'Search beneficiary or request number',
                           filled: true,
-                          fillColor: Colors.white,
+                          fillColor: AppColors.surface,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide:
-                                const BorderSide(color: AppColors.cardBorder),
+                                BorderSide(color: AppColors.cardBorder),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide:
-                                const BorderSide(color: AppColors.cardBorder),
+                                BorderSide(color: AppColors.cardBorder),
                           ),
                         ),
                       ),
@@ -646,7 +665,7 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                       else
                         ..._filteredRequests.map(
                           (req) => _buildWithdrawalCard(context, req),
-                        ),
+                        ).staggered(),
                     ],
                   ),
 
@@ -660,6 +679,8 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 12),
                         decoration: BoxDecoration(
+                          gradient: AppColors.blueFill,
+                          border: AppColors.blueEdge,
                           color: AppColors.primaryDark,
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
@@ -677,7 +698,7 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                               decoration: BoxDecoration(
                                   color: Colors.white.withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(10)),
-                              child: const Icon(Icons.calculate,
+                              child: const MotionIcon(Icons.calculate,
                                   color: Colors.white, size: 24),
                             ),
                             const SizedBox(width: 12),
@@ -689,7 +710,7 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                                   Text(l10n.totalAwaitingApproval,
                                       style: const TextStyle(
                                           color: Colors.white70, fontSize: 10)),
-                                  Text(
+                                  CountText(
                                       '${CurrencyFormatter.format(_totalPendingAmount, includeCurrency: false)} ${l10n.currencyEgy}',
                                       style: const TextStyle(
                                           color: Colors.white,
@@ -709,7 +730,7 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                                         height: 1.2),
                                     textAlign: TextAlign.center),
                                 const SizedBox(height: 2),
-                                Text('$_pendingCount ${l10n.ordersUnit}',
+                                CountText('$_pendingCount ${l10n.ordersUnit}',
                                     style: const TextStyle(
                                         color: Colors.white,
                                         fontSize: 12,
@@ -742,19 +763,19 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primaryDark : const Color(0xFFE5E7EB),
+          color: isSelected ? AppColors.primaryDark : AppColors.surfaceHighlight,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (isSelected)
-              const Icon(Icons.circle, size: 8, color: Colors.blueAccent),
+              MotionIcon(Icons.circle, size: 8, color: AppColors.info),
             if (isSelected) const SizedBox(width: 6),
             Text(
               label,
               style: TextStyle(
-                color: isSelected ? Colors.white : Colors.black54,
+                color: isSelected ? Colors.white : AppColors.textSecondary,
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
@@ -798,7 +819,7 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.cardBorder),
         boxShadow: [
@@ -814,15 +835,15 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(icon, color: color, size: 20),
+              MotionIcon(icon, color: color, size: 20),
               const SizedBox(width: 4),
               Flexible(
                 child: Text(title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 11,
-                        color: Colors.grey,
+                        color: AppColors.textSecondary,
                         fontWeight: FontWeight.w600)),
               ),
             ],
@@ -832,7 +853,7 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
             alignment: Alignment.center,
             child: Column(
               children: [
-                Text(count,
+                CountText(count,
                     style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
@@ -842,7 +863,7 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                         fontSize: 10,
                         color: color == AppColors.danger
                             ? AppColors.danger
-                            : Colors.grey)),
+                            : AppColors.textSecondary)),
               ],
             ),
           ),
@@ -880,13 +901,13 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
     Color mainColor = isDanger ? AppColors.danger : AppColors.primaryDark;
     Color lightBgColor = isDanger
         ? AppColors.dangerLight
-        : (isReady ? Colors.blue.shade50 : const Color(0xFFF1F5F9));
+        : (isReady ? AppColors.infoLight : AppColors.surfaceLight);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
             color: isDanger
@@ -913,7 +934,7 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                   color: lightBgColor,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(
+                child: MotionIcon(
                   isDanger
                       ? Icons.warning_amber_rounded
                       : (isReady ? Icons.manage_accounts : Icons.store),
@@ -932,10 +953,10 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                           child: Text(
                             FinanceLocalizer.localizeWithdrawalText(
                                 context, req.beneficiaryName),
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontWeight: FontWeight.w900,
                                 fontSize: 14,
-                                color: Colors.black87),
+                                color: AppColors.textPrimary),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -948,7 +969,7 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                             decoration: BoxDecoration(
                               color: isDanger
                                   ? AppColors.dangerLight
-                                  : const Color(0xFFE5E7EB),
+                                  : AppColors.surfaceHighlight,
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Text(
@@ -958,7 +979,7 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                                   fontWeight: FontWeight.bold,
                                   color: isDanger
                                       ? AppColors.danger
-                                      : Colors.black87),
+                                      : AppColors.textPrimary),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -970,8 +991,8 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                     Row(
                       children: [
                         if (!isDanger && !isReady)
-                          const Icon(Icons.verified,
-                              color: AppColors.primaryDark, size: 14),
+                          MotionIcon(Icons.verified,
+                              color: AppColors.ink, size: 14),
                         if (!isDanger && !isReady) const SizedBox(width: 4),
                         Expanded(
                           child: Text(
@@ -981,7 +1002,7 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                                 fontSize: 11,
                                 color: isDanger
                                     ? AppColors.danger
-                                    : Colors.grey.shade700,
+                                    : AppColors.textSecondary,
                                 fontWeight: isDanger
                                     ? FontWeight.bold
                                     : FontWeight.normal),
@@ -1024,7 +1045,7 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFFFAFAFA),
+              color: AppColors.surfaceMuted,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: AppColors.cardBorder),
             ),
@@ -1040,17 +1061,17 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                                 fontSize: 11,
                                 color: isDanger
                                     ? AppColors.danger
-                                    : Colors.grey.shade700))),
+                                    : AppColors.textSecondary))),
                     FittedBox(
                         fit: BoxFit.scaleDown,
-                        child: Text(
+                        child: CountText(
                             '${CurrencyFormatter.format(req.grossAmount, includeCurrency: false)} ${l10n.currencyEgy}',
                             style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
                                 color: isDanger
                                     ? AppColors.danger
-                                    : Colors.black87))),
+                                    : AppColors.textPrimary))),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -1066,18 +1087,18 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                                 fontSize: 11,
                                 color: isDanger
                                     ? AppColors.danger
-                                    : Colors.grey.shade700))),
+                                    : AppColors.textSecondary))),
                     FittedBox(
                         fit: BoxFit.scaleDown,
-                        child: Text(
+                        child: CountText(
                             '- ${CurrencyFormatter.format(req.platformFeeAmount, includeCurrency: false)} ${l10n.currencyEgy}',
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
                                 color: AppColors.danger))),
                   ],
                 ),
-                const Padding(
+                Padding(
                   padding: EdgeInsets.symmetric(vertical: 8),
                   child: Divider(height: 1, color: AppColors.cardBorder),
                 ),
@@ -1099,27 +1120,27 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                                 fontSize: 11,
                                 color: isDanger
                                     ? AppColors.danger
-                                    : AppColors.primaryDark,
+                                    : AppColors.ink,
                                 fontWeight: FontWeight.bold),
                           ),
                           if (!isDanger) const SizedBox(height: 4),
                           if (!isDanger)
                             Row(
                               children: [
-                                Icon(
+                                MotionIcon(
                                     isReady
                                         ? Icons.flash_on
                                         : Icons.account_balance_wallet,
                                     size: 12,
-                                    color: AppColors.primaryDark),
+                                    color: AppColors.ink),
                                 const SizedBox(width: 4),
                                 Expanded(
                                     child: Text(
                                         isReady
                                             ? '${l10n.receivingBank}\n${FinanceLocalizer.localizeWithdrawalText(context, req.bankName)}'
                                             : '${l10n.disbursementSource}\n${l10n.readyForInstantBankingTransfer}',
-                                        style: const TextStyle(
-                                            fontSize: 9, color: Colors.grey),
+                                        style: TextStyle(
+                                            fontSize: 9, color: AppColors.textSecondary),
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis)),
                               ],
@@ -1133,7 +1154,7 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                       children: [
                         FittedBox(
                             fit: BoxFit.scaleDown,
-                            child: Text(
+                            child: CountText(
                                 CurrencyFormatter.format(req.netAmount,
                                     includeCurrency: false),
                                 style: TextStyle(
@@ -1141,7 +1162,7 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                                     fontWeight: FontWeight.w900,
                                     color: isDanger
                                         ? AppColors.danger
-                                        : AppColors.primaryDark))),
+                                        : AppColors.ink))),
                         const SizedBox(width: 4),
                         Text(l10n.currencyEgy,
                             style: TextStyle(
@@ -1149,7 +1170,7 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                                 fontWeight: FontWeight.bold,
                                 color: isDanger
                                     ? AppColors.danger
-                                    : AppColors.primaryDark)),
+                                    : AppColors.ink)),
                       ],
                     ),
                   ],
@@ -1165,7 +1186,7 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppColors.surface,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: AppColors.cardBorder),
               ),
@@ -1177,12 +1198,12 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                       children: [
                         Row(
                           children: [
-                            const Icon(Icons.account_balance,
-                                size: 14, color: Colors.grey),
+                            MotionIcon(Icons.account_balance,
+                                size: 14, color: AppColors.textSecondary),
                             const SizedBox(width: 6),
                             Text(l10n.receivingBank,
-                                style: const TextStyle(
-                                    fontSize: 11, color: Colors.grey)),
+                                style: TextStyle(
+                                    fontSize: 11, color: AppColors.textSecondary)),
                             const SizedBox(width: 6),
                             Expanded(
                                 child: Text(
@@ -1199,13 +1220,13 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(Icons.credit_card,
-                                size: 14, color: Colors.grey),
+                            MotionIcon(Icons.credit_card,
+                                size: 14, color: AppColors.textSecondary),
                             const SizedBox(width: 6),
                             Text(l10n.ibanNumber,
-                                style: const TextStyle(
+                                style: TextStyle(
                                     fontSize: 10,
-                                    color: Colors.grey,
+                                    color: AppColors.textSecondary,
                                     height: 1.2)),
                             const SizedBox(width: 6),
                             Expanded(
@@ -1221,10 +1242,10 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                           ],
                         ),
                         const SizedBox(height: 8),
-                        Text(
+                        CountText(
                             '${l10n.submissionDate} ${FinanceLocalizer.localizeWithdrawalText(context, req.dateText)}',
-                            style: const TextStyle(
-                                fontSize: 10, color: Colors.grey)),
+                            style: TextStyle(
+                                fontSize: 10, color: AppColors.textSecondary)),
                       ],
                     ),
                   ),
@@ -1237,26 +1258,26 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
+                color: AppColors.infoLight,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.blue.shade100),
+                border: Border.all(color: AppColors.infoLight),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.check_circle,
-                          color: Colors.blue.shade700, size: 16),
+                      MotionIcon(Icons.check_circle,
+                          color: AppColors.infoDark, size: 16),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(l10n.automatedTaxAuditResult,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
-                                color: AppColors.primaryDark)),
+                                color: AppColors.ink)),
                       ),
                     ],
                   ),
@@ -1266,7 +1287,7 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                           context, req.auditCheckResult!),
                       style: TextStyle(
                           fontSize: 10,
-                          color: Colors.blue.shade800,
+                          color: AppColors.infoDark,
                           height: 1.4)),
                 ],
               ),
@@ -1278,16 +1299,16 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: isDanger ? Colors.white : const Color(0xFFF1F5F9),
+                color: isDanger ? AppColors.surface : AppColors.surfaceLight,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                    color: isDanger ? AppColors.danger : Colors.grey.shade300),
+                    color: isDanger ? AppColors.danger : AppColors.cardBorder),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(isDanger ? Icons.gavel : Icons.bolt,
-                      color: isDanger ? AppColors.danger : Colors.grey.shade700,
+                  MotionIcon(isDanger ? Icons.gavel : Icons.bolt,
+                      color: isDanger ? AppColors.danger : AppColors.textSecondary,
                       size: 18),
                   const SizedBox(width: 8),
                   Expanded(
@@ -1296,7 +1317,7 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                       children: [
                         if (isDanger)
                           Text(l10n.regulatoryNoticeFromSupervisor,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
                                   color: AppColors.danger)),
@@ -1307,8 +1328,8 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                           style: TextStyle(
                               fontSize: 10,
                               color: isDanger
-                                  ? Colors.grey.shade800
-                                  : Colors.grey.shade700,
+                                  ? AppColors.textPrimary
+                                  : AppColors.textSecondary,
                               height: 1.4),
                         ),
                       ],
@@ -1322,7 +1343,7 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
           const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: () => showWithdrawalRequestDetailsSheet(context, req),
-            icon: const Icon(Icons.receipt_long_outlined, size: 18),
+            icon: const MotionIcon(Icons.receipt_long_outlined, size: 18),
             label: Text(l10n.withdrawalRequestDetails),
           ),
           if (req.status == RequestStatus.pending) ...[
@@ -1339,7 +1360,7 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                         borderRadius: BorderRadius.circular(12)),
                     elevation: 0,
                   ),
-                  icon: const Icon(Icons.check_circle_outline, size: 18),
+                  icon: const MotionIcon(Icons.check_circle_outline, size: 18),
                   onPressed: _processingRequests.contains(req.id)
                       ? null
                       : () async {
@@ -1377,12 +1398,12 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                       child: OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AppColors.danger,
-                          side: const BorderSide(color: AppColors.danger),
+                          side: BorderSide(color: AppColors.danger),
                           padding: const EdgeInsets.symmetric(vertical: 11),
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12)),
                         ),
-                        icon: const Icon(Icons.cancel_outlined, size: 16),
+                        icon: const MotionIcon(Icons.cancel_outlined, size: 16),
                         onPressed: _processingRequests.contains(req.id)
                             ? null
                             : () => _rejectRequest(l10n, req),
@@ -1399,14 +1420,14 @@ class _MerchantWithdrawalsScreenState extends State<MerchantWithdrawalsScreen> {
                     Expanded(
                       child: OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.orange.shade800,
-                          backgroundColor: Colors.orange.shade50,
-                          side: BorderSide(color: Colors.orange.shade200),
+                          foregroundColor: AppColors.warningDark,
+                          backgroundColor: AppColors.warningLight,
+                          side: BorderSide(color: AppColors.warningBorder),
                           padding: const EdgeInsets.symmetric(vertical: 11),
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12)),
                         ),
-                        icon: const Icon(Icons.pause_circle_outline, size: 16),
+                        icon: const MotionIcon(Icons.pause_circle_outline, size: 16),
                         onPressed: _processingRequests.contains(req.id)
                             ? null
                             : () => _freezeRequest(l10n, req),

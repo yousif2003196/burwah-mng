@@ -1,7 +1,7 @@
-import '../../domain/entities/product_review.dart';
-import '../../domain/repositories/product_review_repository.dart';
-import '../datasources/product_review_data_source.dart';
-import '../models/product_review_model.dart';
+import 'package:barwah_app/features/products/data/datasources/product_review_data_source.dart';
+import 'package:barwah_app/features/products/data/models/product_review_model.dart';
+import 'package:barwah_app/features/products/domain/entities/product_review.dart';
+import 'package:barwah_app/features/products/domain/repositories/product_review_repository.dart';
 
 class ProductReviewRepositoryImpl implements ProductReviewRepository {
   final ProductReviewDataSource dataSource;

@@ -1,14 +1,15 @@
 import 'package:flutter/foundation.dart';
 
-import '../../../wasalny_supervisor/data/wasalny_local_event_store.dart';
-import '../../domain/entities/withdrawal_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/withdrawal_request_entity.dart';
+import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
+import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
 
 Future<void> notifyFinanceOfSupervisorRequest(
   WithdrawalRequestEntity request,
 ) async {
   try {
-    await WasalnyLocalEventStore().publish(
-      WasalnyLocalEvent(
+    await LocalEventStore().publish(
+      LocalEvent(
         id: 'finance-new-${request.id}',
         recipient: 'finance',
         source: request.sourceAccount ?? 'supervisor',

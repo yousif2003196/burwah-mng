@@ -2,18 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../core/di/injection_container.dart';
-import '../../core/widgets/account_conversations_screen.dart';
-import '../../features/finance/presentation/widgets/finance_navigation.dart';
-import '../../features/products/presentation/controllers/product_review_cubit.dart';
-import '../../features/products/presentation/screens/product_ads_review_screen.dart';
-import '../../features/products/presentation/screens/product_promotions_screen.dart';
-import '../../features/products/presentation/screens/product_reports_screen.dart';
-import '../../features/products/presentation/screens/product_supervisor_profile_screen.dart';
-import '../../features/products/presentation/screens/product_supervisor_notifications_screen.dart';
-import '../../features/wasalny_supervisor/data/wasalny_local_event_store.dart';
-import '../../l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/rolling_app_bar.dart';
+import 'package:barwah_app/features/messaging/presentation/widgets/unread_events_dot.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/widgets/side_panel.dart';
+import 'package:barwah_app/core/widgets/edge_swipe_opener.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/features/finance/presentation/widgets/finance_navigation.dart';
+import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
+import 'package:barwah_app/features/messaging/presentation/screens/account_conversations_screen.dart';
+import 'package:barwah_app/features/products/presentation/controllers/product_review_cubit.dart';
+import 'package:barwah_app/features/products/presentation/screens/product_ads_review_screen.dart';
+import 'package:barwah_app/features/products/presentation/screens/product_promotions_screen.dart';
+import 'package:barwah_app/features/products/presentation/screens/product_reports_screen.dart';
+import 'package:barwah_app/features/products/presentation/screens/product_supervisor_notifications_screen.dart';
+import 'package:barwah_app/features/products/presentation/screens/product_supervisor_profile_screen.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
 
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 class ProductSupervisorTabsShell extends StatefulWidget {
   final VoidCallback onLogout;
 
@@ -29,18 +36,20 @@ class _ProductSupervisorTabsShellState
   late final PageController _pageController = PageController(initialPage: 3);
   int _currentIndex = 3;
   bool _isBarsVisible = true;
+  // الشريط العلوي له حالة مستقلة: لا يرجع بالسحب لأعلى، فقط عند أول الصفحة.
+  bool _topDocked = true;
   int _unreadNotifications = 0;
 
   @override
   void initState() {
     super.initState();
-    WasalnyLocalEventStore.revision.addListener(_loadUnreadNotifications);
+    LocalEventStore.revision.addListener(_loadUnreadNotifications);
     _loadUnreadNotifications();
   }
 
   Future<void> _loadUnreadNotifications() async {
     try {
-      final events = await WasalnyLocalEventStore().getEvents('products');
+      final events = await LocalEventStore().getEvents('products');
       if (mounted) {
         setState(() => _unreadNotifications =
             events.where((event) => !event.isRead).length);
@@ -56,7 +65,7 @@ class _ProductSupervisorTabsShellState
 
   @override
   void dispose() {
-    WasalnyLocalEventStore.revision.removeListener(_loadUnreadNotifications);
+    LocalEventStore.revision.removeListener(_loadUnreadNotifications);
     _pageController.dispose();
     super.dispose();
   }
@@ -67,6 +76,14 @@ class _ProductSupervisorTabsShellState
       _currentIndex = index;
       _isBarsVisible = true;
     });
+    // عند القفز لتبويب بعيد ننتقل أولاً لجاره مباشرة، ثم نحرّك خطوة واحدة،
+    // فلا تُبنى التبويبات الوسيطة ولا يظهر تقطيع.
+    if (_pageController.positions.length == 1) {
+      final from = (_pageController.page ?? _pageController.initialPage.toDouble()).round();
+      if ((index - from).abs() > 1) {
+        _pageController.jumpToPage(index > from ? index - 1 : index + 1);
+      }
+    }
     _pageController.animateToPage(
       index,
       duration: const Duration(milliseconds: 320),
@@ -110,22 +127,14 @@ class _ProductSupervisorTabsShellState
         child: const ProductAdsReviewScreen(),
       ),
     ];
-    final topPadding = MediaQuery.of(context).padding.top;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7F9),
-      appBar: PreferredSize(
-        preferredSize: Size.fromHeight(_isBarsVisible ? kToolbarHeight : 0),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 260),
-          curve: Curves.easeInOut,
-          height: _isBarsVisible ? kToolbarHeight + topPadding : 0,
-          child: SingleChildScrollView(
-            physics: const NeverScrollableScrollPhysics(),
-            child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 200),
-              opacity: _isBarsVisible ? 1 : 0,
-              child: FinancePageAppBar(
+      backgroundColor: AppColors.scaffold,
+      extendBody: true,
+      appBar: RollingAppBar(
+        docked: _topDocked,
+        badge: const UnreadEventsDot(recipient: 'products'),
+        bar: FinancePageAppBar(
                 title: titles[_currentIndex],
                 subtitle: l10n.productSupervisorRoleBadge,
                 showProfileButton: true,
@@ -140,7 +149,7 @@ class _ProductSupervisorTabsShellState
                                   const AccountConversationsScreen(accountId: 'products'),
                             ),
                           ),
-                          icon: const AccountChatUnreadBadge(accountId: 'products', child: Icon(Icons.chat_bubble_outline)),
+                          icon: const AccountChatUnreadBadge(accountId: 'products', child: MotionIcon(Icons.chat_bubble_outline)),
                         ),
                         IconButton(
                           tooltip: l10n.productNotificationsTitle,
@@ -153,7 +162,7 @@ class _ProductSupervisorTabsShellState
                           icon: Stack(
                             clipBehavior: Clip.none,
                             children: [
-                              const Icon(Icons.notifications_none_outlined),
+                              const MotionIcon(Icons.notifications_none_outlined),
                               if (_unreadNotifications > 0)
                                 PositionedDirectional(
                                   top: -6,
@@ -165,12 +174,12 @@ class _ProductSupervisorTabsShellState
                                     ),
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 4),
-                                    decoration: const BoxDecoration(
-                                      color: Colors.red,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.danger,
                                       shape: BoxShape.circle,
                                     ),
                                     alignment: Alignment.center,
-                                    child: Text(
+                                    child: CountText(
                                       '$_unreadNotifications',
                                       style: const TextStyle(
                                         color: Colors.white,
@@ -186,35 +195,59 @@ class _ProductSupervisorTabsShellState
                       ]
                     : const [],
               ),
-            ),
-          ),
-        ),
       ),
-      body: NotificationListener<UserScrollNotification>(
+      body: NotificationListener<ScrollNotification>(
         onNotification: (notification) {
           if (notification.metrics.axis == Axis.vertical) {
-            if (notification.direction == ScrollDirection.reverse &&
-                _isBarsVisible) {
-              setState(() => _isBarsVisible = false);
-            } else if (notification.direction == ScrollDirection.forward &&
-                !_isBarsVisible) {
-              setState(() => _isBarsVisible = true);
+            final direction = notification is UserScrollNotification
+                ? notification.direction
+                : null;
+            final atTop = notification.metrics.pixels <= 4;
+            var bars = _isBarsVisible;
+            var top = _topDocked;
+            if (direction == ScrollDirection.reverse) {
+              bars = false;
+            } else if (direction == ScrollDirection.forward) {
+              bars = true;
+            }
+            if (atTop) {
+              top = true;
+            } else if (notification is ScrollUpdateNotification &&
+                (notification.scrollDelta ?? 0) > 0 &&
+                notification.metrics.pixels > 24) {
+              top = false;
+            }
+            if (bars != _isBarsVisible || top != _topDocked) {
+              setState(() {
+                _isBarsVisible = bars;
+                _topDocked = top;
+              });
             }
           }
           return false;
         },
-        child: PageView(
+        child: EdgeSwipeOpener(
+          controller: _pageController,
+          onOpen: () => showSidePanel<void>(
+            context,
+            (_) => const ProductSupervisorNotificationsScreen(),
+          ),
+          child: PageView(
           controller: _pageController,
           pageSnapping: true,
           allowImplicitScrolling: true,
-          onPageChanged: (index) => setState(() => _currentIndex = index),
-          children: pages,
+          onPageChanged: (index) => setState(() {
+              _currentIndex = index;
+              _topDocked = true;
+            }),
+          children: TabPageTransition.wrap(_pageController, pages),
+        ),
         ),
       ),
       bottomNavigationBar: AnimatedContainer(
         duration: const Duration(milliseconds: 260),
         curve: Curves.easeInOut,
-        height: _isBarsVisible ? 76 : 0,
+        height: _isBarsVisible ? FinanceBottomNavigationBar.heightOf(context) : 0,
         child: SingleChildScrollView(
           physics: const NeverScrollableScrollPhysics(),
           child: AnimatedOpacity(

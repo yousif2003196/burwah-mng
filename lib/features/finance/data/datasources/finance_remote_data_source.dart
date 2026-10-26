@@ -1,11 +1,11 @@
-import '../../domain/entities/bank_account_edit_request_entity.dart';
-import '../../domain/entities/bank_link_request_entity.dart';
-import '../models/bank_account_model.dart';
-import '../../domain/entities/department_wallet_entity.dart';
-import '../../domain/entities/expense_request_entity.dart';
-import '../../domain/entities/finance_summary_entity.dart';
-import '../../domain/entities/subscription_request_entity.dart';
-import '../../domain/entities/withdrawal_request_entity.dart';
+import 'package:barwah_app/features/finance/data/models/bank_account_model.dart';
+import 'package:barwah_app/features/finance/domain/entities/bank_account_edit_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/bank_link_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/department_wallet_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/expense_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/finance_summary_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/subscription_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/withdrawal_request_entity.dart';
 
 abstract class FinanceRemoteDataSource {
   Future<FinanceSummaryEntity> getFinanceSummary();

@@ -1,5 +1,5 @@
-import '../entities/product_review.dart';
-import '../repositories/product_review_repository.dart';
+import 'package:barwah_app/features/products/domain/entities/product_review.dart';
+import 'package:barwah_app/features/products/domain/repositories/product_review_repository.dart';
 
 class UpdateProductReviewUseCase {
   final ProductReviewRepository repository;

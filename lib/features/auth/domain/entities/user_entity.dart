@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
-import 'user_role.dart';
+
+import 'package:barwah_app/features/auth/domain/entities/user_role.dart';
 
 class UserEntity extends Equatable {
   final String id;

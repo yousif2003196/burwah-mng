@@ -1,15 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../../../core/di/injection_container.dart';
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/utils/app_locale_controller.dart';
-import '../../../../core/widgets/app_snack_bar.dart';
-import '../../../../core/widgets/finance_dialogs.dart';
-import '../../domain/entities/bank_link_request_entity.dart';
-import '../controllers/bank_reconciliation/bank_reconciliation_cubit.dart';
-import '../controllers/bank_reconciliation/bank_reconciliation_state.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../widgets/finance_navigation.dart';
+
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/localization/app_locale_controller.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/theme/app_palette.dart';
+import 'package:barwah_app/core/widgets/app_snack_bar.dart';
+import 'package:barwah_app/features/admin/data/datasources/admin_request_store.dart';
+import 'package:barwah_app/features/admin/domain/entities/admin_request.dart';
+import 'package:barwah_app/features/finance/domain/entities/bank_link_request_entity.dart';
+import 'package:barwah_app/features/finance/presentation/controllers/bank_reconciliation/bank_reconciliation_cubit.dart';
+import 'package:barwah_app/features/finance/presentation/controllers/bank_reconciliation/bank_reconciliation_state.dart';
+import 'package:barwah_app/features/finance/presentation/widgets/finance_dialogs.dart';
+import 'package:barwah_app/features/finance/presentation/widgets/finance_navigation.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
 
 enum _ReconciliationFilter { all, needsAttention }
 
@@ -114,6 +121,18 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
 
     if (confirmed && mounted) {
       final result = await _cubit.approveRequest(item.id);
+      if (result.isRight()) {
+        await forwardFinanceRequestToAdmin(
+          kind: AdminRequestKind.bankLink,
+          refId: item.id,
+          titleAr: 'ربط حساب بنكي بانتظار المصادقة',
+          titleEn: 'Bank link awaiting authorization',
+          detailsAr:
+              '${item.commercialName} — ${item.bankName} — ${item.iban} (${item.requestType}).',
+          detailsEn:
+              '${item.getCommercialName(false)} — ${item.getBankName(false)} — ${item.iban} (${item.getRequestType(false)}).',
+        );
+      }
       if (!mounted) return;
       if (result.isRight()) await _cubit.loadRequests();
       if (!mounted) return;
@@ -224,7 +243,7 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            const Icon(Icons.picture_as_pdf, color: AppColors.info, size: 22),
+            MotionIcon(Icons.picture_as_pdf, color: AppColors.info, size: 22),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -242,16 +261,16 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: const Color(0xFFF8F9FA),
+                color: AppColors.background,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.grey.shade300),
+                border: Border.all(color: AppColors.cardBorder),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.verified,
+                      MotionIcon(Icons.verified,
                           color: AppColors.infoDark, size: 16),
                       const SizedBox(width: 6),
                       Text(
@@ -264,12 +283,12 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
                     ],
                   ),
                   const Divider(height: 16),
-                  Text(
+                  CountText(
                     '${isArabic ? 'المصرف المصدر:' : 'Issuing Bank:'} ${item.getBankName(isArabic)}',
                     style: const TextStyle(fontSize: 11),
                   ),
                   const SizedBox(height: 4),
-                  Text(
+                  CountText(
                     '${isArabic ? 'المستفيد:' : 'Beneficiary:'} ${item.getBeneficiaryName(isArabic)}',
                     style: const TextStyle(fontSize: 11),
                   ),
@@ -280,9 +299,9 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
                         fontSize: 10, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 4),
-                  Text(
+                  CountText(
                     '${isArabic ? 'السجل التجاري:' : 'CR Number:'} ${item.crNumber}',
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 10, color: AppColors.textSecondary),
                   ),
                 ],
@@ -319,17 +338,17 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
           currentIndex: widget.currentIndex,
           enabled: widget.showBottomNavigation,
           child: Scaffold(
-            backgroundColor: const Color(0xFFF4F6F8),
+            backgroundColor: AppColors.scaffold,
             appBar: widget.showBottomNavigation
                 ? AppBar(
-                    backgroundColor: Colors.white,
+                    backgroundColor: AppColors.surface,
                     elevation: 0,
                     scrolledUnderElevation: 0,
-                    leading: const Padding(
+                    leading: Padding(
                       padding: EdgeInsets.all(8),
                       child: CircleAvatar(
                         backgroundColor: AppColors.primaryDark,
-                        child: Icon(Icons.shield_outlined,
+                        child: MotionIcon(Icons.shield_outlined,
                             color: Colors.white, size: 19),
                       ),
                     ),
@@ -343,18 +362,18 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
                         ),
                         Text(
                           l10n.reconciliationFinanceSubtitle,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 9, color: AppColors.textSecondary),
                         ),
                       ],
                     ),
-                    actions: const [
+                    actions: [
                       Padding(
                         padding: EdgeInsets.all(10),
                         child: CircleAvatar(
                           radius: 15,
                           backgroundColor: AppColors.primaryDark,
-                          child: Icon(Icons.person_outline,
+                          child: MotionIcon(Icons.person_outline,
                               color: Colors.white, size: 17),
                         ),
                       ),
@@ -393,13 +412,13 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
                 return ListView(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                   children: [
-                    _buildScreenHeading(context),
+                    ScrollFx(child: _buildScreenHeading(context)),
                     const SizedBox(height: 12),
-                    _buildAuthorityBanner(context),
+                    ScrollFx(child: _buildAuthorityBanner(context)),
                     const SizedBox(height: 12),
-                    _buildGovernmentConnection(context),
+                    ScrollFx(child: _buildGovernmentConnection(context)),
                     const SizedBox(height: 14),
-                    _buildRequestQueue(context),
+                    ScrollFx(child: _buildRequestQueue(context)),
                     const SizedBox(height: 14),
                     if (_visibleRequests.isEmpty)
                       Padding(
@@ -440,7 +459,7 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
                 l10n.reconciliationEngine,
                 textAlign: TextAlign.left,
                 textDirection: TextDirection.ltr,
-                style: const TextStyle(fontSize: 8, color: AppColors.infoDark),
+                style: TextStyle(fontSize: 8, color: AppColors.infoDark),
               ),
             ),
             Container(
@@ -452,19 +471,19 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.verified_user_outlined,
+                  MotionIcon(Icons.verified_user_outlined,
                       size: 11, color: AppColors.textSecondary),
                   const SizedBox(width: 4),
                   Text(
                     l10n.reconciliationImmediateCompliance,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 8, color: AppColors.textSecondary),
                   ),
                 ],
               ),
             ),
             const SizedBox(width: 5),
-            const Icon(Icons.circle, size: 9, color: AppColors.info),
+            MotionIcon(Icons.circle, size: 9, color: AppColors.info),
           ],
         ),
         const SizedBox(height: 6),
@@ -473,11 +492,11 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
           textAlign: l10n.localeName.startsWith('ar')
               ? TextAlign.right
               : TextAlign.left,
-          style: const TextStyle(
+          style: TextStyle(
               fontSize: 19,
               height: 1.35,
               fontWeight: FontWeight.bold,
-              color: AppColors.primaryDark),
+              color: AppColors.ink),
         ),
       ],
     );
@@ -488,12 +507,15 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
+        gradient: AppColors.blueFill,
+        border: AppColors.blueEdge,
+        boxShadow: AppColors.blueGlow,
         color: AppColors.primaryDark,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
-          const Icon(Icons.gavel, color: Colors.white, size: 20),
+          const MotionIcon(Icons.gavel, color: Colors.white, size: 20),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -530,7 +552,7 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
               color: Colors.white.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.gavel, color: Colors.white, size: 17),
+            child: const MotionIcon(Icons.gavel, color: Colors.white, size: 17),
           ),
         ],
       ),
@@ -542,13 +564,13 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
       decoration: BoxDecoration(
-        color: const Color(0xFFEFF1F3),
+        color: AppColors.surfaceLight,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
-          const Icon(Icons.account_balance_outlined,
-              color: AppColors.primaryDark, size: 18),
+          MotionIcon(Icons.account_balance_outlined,
+              color: AppColors.ink, size: 18),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -560,13 +582,13 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
                     style: const TextStyle(
                         fontSize: 10, fontWeight: FontWeight.bold)),
                 Text(l10n.reconciliationGovernmentSync,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 8, color: AppColors.textSecondary)),
               ],
             ),
           ),
           const SizedBox(width: 8),
-          _statusPill(l10n.reconciliationConnected, const Color(0xFFDCE8FF),
+          _statusPill(l10n.reconciliationConnected, AppColors.infoBorder,
               AppColors.infoDark),
         ],
       ),
@@ -582,11 +604,11 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(14),
         boxShadow: const [
           BoxShadow(
-              color: Color(0x12000000), blurRadius: 8, offset: Offset(0, 3)),
+              color: AppPalette.overlay12000000, blurRadius: 8, offset: Offset(0, 3)),
         ],
       ),
       child: Column(
@@ -602,16 +624,16 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
           const SizedBox(height: 14),
           Row(
             children: [
-              const Icon(Icons.checklist, color: AppColors.info, size: 17),
+              MotionIcon(Icons.checklist, color: AppColors.info, size: 17),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   l10n.reconciliationAccountDetails,
                   textAlign: isArabic ? TextAlign.right : TextAlign.left,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.primaryDark),
+                      color: AppColors.ink),
                 ),
               ),
             ],
@@ -642,7 +664,7 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
               l10n.reconciliationFinalActions,
               textAlign: isArabic ? TextAlign.right : TextAlign.left,
               style:
-                  const TextStyle(fontSize: 8, color: AppColors.textSecondary),
+                  TextStyle(fontSize: 8, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 6),
             // Action 1: اعتماد وإرسال للإدارة للمصادقة
@@ -656,7 +678,7 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10)),
                 ),
-                icon: const Icon(Icons.verified_outlined, size: 18),
+                icon: const MotionIcon(Icons.verified_outlined, size: 18),
                 label: Text(
                   l10n.reconciliationApproveAccount,
                   style: const TextStyle(
@@ -671,13 +693,13 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
               child: OutlinedButton.icon(
                 onPressed: isProcessing ? null : _handleRequestIban,
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.primaryDark,
-                  backgroundColor: const Color(0xFFEFF1F3),
+                  foregroundColor: AppColors.ink,
+                  backgroundColor: AppColors.surfaceLight,
                   side: BorderSide.none,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10)),
                 ),
-                icon: const Icon(Icons.edit_document, size: 16),
+                icon: const MotionIcon(Icons.edit_document, size: 16),
                 label: Text(l10n.reconciliationRequestIban,
                     style: const TextStyle(fontSize: 10)),
               ),
@@ -693,13 +715,13 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
                       onPressed: isProcessing ? null : _handleFreeze,
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.warning,
-                        backgroundColor: const Color(0xFFFFF9E6),
-                        side: const BorderSide(
+                        backgroundColor: AppColors.warningLight,
+                        side: BorderSide(
                             color: AppColors.warning, width: 0.8),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10)),
                       ),
-                      icon: const Icon(Icons.pause_circle_outline, size: 15),
+                      icon: const MotionIcon(Icons.pause_circle_outline, size: 15),
                       label: Text(
                         isArabic ? 'تجميد الطلب' : 'Freeze Request',
                         style: const TextStyle(
@@ -717,11 +739,11 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
                       onPressed: isProcessing ? null : _handleReject,
                       style: TextButton.styleFrom(
                         foregroundColor: AppColors.dangerDark,
-                        backgroundColor: const Color(0xFFFFE0DE),
+                        backgroundColor: AppColors.dangerBorder,
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10)),
                       ),
-                      icon: const Icon(Icons.block, size: 15),
+                      icon: const MotionIcon(Icons.block, size: 15),
                       label: Text(l10n.reconciliationRejectTransfer,
                           style: const TextStyle(
                               fontSize: 10, fontWeight: FontWeight.bold)),
@@ -734,7 +756,7 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
             const SizedBox(height: 12),
             _statusPill(
               _requestStatusLabel(l10n, item.status),
-              const Color(0xFFE4ECFF),
+              AppColors.infoLight,
               AppColors.infoDark,
             ),
             if (item.status == BankLinkRequestStatus.frozen ||
@@ -743,11 +765,11 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
               OutlinedButton.icon(
                 onPressed:
                     isProcessing ? null : () => _restoreFrozenRequest(item),
-                icon: const Icon(Icons.restore_outlined, size: 17),
+                icon: const MotionIcon(Icons.restore_outlined, size: 17),
                 label: Text(l10n.frozenBankLinkRestore),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.primaryDark,
-                  side: const BorderSide(color: AppColors.cardBorder),
+                  foregroundColor: AppColors.ink,
+                  side: BorderSide(color: AppColors.cardBorder),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10)),
                 ),
@@ -770,7 +792,7 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
         Row(
           children: [
             _statusPill(_requestStatusLabel(l10n, item.status),
-                const Color(0xFFE4ECFF), AppColors.infoDark),
+                AppColors.infoLight, AppColors.infoDark),
             const Spacer(),
             _statusPill(item.id, AppColors.primaryDark, Colors.white),
           ],
@@ -778,13 +800,13 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
         const SizedBox(height: 9),
         Container(
           padding: const EdgeInsets.all(10),
-          decoration: const BoxDecoration(
-              color: Color(0xFFF5F6F7),
+          decoration: BoxDecoration(
+              color: AppColors.surfaceLight,
               borderRadius: BorderRadius.all(Radius.circular(10))),
           child: Row(
             children: [
-              const Icon(Icons.apartment,
-                  color: AppColors.primaryDark, size: 20),
+              MotionIcon(Icons.apartment,
+                  color: AppColors.ink, size: 20),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -794,14 +816,14 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
                   children: [
                     Text(item.getCommercialName(isArabic),
                         textAlign: isArabic ? TextAlign.right : TextAlign.left,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
-                            color: AppColors.primaryDark)),
+                            color: AppColors.ink)),
                     const SizedBox(height: 2),
                     Text(item.getRequestType(isArabic),
                         textAlign: isArabic ? TextAlign.right : TextAlign.left,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 9, color: AppColors.textSecondary)),
                   ],
                 ),
@@ -836,33 +858,33 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
 
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: const BoxDecoration(
-          color: Color(0xFFF0F2F4),
+      decoration: BoxDecoration(
+          color: AppColors.surfaceLight,
           borderRadius: BorderRadius.all(Radius.circular(12))),
       child: Column(
         children: [
           Row(
             children: [
-              const Icon(Icons.shield_outlined,
-                  color: AppColors.primaryDark, size: 18),
+              MotionIcon(Icons.shield_outlined,
+                  color: AppColors.ink, size: 18),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   l10n.reconciliationAmlScore,
                   textAlign: isArabic ? TextAlign.right : TextAlign.left,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.primaryDark),
+                      color: AppColors.ink),
                 ),
               ),
               const SizedBox(width: 8),
-              Text(item.amlScore,
+              CountText(item.amlScore,
                   textDirection: TextDirection.ltr,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.primaryDark)),
+                      color: AppColors.ink)),
             ],
           ),
           if (score != null) ...[
@@ -872,23 +894,23 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
               child: LinearProgressIndicator(
                 value: (score / 100).clamp(0, 1),
                 minHeight: 9,
-                backgroundColor: Colors.white,
-                color: AppColors.primaryDark,
+                backgroundColor: AppColors.surface,
+                color: AppColors.ink,
               ),
             ),
           ],
           const SizedBox(height: 7),
           Row(
             children: [
-              const Icon(Icons.check_circle_outline,
+              MotionIcon(Icons.check_circle_outline,
                   color: AppColors.info, size: 13),
               const SizedBox(width: 5),
               Expanded(
                 child: Text(
                   item.getMatchDescription(isArabic),
                   textAlign: isArabic ? TextAlign.right : TextAlign.left,
-                  style: const TextStyle(
-                      fontSize: 8, color: AppColors.primaryDark),
+                  style: TextStyle(
+                      fontSize: 8, color: AppColors.ink),
                 ),
               ),
             ],
@@ -908,14 +930,14 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF9E6),
+        color: AppColors.warningLight,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.warning.withValues(alpha: .45)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.warning_amber_rounded,
+          MotionIcon(Icons.warning_amber_rounded,
               size: 17, color: AppColors.warning),
           const SizedBox(width: 7),
           Expanded(
@@ -927,14 +949,14 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
                     hasWarningNote
                         ? l10n.reconciliationAuditAlert
                         : l10n.reconciliationDecisionReason,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.primaryDark)),
+                        color: AppColors.ink)),
                 const SizedBox(height: 3),
                 Text(message,
                     textAlign: isArabic ? TextAlign.right : TextAlign.left,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 10,
                         height: 1.4,
                         color: AppColors.textPrimary)),
@@ -954,23 +976,23 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
-      decoration: const BoxDecoration(
-          color: Color(0xFFF0F2F4),
+      decoration: BoxDecoration(
+          color: AppColors.surfaceLight,
           borderRadius: BorderRadius.all(Radius.circular(9))),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('$index. $title',
+          CountText('$index. $title',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.end,
               style:
-                  const TextStyle(fontSize: 8, color: AppColors.textSecondary)),
+                  TextStyle(fontSize: 8, color: AppColors.textSecondary)),
           const SizedBox(height: 5),
-          Text(value,
+          CountText(value,
               textAlign: TextAlign.end,
               style:
-                  const TextStyle(fontSize: 12, color: AppColors.primaryDark)),
+                  TextStyle(fontSize: 12, color: AppColors.ink)),
         ],
       ),
     );
@@ -982,7 +1004,7 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
     return Container(
       padding: const EdgeInsets.all(9),
       decoration: BoxDecoration(
-          color: const Color(0xFFF0F2F4),
+          color: AppColors.surfaceLight,
           borderRadius: BorderRadius.circular(9)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -991,7 +1013,7 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
             children: [
               Flexible(
                 child: _statusPill(item.getBankName(isArabic),
-                    AppColors.surfaceLight, AppColors.primaryDark),
+                    AppColors.surfaceLight, AppColors.ink),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -1000,7 +1022,7 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
                   textAlign: isArabic ? TextAlign.left : TextAlign.right,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 8, color: AppColors.textSecondary),
                 ),
               ),
@@ -1010,10 +1032,10 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
             decoration: BoxDecoration(
-                color: Colors.white, borderRadius: BorderRadius.circular(8)),
+                color: AppColors.surface, borderRadius: BorderRadius.circular(8)),
             child: Row(
               children: [
-                const Icon(Icons.copy_outlined,
+                MotionIcon(Icons.copy_outlined,
                     color: AppColors.info, size: 16),
                 const SizedBox(width: 8),
                 Expanded(
@@ -1021,8 +1043,8 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
                     item.iban,
                     textAlign: TextAlign.end,
                     textDirection: TextDirection.ltr,
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.primaryDark),
+                    style: TextStyle(
+                        fontSize: 12, color: AppColors.ink),
                   ),
                 ),
               ],
@@ -1041,7 +1063,7 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
       decoration: BoxDecoration(
-          color: const Color(0xFFF0F2F4),
+          color: AppColors.surfaceLight,
           borderRadius: BorderRadius.circular(9)),
       child: Row(
         children: [
@@ -1051,15 +1073,15 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
                   isArabic ? CrossAxisAlignment.end : CrossAxisAlignment.start,
               children: [
                 Text(l10n.reconciliationRegistrationLabel,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 8, color: AppColors.textSecondary)),
                 const SizedBox(height: 4),
                 Text(item.crNumber,
                     textDirection: TextDirection.ltr,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.primaryDark)),
+                        color: AppColors.ink)),
               ],
             ),
           ),
@@ -1067,7 +1089,7 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
           Flexible(
             child: _statusPill(
                 '${l10n.reconciliationValidUntil} ${item.getCrExpiry(isArabic)}',
-                const Color(0xFFE0E4E7),
+                AppColors.cardBorder,
                 AppColors.textSecondary),
           ),
         ],
@@ -1080,7 +1102,7 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-          color: const Color(0xFFF0F2F4),
+          color: AppColors.surfaceLight,
           borderRadius: BorderRadius.circular(9)),
       child: Row(
         children: [
@@ -1088,13 +1110,13 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
             child: OutlinedButton.icon(
               onPressed: () => _previewDocument(item),
               style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primaryDark,
-                backgroundColor: Colors.white,
+                foregroundColor: AppColors.ink,
+                backgroundColor: AppColors.surface,
                 side: BorderSide.none,
                 minimumSize: const Size(60, 34),
                 padding: const EdgeInsets.symmetric(horizontal: 6),
               ),
-              icon: const Icon(Icons.visibility_outlined, size: 14),
+              icon: const MotionIcon(Icons.visibility_outlined, size: 14),
               label: Text(
                 l10n.reconciliationPreviewDocument,
                 maxLines: 1,
@@ -1111,19 +1133,19 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.end,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 9,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.primaryDark),
+                  color: AppColors.ink),
             ),
           ),
           const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.all(7),
             decoration: BoxDecoration(
-                color: const Color(0xFFE0E4E7),
+                color: AppColors.cardBorder,
                 borderRadius: BorderRadius.circular(7)),
-            child: const Icon(Icons.picture_as_pdf_outlined,
+            child: MotionIcon(Icons.picture_as_pdf_outlined,
                 color: AppColors.info, size: 15),
           ),
         ],
@@ -1142,7 +1164,7 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.cardBorder),
       ),
@@ -1151,19 +1173,19 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.pending_actions,
-                  color: AppColors.primaryDark, size: 17),
+              MotionIcon(Icons.pending_actions,
+                  color: AppColors.ink, size: 17),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
                     '${l10n.reconciliationQueueTitle} (${_requests.length})',
                     textAlign: isArabic ? TextAlign.right : TextAlign.left,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.primaryDark)),
+                        color: AppColors.ink)),
               ),
-              _statusPill('${visible.length}', const Color(0xFFE8EAEC),
+              _statusPill('${visible.length}', AppColors.surfaceHighlight,
                   AppColors.textSecondary),
             ],
           ),
@@ -1210,7 +1232,7 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
             }),
             decoration: InputDecoration(
               hintText: l10n.reconciliationSearchHint,
-              prefixIcon: const Icon(Icons.search, size: 19),
+              prefixIcon: const MotionIcon(Icons.search, size: 19),
               suffixIcon: _searchQuery.isEmpty
                   ? null
                   : IconButton(
@@ -1221,11 +1243,11 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
                         _activeRequestIndex = 0;
                         _searchController.clear();
                       }),
-                      icon: const Icon(Icons.close),
+                      icon: const MotionIcon(Icons.close),
                     ),
               isDense: true,
               filled: true,
-              fillColor: const Color(0xFFF4F6F8),
+              fillColor: AppColors.surfaceLight,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
                 borderSide: BorderSide.none,
@@ -1279,7 +1301,7 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
                           : l10n.reconciliationNoPendingRequests)
                       : l10n.reconciliationNoMatchingRequests,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 11, color: AppColors.textSecondary)),
             )
           else
@@ -1290,7 +1312,7 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
                 itemCount: visible.length,
                 separatorBuilder: (_, __) =>
                     const Divider(height: 1, indent: 8, endIndent: 8),
-                itemBuilder: (context, index) {
+                itemBuilder: scrollFxItems((context, index) {
                   final request = visible[index];
                   final selected = request.id == selectedId;
                   final needsAttention = _hasReviewNote(request);
@@ -1304,7 +1326,7 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
                             horizontal: 8, vertical: 9),
                         child: Row(
                           children: [
-                            Icon(
+                            MotionIcon(
                               needsAttention
                                   ? Icons.warning_amber_rounded
                                   : Icons.account_balance_outlined,
@@ -1323,16 +1345,16 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
                                   Text(request.getCommercialName(isArabic),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                           fontSize: 11,
                                           fontWeight: FontWeight.w600,
-                                          color: AppColors.primaryDark)),
+                                          color: AppColors.ink)),
                                   const SizedBox(height: 3),
                                   Text(
                                     '${request.id} · ${request.getBankName(isArabic)}',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                         fontSize: 9,
                                         color: AppColors.textSecondary),
                                   ),
@@ -1343,7 +1365,7 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
                               const SizedBox(width: 6),
                               _statusPill(
                                 l10n.reconciliationNeedsAttention,
-                                const Color(0xFFFFF2D5),
+                                AppColors.warningBorder,
                                 AppColors.warning,
                               ),
                             ],
@@ -1352,7 +1374,7 @@ class _BankReconciliationScreenState extends State<BankReconciliationScreen> {
                       ),
                     ),
                   );
-                },
+                }),
               ),
             ),
         ],

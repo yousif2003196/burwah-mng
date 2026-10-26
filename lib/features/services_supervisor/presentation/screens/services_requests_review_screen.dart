@@ -3,11 +3,19 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/widgets/app_snack_bar.dart';
-import '../../../../l10n/app_localizations.dart';
-import 'service_provider_catalog.dart';
-import 'services_request_details_screen.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/widgets/app_snack_bar.dart';
+import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
+import 'package:barwah_app/features/products/presentation/widgets/product_head_escalation.dart' show askProductEscalationReason;
+import 'package:barwah_app/features/services_supervisor/data/datasources/service_provider_catalog.dart';
+import 'package:barwah_app/features/services_supervisor/data/datasources/services_activity_log.dart';
+import 'package:barwah_app/features/services_supervisor/data/datasources/services_escalation_store.dart';
+import 'package:barwah_app/features/services_supervisor/domain/entities/service_provider.dart';
+import 'package:barwah_app/features/services_supervisor/presentation/screens/services_request_details_screen.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 enum _ServiceCategory { maintenance, electrical, moving }
 
@@ -145,9 +153,69 @@ class _ServicesRequestsReviewScreenState
   final Map<String, ({bool approved, String? reason})> _decisions = {};
   bool _isLoading = true;
   bool _showArchive = false;
+  final _escalationStore = ServicesEscalationStore();
+  Map<String, ServicesEscalation> _escalations = const {};
+
+  ServicesEscalation? _escalationOf(_ServiceRequest r) =>
+      _escalations[ServicesEscalation.keyOf(ServicesEscalationKind.request, r.id)];
+
+  Future<void> _loadEscalations() async {
+    try {
+      final all = await _escalationStore.refresh();
+      if (mounted) setState(() => _escalations = all);
+    } on Object catch (error) {
+      debugPrint('Services escalations unavailable: $error');
+    }
+  }
+
+  Future<void> _escalateRequest(
+    _ServiceRequest request,
+    AppLocalizations l10n,
+  ) async {
+    final isArabic = l10n.localeName.startsWith('ar');
+    final reason = await askProductEscalationReason(context, isArabic: isArabic);
+    if (reason == null || !mounted) return;
+    try {
+      await _escalationStore.escalate(
+        kind: ServicesEscalationKind.request,
+        refId: request.id,
+        title: isArabic ? request.serviceAr : request.serviceEn,
+        subject: isArabic ? request.descriptionAr : request.descriptionEn,
+        reason: reason,
+      );
+    } on Object catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'services request review',
+        context: ErrorDescription('while escalating a request'),
+      ));
+      if (mounted) {
+        AppSnackBar.showError(
+          context,
+          isArabic ? 'تعذر رفع الطلب لرئيس المشرفين' : 'Could not escalate',
+        );
+      }
+      return;
+    }
+    await ServicesActivityLog().tryRecord(
+      action: 'request_escalated',
+      subject: request.id,
+      details: reason,
+    );
+    await _loadEscalations();
+    if (!mounted) return;
+    AppSnackBar.showSuccess(
+      context,
+      isArabic
+          ? 'تم رفع الطلب ${request.id} إلى رئيس المشرفين.'
+          : 'Request ${request.id} sent to the head supervisor.',
+    );
+  }
 
   @override
   void dispose() {
+    LocalEventStore.revision.removeListener(_loadEscalations);
     _searchController.dispose();
     super.dispose();
   }
@@ -156,6 +224,8 @@ class _ServicesRequestsReviewScreenState
   void initState() {
     super.initState();
     _loadReviewState();
+    _loadEscalations();
+    LocalEventStore.revision.addListener(_loadEscalations);
   }
 
   Future<void> _loadReviewState() async {
@@ -279,23 +349,23 @@ class _ServicesRequestsReviewScreenState
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
       children: [
-        _buildHeading(l10n, pendingRequests.length),
+        ScrollFx(child: _buildHeading(l10n, pendingRequests.length)),
         const SizedBox(height: 14),
-        _buildSummary(l10n, pendingRequests.length),
+        ScrollFx(child: _buildSummary(l10n, pendingRequests.length)),
         const SizedBox(height: 10),
         SegmentedButton<bool>(
           segments: [
             ButtonSegment(
               value: false,
               label: Text(l10n.servicesReviewTitle),
-              icon: const Icon(Icons.pending_actions_outlined),
+              icon: const MotionIcon(Icons.pending_actions_outlined),
             ),
             ButtonSegment(
               value: true,
               label: Text(
                 l10n.localeName.startsWith('ar') ? 'الأرشيف' : 'Archive',
               ),
-              icon: const Icon(Icons.archive_outlined),
+              icon: const MotionIcon(Icons.archive_outlined),
             ),
           ],
           selected: {_showArchive},
@@ -311,7 +381,7 @@ class _ServicesRequestsReviewScreenState
             hintText: isArabic
                 ? 'ابحث برقم الطلب أو الخدمة أو مقدمها'
                 : 'Search request number, service, or provider',
-            prefixIcon: const Icon(Icons.search_rounded),
+            prefixIcon: const MotionIcon(Icons.search_rounded),
             suffixIcon: _searchController.text.isEmpty
                 ? null
                 : IconButton(
@@ -320,23 +390,23 @@ class _ServicesRequestsReviewScreenState
                       _searchController.clear();
                       setState(() {});
                     },
-                    icon: const Icon(Icons.close_rounded),
+                    icon: const MotionIcon(Icons.close_rounded),
                   ),
             filled: true,
-            fillColor: Colors.white,
+            fillColor: AppColors.surface,
             contentPadding: const EdgeInsets.symmetric(vertical: 10),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: AppColors.cardBorder),
+              borderSide: BorderSide(color: AppColors.cardBorder),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: AppColors.cardBorder),
+              borderSide: BorderSide(color: AppColors.cardBorder),
             ),
           ),
         ),
         const SizedBox(height: 14),
-        _buildCategoryFilters(l10n, sourceRequests),
+        ScrollFx(child: _buildCategoryFilters(l10n, sourceRequests)),
         const SizedBox(height: 14),
         if (requests.isEmpty)
           Padding(
@@ -344,7 +414,7 @@ class _ServicesRequestsReviewScreenState
             child: Text(
               l10n.servicesRequestsEmpty,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.textSecondary),
+              style: TextStyle(color: AppColors.textSecondary),
             ),
           )
         else
@@ -368,6 +438,8 @@ class _ServicesRequestsReviewScreenState
                           _decisions[request.id]!.reason!,
                         ),
               onRestore: () => _restoreRequest(request),
+              escalation: _escalationOf(request),
+              onEscalate: () => _escalateRequest(request, l10n),
             ),
             const SizedBox(height: 14),
           ],
@@ -379,7 +451,7 @@ class _ServicesRequestsReviewScreenState
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Icon(Icons.circle, color: AppColors.info, size: 10),
+        MotionIcon(Icons.circle, color: AppColors.info, size: 10),
         const SizedBox(width: 8),
         Expanded(
           child: Column(
@@ -387,8 +459,8 @@ class _ServicesRequestsReviewScreenState
             children: [
               Text(
                 l10n.servicesReviewTitle,
-                style: const TextStyle(
-                  color: AppColors.primaryDark,
+                style: TextStyle(
+                  color: AppColors.ink,
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                 ),
@@ -396,7 +468,7 @@ class _ServicesRequestsReviewScreenState
               const SizedBox(height: 3),
               Text(
                 l10n.servicesReviewSubtitle,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 12,
                 ),
@@ -407,13 +479,16 @@ class _ServicesRequestsReviewScreenState
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
+            gradient: AppColors.blueFill,
+            border: AppColors.blueEdge,
+            boxShadow: AppColors.blueGlow,
             color: AppColors.primaryDark,
             borderRadius: BorderRadius.circular(20),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.pending_actions, color: Colors.white, size: 14),
+              const MotionIcon(Icons.pending_actions, color: Colors.white, size: 14),
               const SizedBox(width: 5),
               Text(
                 l10n.servicesNewRequestsCount('$requestCount'),
@@ -430,7 +505,7 @@ class _ServicesRequestsReviewScreenState
     return Container(
       padding: const EdgeInsets.all(9),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.cardBorder),
       ),
@@ -624,6 +699,11 @@ class _ServicesRequestsReviewScreenState
           ? l10n.servicesRequestApproved
           : l10n.servicesRequestRejectedWithReason(rejectionReason ?? ''),
     );
+    await ServicesActivityLog().tryRecord(
+      action: approved ? 'request_approved' : 'request_rejected',
+      subject: request.id,
+      details: rejectionReason ?? '',
+    );
     return true;
   }
 
@@ -752,8 +832,8 @@ class _DecisionConfirmationSheetState
           constraints: BoxConstraints(
             maxHeight: MediaQuery.sizeOf(context).height * 0.9,
           ),
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(
+            color: AppColors.surface,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: SingleChildScrollView(
@@ -778,7 +858,7 @@ class _DecisionConfirmationSheetState
       children: [
         const _SheetHandle(),
         const SizedBox(height: 12),
-        const Center(
+        Center(
           child: _DecisionIcon(
             icon: Icons.fact_check_outlined,
             color: AppColors.primaryDark,
@@ -789,8 +869,8 @@ class _DecisionConfirmationSheetState
         Center(
           child: Text(
             l10n.servicesApproveTitle,
-            style: const TextStyle(
-              color: AppColors.primaryDark,
+            style: TextStyle(
+              color: AppColors.ink,
               fontSize: 20,
               fontWeight: FontWeight.bold,
             ),
@@ -800,7 +880,7 @@ class _DecisionConfirmationSheetState
         Text(
           l10n.servicesApproveMessage,
           textAlign: TextAlign.center,
-          style: const TextStyle(
+          style: TextStyle(
             color: AppColors.textSecondary,
             fontSize: 11,
             height: 1.5,
@@ -818,14 +898,14 @@ class _DecisionConfirmationSheetState
         _DecisionNote(
           icon: Icons.notifications_active_outlined,
           text: l10n.servicesApprovalNotification,
-          color: const Color(0xFFEAF3FF),
+          color: AppColors.infoLight,
         ),
         const SizedBox(height: 16),
         SizedBox(
           height: 48,
           child: FilledButton.icon(
             onPressed: () => widget.onConfirm(null),
-            icon: const Icon(Icons.check_circle_outline),
+            icon: const MotionIcon(Icons.check_circle_outline),
             label: Text(l10n.servicesApproveConfirmPublish),
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.primaryDark,
@@ -840,7 +920,7 @@ class _DecisionConfirmationSheetState
           onPressed: () => Navigator.of(context).pop(),
           child: Text(
             l10n.logoutCancel,
-            style: const TextStyle(color: AppColors.textSecondary),
+            style: TextStyle(color: AppColors.textSecondary),
           ),
         ),
       ],
@@ -862,7 +942,7 @@ class _DecisionConfirmationSheetState
         const SizedBox(height: 12),
         Row(
           children: [
-            const _DecisionIcon(
+            _DecisionIcon(
               icon: Icons.block_outlined,
               color: AppColors.danger,
               background: AppColors.dangerLight,
@@ -871,15 +951,15 @@ class _DecisionConfirmationSheetState
             IconButton(
               tooltip: l10n.logoutCancel,
               onPressed: () => Navigator.of(context).pop(),
-              icon: const Icon(Icons.close),
+              icon: const MotionIcon(Icons.close),
             ),
           ],
         ),
         Center(
           child: Text(
             l10n.servicesRejectTitle,
-            style: const TextStyle(
-              color: AppColors.primaryDark,
+            style: TextStyle(
+              color: AppColors.ink,
               fontSize: 20,
               fontWeight: FontWeight.bold,
             ),
@@ -889,7 +969,7 @@ class _DecisionConfirmationSheetState
         Text(
           l10n.servicesRejectMessage,
           textAlign: TextAlign.center,
-          style: const TextStyle(
+          style: TextStyle(
             color: AppColors.textSecondary,
             fontSize: 11,
             height: 1.5,
@@ -906,7 +986,7 @@ class _DecisionConfirmationSheetState
         const SizedBox(height: 14),
         Text(
           l10n.servicesRejectionQuickReasons,
-          style: const TextStyle(
+          style: TextStyle(
             color: AppColors.textSecondary,
             fontSize: 11,
           ),
@@ -935,13 +1015,13 @@ class _DecisionConfirmationSheetState
             Expanded(
               child: Text(
                 l10n.servicesRejectionReasonLabel,
-                style: const TextStyle(
-                  color: AppColors.primaryDark,
+                style: TextStyle(
+                  color: AppColors.ink,
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ),
-            const Text('*', style: TextStyle(color: AppColors.danger)),
+            Text('*', style: TextStyle(color: AppColors.danger)),
           ],
         ),
         const SizedBox(height: 6),
@@ -953,7 +1033,7 @@ class _DecisionConfirmationSheetState
           decoration: InputDecoration(
             hintText: l10n.servicesRejectionReasonHint,
             filled: true,
-            fillColor: const Color(0xFFF1F3F5),
+            fillColor: AppColors.surfaceLight,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(13),
               borderSide: BorderSide.none,
@@ -964,7 +1044,7 @@ class _DecisionConfirmationSheetState
         _DecisionNote(
           icon: Icons.verified_user_outlined,
           text: l10n.servicesRejectionAuditNote,
-          color: const Color(0xFFF1F3F5),
+          color: AppColors.surfaceLight,
         ),
         const SizedBox(height: 14),
         SizedBox(
@@ -973,7 +1053,7 @@ class _DecisionConfirmationSheetState
             onPressed: canSubmit
                 ? () => widget.onConfirm(_reasonController.text.trim())
                 : null,
-            icon: const Icon(Icons.edit_note_outlined),
+            icon: const MotionIcon(Icons.edit_note_outlined),
             label: Text(l10n.servicesRejectConfirm),
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.danger,
@@ -1026,8 +1106,8 @@ class _RequestCommentSheetState extends State<_RequestCommentSheet> {
           constraints: BoxConstraints(
             maxHeight: MediaQuery.sizeOf(context).height * 0.85,
           ),
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(
+            color: AppColors.surface,
             borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
           ),
           padding: const EdgeInsets.fromLTRB(18, 14, 18, 20),
@@ -1036,12 +1116,12 @@ class _RequestCommentSheetState extends State<_RequestCommentSheet> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const _SheetHandle(),
+                ScrollFx(child: const _SheetHandle()),
                 const SizedBox(height: 14),
                 Text(
                   l10n.servicesCommentTitle,
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
+                  style: TextStyle(
+                    color: AppColors.ink,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
@@ -1053,7 +1133,7 @@ class _RequestCommentSheetState extends State<_RequestCommentSheet> {
                       padding: const EdgeInsets.only(bottom: 6),
                       child: Text(
                         comment,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 12,
                         ),
@@ -1069,7 +1149,7 @@ class _RequestCommentSheetState extends State<_RequestCommentSheet> {
                   decoration: InputDecoration(
                     hintText: l10n.servicesCommentHint,
                     filled: true,
-                    fillColor: const Color(0xFFF1F3F5),
+                    fillColor: AppColors.surfaceLight,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(13),
                       borderSide: BorderSide.none,
@@ -1084,7 +1164,7 @@ class _RequestCommentSheetState extends State<_RequestCommentSheet> {
                       Navigator.of(context).pop(comment);
                     }
                   },
-                  icon: const Icon(Icons.send_outlined),
+                  icon: const MotionIcon(Icons.send_outlined),
                   label: Text(l10n.servicesCommentSave),
                 ),
               ],
@@ -1107,6 +1187,8 @@ class _ServiceRequestCard extends StatelessWidget {
   final bool archived;
   final String decisionLabel;
   final VoidCallback onRestore;
+  final ServicesEscalation? escalation;
+  final VoidCallback onEscalate;
 
   const _ServiceRequestCard({
     required this.request,
@@ -1119,6 +1201,8 @@ class _ServiceRequestCard extends StatelessWidget {
     required this.archived,
     required this.decisionLabel,
     required this.onRestore,
+    required this.escalation,
+    required this.onEscalate,
   });
 
   @override
@@ -1134,7 +1218,7 @@ class _ServiceRequestCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.cardBorder),
         boxShadow: [
@@ -1157,9 +1241,9 @@ class _ServiceRequestCard extends StatelessWidget {
                   color: AppColors.surfaceLight,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(
+                child: MotionIcon(
                   request.icon,
-                  color: AppColors.primaryDark,
+                  color: AppColors.ink,
                   size: 25,
                 ),
               ),
@@ -1172,8 +1256,8 @@ class _ServiceRequestCard extends StatelessWidget {
                       service,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.primaryDark,
+                      style: TextStyle(
+                        color: AppColors.ink,
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
                       ),
@@ -1181,7 +1265,7 @@ class _ServiceRequestCard extends StatelessWidget {
                     const SizedBox(height: 3),
                     Text(
                       '#${request.id} • $time',
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 10,
                       ),
@@ -1216,9 +1300,9 @@ class _ServiceRequestCard extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Icon(
+                MotionIcon(
                   Icons.person_pin_circle_outlined,
-                  color: AppColors.primaryDark,
+                  color: AppColors.ink,
                   size: 19,
                 ),
                 const SizedBox(width: 7),
@@ -1227,8 +1311,8 @@ class _ServiceRequestCard extends StatelessWidget {
                     provider,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.primaryDark,
+                    style: TextStyle(
+                      color: AppColors.ink,
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
                     ),
@@ -1241,13 +1325,13 @@ class _ServiceRequestCard extends StatelessWidget {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFD9EFFF),
+                    color: AppColors.infoBorder,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
                     l10n.servicesVerifiedProvider,
-                    style: const TextStyle(
-                      color: AppColors.primaryDark,
+                    style: TextStyle(
+                      color: AppColors.ink,
                       fontSize: 9,
                       fontWeight: FontWeight.w600,
                     ),
@@ -1266,7 +1350,7 @@ class _ServiceRequestCard extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             l10n.servicesWorkDescription,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 11,
               fontWeight: FontWeight.bold,
@@ -1277,7 +1361,7 @@ class _ServiceRequestCard extends StatelessWidget {
             description,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textPrimary,
               fontSize: 12,
               height: 1.4,
@@ -1295,7 +1379,7 @@ class _ServiceRequestCard extends StatelessWidget {
               ),
               child: Text(
                 l10n.servicesUrgentNotice,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.dangerDark,
                   fontSize: 11,
                   height: 1.4,
@@ -1310,7 +1394,7 @@ class _ServiceRequestCard extends StatelessWidget {
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: onRestore,
-                icon: const Icon(Icons.restart_alt),
+                icon: const MotionIcon(Icons.restart_alt),
                 label: Text(
                   l10n.localeName.startsWith('ar')
                       ? 'إعادة إلى المراجعة'
@@ -1340,6 +1424,27 @@ class _ServiceRequestCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: escalation != null && !escalation!.canEscalateAgain
+                ? Text(
+                    '${isArabic ? 'مرفوع للرئيس' : 'With head'}: ${escalation!.status.labelAr}',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  )
+                : OutlinedButton.icon(
+                    onPressed: onEscalate,
+                    icon: const MotionIcon(Icons.north_east, size: 16),
+                    label: Text(isArabic
+                        ? 'رفع لرئيس المشرفين (طلب مشبوه)'
+                        : 'Escalate to head (suspicious)'),
+                  ),
+          ),
+          const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
@@ -1347,10 +1452,10 @@ class _ServiceRequestCard extends StatelessWidget {
                   height: 42,
                   child: TextButton.icon(
                     onPressed: onDetails,
-                    icon: const Icon(Icons.visibility_outlined, size: 18),
+                    icon: const MotionIcon(Icons.visibility_outlined, size: 18),
                     label: Text(l10n.servicesViewDetails),
                     style: TextButton.styleFrom(
-                      foregroundColor: AppColors.primaryDark,
+                      foregroundColor: AppColors.ink,
                       backgroundColor: AppColors.surfaceLight,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(11),
@@ -1365,7 +1470,7 @@ class _ServiceRequestCard extends StatelessWidget {
                   height: 42,
                   child: OutlinedButton.icon(
                     onPressed: onComment,
-                    icon: const Icon(Icons.comment_outlined, size: 17),
+                    icon: const MotionIcon(Icons.comment_outlined, size: 17),
                     label: Text(
                       commentCount == 0
                           ? l10n.servicesCommentAction
@@ -1374,8 +1479,8 @@ class _ServiceRequestCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.primaryDark,
-                      side: const BorderSide(color: AppColors.cardBorder),
+                      foregroundColor: AppColors.ink,
+                      side: BorderSide(color: AppColors.cardBorder),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(11),
                       ),
@@ -1402,19 +1507,19 @@ class _FeaturedBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF3D6),
+        color: AppColors.warningBorder,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFF3D28B)),
+        border: Border.all(color: AppColors.warning),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.stars_rounded, color: Color(0xFFB7791F), size: 14),
+          MotionIcon(Icons.stars_rounded, color: AppColors.warningDark, size: 14),
           const SizedBox(width: 4),
           Text(
             label,
-            style: const TextStyle(
-              color: Color(0xFF8A5A0A),
+            style: TextStyle(
+              color: AppColors.warningDark,
               fontSize: 10,
               fontWeight: FontWeight.bold,
             ),
@@ -1434,7 +1539,7 @@ class _SheetHandle extends StatelessWidget {
           width: 42,
           height: 5,
           decoration: BoxDecoration(
-            color: const Color(0xFFE0E3E5),
+            color: AppColors.cardBorder,
             borderRadius: BorderRadius.circular(5),
           ),
         ),
@@ -1460,7 +1565,7 @@ class _DecisionIcon extends StatelessWidget {
           color: background,
           borderRadius: BorderRadius.circular(15),
         ),
-        child: Icon(icon, color: color, size: 30),
+        child: MotionIcon(icon, color: color, size: 30),
       );
 }
 
@@ -1484,7 +1589,7 @@ class _DecisionRequestSummary extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: const Color(0xFFF1F3F5),
+        color: AppColors.surfaceLight,
         borderRadius: BorderRadius.circular(15),
       ),
       child: Column(
@@ -1495,8 +1600,8 @@ class _DecisionRequestSummary extends StatelessWidget {
               Expanded(
                 child: Text(
                   service,
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
+                  style: TextStyle(
+                    color: AppColors.ink,
                     fontWeight: FontWeight.bold,
                     fontSize: 13,
                   ),
@@ -1504,8 +1609,8 @@ class _DecisionRequestSummary extends StatelessWidget {
               ),
               Text(
                 '#${request.id}',
-                style: const TextStyle(
-                  color: AppColors.primaryDark,
+                style: TextStyle(
+                  color: AppColors.ink,
                   fontWeight: FontWeight.bold,
                   fontSize: 12,
                 ),
@@ -1515,7 +1620,7 @@ class _DecisionRequestSummary extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             '${l10n.servicesDecisionProvider}: $provider',
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 11,
             ),
@@ -1545,7 +1650,7 @@ class _DecisionRequestSummary extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               l10n.servicesUnderReview,
-              style: const TextStyle(color: AppColors.danger, fontSize: 10),
+              style: TextStyle(color: AppColors.danger, fontSize: 10),
             ),
           ],
         ],
@@ -1569,7 +1674,7 @@ class _DecisionAmount extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(11),
         ),
         child: Column(
@@ -1577,16 +1682,16 @@ class _DecisionAmount extends StatelessWidget {
           children: [
             Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 9,
               ),
             ),
             const SizedBox(height: 4),
-            Text(
+            CountText(
               '$value $currency',
-              style: const TextStyle(
-                color: AppColors.primaryDark,
+              style: TextStyle(
+                color: AppColors.ink,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
@@ -1616,12 +1721,12 @@ class _DecisionNote extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(icon, color: AppColors.info, size: 19),
+            MotionIcon(icon, color: AppColors.info, size: 19),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 text,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 10,
                   height: 1.4,
@@ -1654,10 +1759,10 @@ class _ServiceIllustration extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(11),
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFFD6E0E2), Color(0xFF80949A), Color(0xFF324553)],
+          colors: [AppColors.cardBorder, AppColors.textSecondary, AppColors.infoDark],
         ),
       ),
       child: Stack(
@@ -1666,7 +1771,7 @@ class _ServiceIllustration extends StatelessWidget {
             left: 0,
             right: 0,
             top: -45,
-            child: Icon(
+            child: MotionIcon(
               icon,
               size: 180,
               color: Colors.white.withValues(alpha: 0.3),
@@ -1709,7 +1814,7 @@ class _ImageLabel extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, color: Colors.white, size: 13),
+            MotionIcon(icon, color: Colors.white, size: 13),
             const SizedBox(width: 3),
           ],
           Text(text, style: const TextStyle(color: Colors.white, fontSize: 10)),
@@ -1747,14 +1852,14 @@ class _SummaryMetric extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: iconColor, size: 14),
+              MotionIcon(icon, color: iconColor, size: 14),
               const SizedBox(width: 4),
               Flexible(
                 child: Text(
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 9,
                   ),
@@ -1763,10 +1868,10 @@ class _SummaryMetric extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 2),
-          Text(
+          CountText(
             value,
-            style: const TextStyle(
-              color: AppColors.primaryDark,
+            style: TextStyle(
+              color: AppColors.ink,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
@@ -1793,7 +1898,7 @@ class _CategoryChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? AppColors.primaryDark : Colors.white,
+      color: selected ? AppColors.primaryDark : AppColors.surface,
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
         onTap: onTap,
@@ -1826,10 +1931,10 @@ class _CategoryChip extends StatelessWidget {
                       : AppColors.surfaceLight,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Text(
+                child: CountText(
                   '$count',
                   style: TextStyle(
-                    color: selected ? Colors.white : AppColors.primaryDark,
+                    color: selected ? Colors.white : AppColors.ink,
                     fontSize: 9,
                   ),
                 ),
@@ -1860,7 +1965,7 @@ class _StatusBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
+          MotionIcon(
             urgent ? Icons.warning_amber_rounded : Icons.circle,
             color: color,
             size: 10,
@@ -1901,11 +2006,11 @@ class _DecisionButton extends StatelessWidget {
       child: rejected
           ? OutlinedButton.icon(
               onPressed: onPressed,
-              icon: Icon(icon, size: 17),
+              icon: MotionIcon(icon, size: 17),
               label: Text(label, maxLines: 1),
               style: OutlinedButton.styleFrom(
                 foregroundColor: foreground,
-                side: const BorderSide(color: AppColors.borderLight),
+                side: BorderSide(color: AppColors.borderLight),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
@@ -1913,7 +2018,7 @@ class _DecisionButton extends StatelessWidget {
             )
           : FilledButton.icon(
               onPressed: onPressed,
-              icon: Icon(icon, size: 17),
+              icon: MotionIcon(icon, size: 17),
               label: Text(label, maxLines: 1),
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.primaryDark,

@@ -1,4 +1,4 @@
-import '../entities/wasalny_complaint.dart';
+import 'package:barwah_app/features/wasalny_supervisor/domain/entities/wasalny_complaint.dart';
 
 abstract class WasalnyComplaintsRepository {
   Future<List<WasalnyComplaint>> getComplaints();

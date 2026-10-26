@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/widgets/app_snack_bar.dart';
-import '../../../../l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/widgets/app_snack_bar.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class NewSettlementBottomSheet extends StatefulWidget {
   final ValueChanged<SettlementSubmission>? onSubmitted;
@@ -55,8 +57,8 @@ class _NewSettlementBottomSheetState extends State<NewSettlementBottomSheet> {
           constraints: BoxConstraints(
             maxHeight: MediaQuery.of(context).size.height * 0.90,
           ),
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(
+            color: AppColors.surface,
             borderRadius: BorderRadius.only(
               topLeft: Radius.circular(26),
               topRight: Radius.circular(26),
@@ -76,13 +78,13 @@ class _NewSettlementBottomSheetState extends State<NewSettlementBottomSheet> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Center(
+                    Center(
                       child: SizedBox(
                         width: 46,
                         height: 4,
                         child: DecoratedBox(
                           decoration: BoxDecoration(
-                            color: Color(0xFFD9DCE3),
+                            color: AppColors.cardBorder,
                             borderRadius: BorderRadius.all(Radius.circular(10)),
                           ),
                         ),
@@ -93,8 +95,8 @@ class _NewSettlementBottomSheetState extends State<NewSettlementBottomSheet> {
                       children: [
                         IconButton(
                           onPressed: () => Navigator.pop(context),
-                          icon: const Icon(Icons.close,
-                              color: AppColors.primaryDark),
+                          icon: MotionIcon(Icons.close,
+                              color: AppColors.ink),
                         ),
                         Expanded(
                           child: Text(
@@ -102,10 +104,10 @@ class _NewSettlementBottomSheetState extends State<NewSettlementBottomSheet> {
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             textAlign: TextAlign.center,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
-                              color: AppColors.primaryDark,
+                              color: AppColors.ink,
                             ),
                           ),
                         ),
@@ -145,14 +147,14 @@ class _NewSettlementBottomSheetState extends State<NewSettlementBottomSheet> {
                       value: _isRefund
                           ? l10n.settlementRefundMode
                           : l10n.settlementOffsetMode,
-                      trailing: const Icon(Icons.swap_horiz_rounded),
+                      trailing: const MotionIcon(Icons.swap_horiz_rounded),
                     ),
                     const SizedBox(height: 10),
                     _InfoField(
                       label: l10n.settlementBeneficiaryLabel,
                       value: _selectedBeneficiary ??
                           l10n.settlementBeneficiaryAudit,
-                      trailing: const Icon(Icons.person_outline_rounded),
+                      trailing: const MotionIcon(Icons.person_outline_rounded),
                       onTap: () => _selectBeneficiary(context, l10n),
                     ),
                     if (_beneficiaryHasError) ...[
@@ -160,7 +162,7 @@ class _NewSettlementBottomSheetState extends State<NewSettlementBottomSheet> {
                       Text(
                         isArabic ? 'اختر المستفيد' : 'Select a beneficiary',
                         textAlign: isArabic ? TextAlign.right : TextAlign.left,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.danger,
                           fontSize: 10,
                         ),
@@ -210,7 +212,7 @@ class _NewSettlementBottomSheetState extends State<NewSettlementBottomSheet> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
+                        color: AppColors.background,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: AppColors.cardBorder),
                       ),
@@ -219,9 +221,9 @@ class _NewSettlementBottomSheetState extends State<NewSettlementBottomSheet> {
                         children: [
                           Text(
                             l10n.settlementPaymentDetailsTitle,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
-                              color: AppColors.primaryDark,
+                              color: AppColors.ink,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -305,7 +307,7 @@ class _NewSettlementBottomSheetState extends State<NewSettlementBottomSheet> {
     ];
     final selected = await showModalBottomSheet<String>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -316,8 +318,8 @@ class _NewSettlementBottomSheetState extends State<NewSettlementBottomSheet> {
           children: [
             for (final beneficiary in beneficiaries)
               ListTile(
-                leading: const Icon(Icons.person_outline,
-                    color: AppColors.primaryDark),
+                leading: MotionIcon(Icons.person_outline,
+                    color: AppColors.ink),
                 title: Text(beneficiary, textAlign: TextAlign.end),
                 onTap: () => Navigator.pop(sheetContext, beneficiary),
               ),
@@ -421,13 +423,13 @@ class _InfoField extends StatelessWidget {
             trailing,
             const SizedBox(width: 10),
             Expanded(
-              child: Text(
+              child: CountText(
                 value,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.end,
-                style: const TextStyle(
-                  color: AppColors.primaryDark,
+                style: TextStyle(
+                  color: AppColors.ink,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
@@ -440,7 +442,7 @@ class _InfoField extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.end,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 11,
                 ),
@@ -484,7 +486,7 @@ class _LabeledInput extends StatelessWidget {
         Text(
           label,
           textAlign: isArabic ? TextAlign.right : TextAlign.left,
-          style: const TextStyle(
+          style: TextStyle(
             color: AppColors.textSecondary,
             fontSize: 11,
             fontWeight: FontWeight.w600,
@@ -504,8 +506,8 @@ class _LabeledInput extends StatelessWidget {
             filled: true,
             fillColor: AppColors.surfaceLight,
             prefixText: prefix,
-            prefixStyle: const TextStyle(
-              color: AppColors.primaryDark,
+            prefixStyle: TextStyle(
+              color: AppColors.ink,
               fontWeight: FontWeight.bold,
             ),
             contentPadding: const EdgeInsets.symmetric(
@@ -523,7 +525,7 @@ class _LabeledInput extends StatelessWidget {
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide:
-                  const BorderSide(color: AppColors.primaryDark, width: 1),
+                  BorderSide(color: AppColors.ink, width: 1),
             ),
           ),
         ),
@@ -543,16 +545,15 @@ class _DetailRow extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: Text(
+          child: FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart, child: CountText(
             value,
             maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppColors.primaryDark,
+            style: TextStyle(
+              color: AppColors.ink,
               fontSize: 11,
               fontWeight: FontWeight.w600,
             ),
-          ),
+          )),
         ),
         const SizedBox(width: 8),
         Flexible(
@@ -561,7 +562,7 @@ class _DetailRow extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.end,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 10,
             ),

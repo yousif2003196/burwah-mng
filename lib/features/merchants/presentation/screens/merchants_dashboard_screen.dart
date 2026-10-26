@@ -3,20 +3,24 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/widgets/app_snack_bar.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../data/merchant_supervisor_local_store.dart';
-import '../../../auth/presentation/controllers/auth_cubit.dart';
-import '../../../auth/presentation/controllers/auth_state.dart';
-import '../controllers/merchants_cubit.dart';
-import '../controllers/merchants_state.dart';
-import 'merchant_details_screen.dart';
-import '../widgets/merchant_card.dart';
-import '../widgets/merchant_search_filter_bar.dart';
-import '../widgets/supervisor_app_bar.dart';
-import '../widgets/supervisor_header_card.dart';
-import '../../../wasalny_supervisor/data/wasalny_local_event_store.dart';
+
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/widgets/app_snack_bar.dart';
+import 'package:barwah_app/features/auth/presentation/controllers/auth_cubit.dart';
+import 'package:barwah_app/features/auth/presentation/controllers/auth_state.dart';
+import 'package:barwah_app/features/merchants/data/datasources/merchant_supervisor_local_store.dart';
+import 'package:barwah_app/features/merchants/presentation/controllers/merchants_cubit.dart';
+import 'package:barwah_app/features/merchants/presentation/controllers/merchants_state.dart';
+import 'package:barwah_app/features/merchants/presentation/screens/merchant_details_screen.dart';
+import 'package:barwah_app/features/merchants/presentation/widgets/merchant_card.dart';
+import 'package:barwah_app/features/merchants/presentation/widgets/merchant_search_filter_bar.dart';
+import 'package:barwah_app/features/merchants/presentation/widgets/supervisor_app_bar.dart';
+import 'package:barwah_app/features/merchants/presentation/widgets/supervisor_header_card.dart';
+import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
+import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class MerchantsDashboardScreen extends StatefulWidget {
   final bool showAppBar;
@@ -85,8 +89,8 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
       builder: (sheetContext) {
         return StatefulBuilder(
           builder: (sheetContext, setSheetState) => Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
+            decoration: BoxDecoration(
+              color: AppColors.surface,
               borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
             ),
             padding: EdgeInsets.only(
@@ -104,7 +108,7 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
                     width: 44,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.grey[300],
+                      color: AppColors.cardBorder,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -118,9 +122,9 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
                         color: AppColors.primaryDark.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(
+                      child: MotionIcon(
                         Icons.storefront_outlined,
-                        color: AppColors.primaryDark,
+                        color: AppColors.ink,
                         size: 22,
                       ),
                     ),
@@ -131,10 +135,10 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
                         children: [
                           Text(
                             l10n.addNewMerchantToSupervision,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 17,
                               fontWeight: FontWeight.bold,
-                              color: AppColors.primaryDark,
+                              color: AppColors.ink,
                             ),
                           ),
                           const SizedBox(height: 2),
@@ -142,7 +146,7 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
                             l10n.supervisedAreaLabel,
                             style: TextStyle(
                               fontSize: 12,
-                              color: Colors.grey[600],
+                              color: AppColors.textSecondary,
                             ),
                           ),
                         ],
@@ -156,7 +160,7 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
                   decoration: InputDecoration(
                     labelText: l10n.merchantNameField,
                     hintText: 'مثال: شركة الرواد للتجارة',
-                    prefixIcon: const Icon(Icons.business_outlined, size: 20),
+                    prefixIcon: const MotionIcon(Icons.business_outlined, size: 20),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -170,7 +174,7 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
                   decoration: InputDecoration(
                     labelText: l10n.merchantCrField,
                     hintText: '1010XXXXXX',
-                    prefixIcon: const Icon(Icons.badge_outlined, size: 20),
+                    prefixIcon: const MotionIcon(Icons.badge_outlined, size: 20),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -189,7 +193,7 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
                     padding: const EdgeInsets.only(bottom: 10),
                     child: Text(
                       l10n.merchantLinkLocalScopeNotice,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 11,
                       ),
@@ -202,7 +206,7 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
                   decoration: InputDecoration(
                     labelText: l10n.merchantPhoneField,
                     hintText: '+966 5X XXX XXXX',
-                    prefixIcon: const Icon(Icons.phone_outlined, size: 20),
+                    prefixIcon: const MotionIcon(Icons.phone_outlined, size: 20),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -280,8 +284,8 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
                                   'Could not add the merchant to the supervised list.');
                             }
                             try {
-                              await WasalnyLocalEventStore().publish(
-                                WasalnyLocalEvent(
+                              await LocalEventStore().publish(
+                                LocalEvent(
                                   id: 'merchant-linked-${records.last['id']}',
                                   recipient: 'merchant',
                                   source: 'merchants',
@@ -363,7 +367,7 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
     final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: AppColors.scaffold,
       appBar: widget.showAppBar
           ? SupervisorAppBar(
               onNotificationTap: widget.onNotificationTap,
@@ -373,9 +377,9 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
       body: BlocBuilder<MerchantsCubit, MerchantsState>(
         builder: (context, state) {
           if (state is MerchantsLoading || state is MerchantsInitial) {
-            return const Center(
+            return Center(
               child: CircularProgressIndicator(
-                color: Color(0xFF07192F),
+                color: AppColors.ink,
               ),
             );
           }
@@ -387,7 +391,7 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.error_outline,
+                    MotionIcon(Icons.error_outline,
                         color: AppColors.danger, size: 48),
                     const SizedBox(height: 12),
                     Text(state.message, textAlign: TextAlign.center),
@@ -396,7 +400,7 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
                       onPressed: () =>
                           context.read<MerchantsCubit>().loadMerchants(),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF07192F),
+                        backgroundColor: AppColors.primaryDark,
                       ),
                       child: const Text('إعادة المحاولة',
                           style: TextStyle(color: Colors.white)),
@@ -410,7 +414,7 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
           final loadedState = state as MerchantsLoaded;
 
           return RefreshIndicator(
-            color: const Color(0xFF07192F),
+            color: AppColors.primaryDark,
             onRefresh: () => context.read<MerchantsCubit>().loadMerchants(),
             child: Stack(
               children: [
@@ -418,12 +422,12 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
                   children: [
                     // 1. Supervisor Welcome & Stats Header Card
-                    SupervisorHeaderCard(stats: loadedState.stats),
+                    ScrollFx(child: SupervisorHeaderCard(stats: loadedState.stats)),
 
                     const SizedBox(height: 16),
 
                     // 2. Search & Category Filters Bar
-                    MerchantSearchFilterBar(
+                    ScrollFx(child: MerchantSearchFilterBar(
                       searchController: _searchController,
                       stats: loadedState.stats,
                       selectedFilterIndex: loadedState.selectedFilterIndex,
@@ -435,12 +439,12 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
                       },
                       onFilterSelected: (index) =>
                           context.read<MerchantsCubit>().setFilterIndex(index),
-                    ),
+                    )),
 
                     const SizedBox(height: 16),
 
                     // 3. Section Header: [Stores Under Supervision] [5 of 18] [Recently Active]
-                    Row(
+                    ScrollFx(child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         // Recently Active sort button
@@ -459,12 +463,12 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.swap_vert,
+                                MotionIcon(Icons.swap_vert,
                                     size: 14, color: AppColors.textSecondary),
                                 const SizedBox(width: 4),
                                 Text(
                                   l10n.recentlyActiveSort,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 10,
                                     color: AppColors.textSecondary,
                                     fontWeight: FontWeight.w500,
@@ -486,7 +490,7 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 8, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFE2E8F0),
+                                  color: AppColors.cardBorder,
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: Text(
@@ -495,7 +499,7 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
                                         .toString(),
                                     loadedState.allMerchants.length.toString(),
                                   ),
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold,
                                     color: AppColors.textSecondary,
@@ -508,7 +512,7 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
                                   l10n.registeredStoresSection,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.bold,
                                     color: AppColors.textPrimary,
@@ -519,7 +523,7 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
                           ),
                         ),
                       ],
-                    ),
+                    )),
 
                     const SizedBox(height: 12),
 
@@ -530,13 +534,13 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
                         child: Center(
                           child: Column(
                             children: [
-                              const Icon(Icons.storefront_outlined,
+                              MotionIcon(Icons.storefront_outlined,
                                   size: 48, color: AppColors.textMuted),
                               const SizedBox(height: 12),
                               Text(
                                 l10n.noMerchantsFound,
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(
+                                style: TextStyle(
                                     fontSize: 12,
                                     color: AppColors.textSecondary),
                               ),
@@ -579,7 +583,7 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
                   left: 20,
                   child: ElevatedButton.icon(
                     onPressed: () => _showAddMerchantSheet(context),
-                    icon: const Icon(Icons.store_mall_directory_outlined,
+                    icon: const MotionIcon(Icons.store_mall_directory_outlined,
                         size: 18, color: Colors.white),
                     label: Text(
                       l10n.linkNewMerchant,
@@ -590,7 +594,7 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
                       ),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF07192F),
+                      backgroundColor: AppColors.primaryDark,
                       padding: const EdgeInsets.symmetric(
                           horizontal: 20, vertical: 12),
                       shape: RoundedRectangleBorder(

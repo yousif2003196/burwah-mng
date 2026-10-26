@@ -1,12 +1,12 @@
 import 'package:dartz/dartz.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../../../core/errors/failures.dart';
-import '../../../domain/entities/withdrawal_request_entity.dart';
-import '../../../domain/usecases/get_frozen_withdrawals_usecase.dart';
-import '../../../domain/usecases/reject_and_forfeit_withdrawal_usecase.dart';
-import '../../../domain/usecases/restore_frozen_withdrawal_usecase.dart';
-import 'frozen_requests_state.dart';
+import 'package:barwah_app/core/errors/failures.dart';
+import 'package:barwah_app/features/finance/domain/entities/withdrawal_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/usecases/get_frozen_withdrawals_usecase.dart';
+import 'package:barwah_app/features/finance/domain/usecases/reject_and_forfeit_withdrawal_usecase.dart';
+import 'package:barwah_app/features/finance/domain/usecases/restore_frozen_withdrawal_usecase.dart';
+import 'package:barwah_app/features/finance/presentation/controllers/frozen_requests/frozen_requests_state.dart';
 
 class FrozenRequestsCubit extends Cubit<FrozenRequestsState> {
   final GetFrozenWithdrawalsUseCase getFrozenWithdrawalsUseCase;

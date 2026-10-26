@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/widgets/app_snack_bar.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../data/finance_audit_store.dart';
-import '../utils/finance_profile_report_exporter.dart';
-import '../widgets/finance_navigation.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/theme/app_palette.dart';
+import 'package:barwah_app/core/widgets/app_snack_bar.dart';
+import 'package:barwah_app/features/finance/data/datasources/finance_audit_store.dart';
+import 'package:barwah_app/features/finance/presentation/utils/finance_profile_report_exporter.dart';
+import 'package:barwah_app/features/finance/presentation/widgets/finance_navigation.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
 
 class AuditScreen extends StatefulWidget {
   final bool showBottomNavigation;
@@ -137,7 +141,7 @@ class _AuditScreenState extends State<AuditScreen>
         currentIndex: 0,
         enabled: widget.showBottomNavigation,
         child: Scaffold(
-          backgroundColor: const Color(0xFFF5F7F9),
+          backgroundColor: AppColors.scaffold,
           body: SafeArea(
             bottom: false,
             child: ListView(
@@ -145,13 +149,13 @@ class _AuditScreenState extends State<AuditScreen>
               children: [
                 if (widget.showBottomNavigation) _buildBrandHeader(l10n),
                 const SizedBox(height: 12),
-                _buildHashCard(isArabic),
+                ScrollFx(child: _buildHashCard(isArabic)),
                 const SizedBox(height: 10),
-                _buildFilters(isArabic),
+                ScrollFx(child: _buildFilters(isArabic)),
                 const SizedBox(height: 10),
                 _buildSearchField(isArabic),
                 const SizedBox(height: 10),
-                _buildSummary(isArabic),
+                ScrollFx(child: _buildSummary(isArabic)),
                 const SizedBox(height: 14),
                 if (_eventsForGroup('today').isNotEmpty) ...[
                   _buildDateHeading(
@@ -207,9 +211,9 @@ class _AuditScreenState extends State<AuditScreen>
                 else if (_visibleEvents.isEmpty)
                   _buildEmptyState(isArabic),
                 const SizedBox(height: 10),
-                _buildDisclosure(isArabic),
+                ScrollFx(child: _buildDisclosure(isArabic)),
                 const SizedBox(height: 8),
-                _buildExportButton(l10n),
+                ScrollFx(child: _buildExportButton(l10n)),
               ],
             ),
           ),
@@ -228,25 +232,25 @@ class _AuditScreenState extends State<AuditScreen>
         textDirection: TextDirection.ltr,
         child: Row(
           children: [
-            const CircleAvatar(
+            CircleAvatar(
               radius: 16,
               backgroundColor: AppColors.primaryDark,
-              child: Icon(Icons.person_outline, color: Colors.white, size: 18),
+              child: MotionIcon(Icons.person_outline, color: Colors.white, size: 18),
             ),
             const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppColors.surface,
                 borderRadius: BorderRadius.circular(18),
               ),
               child: Row(
                 children: [
                   Text(l10n.certifiedFinancialAuditor,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 9, color: AppColors.textSecondary)),
                   const SizedBox(width: 4),
-                  const Icon(Icons.verified_user_outlined,
+                  MotionIcon(Icons.verified_user_outlined,
                       size: 12, color: AppColors.info),
                 ],
               ),
@@ -257,13 +261,13 @@ class _AuditScreenState extends State<AuditScreen>
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(l10n.appName,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 16,
                         height: 1.1,
-                        color: AppColors.primaryDark,
+                        color: AppColors.ink,
                         fontWeight: FontWeight.bold)),
                 Text(l10n.financialDepartment,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 9, color: AppColors.textSecondary)),
               ],
             ),
@@ -272,10 +276,13 @@ class _AuditScreenState extends State<AuditScreen>
               width: 29,
               height: 29,
               decoration: BoxDecoration(
+                gradient: AppColors.blueFill,
+                border: AppColors.blueEdge,
+                boxShadow: AppColors.blueGlow,
                 color: AppColors.primaryDark,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.shield_outlined,
+              child: const MotionIcon(Icons.shield_outlined,
                   size: 19, color: Colors.white),
             ),
           ],
@@ -288,23 +295,22 @@ class _AuditScreenState extends State<AuditScreen>
     return Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF102B4B), Color(0xFF071A31)],
+        gradient: AppColors.blueFill ?? LinearGradient(
+          colors: [AppColors.primaryDark, AppColors.primaryDark],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
+        border: AppColors.blueEdge,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: const [
-          BoxShadow(
-              color: Color(0x1A071A31), blurRadius: 10, offset: Offset(0, 5)),
-        ],
+        boxShadow: [...?AppColors.blueGlow, BoxShadow(
+              color: AppPalette.overlay1A071A31, blurRadius: 10, offset: Offset(0, 5)),],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              const Icon(Icons.lock_outline, color: Colors.white70, size: 13),
+              const MotionIcon(Icons.lock_outline, color: Colors.white70, size: 13),
               const SizedBox(width: 5),
               Expanded(
                 child: Text(
@@ -316,7 +322,7 @@ class _AuditScreenState extends State<AuditScreen>
               ),
               _pill(
                 isArabic ? 'محلي' : 'Local',
-                const Color(0xFF263E59),
+                AppColors.infoDark,
                 Colors.white,
               ),
             ],
@@ -334,12 +340,15 @@ class _AuditScreenState extends State<AuditScreen>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
             decoration: BoxDecoration(
-              color: const Color(0xFF07182F),
+              gradient: AppColors.blueFill,
+              border: AppColors.blueEdge,
+              boxShadow: AppColors.blueGlow,
+              color: AppColors.primaryDark,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
               children: [
-                const Icon(Icons.storage_outlined,
+                const MotionIcon(Icons.storage_outlined,
                     color: Colors.white70, size: 16),
                 const SizedBox(width: 8),
                 Expanded(
@@ -356,7 +365,7 @@ class _AuditScreenState extends State<AuditScreen>
           const SizedBox(height: 8),
           Row(
             children: [
-              const Icon(Icons.circle, size: 7, color: Color(0xFF26D69A)),
+              MotionIcon(Icons.circle, size: 7, color: AppColors.success),
               const SizedBox(width: 5),
               Expanded(
                 child: Text(
@@ -393,7 +402,7 @@ class _AuditScreenState extends State<AuditScreen>
               labelStyle: TextStyle(
                   fontSize: 9,
                   color: selected ? Colors.white : AppColors.textSecondary),
-              backgroundColor: Colors.white,
+              backgroundColor: AppColors.surface,
               selectedColor: AppColors.primaryDark,
               side: BorderSide.none,
             ),
@@ -412,7 +421,7 @@ class _AuditScreenState extends State<AuditScreen>
         hintText: isArabic
             ? 'ابحث برقم المرجع أو العملية أو الجهة'
             : 'Search reference, operation, or entity',
-        prefixIcon: const Icon(Icons.search_rounded, size: 19),
+        prefixIcon: const MotionIcon(Icons.search_rounded, size: 19),
         suffixIcon: _searchQuery.isEmpty
             ? null
             : IconButton(
@@ -421,18 +430,18 @@ class _AuditScreenState extends State<AuditScreen>
                   _searchController.clear();
                   setState(() => _searchQuery = '');
                 },
-                icon: const Icon(Icons.close_rounded, size: 18),
+                icon: const MotionIcon(Icons.close_rounded, size: 18),
               ),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: AppColors.surface,
         contentPadding: const EdgeInsets.symmetric(vertical: 10),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFE6EAF0)),
+          borderSide: BorderSide(color: AppColors.surfaceHighlight),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFE6EAF0)),
+          borderSide: BorderSide(color: AppColors.surfaceHighlight),
         ),
       ),
     );
@@ -442,13 +451,13 @@ class _AuditScreenState extends State<AuditScreen>
         margin: const EdgeInsets.only(top: 8),
         padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: AppColors.cardBorder),
         ),
         child: Column(
           children: [
-            const Icon(Icons.search_off_rounded,
+            MotionIcon(Icons.search_off_rounded,
                 color: AppColors.textSecondary, size: 26),
             const SizedBox(height: 8),
             Text(
@@ -456,7 +465,7 @@ class _AuditScreenState extends State<AuditScreen>
                   ? 'لا توجد سجلات تطابق البحث أو الفلتر.'
                   : 'No records match this search or filter.',
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                   color: AppColors.textSecondary, fontSize: 11),
             ),
           ],
@@ -496,13 +505,13 @@ class _AuditScreenState extends State<AuditScreen>
   Widget _buildDateHeading(String label, bool isArabic) {
     return Row(
       children: [
-        const Icon(Icons.calendar_month_outlined,
+        MotionIcon(Icons.calendar_month_outlined,
             size: 14, color: AppColors.info),
         const SizedBox(width: 6),
-        Expanded(child: Divider(color: Colors.blueGrey.shade100)),
+        Expanded(child: Divider(color: AppColors.surfaceHighlight)),
         const SizedBox(width: 8),
         Text(label,
-            style: const TextStyle(
+            style: TextStyle(
                 fontSize: 10,
                 color: AppColors.infoDark,
                 fontWeight: FontWeight.w600)),
@@ -514,13 +523,13 @@ class _AuditScreenState extends State<AuditScreen>
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFE5E8EB),
+        color: AppColors.surfaceHighlight,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.gavel_rounded, size: 17, color: AppColors.info),
+          MotionIcon(Icons.gavel_rounded, size: 17, color: AppColors.info),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -528,7 +537,7 @@ class _AuditScreenState extends State<AuditScreen>
                   ? 'يوفر سجل التدقيق مرجعًا لمراجعة العمليات المالية وتفاصيلها.'
                   : 'The audit log provides a reference for reviewing financial operations and their details.',
               textAlign: isArabic ? TextAlign.right : TextAlign.left,
-              style: const TextStyle(
+              style: TextStyle(
                   color: AppColors.textSecondary, fontSize: 9, height: 1.6),
             ),
           ),
@@ -540,7 +549,7 @@ class _AuditScreenState extends State<AuditScreen>
   Widget _buildExportButton(AppLocalizations l10n) {
     return ElevatedButton.icon(
       onPressed: () => _showExportOptions(l10n),
-      icon: const Icon(Icons.download_rounded, size: 17),
+      icon: const MotionIcon(Icons.download_rounded, size: 17),
       label: Text(
         l10n.localeName.startsWith('ar')
             ? 'تصدير الحركات الظاهرة بصيغة Excel / PDF'
@@ -677,7 +686,7 @@ class _AuditScreenState extends State<AuditScreen>
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      backgroundColor: const Color(0xFFF5F7F9),
+      backgroundColor: AppColors.background,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
       ),
@@ -689,15 +698,15 @@ class _AuditScreenState extends State<AuditScreen>
           children: [
             Text(
               isArabic ? event.titleAr : event.titleEn,
-              style: const TextStyle(
-                color: AppColors.primaryDark,
+              style: TextStyle(
+                color: AppColors.ink,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 6),
             Text(isArabic ? event.timeAr : event.timeEn,
-                style: const TextStyle(
+                style: TextStyle(
                     color: AppColors.textSecondary, fontSize: 10)),
             const Divider(height: 22),
             Text(isArabic ? event.descriptionAr : event.descriptionEn,
@@ -711,13 +720,13 @@ class _AuditScreenState extends State<AuditScreen>
                 Expanded(
                   child: Text(
                     isArabic ? 'المرجع' : 'Reference',
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: AppColors.textSecondary, fontSize: 10),
                   ),
                 ),
                 Text(event.reference,
                     textDirection: TextDirection.ltr,
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: AppColors.infoDark,
                         fontWeight: FontWeight.bold,
                         fontSize: 11)),
@@ -754,28 +763,28 @@ class _AuditMetric extends StatelessWidget {
       constraints: const BoxConstraints(minHeight: 76),
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 9),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         border: Border.all(color: AppColors.cardBorder),
         borderRadius: BorderRadius.circular(9),
       ),
       child: Column(
         children: [
-          Icon(icon, size: 14, color: AppColors.info),
+          MotionIcon(icon, size: 14, color: AppColors.info),
           const SizedBox(height: 3),
           Text(title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
               style:
-                  const TextStyle(fontSize: 8, color: AppColors.textSecondary)),
+                  TextStyle(fontSize: 8, color: AppColors.textSecondary)),
           const SizedBox(height: 3),
-          Text(value,
+          CountText(value,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 13,
-                  color: AppColors.primaryDark,
+                  color: AppColors.ink,
                   fontWeight: FontWeight.bold)),
         ],
       ),
@@ -845,9 +854,9 @@ class _AuditEventCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(11),
-        border: Border.all(color: const Color(0xFFE9EDF2)),
+        border: Border.all(color: AppColors.surfaceHighlight),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -862,7 +871,7 @@ class _AuditEventCard extends StatelessWidget {
                   color: event.color.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(7),
                 ),
-                child: Icon(event.icon, size: 16, color: event.color),
+                child: MotionIcon(event.icon, size: 16, color: event.color),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -872,15 +881,15 @@ class _AuditEventCard extends StatelessWidget {
                     Text(
                       isArabic ? event.titleAr : event.titleEn,
                       textAlign: isArabic ? TextAlign.right : TextAlign.left,
-                      style: const TextStyle(
-                          color: AppColors.primaryDark,
+                      style: TextStyle(
+                          color: AppColors.ink,
                           fontSize: 13,
                           fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       isArabic ? event.timeAr : event.timeEn,
-                      style: const TextStyle(
+                      style: TextStyle(
                           color: AppColors.textSecondary, fontSize: 9),
                     ),
                   ],
@@ -902,7 +911,7 @@ class _AuditEventCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
             decoration: BoxDecoration(
-              color: const Color(0xFFF1F3F5),
+              color: AppColors.surfaceLight,
               borderRadius: BorderRadius.circular(7),
             ),
             child: Column(
@@ -911,7 +920,7 @@ class _AuditEventCard extends StatelessWidget {
                 Text(
                   isArabic ? event.descriptionAr : event.descriptionEn,
                   textAlign: isArabic ? TextAlign.right : TextAlign.left,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: AppColors.textPrimary, fontSize: 10, height: 1.5),
                 ),
                 if (event.isWarning) ...[
@@ -920,18 +929,18 @@ class _AuditEventCard extends StatelessWidget {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFE9E7),
+                      color: AppColors.dangerLight,
                       borderRadius: BorderRadius.circular(5),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.warning_amber_rounded,
+                        MotionIcon(Icons.warning_amber_rounded,
                             size: 13, color: AppColors.danger),
                         const SizedBox(width: 5),
                         Expanded(
                           child: Text(
                             isArabic ? event.statusAr : event.statusEn,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 color: AppColors.danger, fontSize: 8),
                           ),
                         ),
@@ -946,13 +955,13 @@ class _AuditEventCard extends StatelessWidget {
                       child: Text(
                         event.reference,
                         textDirection: TextDirection.ltr,
-                        style: const TextStyle(
+                        style: TextStyle(
                             color: AppColors.infoDark,
                             fontSize: 8,
                             fontWeight: FontWeight.bold),
                       ),
                     ),
-                    Icon(
+                    MotionIcon(
                       event.isWarning
                           ? Icons.gavel_rounded
                           : Icons.verified_user_outlined,

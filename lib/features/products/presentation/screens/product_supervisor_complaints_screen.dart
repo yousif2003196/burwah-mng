@@ -3,12 +3,18 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/di/injection_container.dart';
-import '../../../../features/wasalny_supervisor/data/wasalny_local_event_store.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../domain/entities/product_supervisor_audit_entry.dart';
-import '../../domain/repositories/product_supervisor_audit_repository.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
+import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
+import 'package:barwah_app/features/products/data/datasources/product_escalation_store.dart';
+import 'package:barwah_app/features/products/domain/entities/product_supervisor_audit_entry.dart';
+import 'package:barwah_app/features/products/domain/repositories/product_supervisor_audit_repository.dart';
+import 'package:barwah_app/features/products/presentation/widgets/product_head_escalation.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 enum _ComplaintStatus { newCase, inProgress, waitingCustomer, resolved, archived }
 
@@ -133,19 +139,53 @@ class _ProductSupervisorComplaintsScreenState
     ),
   ];
   _ComplaintStatus? _statusFilter;
+  bool _onlyWithHead = false;
+  bool _onlyOverdue = false;
+  Map<String, ProductEscalation> _escalations = const {};
   bool _isLoading = true;
   Object? _loadError;
+
+  /// Open complaints that waited more than a day without supervisor action.
+  static const _supervisorSla = Duration(hours: 24);
+
+  ProductEscalation? _escalationOf(_ProductComplaint complaint) =>
+      _escalations[ProductEscalation.keyOf(
+          ProductEscalationKind.complaint, complaint.id)];
+
+  bool _isOverdue(_ProductComplaint complaint) {
+    final escalation = _escalationOf(complaint);
+    if (escalation != null && escalation.isOverdue(DateTime.now())) return true;
+    final open = complaint.status == _ComplaintStatus.newCase ||
+        complaint.status == _ComplaintStatus.inProgress;
+    return open &&
+        escalation == null &&
+        DateTime.now().difference(complaint.updatedAt) > _supervisorSla;
+  }
 
   @override
   void initState() {
     super.initState();
+    LocalEventStore.revision.addListener(_loadEscalations);
+    ProductEscalationStore.revision.addListener(_loadEscalations);
     _load();
+    _loadEscalations();
   }
 
   @override
   void dispose() {
+    LocalEventStore.revision.removeListener(_loadEscalations);
+    ProductEscalationStore.revision.removeListener(_loadEscalations);
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadEscalations() async {
+    try {
+      final all = await ProductEscalationStore().refresh();
+      if (mounted) setState(() => _escalations = all);
+    } on Object catch (error) {
+      debugPrint('Product escalations unavailable: $error');
+    }
   }
 
   Future<void> _load() async {
@@ -203,6 +243,13 @@ class _ProductSupervisorComplaintsScreenState
     final query = _searchController.text.trim().toLowerCase();
     return _complaints.where((complaint) {
       final matchesStatus = _statusFilter == null || complaint.status == _statusFilter;
+      final escalation = _escalationOf(complaint);
+      if (_onlyWithHead &&
+          (escalation == null ||
+              escalation.status == ProductEscalationStatus.decided)) {
+        return false;
+      }
+      if (_onlyOverdue && !_isOverdue(complaint)) return false;
       final searchable = [
         complaint.id,
         complaint.customerAr,
@@ -297,7 +344,6 @@ class _ProductSupervisorComplaintsScreenState
       if (message == null || !mounted) return;
       final index = _complaints.indexOf(complaint);
       if (index < 0) return;
-      final previous = complaint;
       final updated = complaint.copyWith(
         status: _ComplaintStatus.waitingCustomer,
         updatedAt: DateTime.now(),
@@ -306,8 +352,8 @@ class _ProductSupervisorComplaintsScreenState
       setState(() => _complaints[index] = updated);
       await _save();
       await _recordAudit(updated, 'complaint_message_queued', message);
-      await WasalnyLocalEventStore().publish(
-        WasalnyLocalEvent(
+      await LocalEventStore().publish(
+        LocalEvent(
           id: 'product-complaint-message-${complaint.id}-${updated.updatedAt.microsecondsSinceEpoch}',
           recipient: complaint.customerId,
           source: 'products',
@@ -344,34 +390,33 @@ class _ProductSupervisorComplaintsScreenState
   }
 
   Future<void> _escalate(_ProductComplaint complaint, bool isArabic) async {
-    try {
-      await WasalnyLocalEventStore().publish(
-        WasalnyLocalEvent(
-          id: 'product-complaint-escalated-${complaint.id}',
-          recipient: 'head',
-          source: 'products',
-          titleAr: 'تصعيد شكوى من مشرف المنتجات',
-          titleEn: 'Product complaint escalated',
-          messageAr: '${complaint.id} · ${complaint.subjectAr}',
-          messageEn: '${complaint.id} · ${complaint.subjectEn}',
-          createdAt: DateTime.now(),
-        ),
-      );
-      await _recordAudit(complaint, 'complaint_escalated', 'head');
-      if (mounted) {
-        _message(_copy(
-        isArabic,
-        'تم حفظ التصعيد وإشعار الرئيس محليًا.',
-        'Escalation and local notice saved.',
-      ));
+    final sent = await escalateProductItemToHead(
+      context,
+      kind: ProductEscalationKind.complaint,
+      refId: complaint.id,
+      title: isArabic ? complaint.subjectAr : complaint.subjectEn,
+      subject:
+          '${isArabic ? 'العميل' : 'Customer'}: ${isArabic ? complaint.customerAr : complaint.customerEn}',
+      isArabic: isArabic,
+    );
+    if (sent && mounted) {
+      final index = _complaints.indexOf(complaint);
+      if (index >= 0) {
+        setState(() => _complaints[index] = complaint.copyWith(
+              status: _ComplaintStatus.inProgress,
+              updatedAt: DateTime.now(),
+            ));
+        try {
+          await _save();
+        } on Object catch (error, stackTrace) {
+          FlutterError.reportError(FlutterErrorDetails(
+            exception: error,
+            stack: stackTrace,
+            library: 'product complaint escalation persistence',
+          ));
+        }
       }
-    } catch (error, stackTrace) {
-      FlutterError.reportError(FlutterErrorDetails(
-        exception: error,
-        stack: stackTrace,
-        library: 'product complaint escalation',
-      ));
-      if (mounted) _message(_copy(isArabic, 'تعذر حفظ التصعيد.', 'Could not save escalation.'));
+      await _loadEscalations();
     }
   }
 
@@ -392,7 +437,7 @@ class _ProductSupervisorComplaintsScreenState
   void _message(String value) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(value)));
+      ..showSnackBar(SnackBar(content: CountText(value)));
   }
 
   String _statusLabel(_ComplaintStatus status, bool isArabic) => switch (status) {
@@ -427,7 +472,7 @@ class _ProductSupervisorComplaintsScreenState
     return Directionality(
       textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
       child: Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: AppColors.scaffold,
         appBar: AppBar(
           title: Text(_copy(isArabic, 'شكاوى العملاء', 'Customer complaints')),
         ),
@@ -452,7 +497,7 @@ class _ProductSupervisorComplaintsScreenState
                         onChanged: (_) => setState(() {}),
                         decoration: InputDecoration(
                           hintText: _copy(isArabic, 'ابحث برقم الشكوى أو العميل أو المنتج', 'Search complaint, customer, or product'),
-                          prefixIcon: const Icon(Icons.search),
+                          prefixIcon: const MotionIcon(Icons.search),
                           suffixIcon: _searchController.text.isEmpty
                               ? null
                               : IconButton(
@@ -461,10 +506,10 @@ class _ProductSupervisorComplaintsScreenState
                                     _searchController.clear();
                                     setState(() {});
                                   },
-                                  icon: const Icon(Icons.close),
+                                  icon: const MotionIcon(Icons.close),
                                 ),
                           filled: true,
-                          fillColor: Colors.white,
+                          fillColor: AppColors.surface,
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
                         ),
                       ),
@@ -482,13 +527,29 @@ class _ProductSupervisorComplaintsScreenState
                                   onSelected: (_) => setState(() => _statusFilter = filter.value),
                                   selectedColor: AppColors.primaryDark,
                                   labelStyle: TextStyle(color: _statusFilter == filter.value ? Colors.white : AppColors.textSecondary),
-                                  backgroundColor: Colors.white,
-                                  side: const BorderSide(color: AppColors.cardBorder),
+                                  backgroundColor: AppColors.surface,
+                                  side: BorderSide(color: AppColors.cardBorder),
                                 ),
                               ),
                           ],
                         ),
                       ),
+                      const SizedBox(height: 6),
+                      ScrollFx(child: Wrap(
+                        spacing: 7,
+                        children: [
+                          FilterChip(
+                            label: Text(_copy(isArabic, 'عند الرئيس', 'With head')),
+                            selected: _onlyWithHead,
+                            onSelected: (v) => setState(() => _onlyWithHead = v),
+                          ),
+                          FilterChip(
+                            label: Text(_copy(isArabic, 'متأخرة', 'Overdue')),
+                            selected: _onlyOverdue,
+                            onSelected: (v) => setState(() => _onlyOverdue = v),
+                          ),
+                        ],
+                      )),
                       const SizedBox(height: 12),
                       if (visible.isEmpty)
                         Padding(
@@ -498,7 +559,7 @@ class _ProductSupervisorComplaintsScreenState
                       else
                         for (final complaint in visible) ...[
                           Card(
-                            color: Colors.white,
+                            color: AppColors.surface,
                             child: Padding(
                               padding: const EdgeInsets.all(14),
                               child: Column(
@@ -512,9 +573,28 @@ class _ProductSupervisorComplaintsScreenState
                                   ),
                                   const SizedBox(height: 5),
                                   Text('${isArabic ? complaint.subjectAr : complaint.subjectEn} · ${isArabic ? complaint.productAr : complaint.productEn}'),
+                                  if (_escalationOf(complaint) != null) ...[
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      _escalationOf(complaint)!.status.labelAr,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        color: _isOverdue(complaint)
+                                            ? AppColors.dangerDark
+                                            : AppColors.warningDark,
+                                      ),
+                                    ),
+                                  ] else if (_isOverdue(complaint)) ...[
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      _copy(isArabic, 'متأخرة: تجاوزت 24 ساعة دون إجراء', 'Overdue: no action for over 24h'),
+                                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.dangerDark),
+                                    ),
+                                  ],
                                   if (complaint.latestMessage?.isNotEmpty == true) ...[
                                     const SizedBox(height: 6),
-                                    Text('${_copy(isArabic, 'آخر رسالة:', 'Latest message:')} ${complaint.latestMessage}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                                    CountText('${_copy(isArabic, 'آخر رسالة:', 'Latest message:')} ${complaint.latestMessage}', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
                                   ],
                                   const SizedBox(height: 7),
                                   Wrap(
@@ -526,7 +606,8 @@ class _ProductSupervisorComplaintsScreenState
                                         TextButton(onPressed: () => _changeStatus(complaint, _ComplaintStatus.waitingCustomer, isArabic), child: Text(_copy(isArabic, 'بانتظار العميل', 'Wait for customer'))),
                                         TextButton(onPressed: () => _changeStatus(complaint, _ComplaintStatus.resolved, isArabic), child: Text(_copy(isArabic, 'حل الشكوى', 'Resolve'))),
                                         TextButton(onPressed: () => _sendCustomerMessage(complaint, isArabic), child: Text(_copy(isArabic, 'إرسال رسالة', 'Message'))),
-                                        TextButton(onPressed: () => _escalate(complaint, isArabic), child: Text(_copy(isArabic, 'تصعيد', 'Escalate'))),
+                                        if (_escalationOf(complaint) == null || _escalationOf(complaint)!.canEscalateAgain)
+                                          TextButton(onPressed: () => _escalate(complaint, isArabic), child: Text(_copy(isArabic, 'تصعيد', 'Escalate'))),
                                         TextButton(onPressed: () => _changeStatus(complaint, _ComplaintStatus.archived, isArabic), child: Text(_copy(isArabic, 'أرشفة', 'Archive'))),
                                       ] else
                                         TextButton(onPressed: () => _changeStatus(complaint, _ComplaintStatus.newCase, isArabic), child: Text(_copy(isArabic, 'استعادة', 'Restore'))),
