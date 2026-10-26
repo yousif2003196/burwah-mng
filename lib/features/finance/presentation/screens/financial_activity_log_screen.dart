@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/di/injection_container.dart';
-import '../../../../core/utils/currency_formatter.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../domain/entities/withdrawal_request_entity.dart';
-import '../../domain/repositories/finance_repository.dart';
-import '../../data/finance_audit_store.dart';
-import '../widgets/finance_navigation.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/utils/currency_formatter.dart';
+import 'package:barwah_app/features/finance/data/datasources/finance_audit_store.dart';
+import 'package:barwah_app/features/finance/domain/entities/finance_audit_entry.dart';
+import 'package:barwah_app/features/finance/domain/entities/withdrawal_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/repositories/finance_repository.dart';
+import 'package:barwah_app/features/finance/presentation/widgets/finance_navigation.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
 
 class FinancialActivityLogScreen extends StatefulWidget {
   final bool showBottomNavigation;
@@ -171,7 +175,7 @@ class _FinancialActivityLogScreenState
         currentIndex: 0,
         enabled: widget.showBottomNavigation,
         child: Scaffold(
-          backgroundColor: const Color(0xFFF5F7F9),
+          backgroundColor: AppColors.scaffold,
           body: SafeArea(
             bottom: false,
             child: RefreshIndicator(
@@ -180,20 +184,20 @@ class _FinancialActivityLogScreenState
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
                 children: [
                   Text(ar ? 'سجل العمليات المالية' : 'Financial activity log',
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 21,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.primaryDark)),
+                          color: AppColors.ink)),
                   const SizedBox(height: 4),
                   Text(
                     ar
                         ? 'قرارات المشرف المالي وحركات طلبات التجار والمشرفين'
                         : 'Finance decisions and merchant or supervisor requests',
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 12, color: AppColors.textSecondary),
                   ),
                   const SizedBox(height: 14),
-                  _summary(visible.length + supervisorActivities.length, ar),
+                  ScrollFx(child: _summary(visible.length + supervisorActivities.length, ar)),
                   const SizedBox(height: 12),
                   TextField(
                     controller: _searchController,
@@ -202,7 +206,7 @@ class _FinancialActivityLogScreenState
                       hintText: ar
                           ? 'ابحث بالاسم أو رقم الطلب أو القرار'
                           : 'Search name, request number, or decision',
-                      prefixIcon: const Icon(Icons.search),
+                      prefixIcon: const MotionIcon(Icons.search),
                       suffixIcon: _query.isEmpty
                           ? null
                           : IconButton(
@@ -210,19 +214,19 @@ class _FinancialActivityLogScreenState
                                 _searchController.clear();
                                 setState(() => _query = '');
                               },
-                              icon: const Icon(Icons.close),
+                              icon: const MotionIcon(Icons.close),
                             ),
                       filled: true,
-                      fillColor: Colors.white,
+                      fillColor: AppColors.surface,
                       border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide.none),
                     ),
                   ),
                   const SizedBox(height: 8),
-                  _typeFilters(ar),
+                  ScrollFx(child: _typeFilters(ar)),
                   const SizedBox(height: 8),
-                  Wrap(spacing: 8, runSpacing: 8, children: [
+                  ScrollFx(child: Wrap(spacing: 8, runSpacing: 8, children: [
                     _filterButton(
                       icon: Icons.people_outline,
                       label: _beneficiary == null
@@ -255,7 +259,7 @@ class _FinancialActivityLogScreenState
                         }),
                         child: Text(ar ? 'مسح الفلاتر' : 'Clear filters'),
                       ),
-                  ]),
+                  ])),
                   const SizedBox(height: 12),
                   if (_loading)
                     const Padding(
@@ -272,8 +276,8 @@ class _FinancialActivityLogScreenState
                         padding: const EdgeInsets.only(bottom: 8, top: 4),
                         child: Text(
                           ar ? 'إجراءات المشرف المالي' : 'Finance supervisor actions',
-                          style: const TextStyle(
-                            color: AppColors.primaryDark,
+                          style: TextStyle(
+                            color: AppColors.ink,
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
                           ),
@@ -307,14 +311,14 @@ class _FinancialActivityLogScreenState
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.cardBorder),
       ),
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: color.withValues(alpha: .1),
-          child: Icon(
+          child: MotionIcon(
             entry.actionKey.contains('withdrawal_method')
                 ? Icons.account_balance_wallet_outlined
                 : warning
@@ -326,7 +330,7 @@ class _FinancialActivityLogScreenState
         ),
         title: Text(
           ar ? entry.titleAr : entry.titleEn,
-          style: const TextStyle(
+          style: TextStyle(
             color: AppColors.textPrimary,
             fontSize: 12,
             fontWeight: FontWeight.bold,
@@ -340,7 +344,7 @@ class _FinancialActivityLogScreenState
               if ((ar ? entry.detailsAr : entry.detailsEn).isNotEmpty)
                 Text(
                   ar ? entry.detailsAr : entry.detailsEn,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 11,
                   ),
@@ -348,7 +352,7 @@ class _FinancialActivityLogScreenState
               const SizedBox(height: 4),
               Text(
                 '${ar ? 'المرجع' : 'Reference'}: ${entry.reference} · $time',
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textMuted,
                   fontSize: 9,
                 ),
@@ -363,17 +367,20 @@ class _FinancialActivityLogScreenState
   Widget _summary(int count, bool ar) => Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
+          gradient: AppColors.blueFill,
+          border: AppColors.blueEdge,
+          boxShadow: AppColors.blueGlow,
           color: AppColors.primaryDark,
           borderRadius: BorderRadius.circular(14),
         ),
         child: Row(children: [
-          const Icon(Icons.receipt_long_outlined, color: Colors.white),
+          const MotionIcon(Icons.receipt_long_outlined, color: Colors.white),
           const SizedBox(width: 10),
           Expanded(
             child: Text(ar ? 'الحركات المطابقة للفلاتر' : 'Matching activity',
                 style: const TextStyle(color: Colors.white70, fontSize: 12)),
           ),
-          Text('$count',
+          CountText('$count',
               style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -411,7 +418,7 @@ class _FinancialActivityLogScreenState
   }) =>
       OutlinedButton.icon(
         onPressed: onTap,
-        icon: Icon(icon, size: 16),
+        icon: MotionIcon(icon, size: 16),
         label: Text(label, style: const TextStyle(fontSize: 11)),
       );
 
@@ -477,7 +484,7 @@ class _FinancialActivityLogScreenState
     final status = _statusLabel(activity.status, ar);
     return Card(
       margin: const EdgeInsets.only(bottom: 9),
-      color: Colors.white,
+      color: AppColors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
@@ -490,7 +497,7 @@ class _FinancialActivityLogScreenState
               CircleAvatar(
                 radius: 18,
                 backgroundColor: _statusColor(activity.status).withAlpha(20),
-                child: Icon(Icons.account_balance_wallet_outlined,
+                child: MotionIcon(Icons.account_balance_wallet_outlined,
                     color: _statusColor(activity.status), size: 19),
               ),
               const SizedBox(width: 10),
@@ -503,11 +510,11 @@ class _FinancialActivityLogScreenState
                               fontWeight: FontWeight.bold, fontSize: 13)),
                       Text(
                           '${request.requestNumber} • ${_operation(request, ar)}',
-                          style: const TextStyle(
+                          style: TextStyle(
                               color: AppColors.textSecondary, fontSize: 10)),
                     ]),
               ),
-              Text(CurrencyFormatter.format(request.grossAmount),
+              CountText(CurrencyFormatter.format(request.grossAmount),
                   style: const TextStyle(
                       fontWeight: FontWeight.bold, fontSize: 12)),
             ]),
@@ -527,12 +534,12 @@ class _FinancialActivityLogScreenState
               Text(activity.note,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: AppColors.textSecondary, fontSize: 10)),
             ],
             const SizedBox(height: 7),
             Text(_formatDate(activity.date, ar),
-                style: const TextStyle(
+                style: TextStyle(
                     color: AppColors.textSecondary, fontSize: 9)),
           ]),
         ),
@@ -591,10 +598,10 @@ class _FinancialActivityLogScreenState
           SizedBox(
               width: 120,
               child: Text(label,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: AppColors.textSecondary, fontSize: 11))),
           Expanded(
-              child: Text(value,
+              child: CountText(value,
                   style: const TextStyle(
                       fontSize: 12, fontWeight: FontWeight.w500))),
         ]),
@@ -603,7 +610,7 @@ class _FinancialActivityLogScreenState
   Widget _empty(bool ar) => Padding(
         padding: const EdgeInsets.all(32),
         child: Column(children: [
-          const Icon(Icons.manage_search,
+          MotionIcon(Icons.manage_search,
               size: 44, color: AppColors.textSecondary),
           const SizedBox(height: 8),
           Text(ar
@@ -615,7 +622,7 @@ class _FinancialActivityLogScreenState
   Widget _loadFailure(bool ar) => Padding(
         padding: const EdgeInsets.all(24),
         child: Column(children: [
-          const Icon(Icons.cloud_off_outlined,
+          MotionIcon(Icons.cloud_off_outlined,
               size: 40, color: AppColors.textSecondary),
           const SizedBox(height: 8),
           Text(ar
@@ -624,7 +631,7 @@ class _FinancialActivityLogScreenState
           const SizedBox(height: 8),
           OutlinedButton.icon(
             onPressed: _load,
-            icon: const Icon(Icons.refresh),
+            icon: const MotionIcon(Icons.refresh),
             label: Text(ar ? 'إعادة المحاولة' : 'Try again'),
           ),
         ]),
@@ -668,8 +675,8 @@ class _FinancialActivityLogScreenState
         RequestStatus.underInvestigation ||
         RequestStatus.frozen =>
           AppColors.warning,
-        RequestStatus.approved => const Color(0xFF16845B),
-        RequestStatus.rejected => const Color(0xFFC63838),
+        RequestStatus.approved => AppColors.success,
+        RequestStatus.rejected => AppColors.dangerDark,
       };
 
   String _formatDate(DateTime date, bool ar) =>

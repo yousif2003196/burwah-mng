@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
-import '../../../../core/constants/app_colors.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../domain/entities/merchant_entity.dart';
+
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/features/merchants/domain/entities/merchant_entity.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class MerchantCard extends StatelessWidget {
   final MerchantEntity merchant;
@@ -30,7 +33,7 @@ class MerchantCard extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.only(bottom: 14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.cardBorder),
           boxShadow: [
@@ -54,15 +57,15 @@ class MerchantCard extends StatelessWidget {
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
+                      color: AppColors.surfaceLight,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: AppColors.borderLight),
                     ),
                     child: Center(
-                      child: Icon(
+                      child: MotionIcon(
                         merchant.logoIcon ?? Icons.storefront,
                         size: 22,
-                        color: const Color(0xFF1E3A5F),
+                        color: AppColors.infoDark,
                       ),
                     ),
                   ),
@@ -77,7 +80,7 @@ class MerchantCard extends StatelessWidget {
                           merchant.getName(isArabic),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
                             color: AppColors.textPrimary,
@@ -86,7 +89,7 @@ class MerchantCard extends StatelessWidget {
                         const SizedBox(height: 4),
                         Row(
                           children: [
-                            Icon(
+                            MotionIcon(
                               merchant.categoryIcon,
                               size: 13,
                               color: AppColors.textSecondary,
@@ -97,13 +100,13 @@ class MerchantCard extends StatelessWidget {
                                 merchant.getCategory(isArabic),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 10,
                                   color: AppColors.textSecondary,
                                 ),
                               ),
                             ),
-                            const Padding(
+                            Padding(
                               padding: EdgeInsets.symmetric(horizontal: 5),
                               child: Text('•',
                                   style: TextStyle(
@@ -111,15 +114,15 @@ class MerchantCard extends StatelessWidget {
                                       color: AppColors.textMuted)),
                             ),
                             Flexible(
-                              child: Text(
+                              child: FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart, child: CountText(
                                 '${l10n.crShortLabel} ${merchant.crNumber}',
                                 maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
+ softWrap: false,
+                                style: TextStyle(
                                   fontSize: 10,
                                   color: AppColors.textSecondary,
                                 ),
-                              ),
+                              )),
                             ),
                           ],
                         ),
@@ -141,22 +144,22 @@ class MerchantCard extends StatelessWidget {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFFF4CC),
+                            color: AppColors.warningBorder,
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(
+                              MotionIcon(
                                 Icons.star,
                                 size: 11,
-                                color: Color(0xFF9A6700),
+                                color: AppColors.warningDark,
                               ),
                               const SizedBox(width: 3),
                               Text(
                                 l10n.merchantFeaturedBadge,
-                                style: const TextStyle(
-                                  color: Color(0xFF805800),
+                                style: TextStyle(
+                                  color: AppColors.warningDark,
                                   fontSize: 9,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -177,9 +180,9 @@ class MerchantCard extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
+                  color: AppColors.background,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFEDF2F7)),
+                  border: Border.all(color: AppColors.surfaceLight),
                 ),
                 child: Row(
                   children: [
@@ -187,7 +190,7 @@ class MerchantCard extends StatelessWidget {
                     Expanded(
                       child: Row(
                         children: [
-                          Icon(
+                          MotionIcon(
                             isSuspended
                                 ? Icons.calendar_today_outlined
                                 : Icons.access_time,
@@ -222,7 +225,7 @@ class MerchantCard extends StatelessWidget {
                           children: [
                             Text(
                               merchant.getAdsSectionTitle(isArabic),
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 9,
                                 color: AppColors.textMuted,
                               ),
@@ -241,7 +244,7 @@ class MerchantCard extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(width: 8),
-                        Icon(
+                        MotionIcon(
                           merchant.adsIcon,
                           size: 18,
                           color: isSuspended
@@ -290,10 +293,10 @@ class MerchantCard extends StatelessWidget {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
+                      MotionIcon(
                         merchant.footerStatusIcon,
                         size: 14,
-                        color: merchant.footerStatusColor ??
+                        color: AppColors.adaptOrNull(merchant.footerStatusColor) ??
                             (isSuspended
                                 ? AppColors.danger
                                 : AppColors.textSecondary),
@@ -307,7 +310,7 @@ class MerchantCard extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w500,
-                            color: merchant.footerStatusColor ??
+                            color: AppColors.adaptOrNull(merchant.footerStatusColor) ??
                                 (isSuspended
                                     ? AppColors.danger
                                     : AppColors.textSecondary),
@@ -332,45 +335,45 @@ class MerchantCard extends StatelessWidget {
     String label;
 
     if (isLocallySuspended == true) {
-      bgColor = const Color(0xFFFDE8E8);
-      textColor = const Color(0xFFC53030);
+      bgColor = AppColors.dangerLight;
+      textColor = AppColors.dangerDark;
       icon = Icons.pause_circle_outline;
       label = l10n.merchantInfoStatusSuspended;
     } else {
       switch (merchant.status) {
         case MerchantStatus.active:
-          bgColor = const Color(0xFFE7F8F1);
+          bgColor = AppColors.successBorder;
           textColor = AppColors.success;
           icon = Icons.check_circle_outline;
           label = l10n.merchantInfoStatusActive;
           break;
         case MerchantStatus.activeVerified:
-          bgColor = const Color(0xFFEBF5FB);
-          textColor = const Color(0xFF1B6FB2);
+          bgColor = AppColors.infoLight;
+          textColor = AppColors.infoDark;
           icon = Icons.verified_outlined;
           label = l10n.merchantInfoStatusActiveVerified;
           break;
         case MerchantStatus.underAudit:
-          bgColor = const Color(0xFFEBF3FC);
-          textColor = const Color(0xFF2869A9);
+          bgColor = AppColors.infoLight;
+          textColor = AppColors.infoDark;
           icon = Icons.assignment_late_outlined;
           label = l10n.merchantInfoStatusUnderAudit;
           break;
         case MerchantStatus.updateRequired:
-          bgColor = const Color(0xFFF1F3F5);
-          textColor = const Color(0xFF555F6D);
+          bgColor = AppColors.surfaceLight;
+          textColor = AppColors.textSecondary;
           icon = Icons.notifications_active_outlined;
           label = l10n.merchantInfoStatusUpdateRequired;
           break;
         case MerchantStatus.temporarilySuspended:
           if (isLocallySuspended == false) {
-            bgColor = const Color(0xFFE7F8F1);
+            bgColor = AppColors.successBorder;
             textColor = AppColors.success;
             icon = Icons.check_circle_outline;
             label = l10n.merchantInfoStatusActive;
           } else {
-            bgColor = const Color(0xFFFDE8E8);
-            textColor = const Color(0xFFC53030);
+            bgColor = AppColors.dangerLight;
+            textColor = AppColors.dangerDark;
             icon = Icons.pause_circle_outline;
             label = l10n.merchantInfoStatusSuspended;
           }
@@ -389,7 +392,7 @@ class MerchantCard extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 12, color: textColor),
+            MotionIcon(icon, size: 12, color: textColor),
             const SizedBox(width: 4),
             Flexible(
               child: Text(

@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/widgets/app_snack_bar.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../domain/entities/product_review.dart';
-import '../controllers/product_review_cubit.dart';
-import '../controllers/product_review_state.dart';
-import '../widgets/product_review_dialogs.dart';
-import 'product_review_details_screen.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/widgets/app_snack_bar.dart';
+import 'package:barwah_app/features/products/domain/entities/product_review.dart';
+import 'package:barwah_app/features/products/presentation/controllers/product_review_cubit.dart';
+import 'package:barwah_app/features/products/presentation/controllers/product_review_state.dart';
+import 'package:barwah_app/features/products/presentation/screens/product_review_details_screen.dart';
+import 'package:barwah_app/features/products/presentation/widgets/product_review_dialogs.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class ProductAdsReviewScreen extends StatefulWidget {
   const ProductAdsReviewScreen({super.key});
@@ -44,7 +47,7 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.error_outline, color: AppColors.danger),
+                  MotionIcon(Icons.error_outline, color: AppColors.danger),
                   const SizedBox(height: 8),
                   Text(
                     state.failure == ProductReviewFailure.loading
@@ -70,11 +73,11 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
         return ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           children: [
-            _buildSummary(state, l10n),
+            ScrollFx(child: _buildSummary(state, l10n)),
             const SizedBox(height: 12),
-            _buildSearch(context, l10n),
+            ScrollFx(child: _buildSearch(context, l10n)),
             const SizedBox(height: 10),
-            _buildCategoryFilters(context, state, l10n),
+            ScrollFx(child: _buildCategoryFilters(context, state, l10n)),
             const SizedBox(height: 14),
             SegmentedButton<bool>(
               segments: [
@@ -92,7 +95,7 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
                   setState(() => _showArchive = selection.first),
             ),
             const SizedBox(height: 14),
-            Row(
+            ScrollFx(child: Row(
               children: [
                 Expanded(
                   child: Text(
@@ -101,8 +104,8 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
                         : l10n.productReviewListTitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.primaryDark,
+                    style: TextStyle(
+                      color: AppColors.ink,
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
                     ),
@@ -115,11 +118,11 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
                           _showArchive)
                       .length
                       .toString(),
-                  const Color(0xFFD9E7FF),
-                  AppColors.primaryDark,
+                  AppColors.infoBorder,
+                  AppColors.ink,
                 ),
               ],
-            ),
+            )),
             const SizedBox(height: 10),
             if (state.visibleReviews
                 .where((review) =>
@@ -135,7 +138,7 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
                           : 'No archived products.')
                       : l10n.productEmptyResults,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppColors.textSecondary),
+                  style: TextStyle(color: AppColors.textSecondary),
                 ),
               ),
             for (final product in state.visibleReviews.where((review) =>
@@ -157,6 +160,9 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
+        gradient: AppColors.blueFill,
+        border: AppColors.blueEdge,
+        boxShadow: AppColors.blueGlow,
         color: AppColors.primaryDark,
         borderRadius: BorderRadius.circular(16),
       ),
@@ -171,7 +177,7 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
                   color: Colors.white.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
+                child: const MotionIcon(
                   Icons.shield_outlined,
                   color: Colors.white,
                   size: 25,
@@ -241,13 +247,13 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
       ),
       child: Row(
         children: [
-          Icon(icon, color: const Color(0xFFBED3EF), size: 18),
+          MotionIcon(icon, color: AppColors.infoBorder, size: 18),
           const SizedBox(width: 7),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                CountText(
                   '$count',
                   style: const TextStyle(
                     color: Colors.white,
@@ -276,7 +282,7 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        color: const Color(0xFF244567),
+        color: AppColors.infoDark,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Text(
@@ -290,7 +296,7 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
     return Container(
       height: 46,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(13),
         border: Border.all(color: AppColors.cardBorder),
       ),
@@ -299,8 +305,8 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
         onChanged: context.read<ProductReviewCubit>().setSearchQuery,
         decoration: InputDecoration(
           hintText: l10n.productSearchHint,
-          hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 11),
-          prefixIcon: const Icon(Icons.search, color: AppColors.textMuted),
+          hintStyle: TextStyle(color: AppColors.textMuted, fontSize: 11),
+          prefixIcon: MotionIcon(Icons.search, color: AppColors.textMuted),
           suffixIcon: _searchController.text.isEmpty
               ? null
               : IconButton(
@@ -309,7 +315,7 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
                     _searchController.clear();
                     context.read<ProductReviewCubit>().setSearchQuery('');
                   },
-                  icon: const Icon(Icons.close, size: 18),
+                  icon: const MotionIcon(Icons.close, size: 18),
                 ),
           border: InputBorder.none,
           contentPadding: const EdgeInsetsDirectional.fromSTEB(12, 13, 12, 12),
@@ -355,7 +361,7 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
                   .setCategoryFilter(categories[index].category),
               showCheckmark: false,
               selectedColor: AppColors.primaryDark,
-              backgroundColor: Colors.white,
+              backgroundColor: AppColors.surface,
               labelStyle: TextStyle(
                 color: state.categoryFilter == categories[index].category
                     ? Colors.white
@@ -364,7 +370,7 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
               ),
               side: BorderSide(
                 color: state.categoryFilter == categories[index].category
-                    ? AppColors.primaryDark
+                    ? AppColors.ink
                     : AppColors.cardBorder,
               ),
             ),
@@ -390,7 +396,7 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.cardBorder),
       ),
@@ -401,11 +407,11 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
             children: [
               CircleAvatar(
                 radius: 12,
-                backgroundColor: const Color(0xFFE8EDF2),
-                child: Text(
+                backgroundColor: AppColors.surfaceHighlight,
+                child: CountText(
                   '$order',
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
+                  style: TextStyle(
+                    color: AppColors.ink,
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
                   ),
@@ -414,13 +420,13 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
               const SizedBox(width: 7),
               Text(
                 product.reference,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 10,
                 ),
               ),
               const Spacer(),
-              const Icon(
+              MotionIcon(
                 Icons.access_time,
                 size: 13,
                 color: AppColors.textMuted,
@@ -428,7 +434,7 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
               const SizedBox(width: 4),
               Text(
                 l10n.productReceivedMinutesAgo(product.receivedMinutesAgo),
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 10,
                 ),
@@ -446,15 +452,15 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
                   width: 86,
                   height: 82,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE5EBF0),
+                    color: AppColors.surfaceHighlight,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Stack(
                     children: [
                       Center(
-                        child: Icon(
+                        child: MotionIcon(
                           _iconFor(product.imageKind),
-                          color: AppColors.primaryDark,
+                          color: AppColors.ink,
                           size: 38,
                         ),
                       ),
@@ -467,6 +473,9 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
                             vertical: 3,
                           ),
                           decoration: BoxDecoration(
+                            gradient: AppColors.blueFill,
+                            border: AppColors.blueEdge,
+                            boxShadow: AppColors.blueGlow,
                             color: AppColors.primaryDark,
                             borderRadius: BorderRadius.circular(8),
                           ),
@@ -509,7 +518,7 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.start,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -518,10 +527,10 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
                     const SizedBox(height: 7),
                     Row(
                       children: [
-                        const CircleAvatar(
+                        CircleAvatar(
                           radius: 10,
                           backgroundColor: AppColors.primaryDark,
-                          child: Icon(
+                          child: MotionIcon(
                             Icons.person,
                             size: 13,
                             color: Colors.white,
@@ -533,16 +542,16 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
                             merchant,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: AppColors.textSecondary,
                               fontSize: 10,
                             ),
                           ),
                         ),
-                        Text(
+                        CountText(
                           price,
-                          style: const TextStyle(
-                            color: AppColors.primaryDark,
+                          style: TextStyle(
+                            color: AppColors.ink,
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
                           ),
@@ -562,7 +571,7 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
               padding: const EdgeInsets.symmetric(vertical: 4),
               child: Row(
                 children: [
-                  const Icon(
+                  MotionIcon(
                     Icons.touch_app_outlined,
                     size: 15,
                     color: AppColors.textMuted,
@@ -571,13 +580,13 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
                   Expanded(
                     child: Text(
                       l10n.productReviewImagesHint,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 9,
                       ),
                     ),
                   ),
-                  const Icon(
+                  MotionIcon(
                     Icons.chevron_right,
                     size: 18,
                     color: AppColors.textMuted,
@@ -601,7 +610,7 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
                       child: _actionButton(
                         label: l10n.productAcceptAction,
                         icon: Icons.check_circle_outline,
-                        background: const Color(0xFF07835E),
+                        background: AppColors.successDark,
                         foreground: Colors.white,
                         onPressed: () => _performAction(
                           context,
@@ -616,7 +625,7 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
                       child: _actionButton(
                         label: l10n.productHideAction,
                         icon: Icons.visibility_off_outlined,
-                        background: const Color(0xFFEDEFF1),
+                        background: AppColors.surfaceLight,
                         foreground: AppColors.textSecondary,
                         onPressed: () => _performAction(
                           context,
@@ -631,8 +640,8 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
                       child: _actionButton(
                         label: l10n.productSuspendAction,
                         icon: Icons.pause_circle_outline,
-                        background: const Color(0xFFFFF1D6),
-                        foreground: const Color(0xFF885D00),
+                        background: AppColors.warningBorder,
+                        foreground: AppColors.warningDark,
                         onPressed: () => _performAction(
                           context,
                           product,
@@ -646,8 +655,8 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
                       child: _actionButton(
                         label: l10n.productRejectAction,
                         icon: Icons.cancel_outlined,
-                        background: const Color(0xFFFFE0DD),
-                        foreground: const Color(0xFFB42318),
+                        background: AppColors.dangerBorder,
+                        foreground: AppColors.dangerDark,
                         onPressed: () => _performAction(
                           context,
                           product,
@@ -668,7 +677,7 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
                 const Spacer(),
                 TextButton.icon(
                   onPressed: () => _restoreProduct(context, product, l10n),
-                  icon: const Icon(Icons.restart_alt, size: 17),
+                  icon: const MotionIcon(Icons.restart_alt, size: 17),
                   label: Text(isArabic ? 'إعادة للمراجعة' : 'Return to review'),
                 ),
               ],
@@ -683,12 +692,12 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFFEAF1FB),
+        color: AppColors.infoLight,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
         label,
-        style: const TextStyle(color: AppColors.info, fontSize: 8),
+        style: TextStyle(color: AppColors.info, fontSize: 8),
       ),
     );
   }
@@ -697,18 +706,18 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF3D6),
+        color: AppColors.warningBorder,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.star, size: 11, color: Color(0xFFB77900)),
+          MotionIcon(Icons.star, size: 11, color: AppColors.warningDark),
           const SizedBox(width: 3),
           Text(
             label,
-            style: const TextStyle(
-              color: Color(0xFF885D00),
+            style: TextStyle(
+              color: AppColors.warningDark,
               fontSize: 8,
               fontWeight: FontWeight.w700,
             ),
@@ -736,27 +745,27 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
       ProductReviewStatus.pending => (
           l10n.productPendingAdsCount,
           AppColors.info,
-          const Color(0xFFEAF1FB),
+          AppColors.infoLight,
         ),
       ProductReviewStatus.approved => (
           l10n.productStatusApproved,
           AppColors.success,
-          const Color(0xFFE3F5EF),
+          AppColors.successBorder,
         ),
       ProductReviewStatus.hidden => (
           l10n.productStatusHidden,
           AppColors.textSecondary,
-          const Color(0xFFEDEFF1),
+          AppColors.surfaceLight,
         ),
       ProductReviewStatus.rejected => (
           l10n.productStatusRejected,
           AppColors.danger,
-          const Color(0xFFFFE0DD),
+          AppColors.dangerBorder,
         ),
       ProductReviewStatus.suspended => (
           l10n.productStatusSuspended,
-          const Color(0xFF885D00),
-          const Color(0xFFFFF1D6),
+          AppColors.warningDark,
+          AppColors.warningBorder,
         ),
     };
     return Container(
@@ -805,7 +814,7 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
       height: 42,
       child: FilledButton.icon(
         onPressed: onPressed,
-        icon: Icon(icon, size: 15),
+        icon: MotionIcon(icon, size: 15),
         label: Text(
           label,
           maxLines: 1,

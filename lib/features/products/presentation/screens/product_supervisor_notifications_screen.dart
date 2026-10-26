@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/widgets/local_event_inbox_screen.dart';
-import '../../../../l10n/app_localizations.dart';
+import 'package:barwah_app/features/messaging/presentation/screens/local_event_inbox_screen.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
 
 class ProductSupervisorNotificationsScreen extends StatelessWidget {
   const ProductSupervisorNotificationsScreen({super.key});

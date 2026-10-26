@@ -362,7 +362,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get servicesProfilePendingDues => 'قيد التسوية والمراجعة';
 
   @override
-  String get servicesProfileCurrency => 'ر.س';
+  String get servicesProfileCurrency => 'ج.م';
 
   @override
   String get servicesProfileOpenWallet => 'فتح المحفظة وسحب الرصيد';
@@ -798,7 +798,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get servicesWorkDescription => 'بيان الأعمال المطلوبة:';
 
   @override
-  String get servicesCurrency => 'ر.س';
+  String get servicesCurrency => 'ج.م';
 
   @override
   String get servicesUrgentNotice =>
@@ -3587,7 +3587,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get adsCarDetails => 'عداد: 15,000 كم';
 
   @override
-  String get adsCarPrice => '245,000 ر.س';
+  String get adsCarPrice => '245,000 ج.م';
 
   @override
   String get adsPhoneMerchant => 'متجر الصفوة للإلكترونيات';
@@ -3602,7 +3602,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get adsPhoneDetails => 'الكفالة المحلية: 5 سنوات';
 
   @override
-  String get adsPhonePrice => '4,699 ر.س';
+  String get adsPhonePrice => '4,699 ج.م';
 
   @override
   String get adsVillaMerchant => 'شركة اليمامة للمقاولات والعقارات';
@@ -3617,7 +3617,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get adsVillaDetails => 'مساحة الأرض 375 م²';
 
   @override
-  String get adsVillaPrice => '2,850,000 ر.س';
+  String get adsVillaPrice => '2,850,000 ج.م';
 
   @override
   String get adsLicenseVerified => 'الترخيص التجاري موثق';
@@ -4883,7 +4883,7 @@ class AppLocalizationsAr extends AppLocalizations {
       'الرصيد المتاح للسحب الفوري';
 
   @override
-  String get productWalletBalanceAmount => '8,450 ر.س';
+  String get productWalletBalanceAmount => '8,450 ج.م';
 
   @override
   String get productWalletReady => 'نشط وجاهز';
@@ -4896,7 +4896,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get productWalletTotalDues => 'إجمالي المستحقات';
 
   @override
-  String get productWalletTotalDuesAmount => '12,500 ر.س';
+  String get productWalletTotalDuesAmount => '12,500 ج.م';
 
   @override
   String get productWalletDuesDetail => 'الراتب + الحوافز المحققة';
@@ -4905,7 +4905,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get productWalletPendingReview => 'قيد التدقيق المالي';
 
   @override
-  String get productWalletPendingAmount => '4,050 ر.س';
+  String get productWalletPendingAmount => '4,050 ج.م';
 
   @override
   String get productWalletPendingDetail => 'مراجعة الفحص والمكافآت';
@@ -4927,14 +4927,14 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get productWalletWithdrawableHint =>
-      'سحب كامل المبلغ المتاح (8,450 ر.س)';
+      'سحب كامل المبلغ المتاح (8,450 ج.م)';
 
   @override
-  String get productWalletCurrency => 'ر.س';
+  String get productWalletCurrency => 'ج.م';
 
   @override
   String get productWalletLimitNote =>
-      'الحد الأدنى لعملية السحب 100 ر.س، الحد الأقصى اليومي 20,000 ر.س.';
+      'الحد الأدنى لعملية السحب 100 ج.م، الحد الأقصى اليومي 20,000 ج.م.';
 
   @override
   String get productWalletChooseDestination => 'اختر وجهة التحويل';
@@ -4971,13 +4971,13 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get productWalletFeeDetails =>
-      'رسوم المعالجة والتحويل: 0.5 ر.س (محفظة بالكامل للمشرف)';
+      'رسوم المعالجة والتحويل: 0.5 ج.م (محفظة بالكامل للمشرف)';
 
   @override
   String get productWalletSubmitRequest => 'تأكيد وطلب السحب المالي';
 
   @override
-  String get productWalletAmountError => 'أدخل مبلغاً بين 100 و8,450 ر.س.';
+  String get productWalletAmountError => 'أدخل مبلغاً بين 100 و8,450 ج.م.';
 
   @override
   String get productWalletDetailsError =>
@@ -4988,7 +4988,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String productWalletConfirmMessage(Object amount) {
-    return 'هل تريد تأكيد سحب مبلغ $amount ر.س؟';
+    return 'هل تريد تأكيد سحب مبلغ $amount ج.م؟';
   }
 
   @override
@@ -5001,7 +5001,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get productWalletBonusTitle => 'حافز الإنجاز الأسبوعي متاح!';
 
   @override
-  String get productWalletBonusAmount => '+500 ر.س';
+  String get productWalletBonusAmount => '+500 ج.م';
 
   @override
   String get productWalletBonusDescription =>
@@ -5456,7 +5456,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get productProfileWalletBalance => 'الرصيد المتاح والمستحقات';
 
   @override
-  String get productProfileWalletAmount => '14,850 ر.س';
+  String get productProfileWalletAmount => '14,850 ج.م';
 
   @override
   String get productProfileWalletDetail =>
@@ -5554,7 +5554,7 @@ class AppLocalizationsAr extends AppLocalizations {
       'خدمة التوصيل مطلوبة مع هذا الإعلان. يحق للمشرف تعديل رسوم التوصيل قبل الاعتماد أو الإخفاء.';
 
   @override
-  String get adsDeliveryFee => 'مبلغ ثابت (ر.س)';
+  String get adsDeliveryFee => 'مبلغ ثابت (ج.م)';
 
   @override
   String get adsUpdateDeliveryFee => 'تحديث الرسوم';
@@ -5813,7 +5813,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get finRequestSalesMatched => 'مطابقة كشوفات المبيعات مكتملة';
 
   @override
-  String get finRequestCurrency => 'ر.س';
+  String get finRequestCurrency => 'ج.م';
 
   @override
   String get finRequestRestrictedStatus => 'جاهز للمطابقة';
@@ -6115,11 +6115,11 @@ class AppLocalizationsAr extends AppLocalizations {
   String get merchantWalletRequestedAmount => 'مبلغ السحب المطلوب';
 
   @override
-  String get merchantWalletFullBalance => 'سحب كامل الرصيد (8,450 ر.س)';
+  String get merchantWalletFullBalance => 'سحب كامل الرصيد (8,450 ج.م)';
 
   @override
   String get merchantWalletTransferLimit =>
-      'الحد الأدنى لعملية السحب 100 ر.س، الحد الأقصى اليومي 20,000 ر.س';
+      'الحد الأدنى لعملية السحب 100 ج.م، الحد الأقصى اليومي 20,000 ج.م';
 
   @override
   String get merchantWalletChooseMethod => 'اختر وجهة التحويل';
@@ -6161,7 +6161,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get merchantWalletProcessingDetails =>
-      'سرعة المعالجة: فوري ومباشر على مدار الساعة\nرسوم المعالجة والتحويل: 0.5 ر.س (محفظة بالكامل للمشرف)';
+      'سرعة المعالجة: فوري ومباشر على مدار الساعة\nرسوم المعالجة والتحويل: 0.5 ج.م (محفظة بالكامل للمشرف)';
 
   @override
   String get merchantWalletConfirmWithdrawal => 'تأكيد وطلب السحب المالي';
@@ -6358,7 +6358,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get merchantInfoSalesCommission => 'عمولة التطبيق من المبيعات';
 
   @override
-  String get merchantInfoFixedAmount => 'مبلغ ثابت بالأرقام (ر.س)';
+  String get merchantInfoFixedAmount => 'مبلغ ثابت بالأرقام (ج.م)';
 
   @override
   String get merchantInfoPercentage => 'نسبة مئوية (%)';
@@ -6371,7 +6371,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get merchantInfoCommissionExample =>
-      'حاسبة تقريبية لعملية بيع بقيمة 100 ر.س:';
+      'حاسبة تقريبية لعملية بيع بقيمة 100 ج.م:';
 
   @override
   String merchantInfoCommissionValue(Object amount, Object currency) {
@@ -6991,11 +6991,11 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get financeWalletInvalidWithdrawalAmount =>
-      'أدخل مبلغ سحب بين 100 و8,450 ر.س.';
+      'أدخل مبلغ سحب بين 100 و8,450 ج.م.';
 
   @override
   String get financeWalletInvalidDetails =>
-      'أدخل مبلغاً صحيحاً بين 100 و20,000 ر.س وحدد وجهة الدفع.';
+      'أدخل مبلغاً صحيحاً بين 100 و20,000 ج.م وحدد وجهة الدفع.';
 
   @override
   String get financeWalletConfirmDepositTitle => 'تأكيد طلب الإيداع';

@@ -1,6 +1,6 @@
-import '../../../../core/network/api_consumer.dart';
-import '../models/wasalny_complaint_model.dart';
-import 'wasalny_complaints_data_source.dart';
+import 'package:barwah_app/core/network/api_consumer.dart';
+import 'package:barwah_app/features/wasalny_supervisor/data/datasources/wasalny_complaints_data_source.dart';
+import 'package:barwah_app/features/wasalny_supervisor/data/models/wasalny_complaint_model.dart';
 
 class WasalnyComplaintsApiDataSource implements WasalnyComplaintsDataSource {
   WasalnyComplaintsApiDataSource({required this.apiConsumer});

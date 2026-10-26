@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
-import '../../../../core/constants/app_colors.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../domain/entities/supervisor_stats_entity.dart';
+
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/features/merchants/domain/entities/supervisor_stats_entity.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class SupervisorHeaderCard extends StatelessWidget {
   final SupervisorStatsEntity stats;
@@ -17,7 +20,9 @@ class SupervisorHeaderCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF07192F),
+        gradient: AppColors.blueFill,
+        border: AppColors.blueEdge,
+        color: AppColors.primaryDark,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -63,7 +68,7 @@ class SupervisorHeaderCard extends StatelessWidget {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.work_outline,
+                              const MotionIcon(Icons.work_outline,
                                   size: 11, color: Colors.white70),
                               const SizedBox(width: 4),
                               Text(
@@ -101,13 +106,13 @@ class SupervisorHeaderCard extends StatelessWidget {
                     width: 42,
                     height: 42,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1E3A5F),
+                      color: AppColors.infoDark,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: Colors.white.withValues(alpha: 0.15),
                       ),
                     ),
-                    child: const Icon(
+                    child: const MotionIcon(
                       Icons.shield_outlined,
                       color: Colors.white,
                       size: 22,
@@ -124,7 +129,7 @@ class SupervisorHeaderCard extends StatelessWidget {
                         color: AppColors.success,
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: const Color(0xFF07192F),
+                          color: AppColors.primaryDark,
                           width: 2,
                         ),
                       ),
@@ -146,7 +151,9 @@ class SupervisorHeaderCard extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF031020),
+                    gradient: AppColors.blueFill,
+                    boxShadow: AppColors.blueGlow,
+                    color: AppColors.primaryDark,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
                       color: Colors.white.withValues(alpha: 0.08),
@@ -157,7 +164,7 @@ class SupervisorHeaderCard extends StatelessWidget {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          Text(
+                          CountText(
                             '${stats.pendingReviewCount}',
                             style: const TextStyle(
                               fontSize: 20,
@@ -184,8 +191,8 @@ class SupervisorHeaderCard extends StatelessWidget {
                         child: Container(
                           width: 6,
                           height: 6,
-                          decoration: const BoxDecoration(
-                            color: Colors.lightBlueAccent,
+                          decoration: BoxDecoration(
+                            color: AppColors.info,
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -203,7 +210,9 @@ class SupervisorHeaderCard extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF031020),
+                    gradient: AppColors.blueFill,
+                    boxShadow: AppColors.blueGlow,
+                    color: AppColors.primaryDark,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
                       color: Colors.white.withValues(alpha: 0.08),
@@ -212,7 +221,7 @@ class SupervisorHeaderCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Text(
+                      CountText(
                         '${stats.approvedMerchantsCount}',
                         style: const TextStyle(
                           fontSize: 20,

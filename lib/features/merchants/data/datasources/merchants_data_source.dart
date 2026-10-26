@@ -1,6 +1,6 @@
-import '../../domain/entities/merchant_entity.dart';
-import '../models/merchant_model.dart';
-import '../models/supervisor_stats_model.dart';
+import 'package:barwah_app/features/merchants/data/models/merchant_model.dart';
+import 'package:barwah_app/features/merchants/data/models/supervisor_stats_model.dart';
+import 'package:barwah_app/features/merchants/domain/entities/merchant_entity.dart';
 
 abstract class MerchantsDataSource {
   Future<List<MerchantModel>> getMerchants();

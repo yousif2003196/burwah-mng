@@ -3,13 +3,16 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/di/injection_container.dart';
-import '../../../../features/finance/domain/entities/withdrawal_request_entity.dart';
-import '../../../../features/finance/domain/repositories/finance_repository.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../data/merchant_supervisor_local_store.dart';
-import 'merchant_financial_request_events.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/features/finance/domain/entities/withdrawal_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/repositories/finance_repository.dart';
+import 'package:barwah_app/features/merchants/data/datasources/merchant_supervisor_local_store.dart';
+import 'package:barwah_app/features/merchants/presentation/utils/merchant_financial_request_events.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 enum _FinancialRequestType { salesProfit, balanceWithdrawal, packageFees }
 
@@ -398,15 +401,15 @@ class _MerchantFinancialRequestsScreenState
     final requests = _visibleRequests(l10n);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7F9),
+      backgroundColor: AppColors.scaffold,
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         children: [
           if (_isLoadingActions) const LinearProgressIndicator(),
           if (_loadError != null) Text(l10n.finRequestActionFailed),
-          _buildRestrictionBanner(l10n),
+          ScrollFx(child: _buildRestrictionBanner(l10n)),
           const SizedBox(height: 14),
-          Row(
+          ScrollFx(child: Row(
             children: [
               Expanded(
                 child: _buildSummaryCard(
@@ -427,17 +430,17 @@ class _MerchantFinancialRequestsScreenState
                 ),
               ),
             ],
-          ),
+          )),
           const SizedBox(height: 22),
-          Row(
+          ScrollFx(child: Row(
             children: [
               Expanded(
                 child: Text(
                   l10n.finRequestHistoryTitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
+                  style: TextStyle(
+                    color: AppColors.ink,
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                   ),
@@ -446,20 +449,20 @@ class _MerchantFinancialRequestsScreenState
               const SizedBox(width: 6),
               _badge(
                 _requests(l10n).length.toString(),
-                const Color(0xFFE8EAED),
+                AppColors.surfaceHighlight,
                 AppColors.textSecondary,
               ),
               const SizedBox(width: 6),
               Text(
                 l10n.finRequestUpdatedJustNow,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 9,
                 ),
               ),
-              const Icon(Icons.history, size: 13, color: AppColors.textMuted),
+              MotionIcon(Icons.history, size: 13, color: AppColors.textMuted),
             ],
-          ),
+          )),
           const SizedBox(height: 10),
           TextField(
             controller: _searchController,
@@ -471,7 +474,7 @@ class _MerchantFinancialRequestsScreenState
               hintText: l10n.localeName.startsWith('ar')
                   ? 'ابحث باسم التاجر أو رقم الطلب'
                   : 'Search merchant or request number',
-              prefixIcon: const Icon(Icons.search_rounded, size: 19),
+              prefixIcon: const MotionIcon(Icons.search_rounded, size: 19),
               suffixIcon: _searchQuery.isEmpty
                   ? null
                   : IconButton(
@@ -482,23 +485,23 @@ class _MerchantFinancialRequestsScreenState
                         _searchController.clear();
                         setState(() => _searchQuery = '');
                       },
-                      icon: const Icon(Icons.close_rounded, size: 18),
+                      icon: const MotionIcon(Icons.close_rounded, size: 18),
                     ),
               filled: true,
-              fillColor: Colors.white,
+              fillColor: AppColors.surface,
               contentPadding: const EdgeInsets.symmetric(vertical: 10),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.grey.shade300),
+                borderSide: BorderSide(color: AppColors.cardBorder),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.grey.shade300),
+                borderSide: BorderSide(color: AppColors.cardBorder),
               ),
             ),
           ),
           const SizedBox(height: 10),
-          _buildFilters(l10n),
+          ScrollFx(child: _buildFilters(l10n)),
           const SizedBox(height: 14),
           if (requests.isEmpty)
             Padding(
@@ -506,12 +509,12 @@ class _MerchantFinancialRequestsScreenState
               child: Text(
                 l10n.finRequestNoResults,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.textSecondary),
+                style: TextStyle(color: AppColors.textSecondary),
               ),
             ),
           ...requests.map((request) => _buildRequestCard(l10n, request)),
           const SizedBox(height: 2),
-          _buildPolicyNote(l10n),
+          ScrollFx(child: _buildPolicyNote(l10n)),
         ],
       ),
     );
@@ -521,7 +524,7 @@ class _MerchantFinancialRequestsScreenState
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFFE7E9EB),
+        color: AppColors.surfaceHighlight,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
@@ -530,19 +533,22 @@ class _MerchantFinancialRequestsScreenState
             width: 38,
             height: 38,
             decoration: BoxDecoration(
+              gradient: AppColors.blueFill,
+              border: AppColors.blueEdge,
+              boxShadow: AppColors.blueGlow,
               color: AppColors.primaryDark,
               borderRadius: BorderRadius.circular(9),
             ),
             child:
-                const Icon(Icons.lock_outline, color: Colors.white, size: 20),
+                const MotionIcon(Icons.lock_outline, color: Colors.white, size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               l10n.finRequestLocalWorkflowNotice,
               textAlign: TextAlign.start,
-              style: const TextStyle(
-                color: AppColors.primaryDark,
+              style: TextStyle(
+                color: AppColors.ink,
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
                 height: 1.35,
@@ -565,7 +571,7 @@ class _MerchantFinancialRequestsScreenState
       constraints: const BoxConstraints(minHeight: 112),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.cardBorder),
       ),
@@ -576,8 +582,8 @@ class _MerchantFinancialRequestsScreenState
             children: [
               CircleAvatar(
                 radius: 13,
-                backgroundColor: const Color(0xFFF0F2F4),
-                child: Icon(icon, size: 14, color: AppColors.primaryDark),
+                backgroundColor: AppColors.surfaceLight,
+                child: MotionIcon(icon, size: 14, color: AppColors.ink),
               ),
               const SizedBox(width: 6),
               Expanded(
@@ -586,7 +592,7 @@ class _MerchantFinancialRequestsScreenState
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.start,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 10,
                   ),
@@ -595,11 +601,11 @@ class _MerchantFinancialRequestsScreenState
             ],
           ),
           const SizedBox(height: 10),
-          Text(
+          CountText(
             amount,
             textAlign: TextAlign.end,
-            style: const TextStyle(
-              color: AppColors.primaryDark,
+            style: TextStyle(
+              color: AppColors.ink,
               fontSize: 18,
               fontWeight: FontWeight.w900,
             ),
@@ -650,7 +656,7 @@ class _MerchantFinancialRequestsScreenState
                   setState(() => _selectedType = filters[index].type),
               showCheckmark: false,
               selectedColor: AppColors.primaryDark,
-              backgroundColor: Colors.white,
+              backgroundColor: AppColors.surface,
               labelStyle: TextStyle(
                 color: _selectedType == filters[index].type
                     ? Colors.white
@@ -660,7 +666,7 @@ class _MerchantFinancialRequestsScreenState
               ),
               side: BorderSide(
                 color: _selectedType == filters[index].type
-                    ? AppColors.primaryDark
+                    ? AppColors.ink
                     : AppColors.cardBorder,
               ),
             ),
@@ -683,21 +689,21 @@ class _MerchantFinancialRequestsScreenState
             ? l10n.finRequestSentConfirmation
             : request.status;
     final statusColor = isActionable
-        ? const Color(0xFF68717A)
+        ? AppColors.textSecondary
         : rejection != null
             ? AppColors.danger
             : AppColors.info;
     final statusBackground = isActionable
-        ? const Color(0xFFE7E9EB)
+        ? AppColors.surfaceHighlight
         : rejection != null
-            ? const Color(0xFFFFE8E6)
-            : const Color(0xFFD8E6FF);
+            ? AppColors.dangerLight
+            : AppColors.infoBorder;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(15),
         border: Border.all(color: AppColors.cardBorder),
         boxShadow: [
@@ -726,13 +732,13 @@ class _MerchantFinancialRequestsScreenState
               const SizedBox(width: 8),
               Text(
                 request.date,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 10,
                 ),
               ),
               const SizedBox(width: 4),
-              const Icon(Icons.circle, size: 4, color: AppColors.textMuted),
+              MotionIcon(Icons.circle, size: 4, color: AppColors.textMuted),
             ],
           ),
           const SizedBox(height: 12),
@@ -746,10 +752,10 @@ class _MerchantFinancialRequestsScreenState
                       width: 42,
                       height: 42,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF0F2F4),
+                        color: AppColors.surfaceLight,
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Icon(request.icon, color: AppColors.primaryDark),
+                      child: MotionIcon(request.icon, color: AppColors.ink),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
@@ -761,8 +767,8 @@ class _MerchantFinancialRequestsScreenState
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             textAlign: TextAlign.start,
-                            style: const TextStyle(
-                              color: AppColors.primaryDark,
+                            style: TextStyle(
+                              color: AppColors.ink,
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
                             ),
@@ -773,7 +779,7 @@ class _MerchantFinancialRequestsScreenState
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             textAlign: TextAlign.start,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: AppColors.textSecondary,
                               fontSize: 10,
                             ),
@@ -788,17 +794,17 @@ class _MerchantFinancialRequestsScreenState
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  CountText(
                     request.amount,
-                    style: const TextStyle(
-                      color: AppColors.primaryDark,
+                    style: TextStyle(
+                      color: AppColors.ink,
                       fontSize: 17,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
                   Text(
                     l10n.finRequestCurrency,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 9,
                     ),
@@ -811,7 +817,7 @@ class _MerchantFinancialRequestsScreenState
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
             decoration: BoxDecoration(
-              color: const Color(0xFFF1F3F5),
+              color: AppColors.surfaceLight,
               borderRadius: BorderRadius.circular(9),
             ),
             child: Row(
@@ -822,14 +828,14 @@ class _MerchantFinancialRequestsScreenState
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.end,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 10,
                     ),
                   ),
                 ),
                 const SizedBox(width: 6),
-                Icon(
+                MotionIcon(
                   request.isPending
                       ? Icons.verified_user_outlined
                       : Icons.person_pin_outlined,
@@ -845,7 +851,7 @@ class _MerchantFinancialRequestsScreenState
               alignment: AlignmentDirectional.centerStart,
               child: Text(
                 l10n.finRequestRestrictedStatus,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.info,
                   fontSize: 9,
                 ),
@@ -856,7 +862,7 @@ class _MerchantFinancialRequestsScreenState
             const SizedBox(height: 8),
             Text(
               '${l10n.finRequestRejectReason}: $rejection',
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.danger,
                 fontSize: 10,
               ),
@@ -873,7 +879,7 @@ class _MerchantFinancialRequestsScreenState
                         : sent
                             ? () => _showFinanceStatus(l10n, request)
                             : () => _sendToFinance(l10n, request),
-                    icon: Icon(
+                    icon: MotionIcon(
                       sent ? Icons.track_changes_outlined : Icons.send_outlined,
                       size: 14,
                     ),
@@ -886,8 +892,8 @@ class _MerchantFinancialRequestsScreenState
                       style: const TextStyle(fontSize: 10),
                     ),
                     style: OutlinedButton.styleFrom(
-                      backgroundColor: const Color(0xFFF0F1F3),
-                      foregroundColor: AppColors.primaryDark,
+                      backgroundColor: AppColors.surfaceLight,
+                      foregroundColor: AppColors.ink,
                       side: BorderSide.none,
                       padding: const EdgeInsets.symmetric(horizontal: 6),
                       shape: RoundedRectangleBorder(
@@ -901,7 +907,7 @@ class _MerchantFinancialRequestsScreenState
                 flex: 2,
                 child: ElevatedButton.icon(
                   onPressed: () => _showDetails(l10n, request),
-                  icon: const Icon(Icons.receipt_long_outlined, size: 14),
+                  icon: const MotionIcon(Icons.receipt_long_outlined, size: 14),
                   label: Text(
                     l10n.finRequestViewDetails,
                     maxLines: 1,
@@ -910,8 +916,8 @@ class _MerchantFinancialRequestsScreenState
                   ),
                   style: ElevatedButton.styleFrom(
                     elevation: 0,
-                    foregroundColor: AppColors.primaryDark,
-                    backgroundColor: const Color(0xFFF0F1F3),
+                    foregroundColor: AppColors.ink,
+                    backgroundColor: AppColors.surfaceLight,
                     padding: const EdgeInsets.symmetric(horizontal: 6),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(9),
@@ -927,7 +933,7 @@ class _MerchantFinancialRequestsScreenState
               width: double.infinity,
               child: TextButton.icon(
                 onPressed: () => _rejectRequest(l10n, request),
-                icon: const Icon(Icons.cancel_outlined, size: 15),
+                icon: const MotionIcon(Icons.cancel_outlined, size: 15),
                 label: Text(l10n.finRequestRejectAction),
                 style: TextButton.styleFrom(foregroundColor: AppColors.danger),
               ),
@@ -942,13 +948,13 @@ class _MerchantFinancialRequestsScreenState
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(15),
         border: Border.all(color: AppColors.cardBorder),
       ),
       child: Row(
         children: [
-          const Icon(
+          MotionIcon(
             Icons.policy_outlined,
             size: 22,
             color: AppColors.info,
@@ -961,8 +967,8 @@ class _MerchantFinancialRequestsScreenState
                 Text(
                   l10n.finRequestPolicyTitle,
                   textAlign: TextAlign.start,
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
+                  style: TextStyle(
+                    color: AppColors.ink,
                     fontWeight: FontWeight.bold,
                     fontSize: 13,
                   ),
@@ -971,7 +977,7 @@ class _MerchantFinancialRequestsScreenState
                 Text(
                   l10n.finRequestPolicyMessage,
                   textAlign: TextAlign.start,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 10,
                     height: 1.4,
@@ -1001,7 +1007,7 @@ class _MerchantFinancialRequestsScreenState
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 12, color: foreground),
+            MotionIcon(icon, size: 12, color: foreground),
             const SizedBox(width: 4),
           ],
           Flexible(
@@ -1117,7 +1123,7 @@ class _MerchantFinancialRequestsScreenState
       RequestStatus.rejected => AppColors.danger,
       RequestStatus.underInvestigation ||
       RequestStatus.frozen =>
-        const Color(0xFFB45309),
+        AppColors.warningDark,
       RequestStatus.pending => AppColors.info,
     };
     await showModalBottomSheet<void>(
@@ -1174,8 +1180,8 @@ class _MerchantFinancialRequestsScreenState
       constraints: BoxConstraints(
         maxHeight: MediaQuery.sizeOf(sheetContext).height * .86,
       ),
-      decoration: const BoxDecoration(
-        color: Color(0xFFF5F7F9),
+      decoration: BoxDecoration(
+        color: AppColors.background,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
@@ -1188,7 +1194,7 @@ class _MerchantFinancialRequestsScreenState
                   width: 42,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFCBD2D9),
+                    color: AppColors.cardBorder,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -1198,7 +1204,7 @@ class _MerchantFinancialRequestsScreenState
                     CircleAvatar(
                       backgroundColor: AppColors.primaryDark,
                       foregroundColor: Colors.white,
-                      child: Icon(icon, size: 20),
+                      child: MotionIcon(icon, size: 20),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -1207,15 +1213,15 @@ class _MerchantFinancialRequestsScreenState
                         children: [
                           Text(
                             title,
-                            style: const TextStyle(
-                              color: AppColors.primaryDark,
+                            style: TextStyle(
+                              color: AppColors.ink,
                               fontSize: 17,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                           Text(
                             subtitle,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: AppColors.textSecondary,
                               fontSize: 12,
                             ),
@@ -1227,7 +1233,7 @@ class _MerchantFinancialRequestsScreenState
                       tooltip: MaterialLocalizations.of(sheetContext)
                           .closeButtonTooltip,
                       onPressed: () => Navigator.of(sheetContext).pop(),
-                      icon: const Icon(Icons.close),
+                      icon: const MotionIcon(Icons.close),
                     ),
                   ],
                 ),
@@ -1238,18 +1244,18 @@ class _MerchantFinancialRequestsScreenState
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 2, 16, 12),
               children: [
-                Container(
+                ScrollFx(child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 15,
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: AppColors.surface,
                     border: Border.all(color: AppColors.cardBorder),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Column(children: children),
-                ),
+                )),
               ],
             ),
           ),
@@ -1282,11 +1288,11 @@ class _MerchantFinancialRequestsScreenState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            child: Text(
+            child: CountText(
               value,
               textAlign: TextAlign.end,
               style: TextStyle(
-                color: valueColor ?? AppColors.primaryDark,
+                color: valueColor ?? AppColors.ink,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
@@ -1296,7 +1302,7 @@ class _MerchantFinancialRequestsScreenState
           Expanded(
             child: Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 11,
               ),
@@ -1347,8 +1353,8 @@ class _MerchantFinancialRejectionSheetState
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: Container(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-        decoration: const BoxDecoration(
-          color: Colors.white,
+        decoration: BoxDecoration(
+          color: AppColors.surface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: SingleChildScrollView(
@@ -1361,7 +1367,7 @@ class _MerchantFinancialRejectionSheetState
                   width: 42,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFD4D9DE),
+                    color: AppColors.cardBorder,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -1369,8 +1375,8 @@ class _MerchantFinancialRejectionSheetState
               const SizedBox(height: 16),
               Text(
                 widget.title,
-                style: const TextStyle(
-                  color: AppColors.primaryDark,
+                style: TextStyle(
+                  color: AppColors.ink,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
@@ -1378,7 +1384,7 @@ class _MerchantFinancialRejectionSheetState
               const SizedBox(height: 6),
               Text(
                 '${widget.merchantName} · ${widget.requestTitle}',
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 12,
                 ),
@@ -1400,7 +1406,7 @@ class _MerchantFinancialRejectionSheetState
                 ),
               ),
               const SizedBox(height: 10),
-              Row(
+              ScrollFx(child: Row(
                 children: [
                   Expanded(
                     child: OutlinedButton(
@@ -1417,7 +1423,7 @@ class _MerchantFinancialRejectionSheetState
                                 context,
                                 _controller.text.trim(),
                               ),
-                      icon: const Icon(Icons.send_outlined),
+                      icon: const MotionIcon(Icons.send_outlined),
                       label: Text(widget.rejectLabel),
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColors.danger,
@@ -1426,7 +1432,7 @@ class _MerchantFinancialRejectionSheetState
                     ),
                   ),
                 ],
-              ),
+              )),
             ],
           ),
         ),

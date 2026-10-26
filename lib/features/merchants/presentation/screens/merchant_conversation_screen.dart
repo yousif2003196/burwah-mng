@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../domain/entities/merchant_entity.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/features/merchants/domain/entities/merchant_entity.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class MerchantConversationScreen extends StatefulWidget {
   final MerchantEntity? merchant;
@@ -40,16 +41,16 @@ class _MerchantConversationScreenState
     return Directionality(
       textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF5F7F9),
+        backgroundColor: AppColors.scaffold,
         appBar: AppBar(
-          backgroundColor: Colors.white,
-          foregroundColor: AppColors.primaryDark,
+          backgroundColor: AppColors.surface,
+          foregroundColor: AppColors.ink,
           titleSpacing: 0,
           title: Row(
             children: [
               CircleAvatar(
                 backgroundColor: AppColors.primaryDark,
-                child: Icon(
+                child: MotionIcon(
                   widget.merchant?.logoIcon ??
                       widget.merchant?.categoryIcon ??
                       Icons.support_agent_outlined,
@@ -75,7 +76,7 @@ class _MerchantConversationScreenState
                         widget.conversationParticipants.join(' • '),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 10,
                         ),
@@ -96,7 +97,7 @@ class _MerchantConversationScreenState
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(
+                            MotionIcon(
                               Icons.forum_outlined,
                               size: 52,
                               color: AppColors.textMuted,
@@ -105,7 +106,7 @@ class _MerchantConversationScreenState
                             Text(
                               l10n.merchantConversationEmpty,
                               textAlign: TextAlign.center,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: AppColors.textSecondary,
                               ),
                             ),
@@ -128,6 +129,9 @@ class _MerchantConversationScreenState
                             vertical: 10,
                           ),
                           decoration: BoxDecoration(
+                            gradient: AppColors.blueFill,
+                            border: AppColors.blueEdge,
+                            boxShadow: AppColors.blueGlow,
                             color: AppColors.primaryDark,
                             borderRadius: BorderRadius.circular(16),
                           ),
@@ -143,7 +147,7 @@ class _MerchantConversationScreenState
               top: false,
               child: Container(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-                color: Colors.white,
+                color: AppColors.surface,
                 child: Row(
                   children: [
                     Expanded(
@@ -156,7 +160,7 @@ class _MerchantConversationScreenState
                         decoration: InputDecoration(
                           hintText: l10n.merchantConversationInputHint,
                           filled: true,
-                          fillColor: const Color(0xFFF5F7F9),
+                          fillColor: AppColors.background,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(22),
                             borderSide: BorderSide.none,
@@ -176,7 +180,7 @@ class _MerchantConversationScreenState
                         backgroundColor: AppColors.primaryDark,
                         foregroundColor: Colors.white,
                       ),
-                      icon: const Icon(Icons.send_rounded),
+                      icon: const MotionIcon(Icons.send_rounded),
                     ),
                   ],
                 ),

@@ -1,7 +1,7 @@
-import '../../domain/entities/merchant_entity.dart';
-import '../../domain/entities/supervisor_stats_entity.dart';
-import '../../domain/repositories/merchants_repository.dart';
-import '../datasources/merchants_data_source.dart';
+import 'package:barwah_app/features/merchants/data/datasources/merchants_data_source.dart';
+import 'package:barwah_app/features/merchants/domain/entities/merchant_entity.dart';
+import 'package:barwah_app/features/merchants/domain/entities/supervisor_stats_entity.dart';
+import 'package:barwah_app/features/merchants/domain/repositories/merchants_repository.dart';
 
 class MerchantsRepositoryImpl implements MerchantsRepository {
   final MerchantsDataSource dataSource;

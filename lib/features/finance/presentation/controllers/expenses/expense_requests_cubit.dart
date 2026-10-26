@@ -1,13 +1,13 @@
 import 'package:dartz/dartz.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../../../core/errors/failures.dart';
-import '../../../domain/entities/expense_request_entity.dart';
-import '../../../domain/usecases/get_expense_requests_usecase.dart';
-import '../../../domain/usecases/edit_expense_request_usecase.dart';
-import '../../../domain/usecases/submit_expense_request_usecase.dart';
-import '../../../domain/usecases/update_expense_request_status_usecase.dart';
-import 'expense_requests_state.dart';
+import 'package:barwah_app/core/errors/failures.dart';
+import 'package:barwah_app/features/finance/domain/entities/expense_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/usecases/edit_expense_request_usecase.dart';
+import 'package:barwah_app/features/finance/domain/usecases/get_expense_requests_usecase.dart';
+import 'package:barwah_app/features/finance/domain/usecases/submit_expense_request_usecase.dart';
+import 'package:barwah_app/features/finance/domain/usecases/update_expense_request_status_usecase.dart';
+import 'package:barwah_app/features/finance/presentation/controllers/expenses/expense_requests_state.dart';
 
 class ExpenseRequestsCubit extends Cubit<ExpenseRequestsState> {
   final GetExpenseRequestsUseCase getExpenseRequestsUseCase;

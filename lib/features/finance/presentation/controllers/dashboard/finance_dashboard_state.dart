@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
-import '../../../domain/entities/finance_summary_entity.dart';
+
+import 'package:barwah_app/features/finance/domain/entities/finance_summary_entity.dart';
 
 abstract class FinanceDashboardState extends Equatable {
   const FinanceDashboardState();

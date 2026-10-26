@@ -1,14 +1,23 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../data/head_supervisor_audit_store.dart';
-import '../../data/head_supervisor_roster_store.dart';
-import 'head_supervisor_add_supervisor_sheet.dart';
-import 'head_supervisor_delete_supervisor_sheet.dart';
-import 'head_supervisor_edit_permissions_sheet.dart';
-import 'head_supervisor_suspend_supervisor_sheet.dart';
-import 'head_supervisor_supervisor_details_screen.dart';
-import '../head_supervisor_text.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/features/admin/data/datasources/admin_request_store.dart';
+import 'package:barwah_app/features/admin/data/services/head_access_policy.dart';
+import 'package:barwah_app/features/admin/domain/entities/admin_request.dart';
+import 'package:barwah_app/features/admin/domain/entities/head_account.dart';
+import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_audit_store.dart';
+import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_roster_store.dart';
+import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_audit_record.dart';
+import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_record.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_supervisor_details_screen.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/utils/head_supervisor_text.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_supervisor_add_supervisor_sheet.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_supervisor_delete_supervisor_sheet.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_supervisor_edit_permissions_sheet.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_supervisor_suspend_supervisor_sheet.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class HeadSupervisorSupervisorsScreen extends StatefulWidget {
   final String initialFilter;
@@ -37,11 +46,13 @@ class _HeadSupervisorSupervisorsScreenState
   void initState() {
     super.initState();
     _filter = widget.initialFilter;
+    HeadSupervisorRosterStore.revision.addListener(_loadSupervisors);
     _loadSupervisors();
   }
 
   @override
   void dispose() {
+    HeadSupervisorRosterStore.revision.removeListener(_loadSupervisors);
     _searchController.dispose();
     super.dispose();
   }
@@ -216,6 +227,9 @@ class _HeadSupervisorSupervisorsScreenState
   }
 
   Future<void> _addSupervisor() async {
+    if (!await ensureHeadPermission(context, HeadPermission.manageSupervisors)) {
+      return;
+    }
     final draft = await showModalBottomSheet<HeadSupervisorDraft>(
       context: context,
       isScrollControlled: true,
@@ -257,6 +271,9 @@ class _HeadSupervisorSupervisorsScreenState
   }
 
   Future<void> _requestDeletion(HeadSupervisorRecord supervisor) async {
+    if (!await ensureHeadPermission(context, HeadPermission.manageSupervisors)) {
+      return;
+    }
     if (supervisor.deletionPending) {
       _showNotice('طلب حذف ${supervisor.name} قيد مراجعة الإدارة العليا.');
       return;
@@ -294,12 +311,38 @@ class _HeadSupervisorSupervisorsScreenState
       details:
           'رقم الطلب: $requestId. السبب: ${draft.reason}. التفاصيل: ${draft.notes}',
     );
+    try {
+      await AdminRequestStore().submit(AdminRequest(
+        id: 'deletion-$requestId',
+        kind: AdminRequestKind.deletion,
+        titleAr: 'طلب حذف مشرف',
+        titleEn: 'Supervisor deletion request',
+        detailsAr: 'حذف ${supervisor.name} (${supervisor.department}). السبب: ${draft.reason}. ${draft.notes}',
+        detailsEn: 'Delete ${supervisor.name} (${supervisor.department}). Reason: ${draft.reason}. ${draft.notes}',
+        fromAr: 'رئيس المشرفين',
+        fromEn: 'Head of supervisors',
+        origin: 'head',
+        refId: supervisor.id,
+        createdAt: DateTime.now(),
+      ));
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'admin deletion request',
+      ));
+      _showNotice('تم حفظ الطلب لكن تعذر إرساله للأدمن.');
+      return;
+    }
     if (audited) {
       _showNotice('تم رفع طلب الحذف $requestId إلى الإدارة العليا للمراجعة.');
     }
   }
 
   Future<void> _editPermissions(HeadSupervisorRecord supervisor) async {
+    if (!await ensureHeadPermission(context, HeadPermission.manageSupervisors)) {
+      return;
+    }
     final permissions = await showModalBottomSheet<HeadSupervisorPermissionsDraft>(
       context: context,
       isScrollControlled: true,
@@ -345,6 +388,9 @@ class _HeadSupervisorSupervisorsScreenState
   }
 
   Future<void> _changeStatus(HeadSupervisorRecord supervisor) async {
+    if (!await ensureHeadPermission(context, HeadPermission.manageSupervisors)) {
+      return;
+    }
     if (supervisor.suspended) {
       final reactivate = await showDialog<bool>(
         context: context,
@@ -420,10 +466,10 @@ class _HeadSupervisorSupervisorsScreenState
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
       children: [
-        _ScreenHeading(
+        ScrollFx(child: _ScreenHeading(
           count: _supervisors.length,
           onAdd: _addSupervisor,
-        ),
+        )),
         const SizedBox(height: 12),
         TextField(
           controller: _searchController,
@@ -433,7 +479,7 @@ class _HeadSupervisorSupervisorsScreenState
             hintText: headSupervisorText(context,
                 arabic: 'ابحث بالاسم أو رقم المشرف أو القسم أو النطاق',
                 english: 'Search by name, ID, department, or location'),
-            prefixIcon: const Icon(Icons.search),
+            prefixIcon: const MotionIcon(Icons.search),
             suffixIcon: _searchQuery.isEmpty
                 ? null
                 : IconButton(
@@ -443,27 +489,27 @@ class _HeadSupervisorSupervisorsScreenState
                       _searchController.clear();
                       setState(() => _searchQuery = '');
                     },
-                    icon: const Icon(Icons.close),
+                    icon: const MotionIcon(Icons.close),
                   ),
             filled: true,
-            fillColor: Colors.white,
+            fillColor: AppColors.surface,
             isDense: true,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFE9EDF2)),
+              borderSide: BorderSide(color: AppColors.surfaceHighlight),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFE9EDF2)),
+              borderSide: BorderSide(color: AppColors.surfaceHighlight),
             ),
           ),
         ),
         const SizedBox(height: 14),
-        _FilterBar(
+        ScrollFx(child: _FilterBar(
           selected: _filter,
           filters: _filters(context),
           onChanged: (filter) => setState(() => _filter = filter),
-        ),
+        )),
         const SizedBox(height: 12),
         for (final supervisor in supervisors) ...[
           _SupervisorCard(
@@ -484,11 +530,11 @@ class _HeadSupervisorSupervisorsScreenState
             child: Text(
                 headSupervisorText(context, arabic: 'لا توجد بيانات مشرفين لعرضها حالياً.', english: 'No supervisor records to display.'),
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.textSecondary),
+                style: TextStyle(color: AppColors.textSecondary),
               ),
             ),
           ),
-        const _GovernanceNote(),
+        ScrollFx(child: const _GovernanceNote()),
       ],
     );
   }
@@ -508,19 +554,19 @@ class _ScreenHeading extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                  Text(headSupervisorText(context, arabic: 'إدارة المشرفين', english: 'Supervisor management'), textAlign: TextAlign.right, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
+                  Text(headSupervisorText(context, arabic: 'إدارة المشرفين', english: 'Supervisor management'), textAlign: TextAlign.right, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.ink)),
                   const SizedBox(width: 7),
                   _CountPill(label: '$count مشرفاً'),
                 ]),
                 const SizedBox(height: 4),
-                Text(headSupervisorText(context, arabic: 'متابعة كادر الإشراف الميداني وتفويض الصلاحيات للأقسام الأربعة', english: 'Manage field supervisors and delegate access across departments'), textAlign: TextAlign.right, style: const TextStyle(fontSize: 9, color: AppColors.textSecondary)),
+                Text(headSupervisorText(context, arabic: 'متابعة كادر الإشراف الميداني وتفويض الصلاحيات للأقسام الأربعة', english: 'Manage field supervisors and delegate access across departments'), textAlign: TextAlign.right, style: TextStyle(fontSize: 9, color: AppColors.textSecondary)),
               ],
             ),
           ),
           const SizedBox(width: 10),
           FilledButton.icon(
             onPressed: onAdd,
-            icon: const Icon(Icons.person_add_alt_1, size: 15),
+            icon: const MotionIcon(Icons.person_add_alt_1, size: 15),
             label: Text(headSupervisorText(context, arabic: 'مشرف جديد', english: 'Add supervisor'), style: const TextStyle(fontSize: 10)),
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.primaryDark,
@@ -538,8 +584,8 @@ class _CountPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-        decoration: BoxDecoration(color: const Color(0xFFE3EDFF), borderRadius: BorderRadius.circular(12)),
-        child: Text(label, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFF315E9A))),
+        decoration: BoxDecoration(color: AppColors.infoLight, borderRadius: BorderRadius.circular(12)),
+        child: Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.infoDark)),
       );
 }
 
@@ -565,11 +611,11 @@ class _FilterBar extends StatelessWidget {
                 child: ChoiceChip(
                   selected: selected == filter.key,
                   onSelected: (_) => onChanged(filter.key),
-                  avatar: Icon(filter.icon, size: 14),
-                  label: Text('${filter.label} ${filter.count}',
+                  avatar: MotionIcon(filter.icon, size: 14),
+                  label: CountText('${filter.label} ${filter.count}',
                       style: const TextStyle(fontSize: 9)),
                   selectedColor: AppColors.primaryDark,
-                  backgroundColor: const Color(0xFFF0F2F4),
+                  backgroundColor: AppColors.surfaceLight,
                   labelStyle: TextStyle(
                     color: selected == filter.key
                         ? Colors.white
@@ -618,7 +664,7 @@ class _SupervisorCard extends StatelessWidget {
         ? AppColors.dangerDark
         : supervisor.suspended
             ? AppColors.warning
-            : const Color(0xFF42699F);
+            : AppColors.infoDark;
     final statusLabel = supervisor.deletionPending
         ? headSupervisorText(context,
             arabic: 'طلب الحذف قيد المراجعة',
@@ -646,32 +692,32 @@ class _SupervisorCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(16),
       child: Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFE8ECF0))),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.surfaceHighlight)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
-          IconButton(onPressed: () => _showActions(context), icon: const Icon(Icons.more_vert, size: 18), visualDensity: VisualDensity.compact, style: IconButton.styleFrom(backgroundColor: const Color(0xFFF1F3F5))),
+          IconButton(onPressed: () => _showActions(context), icon: const MotionIcon(Icons.more_vert, size: 18), visualDensity: VisualDensity.compact, style: IconButton.styleFrom(backgroundColor: AppColors.surfaceLight)),
           const SizedBox(width: 6),
-          Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4), decoration: BoxDecoration(color: supervisor.deletionPending ? const Color(0xFFFFE7E5) : supervisor.suspended ? const Color(0xFFFFF1C6) : const Color(0xFFE1ECFF), borderRadius: BorderRadius.circular(12)), child: Row(children: [Icon(Icons.circle, size: 6, color: statusColor), const SizedBox(width: 4), Text(statusLabel, style: TextStyle(fontSize: 8, color: statusColor, fontWeight: FontWeight.w600))])),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4), decoration: BoxDecoration(color: supervisor.deletionPending ? AppColors.dangerLight : supervisor.suspended ? AppColors.warningBorder : AppColors.infoLight, borderRadius: BorderRadius.circular(12)), child: Row(children: [MotionIcon(Icons.circle, size: 6, color: statusColor), const SizedBox(width: 4), Text(statusLabel, style: TextStyle(fontSize: 8, color: statusColor, fontWeight: FontWeight.w600))])),
           const Spacer(),
-          Text(supervisor.id, style: const TextStyle(fontSize: 9, color: AppColors.textSecondary)),
+          Text(supervisor.id, style: TextStyle(fontSize: 9, color: AppColors.textSecondary)),
           const SizedBox(width: 6),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(supervisor.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.primaryDark)), const SizedBox(height: 3), Text(department, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.right, style: const TextStyle(fontSize: 9, color: AppColors.textSecondary))])),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(supervisor.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.ink)), const SizedBox(height: 3), Text(department, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.right, style: TextStyle(fontSize: 9, color: AppColors.textSecondary))])),
           const SizedBox(width: 8),
           CircleAvatar(radius: 22, backgroundColor: supervisor.color, child: Text(supervisor.avatar, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold))),
         ]),
         const SizedBox(height: 12),
-        Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9), decoration: BoxDecoration(color: supervisor.suspended ? const Color(0xFFFFFBEC) : const Color(0xFFF6F7F8), borderRadius: BorderRadius.circular(11)), child: Row(children: [Icon(Icons.location_on_outlined, size: 15, color: supervisor.suspended ? AppColors.warningDark : const Color(0xFF42699F)), const SizedBox(width: 5), Expanded(child: Text('${supervisor.area} • ${supervisor.city} • ${supervisor.marketScope}', maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.right, style: const TextStyle(fontSize: 9, color: AppColors.textPrimary, fontWeight: FontWeight.w600)))])),
+        Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9), decoration: BoxDecoration(color: supervisor.suspended ? AppColors.warningLight : AppColors.background, borderRadius: BorderRadius.circular(11)), child: Row(children: [MotionIcon(Icons.location_on_outlined, size: 15, color: supervisor.suspended ? AppColors.warningDark : AppColors.infoDark), const SizedBox(width: 5), Expanded(child: Text('${supervisor.area} • ${supervisor.city} • ${supervisor.marketScope}', maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.right, style: TextStyle(fontSize: 9, color: AppColors.textPrimary, fontWeight: FontWeight.w600)))])),
         if (supervisor.deletionPending) ...[
           const SizedBox(height: 5),
-          Text(headSupervisorText(context, arabic: 'طلب ${supervisor.deletionRequestId} • ${supervisor.deletionReason}', english: 'Request ${supervisor.deletionRequestId} • ${supervisor.deletionReason}'), maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.right, style: const TextStyle(fontSize: 8, color: AppColors.dangerDark)),
+          Text(headSupervisorText(context, arabic: 'طلب ${supervisor.deletionRequestId} • ${supervisor.deletionReason}', english: 'Request ${supervisor.deletionRequestId} • ${supervisor.deletionReason}'), maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.right, style: TextStyle(fontSize: 8, color: AppColors.dangerDark)),
         ],
         if (supervisor.suspended && supervisor.suspensionReason.isNotEmpty) ...[
           const SizedBox(height: 5),
-          Text(headSupervisorText(context, arabic: 'تعليق ${supervisor.suspensionDuration} • ${supervisor.suspensionReason}', english: 'Suspended ${supervisor.suspensionDuration} • ${supervisor.suspensionReason}'), maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.right, style: const TextStyle(fontSize: 8, color: AppColors.warningDark)),
+          Text(headSupervisorText(context, arabic: 'تعليق ${supervisor.suspensionDuration} • ${supervisor.suspensionReason}', english: 'Suspended ${supervisor.suspensionDuration} • ${supervisor.suspensionReason}'), maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.right, style: TextStyle(fontSize: 8, color: AppColors.warningDark)),
         ],
         const SizedBox(height: 10),
         Row(children: [
-          Expanded(child: _ActionButton(label: supervisor.deletionPending ? headSupervisorText(context, arabic: 'طلب الحذف مرفوع', english: 'Deletion requested') : headSupervisorText(context, arabic: 'حذف', english: 'Delete'), color: const Color(0xFFFFD9D6), textColor: AppColors.danger, onTap: onDelete)),
+          Expanded(child: _ActionButton(label: supervisor.deletionPending ? headSupervisorText(context, arabic: 'طلب الحذف مرفوع', english: 'Deletion requested') : headSupervisorText(context, arabic: 'حذف', english: 'Delete'), color: AppColors.dangerBorder, textColor: AppColors.danger, onTap: onDelete)),
           const SizedBox(width: 5),
           Expanded(child: _ActionButton(label: headSupervisorText(context, arabic: 'الصلاحيات', english: 'Access'), onTap: onPermissions)),
           const SizedBox(width: 5),
@@ -688,9 +734,9 @@ class _SupervisorCard extends StatelessWidget {
         context: context,
         showDragHandle: true,
         builder: (context) => SafeArea(child: Padding(padding: const EdgeInsets.fromLTRB(18, 8, 18, 24), child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(leading: const Icon(Icons.chat_bubble_outline), title: Text(headSupervisorText(context, arabic: 'مراسلة المشرف', english: 'Message supervisor')), onTap: () { Navigator.pop(context); onComment(); }),
-          ListTile(leading: const Icon(Icons.assignment_outlined), title: Text(headSupervisorText(context, arabic: 'عرض السجل الكامل', english: 'View full record')), onTap: () { Navigator.pop(context); onFullRecord(); }),
-          ListTile(leading: const Icon(Icons.admin_panel_settings_outlined), title: Text(headSupervisorText(context, arabic: 'إدارة الصلاحيات', english: 'Manage access')), onTap: () { Navigator.pop(context); onPermissions(); }),
+          ListTile(leading: const MotionIcon(Icons.chat_bubble_outline), title: Text(headSupervisorText(context, arabic: 'مراسلة المشرف', english: 'Message supervisor')), onTap: () { Navigator.pop(context); onComment(); }),
+          ListTile(leading: const MotionIcon(Icons.assignment_outlined), title: Text(headSupervisorText(context, arabic: 'عرض السجل الكامل', english: 'View full record')), onTap: () { Navigator.pop(context); onFullRecord(); }),
+          ListTile(leading: const MotionIcon(Icons.admin_panel_settings_outlined), title: Text(headSupervisorText(context, arabic: 'إدارة الصلاحيات', english: 'Manage access')), onTap: () { Navigator.pop(context); onPermissions(); }),
         ]))),
       );
 }
@@ -706,15 +752,15 @@ class _ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: dark ? AppColors.primaryDark : color ?? const Color(0xFFF0F2F4),
+        color: dark ? AppColors.primaryDark : color ?? AppColors.surfaceLight,
         borderRadius: BorderRadius.circular(11),
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(11),
           child: Padding(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            if (icon != null) Icon(icon, size: 13, color: dark ? Colors.white : textColor ?? AppColors.textPrimary),
+            if (icon != null) MotionIcon(icon, size: 13, color: dark ? Colors.white : textColor ?? AppColors.textPrimary),
             if (icon != null) const SizedBox(width: 3),
-            Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 8, fontWeight: dark ? FontWeight.bold : FontWeight.w500, color: dark ? Colors.white : textColor ?? const Color(0xFF42699F)))),
+            Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 8, fontWeight: dark ? FontWeight.bold : FontWeight.w500, color: dark ? Colors.white : textColor ?? AppColors.infoDark))),
           ])),
         ),
       );
@@ -725,11 +771,11 @@ class _GovernanceNote extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: const Color(0xFFF0F2F4), borderRadius: BorderRadius.circular(15)),
+        decoration: BoxDecoration(color: AppColors.surfaceLight, borderRadius: BorderRadius.circular(15)),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(headSupervisorText(context, arabic: 'حوكمة الإدارة والترخيص الرقابي', english: 'Management governance and regulatory licensing'), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryDark)), const SizedBox(height: 5), Text(headSupervisorText(context, arabic: 'صلاحيات الحذف النهائي وإلغاء ترخيص المشرفين تتطلب موافقة مالك التطبيق والمدير العام بموجب لائحة الحوكمة الإدارية رقم 14.', english: 'Permanent deletion and supervisor license revocation require approval from the app owner and general manager under Administrative Governance Regulation No. 14.'), textAlign: TextAlign.right, style: const TextStyle(fontSize: 9, height: 1.5, color: AppColors.textSecondary))])),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(headSupervisorText(context, arabic: 'حوكمة الإدارة والترخيص الرقابي', english: 'Management governance and regulatory licensing'), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.ink)), const SizedBox(height: 5), Text(headSupervisorText(context, arabic: 'صلاحيات الحذف النهائي وإلغاء ترخيص المشرفين تتطلب موافقة مالك التطبيق والمدير العام بموجب لائحة الحوكمة الإدارية رقم 14.', english: 'Permanent deletion and supervisor license revocation require approval from the app owner and general manager under Administrative Governance Regulation No. 14.'), textAlign: TextAlign.right, style: TextStyle(fontSize: 9, height: 1.5, color: AppColors.textSecondary))])),
           const SizedBox(width: 10),
-          const CircleAvatar(radius: 17, backgroundColor: AppColors.primaryDark, child: Icon(Icons.verified_user_outlined, size: 17, color: Colors.white)),
+          CircleAvatar(radius: 17, backgroundColor: AppColors.primaryDark, child: MotionIcon(Icons.verified_user_outlined, size: 17, color: Colors.white)),
         ]),
       );
 }

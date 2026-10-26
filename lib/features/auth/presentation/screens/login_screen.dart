@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/utils/app_locale_controller.dart';
-import '../../../../core/widgets/app_brand_mark.dart';
-import '../../../../core/widgets/app_snack_bar.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../domain/entities/user_entity.dart';
-import '../../domain/entities/user_role.dart';
-import '../controllers/auth_cubit.dart';
-import '../controllers/auth_state.dart';
-import 'forgot_password_screen.dart';
-import 'login_animations.dart';
+import 'package:barwah_app/core/localization/app_locale_controller.dart';
+import 'package:barwah_app/core/theme/app_theme_switcher.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/widgets/floating_brand_mark.dart';
+import 'package:barwah_app/core/widgets/app_snack_bar.dart';
+import 'package:barwah_app/features/admin/data/datasources/admin_security_store.dart';
+import 'package:barwah_app/features/admin/presentation/widgets/admin_pin_dialog.dart';
+import 'package:barwah_app/features/auth/domain/entities/user_entity.dart';
+import 'package:barwah_app/features/auth/domain/entities/user_role.dart';
+import 'package:barwah_app/features/auth/presentation/controllers/auth_cubit.dart';
+import 'package:barwah_app/features/auth/presentation/controllers/auth_state.dart';
+import 'package:barwah_app/features/auth/presentation/screens/forgot_password_screen.dart';
+import 'package:barwah_app/features/auth/presentation/widgets/login_animations.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
 
 class LoginScreen extends StatefulWidget {
   final VoidCallback onFinancialLogin;
@@ -20,6 +23,7 @@ class LoginScreen extends StatefulWidget {
   final VoidCallback? onWasalnyLogin;
   final VoidCallback? onServicesLogin;
   final VoidCallback? onHeadSupervisorLogin;
+  final VoidCallback? onAdminLogin;
 
   const LoginScreen({
     super.key,
@@ -29,6 +33,7 @@ class LoginScreen extends StatefulWidget {
     this.onWasalnyLogin,
     this.onServicesLogin,
     this.onHeadSupervisorLogin,
+    this.onAdminLogin,
   });
 
   @override
@@ -77,7 +82,7 @@ class _LoginScreenState extends State<LoginScreen>
         return Directionality(
           textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
           child: Scaffold(
-            backgroundColor: const Color(0xFFF4F7FB),
+            backgroundColor: AppColors.scaffold,
             body: Stack(
               fit: StackFit.expand,
               children: [
@@ -95,11 +100,16 @@ class _LoginScreenState extends State<LoginScreen>
                       // زر تبديل اللغة أعلى الصفحة بدون AppBar
                       Align(
                         alignment: AlignmentDirectional.topEnd,
-                        child: OutlinedButton.icon(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const AppThemeSwitcherButton(),
+                            const SizedBox(width: 6),
+                            OutlinedButton.icon(
                           onPressed: AppLocaleController.instance.toggle,
                           style: OutlinedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            side: BorderSide(color: Colors.grey.shade300),
+                            backgroundColor: AppColors.surface,
+                            side: BorderSide(color: AppColors.cardBorder),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(20),
                             ),
@@ -108,44 +118,32 @@ class _LoginScreenState extends State<LoginScreen>
                               vertical: 6,
                             ),
                           ),
-                          icon: const Icon(
+                          icon: Icon(
                             Icons.language,
                             size: 16,
-                            color: AppColors.primaryDark,
+                            color: AppColors.ink,
                           ),
                           label: Text(
                             isArabic ? 'English' : 'العربية',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color: AppColors.primaryDark,
+                              color: AppColors.ink,
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      // الشعار في بطاقة بيضاء دائرية
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(24),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.04),
-                              blurRadius: 15,
-                              offset: const Offset(0, 6),
-                            ),
                           ],
                         ),
-                        child: const AppBrandMark(size: 72, iconSize: 40),
                       ),
+                      const SizedBox(height: 16),
+                      // الشعار يطفو بهدوء (بدون بطاقة خلفه)
+                      const FloatingBrandMark(size: 96, iconSize: 58),
                       const SizedBox(height: 20),
 
                       // عنوان النظام
                       Text(
                         l10n.appName,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
                           color: AppColors.textPrimary,
@@ -154,7 +152,7 @@ class _LoginScreenState extends State<LoginScreen>
                       const SizedBox(height: 6),
                       Text(
                         l10n.appSubtitle,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 15,
                           color: AppColors.textSecondary,
                         ),
@@ -168,13 +166,13 @@ class _LoginScreenState extends State<LoginScreen>
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFE2E8F0),
+                          color: AppColors.cardBorder,
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.verified_user_rounded,
                               size: 16,
                               color: AppColors.info,
@@ -213,10 +211,10 @@ class _LoginScreenState extends State<LoginScreen>
                           child: Container(
                               padding: const EdgeInsets.all(22),
                               decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: .42),
+                                color: AppColors.surface.withValues(alpha: .42),
                                 borderRadius: BorderRadius.circular(24),
                                 border: Border.all(
-                                  color: Colors.white.withValues(alpha: .78),
+                                  color: AppColors.surface.withValues(alpha: .78),
                                   width: 1.4,
                                 ),
                               ),
@@ -237,7 +235,7 @@ class _LoginScreenState extends State<LoginScreen>
                                     ),
                                   ),
                                   const SizedBox(width: 6),
-                                  const Icon(
+                                  Icon(
                                     Icons.mail_outline,
                                     size: 18,
                                     color: AppColors.textSecondary,
@@ -251,10 +249,10 @@ class _LoginScreenState extends State<LoginScreen>
                               textAlign: TextAlign.left,
                               decoration: InputDecoration(
                                 filled: true,
-                                fillColor: const Color(0xFFF8FAFC).withValues(
+                                fillColor: AppColors.background.withValues(
                                   alpha: .78,
                                 ),
-                                prefixIcon: const Icon(
+                                prefixIcon: Icon(
                                   Icons.badge_outlined,
                                   color: AppColors.textSecondary,
                                 ),
@@ -280,7 +278,7 @@ class _LoginScreenState extends State<LoginScreen>
                                     ),
                                   ),
                                   const SizedBox(width: 6),
-                                  const Icon(
+                                  Icon(
                                     Icons.lock_outline,
                                     size: 18,
                                     color: AppColors.textSecondary,
@@ -295,7 +293,7 @@ class _LoginScreenState extends State<LoginScreen>
                               textAlign: TextAlign.left,
                               decoration: InputDecoration(
                                 filled: true,
-                                fillColor: const Color(0xFFF8FAFC).withValues(
+                                fillColor: AppColors.background.withValues(
                                   alpha: .78,
                                 ),
                                 prefixIcon: IconButton(
@@ -320,12 +318,12 @@ class _LoginScreenState extends State<LoginScreen>
                             Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF8FAFC),
+                                color: AppColors.background,
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Row(
                                 children: [
-                                  const Icon(
+                                  Icon(
                                     Icons.hub_outlined,
                                     color: AppColors.info,
                                     size: 22,
@@ -334,7 +332,7 @@ class _LoginScreenState extends State<LoginScreen>
                                   Expanded(
                                     child: Text(
                                       l10n.roleAccessNotice,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontSize: 11,
                                         color: AppColors.textSecondary,
                                         height: 1.4,
@@ -433,7 +431,7 @@ class _LoginScreenState extends State<LoginScreen>
                                     },
                                     child: Text(
                                       l10n.forgotPassword,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontSize: 13,
                                         color: AppColors.info,
                                         fontWeight: FontWeight.w600,
@@ -443,7 +441,7 @@ class _LoginScreenState extends State<LoginScreen>
                                   Text(
                                     l10n.requestAccessReset,
                                     textAlign: TextAlign.center,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 11,
                                       color: AppColors.textSecondary,
                                       height: 1.4,
@@ -469,14 +467,14 @@ class _LoginScreenState extends State<LoginScreen>
                               textAlign: TextAlign.center,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 11,
                                 color: AppColors.textSecondary,
                               ),
                             ),
                           ),
                           const SizedBox(width: 4),
-                          const Icon(
+                          Icon(
                             Icons.lock_person_outlined,
                             size: 14,
                             color: AppColors.textSecondary,
@@ -486,7 +484,7 @@ class _LoginScreenState extends State<LoginScreen>
                       const SizedBox(height: 4),
                       Text(
                         l10n.copyrightNotice,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 10,
                           color: AppColors.textMuted,
                         ),
@@ -515,6 +513,39 @@ class _LoginScreenState extends State<LoginScreen>
   ) async {
     if (_successTransitionRunning) return;
     _successTransitionRunning = true;
+    if (user.role == UserRole.admin) {
+      var passed = false;
+      try {
+        passed = await confirmAdminPin(
+          context,
+          email: user.email,
+          reasonAr: 'أدخل رمز التحقق الثاني لإكمال الدخول.',
+          reasonEn: 'Enter your second-factor PIN to finish signing in.',
+        );
+        await AdminSecurityStore().recordAttempt(
+          user.email,
+          success: passed,
+          note: passed ? 'login_ok' : 'pin_failed',
+        );
+      } catch (error, stackTrace) {
+        passed = false;
+        FlutterError.reportError(FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'admin 2FA sign-in',
+        ));
+      }
+      if (!mounted) return;
+      if (!passed) {
+        _successTransitionRunning = false;
+        context.read<AuthCubit>().logout();
+        AppSnackBar.showError(
+          context,
+          'فشل التحقق بخطوتين. تم إلغاء الدخول.',
+        );
+        return;
+      }
+    }
     setState(() => _showSuccessOverlay = true);
 
     try {
@@ -528,7 +559,9 @@ class _LoginScreenState extends State<LoginScreen>
     setState(() => _showSuccessOverlay = false);
     _successTransitionRunning = false;
 
-    if (user.role == UserRole.headOfSupervisors &&
+    if (user.role == UserRole.admin && widget.onAdminLogin != null) {
+      widget.onAdminLogin!();
+    } else if (user.role == UserRole.headOfSupervisors &&
         widget.onHeadSupervisorLogin != null) {
       widget.onHeadSupervisorLogin!();
     } else if (user.role == UserRole.financialSupervisor) {

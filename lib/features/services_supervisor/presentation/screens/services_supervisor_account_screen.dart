@@ -3,9 +3,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../l10n/app_localizations.dart';
-import 'services_supervisor_wallet_screen.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/features/services_supervisor/presentation/screens/services_supervisor_wallet_screen.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class ServicesSupervisorAccountScreen extends StatefulWidget {
   final VoidCallback onLogout;
@@ -127,7 +129,7 @@ class _ServicesSupervisorAccountScreenState
                 const SizedBox(height: 12),
                 Text(
                   l10n.servicesAccountLocalOnly,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 12,
                   ),
@@ -257,30 +259,30 @@ class _ServicesSupervisorAccountScreenState
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Container(
+        ScrollFx(child: Container(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: AppColors.surface,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: AppColors.cardBorder),
           ),
           child: Column(
             children: [
-              const CircleAvatar(
+              CircleAvatar(
                 radius: 34,
-                backgroundColor: Color(0xFFEAF0F7),
-                child: Icon(
+                backgroundColor: AppColors.surfaceLight,
+                child: MotionIcon(
                   Icons.person_outline,
                   size: 38,
-                  color: AppColors.primaryDark,
+                  color: AppColors.ink,
                 ),
               ),
               const SizedBox(height: 12),
               Text(
                 displayName,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: AppColors.primaryDark,
+                style: TextStyle(
+                  color: AppColors.ink,
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
                 ),
@@ -288,7 +290,7 @@ class _ServicesSupervisorAccountScreenState
               const SizedBox(height: 5),
               Text(
                 l10n.servicesSupervisorRoleBadge,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 12,
                 ),
@@ -310,7 +312,7 @@ class _ServicesSupervisorAccountScreenState
               Text(
                 l10n.servicesAccountLocalOnly,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 11,
                 ),
@@ -318,14 +320,14 @@ class _ServicesSupervisorAccountScreenState
               const SizedBox(height: 12),
               OutlinedButton.icon(
                 onPressed: _isSaving ? null : () => _editProfile(l10n),
-                icon: const Icon(Icons.edit_outlined),
+                icon: const MotionIcon(Icons.edit_outlined),
                 label: Text(l10n.servicesAccountEditProfile),
               ),
             ],
           ),
-        ),
+        )),
         const SizedBox(height: 14),
-        _SectionCard(
+        ScrollFx(child: _SectionCard(
           title: l10n.servicesAccountNotificationsTitle,
           children: [
             SwitchListTile(
@@ -366,26 +368,26 @@ class _ServicesSupervisorAccountScreenState
             ),
             Text(
               l10n.servicesAccountPreferencesLocalOnly,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 11,
               ),
             ),
           ],
-        ),
+        )),
         const SizedBox(height: 14),
-        _SectionCard(
+        ScrollFx(child: _SectionCard(
           title: l10n.servicesAccountWalletTitle,
           children: [
             ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: const Icon(
+              leading: MotionIcon(
                 Icons.account_balance_wallet_outlined,
-                color: AppColors.primaryDark,
+                color: AppColors.ink,
               ),
               title: Text(l10n.servicesProfileOpenWallet),
               subtitle: Text(l10n.servicesProfileWalletDescription),
-              trailing: const Icon(Icons.chevron_right),
+              trailing: const MotionIcon(Icons.chevron_right),
               onTap: () => Navigator.of(context).push<void>(
                 MaterialPageRoute<void>(
                   builder: (_) => const ServicesSupervisorWalletScreen(
@@ -395,21 +397,21 @@ class _ServicesSupervisorAccountScreenState
               ),
             ),
           ],
-        ),
+        )),
         const SizedBox(height: 14),
-        _SectionCard(
+        ScrollFx(child: _SectionCard(
           title: l10n.servicesAccountActivityTitle,
           children: [
             if (_data.activity.isEmpty)
               Text(
                 l10n.servicesAccountNoActivity,
-                style: const TextStyle(color: AppColors.textSecondary),
+                style: TextStyle(color: AppColors.textSecondary),
               )
             else
               for (final entry in _data.activity.take(10))
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.history),
+                  leading: const MotionIcon(Icons.history),
                   title: Text(_activityLabel(entry.action, l10n)),
                   subtitle: Text(
                     MaterialLocalizations.of(context).formatFullDate(
@@ -419,22 +421,22 @@ class _ServicesSupervisorAccountScreenState
                 ),
             Text(
               l10n.servicesAccountActivityLocalOnly,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 11,
               ),
             ),
           ],
-        ),
+        )),
         const SizedBox(height: 14),
         OutlinedButton.icon(
           onPressed: _isSaving ? null : () => _confirmLogout(l10n),
-          icon: const Icon(Icons.logout),
+          icon: const MotionIcon(Icons.logout),
           label: Text(l10n.logout),
           style: OutlinedButton.styleFrom(
             foregroundColor: AppColors.danger,
-            backgroundColor: Colors.white,
-            side: const BorderSide(color: AppColors.cardBorder),
+            backgroundColor: AppColors.surface,
+            side: BorderSide(color: AppColors.cardBorder),
             minimumSize: const Size.fromHeight(48),
           ),
         ),
@@ -565,7 +567,7 @@ class _ProfileDetail extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 16, color: AppColors.textSecondary),
+            MotionIcon(icon, size: 16, color: AppColors.textSecondary),
             const SizedBox(width: 6),
             Flexible(child: Text(text)),
           ],
@@ -581,10 +583,10 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: Colors.white,
+        color: AppColors.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: AppColors.cardBorder),
+          side: BorderSide(color: AppColors.cardBorder),
         ),
         child: Padding(
           padding: const EdgeInsets.all(14),
@@ -593,8 +595,8 @@ class _SectionCard extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: const TextStyle(
-                  color: AppColors.primaryDark,
+                style: TextStyle(
+                  color: AppColors.ink,
                   fontSize: 15,
                   fontWeight: FontWeight.w800,
                 ),

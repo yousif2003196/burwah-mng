@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../data/head_supervisor_audit_store.dart';
-import '../head_supervisor_text.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_audit_store.dart';
+import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_audit_record.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/utils/head_supervisor_text.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class HeadSupervisorSupervisorDetailsScreen extends StatefulWidget {
   final String supervisorId;
@@ -129,32 +133,26 @@ class _HeadSupervisorSupervisorDetailsScreenState
         .toList();
   }
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.scaffold,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: AppColors.primaryDark,
+        backgroundColor: AppColors.surface,
+        foregroundColor: AppColors.ink,
         title: Text(headSupervisorText(context, arabic: 'بيانات المشرف', english: 'Supervisor details'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
             tooltip: headSupervisorText(context, arabic: 'العودة إلى قائمة المشرفين', english: 'Back to supervisors'),
             onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.arrow_forward),
+            icon: const MotionIcon(Icons.arrow_forward),
           ),
         ],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 22),
         children: [
-          _ProfileCard(
+          ScrollFx(child: _ProfileCard(
             name: widget.name,
             id: widget.supervisorId,
             department: widget.department,
@@ -166,7 +164,7 @@ class _HeadSupervisorSupervisorDetailsScreenState
             area: widget.area,
             city: widget.city,
             marketScope: widget.marketScope,
-          ),
+          )),
           const SizedBox(height: 16),
           FutureBuilder<List<HeadSupervisorAuditRecord>>(
             future: _recordsFuture,
@@ -202,7 +200,7 @@ class _HeadSupervisorSupervisorDetailsScreenState
                   Text(headSupervisorText(context,
                       arabic: 'المؤشرات والإجراءات المسجلة',
                       english: 'Recorded metrics and actions'),
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.ink)),
                 ]),
                 const SizedBox(height: 8),
                 _MainMetricCard(count: total),
@@ -218,7 +216,7 @@ class _HeadSupervisorSupervisorDetailsScreenState
                   Text(headSupervisorText(context,
                       arabic: 'سجل الإجراءات الفعلية',
                       english: 'Actual activity log'),
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.ink)),
                   const SizedBox(width: 7),
                   _CountBadge(label: '${allActivities.length}'),
                 ]),
@@ -231,7 +229,7 @@ class _HeadSupervisorSupervisorDetailsScreenState
               hintText: headSupervisorText(context,
                   arabic: 'ابحث في السجل بالاسم أو الرقم أو نوع الإجراء',
                   english: 'Search records by name, ID, or action type'),
-              prefixIcon: const Icon(Icons.search, size: 18),
+              prefixIcon: const MotionIcon(Icons.search, size: 18),
               suffixIcon: _searchQuery.isEmpty
                   ? null
                   : IconButton(
@@ -241,18 +239,18 @@ class _HeadSupervisorSupervisorDetailsScreenState
                         _activitySearchController.clear();
                         setState(() => _searchQuery = '');
                       },
-                      icon: const Icon(Icons.close, size: 18),
+                      icon: const MotionIcon(Icons.close, size: 18),
                     ),
               filled: true,
-              fillColor: Colors.white,
+              fillColor: AppColors.surface,
               isDense: true,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFFE9EDF2)),
+                borderSide: BorderSide(color: AppColors.surfaceHighlight),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFFE9EDF2)),
+                borderSide: BorderSide(color: AppColors.surfaceHighlight),
               ),
             ),
                 ),
@@ -274,7 +272,7 @@ class _HeadSupervisorSupervisorDetailsScreenState
                             ? 'No activity has been recorded for this supervisor yet.'
                             : 'No results match the search or selected filter.'),
                         textAlign: TextAlign.center,
-                        style: const TextStyle(color: AppColors.textSecondary)),
+                        style: TextStyle(color: AppColors.textSecondary)),
                   ),
                 for (final activity in allActivities) ...[
                   _ActivityCard(activity: activity, onDetails: () => _showActivityDetails(activity)),
@@ -286,7 +284,7 @@ class _HeadSupervisorSupervisorDetailsScreenState
           const SizedBox(height: 9),
           OutlinedButton.icon(
             onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.format_list_bulleted, size: 17),
+            icon: const MotionIcon(Icons.format_list_bulleted, size: 17),
             label: Text(headSupervisorText(context, arabic: 'العودة لقائمة المشرفين', english: 'Back to supervisors')),
             style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13))),
           ),
@@ -303,13 +301,13 @@ class _HeadSupervisorSupervisorDetailsScreenState
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Text(activity.title, textAlign: TextAlign.right, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
+            Text(activity.title, textAlign: TextAlign.right, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.ink)),
             const SizedBox(height: 8),
-            Text('${activity.id} • ${_activityText(context, activity.category)}', textAlign: TextAlign.right, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+            Text('${activity.id} • ${_activityText(context, activity.category)}', textAlign: TextAlign.right, style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
             const SizedBox(height: 10),
-            Text(_activityText(context, activity.description), textAlign: TextAlign.right, style: const TextStyle(height: 1.6, color: AppColors.textSecondary)),
+            Text(_activityText(context, activity.description), textAlign: TextAlign.right, style: TextStyle(height: 1.6, color: AppColors.textSecondary)),
             const SizedBox(height: 14),
-            Text('${_activityText(context, activity.status)} • ${_activityText(context, activity.time)}', textAlign: TextAlign.right, style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+            Text('${_activityText(context, activity.status)} • ${_activityText(context, activity.time)}', textAlign: TextAlign.right, style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
           ]),
         ),
       ),
@@ -334,16 +332,16 @@ class _ProfileCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .04), blurRadius: 10, offset: const Offset(0, 3))]),
+        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .04), blurRadius: 10, offset: const Offset(0, 3))]),
         child: Column(children: [
           Row(children: [
             const Spacer(),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: Text(name, softWrap: true, textAlign: TextAlign.right, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.primaryDark))), const SizedBox(width: 6), _CountBadge(label: id)]),
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: Text(name, softWrap: true, textAlign: TextAlign.right, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.ink))), const SizedBox(width: 6), _CountBadge(label: id)]),
               const SizedBox(height: 4),
-              SizedBox(width: double.infinity, child: Text(headSupervisorText(context, arabic: '$department • التقييم العام', english: '$department • Overall rating'), textAlign: TextAlign.right, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 9, color: AppColors.textSecondary))),
+              SizedBox(width: double.infinity, child: Text(headSupervisorText(context, arabic: '$department • التقييم العام', english: '$department • Overall rating'), textAlign: TextAlign.right, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 9, color: AppColors.textSecondary))),
               const SizedBox(height: 5),
-              Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: const Color(0xFFE3EDFF), borderRadius: BorderRadius.circular(12)), child: Text('(${status == 'نشط ميدانياً' ? headSupervisorText(context, arabic: '● نشط ميدانياً (متصل الآن)', english: '● Active in field (online now)') : _activityText(context, status)})', style: const TextStyle(fontSize: 8, color: Color(0xFF315E9A)))),
+              Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: AppColors.infoLight, borderRadius: BorderRadius.circular(12)), child: Text('(${status == 'نشط ميدانياً' ? headSupervisorText(context, arabic: '● نشط ميدانياً (متصل الآن)', english: '● Active in field (online now)') : _activityText(context, status)})', style: TextStyle(fontSize: 8, color: AppColors.infoDark))),
             ])),
             const SizedBox(width: 8),
             CircleAvatar(radius: 26, backgroundColor: color, child: Text(avatar, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
@@ -359,21 +357,21 @@ class _ProfileCard extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                  color: const Color(0xFFF5F7F8),
+                  color: AppColors.background,
                   borderRadius: BorderRadius.circular(11)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                 Text(headSupervisorText(context,
                     arabic: 'نطاق الصلاحيات', english: 'Access scope'),
-                    style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
+                    style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.ink)),
                 const SizedBox(height: 5),
                 if (area.isNotEmpty || city.isNotEmpty)
                   Text('${headSupervisorText(context, arabic: 'النطاق الجغرافي', english: 'Location')}: $area${city.isEmpty ? '' : ' • $city'}',
                       textAlign: TextAlign.right,
-                      style: const TextStyle(fontSize: 8, color: AppColors.textSecondary)),
+                      style: TextStyle(fontSize: 8, color: AppColors.textSecondary)),
                 if (marketScope.isNotEmpty)
                   Text('${headSupervisorText(context, arabic: 'نطاق السوق', english: 'Market scope')}: $marketScope',
                       textAlign: TextAlign.right,
-                      style: const TextStyle(fontSize: 8, color: AppColors.textSecondary)),
+                      style: TextStyle(fontSize: 8, color: AppColors.textSecondary)),
               ]),
             ),
           ],
@@ -390,9 +388,9 @@ class _ContactLine extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
         child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-          Text(value, style: const TextStyle(fontSize: 9, color: AppColors.textSecondary)),
+          CountText(value, style: TextStyle(fontSize: 9, color: AppColors.textSecondary)),
           const SizedBox(width: 6),
-          Icon(icon, size: 13, color: const Color(0xFF42699F)),
+          MotionIcon(icon, size: 13, color: AppColors.infoDark),
         ]),
       );
 }
@@ -401,15 +399,15 @@ class _CountBadge extends StatelessWidget {
   final String label;
   const _CountBadge({required this.label});
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3), decoration: BoxDecoration(color: const Color(0xFFE7E9EC), borderRadius: BorderRadius.circular(12)), child: Text(label, style: const TextStyle(fontSize: 8, color: AppColors.primaryDark)));
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3), decoration: BoxDecoration(color: AppColors.surfaceHighlight, borderRadius: BorderRadius.circular(12)), child: Text(label, style: TextStyle(fontSize: 8, color: AppColors.ink)));
 }
 
 class _MainMetricCard extends StatelessWidget {
   final int count;
   const _MainMetricCard({required this.count});
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Row(children: [const Spacer(), Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text('$count', style: const TextStyle(fontSize: 22, height: 1, fontWeight: FontWeight.bold, color: AppColors.primaryDark)), const SizedBox(height: 4), Text(headSupervisorText(context, arabic: 'إجمالي الإجراءات المسجلة', english: 'Total recorded actions'), style: const TextStyle(fontSize: 10, color: AppColors.textSecondary))]), const SizedBox(width: 10), const CircleAvatar(radius: 21, backgroundColor: Color(0xFFE7E9EC), child: Icon(Icons.history, color: AppColors.primaryDark, size: 21))]),
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(15)), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [const Spacer(), Column(crossAxisAlignment: CrossAxisAlignment.end, children: [CountText('$count', style: TextStyle(fontSize: 22, height: 1, fontWeight: FontWeight.bold, color: AppColors.ink)), const SizedBox(height: 4), Text(headSupervisorText(context, arabic: 'إجمالي الإجراءات المسجلة', english: 'Total recorded actions'), style: TextStyle(fontSize: 10, color: AppColors.textSecondary))]), const SizedBox(width: 10), CircleAvatar(radius: 21, backgroundColor: AppColors.surfaceHighlight, child: MotionIcon(Icons.history, color: AppColors.ink, size: 21))]),
       ]));
 }
 
@@ -420,12 +418,12 @@ class _SmallMetricCard extends StatelessWidget {
   final IconData icon;
   const _SmallMetricCard({required this.value, required this.label, required this.helper, required this.icon});
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(13), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Row(children: [CircleAvatar(radius: 17, backgroundColor: const Color(0xFFE7E9EC), child: Icon(icon, size: 16, color: AppColors.primaryDark)), const Spacer(), Text(value, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w600, color: AppColors.primaryDark))]),
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(13), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14)), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [CircleAvatar(radius: 17, backgroundColor: AppColors.surfaceHighlight, child: MotionIcon(icon, size: 16, color: AppColors.ink)), const Spacer(), CountText(value, style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600, color: AppColors.ink))]),
         const SizedBox(height: 8),
-        Text(label, textAlign: TextAlign.right, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
+        Text(label, textAlign: TextAlign.right, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.ink)),
         const SizedBox(height: 4),
-        Text(helper, textAlign: TextAlign.right, style: const TextStyle(fontSize: 8, height: 1.4, color: AppColors.textSecondary)),
+        Text(helper, textAlign: TextAlign.right, style: TextStyle(fontSize: 8, height: 1.4, color: AppColors.textSecondary)),
       ]));
 }
 
@@ -455,7 +453,7 @@ class _ActivityFilters extends StatelessWidget {
       ('complaint', 'الشكاوى', 'Complaints', activities.where((item) => item.kind == 'complaint').length),
       ('other', 'أخرى', 'Other', activities.where((item) => !{'supervisor_management', 'request', 'complaint'}.contains(item.kind)).length),
     ];
-    return SingleChildScrollView(scrollDirection: Axis.horizontal, reverse: true, child: Row(children: [for (final filter in filters) Padding(padding: const EdgeInsets.only(left: 5), child: ChoiceChip(label: Text('${headSupervisorText(context, arabic: filter.$2, english: filter.$3)} ${filter.$4}', style: const TextStyle(fontSize: 9)), selected: selected == filter.$1, onSelected: (_) => onChanged(filter.$1), selectedColor: AppColors.primaryDark, backgroundColor: Colors.white, labelStyle: TextStyle(color: selected == filter.$1 ? Colors.white : AppColors.textSecondary), side: BorderSide.none, visualDensity: VisualDensity.compact))]));
+    return SingleChildScrollView(scrollDirection: Axis.horizontal, reverse: true, child: Row(children: [for (final filter in filters) Padding(padding: const EdgeInsets.only(left: 5), child: ChoiceChip(label: CountText('${headSupervisorText(context, arabic: filter.$2, english: filter.$3)} ${filter.$4}', style: const TextStyle(fontSize: 9)), selected: selected == filter.$1, onSelected: (_) => onChanged(filter.$1), selectedColor: AppColors.primaryDark, backgroundColor: AppColors.surface, labelStyle: TextStyle(color: selected == filter.$1 ? Colors.white : AppColors.textSecondary), side: BorderSide.none, visualDensity: VisualDensity.compact))]));
   }
 }
 
@@ -466,27 +464,27 @@ class _ActivityCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDone = activity.status == 'مسجل';
-    return Container(padding: const EdgeInsets.all(13), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    return Container(padding: const EdgeInsets.all(13), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(15)), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Row(children: [
         _StatusBadge(label: _activityText(context, activity.status), done: isDone),
         const Spacer(),
-        Text(_activityText(context, activity.category), style: const TextStyle(fontSize: 9, color: AppColors.textSecondary)),
+        Text(_activityText(context, activity.category), style: TextStyle(fontSize: 9, color: AppColors.textSecondary)),
         const SizedBox(width: 5),
         _CountBadge(label: activity.id),
       ]),
       const SizedBox(height: 9),
       Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(width: 38, height: 38, decoration: BoxDecoration(color: const Color(0xFFF3F5F6), borderRadius: BorderRadius.circular(10)), child: Icon(activity.icon, size: 20, color: const Color(0xFF48658C))),
+        Container(width: 38, height: 38, decoration: BoxDecoration(color: AppColors.surfaceLight, borderRadius: BorderRadius.circular(10)), child: MotionIcon(activity.icon, size: 20, color: AppColors.infoDark)),
         const SizedBox(width: 9),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(activity.title, textAlign: TextAlign.right, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primaryDark)), const SizedBox(height: 4), Text(_activityText(context, activity.description), textAlign: TextAlign.right, style: const TextStyle(fontSize: 9, height: 1.5, color: AppColors.textSecondary))])),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(activity.title, textAlign: TextAlign.right, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.ink)), const SizedBox(height: 4), Text(_activityText(context, activity.description), textAlign: TextAlign.right, style: TextStyle(fontSize: 9, height: 1.5, color: AppColors.textSecondary))])),
       ]),
       const SizedBox(height: 10),
-      Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7), decoration: BoxDecoration(color: const Color(0xFFF1F3F5), borderRadius: BorderRadius.circular(10)), child: Row(children: [
-        TextButton.icon(onPressed: onDetails, icon: const Icon(Icons.chevron_left, size: 14), label: Text(headSupervisorText(context, arabic: 'التفاصيل', english: 'Details'), style: const TextStyle(fontSize: 9)), style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap)),
+      Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7), decoration: BoxDecoration(color: AppColors.surfaceLight, borderRadius: BorderRadius.circular(10)), child: Row(children: [
+        TextButton.icon(onPressed: onDetails, icon: const MotionIcon(Icons.chevron_left, size: 14), label: Text(headSupervisorText(context, arabic: 'التفاصيل', english: 'Details'), style: const TextStyle(fontSize: 9)), style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap)),
         const Spacer(),
-        const Icon(Icons.access_time, size: 12, color: AppColors.textSecondary),
+        MotionIcon(Icons.access_time, size: 12, color: AppColors.textSecondary),
         const SizedBox(width: 4),
-        Flexible(child: Text(_activityText(context, activity.time), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 8, color: AppColors.textSecondary))),
+        Flexible(child: Text(_activityText(context, activity.time), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 8, color: AppColors.textSecondary))),
       ])),
     ]));
   }
@@ -497,7 +495,7 @@ class _StatusBadge extends StatelessWidget {
   final bool done;
   const _StatusBadge({required this.label, required this.done});
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: done ? const Color(0xFFE9ECEF) : const Color(0xFFE1ECFF), borderRadius: BorderRadius.circular(12)), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 6, color: done ? AppColors.primaryDark : const Color(0xFF42699F)), const SizedBox(width: 4), Text(label, style: const TextStyle(fontSize: 8, color: AppColors.textSecondary))]));
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: done ? AppColors.surfaceHighlight : AppColors.infoLight, borderRadius: BorderRadius.circular(12)), child: Row(mainAxisSize: MainAxisSize.min, children: [MotionIcon(Icons.circle, size: 6, color: done ? AppColors.ink : AppColors.infoDark), const SizedBox(width: 4), Text(label, style: TextStyle(fontSize: 8, color: AppColors.textSecondary))]));
 }
 
 String _activityText(BuildContext context, String text) => headSupervisorText(

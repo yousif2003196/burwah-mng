@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat;
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/di/injection_container.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../domain/entities/product_supervisor_audit_entry.dart';
-import '../../domain/repositories/product_supervisor_audit_repository.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/features/products/domain/entities/product_supervisor_audit_entry.dart';
+import 'package:barwah_app/features/products/domain/repositories/product_supervisor_audit_repository.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class ProductSupervisorAuditScreen extends StatefulWidget {
   final String? actionKeyPrefix;
@@ -34,10 +36,10 @@ class _ProductSupervisorAuditScreenState
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.scaffold,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: AppColors.primaryDark,
+        backgroundColor: AppColors.surface,
+        foregroundColor: AppColors.ink,
         title: Text(
           l10n.productAuditHistoryTitle,
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -83,22 +85,22 @@ class _ProductSupervisorAuditScreenState
             padding: const EdgeInsets.all(16),
             itemCount: entries.length,
             separatorBuilder: (_, __) => const SizedBox(height: 9),
-            itemBuilder: (context, index) {
+            itemBuilder: scrollFxItems((context, index) {
               final entry = entries[index];
               return Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: AppColors.surface,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: AppColors.cardBorder),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const CircleAvatar(
+                    CircleAvatar(
                       backgroundColor: AppColors.surfaceLight,
-                      child: Icon(Icons.receipt_long_outlined,
-                          color: AppColors.primaryDark),
+                      child: MotionIcon(Icons.receipt_long_outlined,
+                          color: AppColors.ink),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -107,20 +109,20 @@ class _ProductSupervisorAuditScreenState
                         children: [
                           Text(
                             _actionLabel(entry.actionKey, l10n),
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: AppColors.textPrimary,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(entry.subject,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   color: AppColors.textSecondary,
                                   fontSize: 12)),
                           if (entry.details.isNotEmpty) ...[
                             const SizedBox(height: 3),
                             Text(entry.details,
-                                style: const TextStyle(
+                                style: TextStyle(
                                     color: AppColors.textSecondary,
                                     fontSize: 11)),
                           ],
@@ -129,7 +131,7 @@ class _ProductSupervisorAuditScreenState
                             DateFormat('yyyy/MM/dd  HH:mm')
                                 .format(entry.occurredAt.toLocal()),
                             textDirection: TextDirection.ltr,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 color: AppColors.textMuted, fontSize: 10),
                           ),
                         ],
@@ -138,7 +140,7 @@ class _ProductSupervisorAuditScreenState
                   ],
                 ),
               );
-            },
+            }),
           );
         },
       ),
@@ -175,8 +177,28 @@ class _ProductSupervisorAuditScreenState
         'wasalny_promotion_rejected' => l10n.productPromotionAuditRejected,
         'wasalny_request_contact_revealed' => l10n.wasalnyAuditContactRevealed,
         'wasalny_request_contact_hidden' => l10n.wasalnyAuditContactHidden,
+        'product_escalated_to_head' =>
+          _bilingual(l10n, 'رفع لرئيس المشرفين', 'Sent to the head'),
+        'complaint_newCase' => _bilingual(l10n, 'استعادة شكوى', 'Complaint restored'),
+        'complaint_inProgress' =>
+          _bilingual(l10n, 'متابعة شكوى', 'Complaint in progress'),
+        'complaint_waitingCustomer' =>
+          _bilingual(l10n, 'شكوى بانتظار العميل', 'Complaint waiting for customer'),
+        'complaint_resolved' => _bilingual(l10n, 'حل شكوى', 'Complaint resolved'),
+        'complaint_archived' => _bilingual(l10n, 'أرشفة شكوى', 'Complaint archived'),
+        'complaint_message_queued' =>
+          _bilingual(l10n, 'رسالة لعميل', 'Customer message'),
+        'wasalny_request_marked_sold' =>
+          _bilingual(l10n, 'تأكيد إتمام بيع', 'Sale confirmed'),
+        'wasalny_request_flagged' =>
+          _bilingual(l10n, 'رفع طلب لرئيس المشرفين', 'Request flagged to the head'),
+        'wasalny_ad_appeal' =>
+          _bilingual(l10n, 'رفع إعلان لرئيس المشرفين', 'Ad sent to the head'),
         _ => l10n.productAuditActionOther,
       };
+
+  String _bilingual(AppLocalizations l10n, String ar, String en) =>
+      l10n.localeName.startsWith('ar') ? ar : en;
 }
 
 class _AuditMessage extends StatelessWidget {
@@ -200,11 +222,11 @@ class _AuditMessage extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: AppColors.textMuted, size: 42),
+            MotionIcon(icon, color: AppColors.textMuted, size: 42),
             const SizedBox(height: 12),
             Text(message,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.textSecondary)),
+                style: TextStyle(color: AppColors.textSecondary)),
             if (onPressed != null) ...[
               const SizedBox(height: 12),
               TextButton(onPressed: onPressed, child: Text(actionLabel!)),

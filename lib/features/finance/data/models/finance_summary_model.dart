@@ -1,4 +1,4 @@
-import '../../domain/entities/finance_summary_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/finance_summary_entity.dart';
 
 class FinanceSummaryModel extends FinanceSummaryEntity {
   const FinanceSummaryModel({

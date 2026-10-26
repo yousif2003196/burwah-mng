@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../domain/entities/product_review.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/features/products/domain/entities/product_review.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class ProductReviewActionDecision {
   final ProductReviewStatus status;
@@ -128,7 +129,11 @@ class ProductReviewDialogs {
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor:
-                  isApproval ? AppColors.success : AppColors.textSecondary,
+                  isApproval
+            ? AppColors.success
+            : (AppColors.isDark
+                ? AppColors.surfaceHighlight
+                : AppColors.textSecondary),
             ),
             onPressed: () => Navigator.pop(dialogContext, true),
             child: Text(l10n.productConfirmAction),
@@ -195,8 +200,8 @@ class _SuspensionActionSheetState extends State<_SuspensionActionSheet> {
     return FractionallySizedBox(
       heightFactor: .92,
       child: DecoratedBox(
-        decoration: const BoxDecoration(
-          color: Colors.white,
+        decoration: BoxDecoration(
+          color: AppColors.surface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
         ),
         child: Column(
@@ -206,7 +211,7 @@ class _SuspensionActionSheetState extends State<_SuspensionActionSheet> {
               width: 44,
               height: 5,
               decoration: BoxDecoration(
-                color: const Color(0xFFDDE1E5),
+                color: AppColors.cardBorder,
                 borderRadius: BorderRadius.circular(5),
               ),
             ),
@@ -220,8 +225,8 @@ class _SuspensionActionSheetState extends State<_SuspensionActionSheet> {
                       children: [
                         Text(
                           l10n.productSuspendSheetTitle,
-                          style: const TextStyle(
-                            color: AppColors.primaryDark,
+                          style: TextStyle(
+                            color: AppColors.ink,
                             fontSize: 18,
                             fontWeight: FontWeight.w800,
                           ),
@@ -234,7 +239,7 @@ class _SuspensionActionSheetState extends State<_SuspensionActionSheet> {
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: AppColors.textSecondary,
                             fontSize: 9,
                           ),
@@ -245,16 +250,16 @@ class _SuspensionActionSheetState extends State<_SuspensionActionSheet> {
                   IconButton(
                     tooltip: l10n.productCancelAction,
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close),
+                    icon: const MotionIcon(Icons.close),
                     style: IconButton.styleFrom(
-                      backgroundColor: const Color(0xFFF1F3F5),
+                      backgroundColor: AppColors.surfaceLight,
                       foregroundColor: AppColors.textSecondary,
                     ),
                   ),
                 ],
               ),
             ),
-            const Divider(height: 1, color: Color(0xFFE9ECEF)),
+            Divider(height: 1, color: AppColors.surfaceHighlight),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
@@ -307,7 +312,7 @@ class _SuspensionActionSheetState extends State<_SuspensionActionSheet> {
                           ? l10n.productRejectReasonRequired
                           : null,
                       filled: true,
-                      fillColor: const Color(0xFFF1F3F5),
+                      fillColor: AppColors.surfaceLight,
                       contentPadding: const EdgeInsets.all(13),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(13),
@@ -318,13 +323,13 @@ class _SuspensionActionSheetState extends State<_SuspensionActionSheet> {
                   ),
                   Row(
                     children: [
-                      const Icon(Icons.info_outline,
+                      MotionIcon(Icons.info_outline,
                           size: 13, color: AppColors.info),
                       const SizedBox(width: 5),
                       Expanded(
                         child: Text(
                           l10n.productSuspendReasonNote,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: AppColors.textSecondary,
                             fontSize: 9,
                           ),
@@ -334,7 +339,7 @@ class _SuspensionActionSheetState extends State<_SuspensionActionSheet> {
                   ),
                   const SizedBox(height: 15),
                   Material(
-                    color: const Color(0xFFF1F3F5),
+                    color: AppColors.surfaceLight,
                     borderRadius: BorderRadius.circular(13),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
@@ -348,20 +353,20 @@ class _SuspensionActionSheetState extends State<_SuspensionActionSheet> {
                           setState(() => _notifyMerchant = value),
                       title: Text(
                         l10n.productSuspendNotifyTitle,
-                        style: const TextStyle(
-                          color: AppColors.primaryDark,
+                        style: TextStyle(
+                          color: AppColors.ink,
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
                       subtitle: Text(
                         l10n.productSuspendNotifyHint,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 9,
                         ),
                       ),
-                      secondary: const Icon(
+                      secondary: MotionIcon(
                         Icons.mark_email_unread_outlined,
                         color: AppColors.info,
                         size: 19,
@@ -380,7 +385,7 @@ class _SuspensionActionSheetState extends State<_SuspensionActionSheet> {
                 height: 48,
                 child: FilledButton.icon(
                   onPressed: _save,
-                  icon: const Icon(Icons.save_outlined, size: 18),
+                  icon: const MotionIcon(Icons.save_outlined, size: 18),
                   label: Text(l10n.productSuspendSaveAction),
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.primaryDark,
@@ -401,13 +406,13 @@ class _SuspensionActionSheetState extends State<_SuspensionActionSheet> {
   Widget _sectionHeading(String title, IconData icon) {
     return Row(
       children: [
-        Icon(icon, color: AppColors.info, size: 17),
+        MotionIcon(icon, color: AppColors.info, size: 17),
         const SizedBox(width: 6),
         Expanded(
           child: Text(
             title,
-            style: const TextStyle(
-              color: AppColors.primaryDark,
+            style: TextStyle(
+              color: AppColors.ink,
               fontSize: 12,
               fontWeight: FontWeight.w800,
             ),
@@ -437,20 +442,20 @@ class _SuspensionActionSheetState extends State<_SuspensionActionSheet> {
         duration: const Duration(milliseconds: 160),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFF0F4FA) : const Color(0xFFF1F3F5),
+          color: isSelected ? AppColors.infoLight : AppColors.surfaceLight,
           borderRadius: BorderRadius.circular(13),
           border: Border.all(
             color:
-                isSelected ? const Color(0xFF3D669C) : const Color(0xFFE0E4E8),
+                isSelected ? AppColors.infoDark : AppColors.cardBorder,
             width: isSelected ? 1.5 : 1,
           ),
         ),
         child: Row(
           children: [
-            Icon(
+            MotionIcon(
               isSelected ? Icons.check_circle : Icons.circle_outlined,
               size: 19,
-              color: isSelected ? const Color(0xFF3D669C) : AppColors.textMuted,
+              color: isSelected ? AppColors.infoDark : AppColors.textMuted,
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -459,8 +464,8 @@ class _SuspensionActionSheetState extends State<_SuspensionActionSheet> {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
-                      color: AppColors.primaryDark,
+                    style: TextStyle(
+                      color: AppColors.ink,
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                     ),
@@ -470,7 +475,7 @@ class _SuspensionActionSheetState extends State<_SuspensionActionSheet> {
                     subtitle,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 9,
                     ),
@@ -480,7 +485,7 @@ class _SuspensionActionSheetState extends State<_SuspensionActionSheet> {
             ),
             const SizedBox(width: 7),
             if (isSelected)
-              _optionTag(l10n.productSuspendSelected, const Color(0xFF3D669C))
+              _optionTag(l10n.productSuspendSelected, AppColors.infoDark)
             else if (isCurrent)
               _optionTag(l10n.productSuspendCurrent, AppColors.textSecondary)
             else
@@ -491,7 +496,7 @@ class _SuspensionActionSheetState extends State<_SuspensionActionSheet> {
                   color: iconColor.withValues(alpha: .1),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, size: 15, color: iconColor),
+                child: MotionIcon(icon, size: 15, color: iconColor),
               ),
           ],
         ),

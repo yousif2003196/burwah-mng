@@ -2,8 +2,8 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../domain/entities/product_supervisor_audit_entry.dart';
-import 'product_supervisor_audit_data_source.dart';
+import 'package:barwah_app/features/products/data/datasources/product_supervisor_audit_data_source.dart';
+import 'package:barwah_app/features/products/domain/entities/product_supervisor_audit_entry.dart';
 
 class ProductSupervisorAuditSharedPreferencesDataSource
     implements ProductSupervisorAuditDataSource {

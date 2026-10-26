@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
-import '../../../../l10n/app_localizations.dart';
+
+import 'package:barwah_app/l10n/app_localizations.dart';
 
 class FinanceLocalizer {
   static const _withdrawalTextTranslations = <String, String>{

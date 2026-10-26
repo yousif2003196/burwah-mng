@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../../domain/usecases/get_finance_summary_usecase.dart';
-import 'finance_dashboard_state.dart';
+
+import 'package:barwah_app/features/finance/domain/usecases/get_finance_summary_usecase.dart';
+import 'package:barwah_app/features/finance/presentation/controllers/dashboard/finance_dashboard_state.dart';
 
 class FinanceDashboardCubit extends Cubit<FinanceDashboardState> {
   final GetFinanceSummaryUseCase getFinanceSummaryUseCase;

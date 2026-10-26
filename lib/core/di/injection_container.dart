@@ -1,66 +1,92 @@
 import 'package:get_it/get_it.dart';
 
-import '../network/api_configuration.dart';
-import '../network/api_consumer.dart';
-import '../../features/merchants/data/datasources/merchants_data_source.dart';
-import '../../features/merchants/data/datasources/merchants_mock_data_source.dart';
-import '../../features/merchants/data/repositories/merchants_repository_impl.dart';
-import '../../features/merchants/domain/repositories/merchants_repository.dart';
-import '../../features/merchants/domain/usecases/get_merchants_usecase.dart';
-import '../../features/merchants/domain/usecases/get_supervised_merchants_usecase.dart';
-import '../../features/merchants/domain/usecases/get_supervisor_stats_usecase.dart';
-import '../../features/merchants/presentation/controllers/merchants_cubit.dart';
-import '../../features/products/data/datasources/product_review_data_source.dart';
-import '../../features/products/data/datasources/product_review_mock_data_source.dart';
-import '../../features/products/data/datasources/product_supervisor_audit_data_source.dart';
-import '../../features/products/data/datasources/product_supervisor_audit_shared_preferences_data_source.dart';
-import '../../features/products/data/repositories/product_review_repository_impl.dart';
-import '../../features/products/data/repositories/product_supervisor_audit_repository_impl.dart';
-import '../../features/products/domain/repositories/product_review_repository.dart';
-import '../../features/products/domain/repositories/product_supervisor_audit_repository.dart';
-import '../../features/products/domain/usecases/change_product_review_status_usecase.dart';
-import '../../features/products/domain/usecases/get_product_reviews_usecase.dart';
-import '../../features/products/domain/usecases/update_product_review_usecase.dart';
-import '../../features/products/presentation/controllers/product_review_cubit.dart';
-import '../../features/finance/data/datasources/finance_mock_data_source.dart';
-import '../../features/finance/data/datasources/finance_remote_data_source.dart';
-import '../../features/finance/data/repositories/finance_repository_impl.dart';
-import '../../features/finance/domain/repositories/finance_repository.dart';
-import '../../features/finance/domain/usecases/get_bank_account_edit_requests_usecase.dart';
-import '../../features/finance/domain/usecases/get_bank_link_requests_usecase.dart';
-import '../../features/finance/domain/usecases/get_bank_accounts_usecase.dart';
-import '../../features/finance/domain/usecases/get_department_wallet_usecase.dart';
-import '../../features/finance/domain/usecases/get_expense_requests_usecase.dart';
-import '../../features/finance/domain/usecases/get_finance_summary_usecase.dart';
-import '../../features/finance/domain/usecases/get_frozen_withdrawals_usecase.dart';
-import '../../features/finance/domain/usecases/get_merchant_withdrawals_usecase.dart';
-import '../../features/finance/domain/usecases/get_subscriptions_usecase.dart';
-import '../../features/finance/domain/usecases/get_supervisor_withdrawals_usecase.dart';
-import '../../features/finance/domain/usecases/submit_bank_account_edit_request_usecase.dart';
-import '../../features/finance/domain/usecases/submit_expense_request_usecase.dart';
-import '../../features/finance/domain/usecases/update_expense_request_status_usecase.dart';
-import '../../features/finance/domain/usecases/edit_expense_request_usecase.dart';
-import '../../features/finance/domain/usecases/restore_frozen_withdrawal_usecase.dart';
-import '../../features/finance/domain/usecases/reject_and_forfeit_withdrawal_usecase.dart';
-import '../../features/finance/domain/usecases/approve_bank_link_request_usecase.dart';
-import '../../features/finance/domain/usecases/request_iban_certificate_usecase.dart';
-import '../../features/finance/domain/usecases/freeze_bank_link_request_usecase.dart';
-import '../../features/finance/domain/usecases/reject_bank_link_request_usecase.dart';
-import '../../features/finance/domain/usecases/restore_frozen_bank_link_request_usecase.dart';
-import '../../features/finance/domain/usecases/reject_frozen_bank_link_request_usecase.dart';
-import '../../features/wasalny_supervisor/data/datasources/wasalny_complaints_data_source.dart';
-import '../../features/wasalny_supervisor/data/datasources/wasalny_complaints_api_data_source.dart';
-import '../../features/wasalny_supervisor/data/datasources/wasalny_complaints_mock_data_source.dart';
-import '../../features/wasalny_supervisor/data/repositories/wasalny_complaints_repository_impl.dart';
-import '../../features/wasalny_supervisor/domain/repositories/wasalny_complaints_repository.dart';
-import '../../features/wasalny_supervisor/domain/usecases/escalate_wasalny_complaint_usecase.dart';
-import '../../features/wasalny_supervisor/domain/usecases/get_wasalny_complaints_usecase.dart';
-import '../../features/wasalny_supervisor/domain/usecases/resolve_wasalny_complaint_usecase.dart';
-import '../../features/wasalny_supervisor/presentation/controllers/wasalny_complaints_cubit.dart';
+import 'package:barwah_app/core/network/api_configuration.dart';
+import 'package:barwah_app/core/network/api_consumer.dart';
+import 'package:barwah_app/features/admin/data/datasources/admin_security_store.dart';
+import 'package:barwah_app/features/admin/data/datasources/head_account_store.dart';
+import 'package:barwah_app/features/auth/data/repositories/auth_repository_impl.dart';
+import 'package:barwah_app/features/auth/domain/repositories/auth_repository.dart';
+import 'package:barwah_app/features/auth/domain/usecases/login_usecase.dart';
+import 'package:barwah_app/features/auth/domain/usecases/logout_usecase.dart';
+import 'package:barwah_app/features/auth/presentation/controllers/auth_cubit.dart';
+import 'package:barwah_app/features/finance/data/datasources/finance_mock_data_source.dart';
+import 'package:barwah_app/features/finance/data/datasources/finance_remote_data_source.dart';
+import 'package:barwah_app/features/finance/data/repositories/finance_repository_impl.dart';
+import 'package:barwah_app/features/finance/domain/repositories/finance_repository.dart';
+import 'package:barwah_app/features/finance/domain/usecases/approve_bank_link_request_usecase.dart';
+import 'package:barwah_app/features/finance/domain/usecases/edit_expense_request_usecase.dart';
+import 'package:barwah_app/features/finance/domain/usecases/freeze_bank_link_request_usecase.dart';
+import 'package:barwah_app/features/finance/domain/usecases/get_bank_account_edit_requests_usecase.dart';
+import 'package:barwah_app/features/finance/domain/usecases/get_bank_accounts_usecase.dart';
+import 'package:barwah_app/features/finance/domain/usecases/get_bank_link_requests_usecase.dart';
+import 'package:barwah_app/features/finance/domain/usecases/get_department_wallet_usecase.dart';
+import 'package:barwah_app/features/finance/domain/usecases/get_expense_requests_usecase.dart';
+import 'package:barwah_app/features/finance/domain/usecases/get_finance_summary_usecase.dart';
+import 'package:barwah_app/features/finance/domain/usecases/get_frozen_withdrawals_usecase.dart';
+import 'package:barwah_app/features/finance/domain/usecases/get_merchant_withdrawals_usecase.dart';
+import 'package:barwah_app/features/finance/domain/usecases/get_subscriptions_usecase.dart';
+import 'package:barwah_app/features/finance/domain/usecases/get_supervisor_withdrawals_usecase.dart';
+import 'package:barwah_app/features/finance/domain/usecases/reject_and_forfeit_withdrawal_usecase.dart';
+import 'package:barwah_app/features/finance/domain/usecases/reject_bank_link_request_usecase.dart';
+import 'package:barwah_app/features/finance/domain/usecases/reject_frozen_bank_link_request_usecase.dart';
+import 'package:barwah_app/features/finance/domain/usecases/request_iban_certificate_usecase.dart';
+import 'package:barwah_app/features/finance/domain/usecases/restore_frozen_bank_link_request_usecase.dart';
+import 'package:barwah_app/features/finance/domain/usecases/restore_frozen_withdrawal_usecase.dart';
+import 'package:barwah_app/features/finance/domain/usecases/submit_bank_account_edit_request_usecase.dart';
+import 'package:barwah_app/features/finance/domain/usecases/submit_expense_request_usecase.dart';
+import 'package:barwah_app/features/finance/domain/usecases/update_expense_request_status_usecase.dart';
+import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_roster_store.dart';
+import 'package:barwah_app/features/merchants/data/datasources/merchants_data_source.dart';
+import 'package:barwah_app/features/merchants/data/datasources/merchants_mock_data_source.dart';
+import 'package:barwah_app/features/merchants/data/repositories/merchants_repository_impl.dart';
+import 'package:barwah_app/features/merchants/domain/repositories/merchants_repository.dart';
+import 'package:barwah_app/features/merchants/domain/usecases/get_merchants_usecase.dart';
+import 'package:barwah_app/features/merchants/domain/usecases/get_supervised_merchants_usecase.dart';
+import 'package:barwah_app/features/merchants/domain/usecases/get_supervisor_stats_usecase.dart';
+import 'package:barwah_app/features/merchants/presentation/controllers/merchants_cubit.dart';
+import 'package:barwah_app/features/products/data/datasources/product_review_data_source.dart';
+import 'package:barwah_app/features/products/data/datasources/product_review_mock_data_source.dart';
+import 'package:barwah_app/features/products/data/datasources/product_supervisor_audit_data_source.dart';
+import 'package:barwah_app/features/products/data/datasources/product_supervisor_audit_shared_preferences_data_source.dart';
+import 'package:barwah_app/features/products/data/repositories/product_review_repository_impl.dart';
+import 'package:barwah_app/features/products/data/repositories/product_supervisor_audit_repository_impl.dart';
+import 'package:barwah_app/features/products/domain/repositories/product_review_repository.dart';
+import 'package:barwah_app/features/products/domain/repositories/product_supervisor_audit_repository.dart';
+import 'package:barwah_app/features/products/domain/usecases/change_product_review_status_usecase.dart';
+import 'package:barwah_app/features/products/domain/usecases/get_product_reviews_usecase.dart';
+import 'package:barwah_app/features/products/domain/usecases/update_product_review_usecase.dart';
+import 'package:barwah_app/features/products/presentation/controllers/product_review_cubit.dart';
+import 'package:barwah_app/features/wasalny_supervisor/data/datasources/wasalny_case_store.dart';
+import 'package:barwah_app/features/wasalny_supervisor/data/datasources/wasalny_complaints_api_data_source.dart';
+import 'package:barwah_app/features/wasalny_supervisor/data/datasources/wasalny_complaints_data_source.dart';
+import 'package:barwah_app/features/wasalny_supervisor/data/datasources/wasalny_complaints_mock_data_source.dart';
+import 'package:barwah_app/features/wasalny_supervisor/data/repositories/wasalny_complaints_repository_impl.dart';
+import 'package:barwah_app/features/wasalny_supervisor/domain/repositories/wasalny_complaints_repository.dart';
+import 'package:barwah_app/features/wasalny_supervisor/domain/usecases/escalate_wasalny_complaint_usecase.dart';
+import 'package:barwah_app/features/wasalny_supervisor/domain/usecases/get_wasalny_complaints_usecase.dart';
+import 'package:barwah_app/features/wasalny_supervisor/domain/usecases/resolve_wasalny_complaint_usecase.dart';
+import 'package:barwah_app/features/wasalny_supervisor/presentation/controllers/wasalny_complaints_cubit.dart';
 
 final sl = GetIt.instance;
 
 Future<void> initDependencies() async {
+  // Auth (registered first so login keeps working if a later registration fails)
+  sl.registerLazySingleton(() => AdminSecurityStore());
+  sl.registerLazySingleton(() => HeadAccountStore());
+  sl.registerLazySingleton(() => HeadSupervisorRosterStore());
+  sl.registerLazySingleton<AuthRepository>(
+    () => AuthRepositoryImpl(
+      adminSecurity: sl(),
+      headAccounts: sl(),
+      supervisorRoster: sl(),
+    ),
+  );
+  sl.registerLazySingleton(() => LoginUseCase(sl()));
+  sl.registerLazySingleton(() => LogoutUseCase(sl()));
+  sl.registerFactory(
+    () => AuthCubit(loginUseCase: sl(), logoutUseCase: sl()),
+  );
+
   final apiConfiguration = ApiConfiguration.fromEnvironment();
   apiConfiguration.validate();
 
@@ -172,6 +198,7 @@ Future<void> initDependencies() async {
       escalateComplaint: sl(),
       resolveComplaint: sl(),
       auditRepository: sl(),
+      caseStore: WasalnyCaseStore(),
     ),
   );
 }

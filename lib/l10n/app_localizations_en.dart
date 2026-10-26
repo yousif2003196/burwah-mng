@@ -109,7 +109,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cfoBadgeCode => '#CF0-01';
 
   @override
-  String get currencyEgy => 'Egy';
+  String get currencyEgy => 'EGP';
 
   @override
   String get totalAggregatedLiquidity =>
@@ -268,7 +268,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get netRegulatoryRevenue => 'Net Regulatory Revenue';
 
   @override
-  String get comparedToLastMonth => 'Compared to last month (Egy 249,450)';
+  String get comparedToLastMonth => 'Compared to last month (EGP 249,450)';
 
   @override
   String get balancesUnderRegulatoryAudit =>
@@ -380,7 +380,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get servicesProfilePendingDues => 'Pending settlement';
 
   @override
-  String get servicesProfileCurrency => 'SAR';
+  String get servicesProfileCurrency => 'EGP';
 
   @override
   String get servicesProfileOpenWallet => 'Open wallet and withdraw';
@@ -819,7 +819,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get servicesWorkDescription => 'Requested work:';
 
   @override
-  String get servicesCurrency => 'SAR';
+  String get servicesCurrency => 'EGP';
 
   @override
   String get servicesUrgentNotice =>
@@ -2183,7 +2183,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get approveDisputeSettlement =>
-      'Approved dispute settlement #CMP-1035 for Egy 1,200.00 to Dr. Tareq Al-Omari.';
+      'Approved dispute settlement #CMP-1035 for EGP 1,200.00 to Dr. Tareq Al-Omari.';
 
   @override
   String get referenceCode => 'Reference:';
@@ -2200,7 +2200,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get periodicMerchantTransfers =>
-      'Periodic payouts to 12 approved stores through instant payments, totaling Egy 142,500.00.';
+      'Periodic payouts to 12 approved stores through instant payments, totaling EGP 142,500.00.';
 
   @override
   String get alRajhiBank => 'Al Rajhi Bank';
@@ -2468,7 +2468,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get withdrawSheetMinimumNotice =>
-      'Minimum withdrawal: 1,000 Egy • no administrative transfer fees';
+      'Minimum withdrawal: 1,000 EGP • no administrative transfer fees';
 
   @override
   String get withdrawSheetEnterAmount => 'Enter the amount to withdraw';
@@ -2504,16 +2504,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get withdrawSheetCancel => 'Cancel';
 
   @override
-  String get withdrawSheetAllAmount => 'All (52,000 Egy)';
+  String get withdrawSheetAllAmount => 'All (52,000 EGP)';
 
   @override
-  String get withdrawSheetAmount25k => '25,000 Egy';
+  String get withdrawSheetAmount25k => '25,000 EGP';
 
   @override
-  String get withdrawSheetAmount10k => '10,000 Egy';
+  String get withdrawSheetAmount10k => '10,000 EGP';
 
   @override
-  String get withdrawSheetAmount5k => '5,000 Egy';
+  String get withdrawSheetAmount5k => '5,000 EGP';
 
   @override
   String get matrixLive => 'Local settings';
@@ -2799,7 +2799,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get matrixInstantFixedFeeNote =>
-      'Apply a fixed 5.00 Egy fee to each urgent settlement';
+      'Apply a fixed 5.00 EGP fee to each urgent settlement';
 
   @override
   String get matrixCoverageDetails => 'Cost coverage details:';
@@ -3686,7 +3686,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get adsCarDetails => 'Mileage: 15,000 km';
 
   @override
-  String get adsCarPrice => 'SAR 245,000';
+  String get adsCarPrice => 'EGP 245,000';
 
   @override
   String get adsPhoneMerchant => 'Al-Safwa Electronics Store';
@@ -3701,7 +3701,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get adsPhoneDetails => 'Local warranty: 5 years';
 
   @override
-  String get adsPhonePrice => 'SAR 4,699';
+  String get adsPhonePrice => 'EGP 4,699';
 
   @override
   String get adsVillaMerchant => 'Al-Yamama Contracting & Real Estate Co.';
@@ -3717,7 +3717,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get adsVillaDetails => 'Land area: 375 m²';
 
   @override
-  String get adsVillaPrice => 'SAR 2,850,000';
+  String get adsVillaPrice => 'EGP 2,850,000';
 
   @override
   String get adsLicenseVerified => 'Business license verified';
@@ -5028,7 +5028,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Available for instant withdrawal';
 
   @override
-  String get productWalletBalanceAmount => 'SAR 8,450';
+  String get productWalletBalanceAmount => 'EGP 8,450';
 
   @override
   String get productWalletReady => 'Active and ready';
@@ -5041,7 +5041,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get productWalletTotalDues => 'Total dues';
 
   @override
-  String get productWalletTotalDuesAmount => 'SAR 12,500';
+  String get productWalletTotalDuesAmount => 'EGP 12,500';
 
   @override
   String get productWalletDuesDetail => 'Salary + earned incentives';
@@ -5050,7 +5050,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get productWalletPendingReview => 'Pending financial review';
 
   @override
-  String get productWalletPendingAmount => 'SAR 4,050';
+  String get productWalletPendingAmount => 'EGP 4,050';
 
   @override
   String get productWalletPendingDetail => 'Inspection and reward review';
@@ -5073,14 +5073,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get productWalletWithdrawableHint =>
-      'Withdraw all available funds (SAR 8,450)';
+      'Withdraw all available funds (EGP 8,450)';
 
   @override
-  String get productWalletCurrency => 'SAR';
+  String get productWalletCurrency => 'EGP';
 
   @override
   String get productWalletLimitNote =>
-      'Minimum withdrawal is SAR 100; daily maximum is SAR 20,000.';
+      'Minimum withdrawal is EGP 100; daily maximum is EGP 20,000.';
 
   @override
   String get productWalletChooseDestination => 'Choose transfer destination';
@@ -5117,14 +5117,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get productWalletFeeDetails =>
-      'Processing and transfer fee: SAR 0.5 (fully covered for the supervisor)';
+      'Processing and transfer fee: EGP 0.5 (fully covered for the supervisor)';
 
   @override
   String get productWalletSubmitRequest => 'Confirm and request withdrawal';
 
   @override
   String get productWalletAmountError =>
-      'Enter an amount between SAR 100 and SAR 8,450.';
+      'Enter an amount between EGP 100 and EGP 8,450.';
 
   @override
   String get productWalletDetailsError =>
@@ -5135,7 +5135,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String productWalletConfirmMessage(Object amount) {
-    return 'Confirm withdrawal of SAR $amount?';
+    return 'Confirm withdrawal of EGP $amount?';
   }
 
   @override
@@ -5149,7 +5149,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get productWalletBonusTitle => 'Weekly achievement bonus available!';
 
   @override
-  String get productWalletBonusAmount => '+SAR 500';
+  String get productWalletBonusAmount => '+EGP 500';
 
   @override
   String get productWalletBonusDescription =>
@@ -5618,7 +5618,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get productProfileWalletBalance => 'Available balance and dues';
 
   @override
-  String get productProfileWalletAmount => 'SAR 14,850';
+  String get productProfileWalletAmount => 'EGP 14,850';
 
   @override
   String get productProfileWalletDetail =>
@@ -5718,7 +5718,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Delivery service is requested for this ad. The supervisor may adjust delivery fees before approval or hiding.';
 
   @override
-  String get adsDeliveryFee => 'Fixed amount (SAR)';
+  String get adsDeliveryFee => 'Fixed amount (EGP)';
 
   @override
   String get adsUpdateDeliveryFee => 'Update fee';
@@ -5983,7 +5983,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get finRequestSalesMatched => 'Sales statements fully reconciled';
 
   @override
-  String get finRequestCurrency => 'SAR';
+  String get finRequestCurrency => 'EGP';
 
   @override
   String get finRequestRestrictedStatus => 'Ready for reconciliation';
@@ -6295,11 +6295,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get merchantWalletRequestedAmount => 'Requested withdrawal amount';
 
   @override
-  String get merchantWalletFullBalance => 'Withdraw full balance (SAR 8,450)';
+  String get merchantWalletFullBalance => 'Withdraw full balance (EGP 8,450)';
 
   @override
   String get merchantWalletTransferLimit =>
-      'Minimum withdrawal is SAR 100; daily maximum is SAR 20,000';
+      'Minimum withdrawal is EGP 100; daily maximum is EGP 20,000';
 
   @override
   String get merchantWalletChooseMethod => 'Choose a transfer destination';
@@ -6341,7 +6341,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get merchantWalletProcessingDetails =>
-      'Processing speed: instant, 24/7\nProcessing and transfer fee: SAR 0.5 (fully covered for the supervisor)';
+      'Processing speed: instant, 24/7\nProcessing and transfer fee: EGP 0.5 (fully covered for the supervisor)';
 
   @override
   String get merchantWalletConfirmWithdrawal =>
@@ -6544,7 +6544,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get merchantInfoSalesCommission => 'Sales commission';
 
   @override
-  String get merchantInfoFixedAmount => 'Fixed amount (SAR)';
+  String get merchantInfoFixedAmount => 'Fixed amount (EGP)';
 
   @override
   String get merchantInfoPercentage => 'Percentage (%)';
@@ -6557,7 +6557,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get merchantInfoCommissionExample =>
-      'Estimated commission for a sale of SAR 100:';
+      'Estimated commission for a sale of EGP 100:';
 
   @override
   String merchantInfoCommissionValue(Object amount, Object currency) {
@@ -7196,11 +7196,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get financeWalletInvalidWithdrawalAmount =>
-      'Enter a withdrawal amount between SAR 100 and SAR 8,450.';
+      'Enter a withdrawal amount between EGP 100 and EGP 8,450.';
 
   @override
   String get financeWalletInvalidDetails =>
-      'Enter a valid amount between SAR 100 and SAR 20,000 and provide a payment destination.';
+      'Enter a valid amount between EGP 100 and EGP 20,000 and provide a payment destination.';
 
   @override
   String get financeWalletConfirmDepositTitle => 'Confirm deposit request';

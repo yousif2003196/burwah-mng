@@ -1,4 +1,4 @@
-import '../../domain/entities/bank_account_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/bank_account_entity.dart';
 
 class BankAccountModel extends BankAccountEntity {
   const BankAccountModel({

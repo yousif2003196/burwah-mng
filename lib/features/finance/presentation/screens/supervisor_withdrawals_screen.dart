@@ -1,21 +1,28 @@
-import 'package:flutter/material.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/features/finance/data/services/finance_approval_policy.dart';
 import 'package:dartz/dartz.dart' as dartz;
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' as intl;
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/di/injection_container.dart';
-import '../../../../core/errors/failures.dart';
-import '../../../../core/utils/currency_formatter.dart';
-import '../../domain/repositories/finance_repository.dart';
-import '../../domain/entities/withdrawal_request_entity.dart';
-import '../../domain/usecases/get_supervisor_withdrawals_usecase.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../../../core/widgets/app_snack_bar.dart';
-import '../../../../core/widgets/finance_dialogs.dart';
-import '../../../wasalny_supervisor/data/wasalny_local_event_store.dart';
-import '../widgets/finance_navigation.dart';
-import '../widgets/withdrawal_request_details_sheet.dart';
-import '../utils/finance_localizer.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/errors/failures.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/utils/currency_formatter.dart';
+import 'package:barwah_app/core/widgets/app_snack_bar.dart';
+import 'package:barwah_app/features/admin/data/datasources/admin_request_store.dart';
+import 'package:barwah_app/features/admin/domain/entities/admin_request.dart';
+import 'package:barwah_app/features/finance/domain/entities/withdrawal_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/repositories/finance_repository.dart';
+import 'package:barwah_app/features/finance/domain/usecases/get_supervisor_withdrawals_usecase.dart';
+import 'package:barwah_app/features/finance/presentation/utils/finance_localizer.dart';
+import 'package:barwah_app/features/finance/presentation/widgets/finance_dialogs.dart';
+import 'package:barwah_app/features/finance/presentation/widgets/finance_navigation.dart';
+import 'package:barwah_app/features/finance/presentation/widgets/withdrawal_request_details_sheet.dart';
+import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
+import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
 
 class SupervisorWithdrawalsScreen extends StatefulWidget {
   const SupervisorWithdrawalsScreen({super.key});
@@ -215,6 +222,19 @@ class _SupervisorWithdrawalsScreenState
     required RequestStatus decisionStatus,
     String? reason,
   }) async {
+    if (decisionStatus == RequestStatus.approved &&
+        await FinanceApprovalPolicy.needsAdmin(request.netAmount,
+            instantReady: request.isInstantTransferReady)) {
+      await forwardFinanceRequestToAdmin(
+        kind: AdminRequestKind.withdrawal,
+        refId: request.requestNumber,
+        titleAr: 'طلب مالي بانتظار المصادقة النهائية',
+        titleEn: 'Financial request awaiting final authorization',
+        detailsAr: '${request.beneficiaryName} (${request.beneficiaryRole}) — صافي ${request.netAmount.toStringAsFixed(2)} ج.م عبر ${request.bankName}.',
+        detailsEn: '${request.beneficiaryName} (${request.beneficiaryRole}) — net EGP ${request.netAmount.toStringAsFixed(2)} via ${request.bankName}.',
+        amount: request.netAmount,
+      );
+    }
     final sourceAccount = request.sourceAccount;
     final source = sourceAccount?.startsWith('wasalny-') == true
         ? 'wasalny'
@@ -256,8 +276,8 @@ class _SupervisorWithdrawalsScreenState
             : 'Request ${request.requestNumber} was placed under additional review.';
 
     try {
-      await WasalnyLocalEventStore().publish(
-        WasalnyLocalEvent(
+      await LocalEventStore().publish(
+        LocalEvent(
           id: 'finance-${decisionStatus.name}-${request.id}',
           recipient: source,
           source: 'finance',
@@ -289,7 +309,7 @@ class _SupervisorWithdrawalsScreenState
           ? TextDirection.rtl
           : TextDirection.ltr,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF9FAFB),
+        backgroundColor: AppColors.scaffold,
         appBar: FinancePageAppBar(
           title: l10n.navWithdrawalOrders,
           subtitle: l10n.financialManagementSubtitle,
@@ -297,8 +317,8 @@ class _SupervisorWithdrawalsScreenState
           onBackPressed: () => Navigator.pop(context),
         ),
         body: _isLoading
-            ? const Center(
-                child: CircularProgressIndicator(color: AppColors.primaryDark))
+            ? Center(
+                child: CircularProgressIndicator(color: AppColors.ink))
             : Stack(
                 children: [
                   ListView(
@@ -312,7 +332,7 @@ class _SupervisorWithdrawalsScreenState
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: Colors.blue.shade50,
+                            color: AppColors.infoLight,
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Row(
@@ -323,14 +343,14 @@ class _SupervisorWithdrawalsScreenState
                                     l10n.supervisorWithdrawalsHeaderSubtitle,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                        color: AppColors.primaryDark,
+                                    style: TextStyle(
+                                        color: AppColors.ink,
                                         fontSize: 10,
                                         fontWeight: FontWeight.bold)),
                               ),
                               const SizedBox(width: 4),
-                              Icon(Icons.shield,
-                                  color: Colors.blue.shade700, size: 14),
+                              MotionIcon(Icons.shield,
+                                  color: AppColors.infoDark, size: 14),
                             ],
                           ),
                         ),
@@ -340,22 +360,22 @@ class _SupervisorWithdrawalsScreenState
                       // 2. Titles
                       Text(
                         l10n.supervisorWithdrawalsHeaderTitle,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w900,
-                            color: AppColors.primaryDark,
+                            color: AppColors.ink,
                             height: 1.3),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         l10n.supervisorWithdrawalsHeaderSubtitle,
                         style:
-                            const TextStyle(fontSize: 12, color: Colors.grey),
+                            TextStyle(fontSize: 12, color: AppColors.textSecondary),
                       ),
                       const SizedBox(height: 16),
 
                       // 3. Metric Cards
-                      Row(
+                      ScrollFx(child: Row(
                         children: [
                           Expanded(
                             child: _buildMetricMiniCard(
@@ -365,7 +385,7 @@ class _SupervisorWithdrawalsScreenState
                                   '${CurrencyFormatter.format(_totalPendingAmount, includeCurrency: false)} ${l10n.currencyEgy}',
                               icon: Icons.pending_actions,
                               color: AppColors.primaryDark,
-                              countColor: Colors.black87,
+                              countColor: AppColors.textPrimary,
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -380,11 +400,11 @@ class _SupervisorWithdrawalsScreenState
                             ),
                           ),
                         ],
-                      ),
+                      )),
                       const SizedBox(height: 16),
 
                       // 4. Filters
-                      Wrap(
+                      ScrollFx(child: Wrap(
                         spacing: 8,
                         children: [
                           _buildQueueChip(
@@ -396,9 +416,9 @@ class _SupervisorWithdrawalsScreenState
                             true,
                           ),
                         ],
-                      ),
+                      )),
                       const SizedBox(height: 12),
-                      Wrap(
+                      ScrollFx(child: Wrap(
                         spacing: 8,
                         runSpacing: 8,
                         children: [
@@ -408,9 +428,9 @@ class _SupervisorWithdrawalsScreenState
                           _buildFilterChip('مقدمي الخدمة',
                               icon: Icons.build_circle),
                         ],
-                      ),
+                      )),
                       const SizedBox(height: 12),
-                      Wrap(
+                      ScrollFx(child: Wrap(
                         spacing: 8,
                         runSpacing: 8,
                         crossAxisAlignment: WrapCrossAlignment.center,
@@ -438,7 +458,7 @@ class _SupervisorWithdrawalsScreenState
                           ),
                           OutlinedButton.icon(
                             onPressed: _selectDateRange,
-                            icon: const Icon(Icons.date_range_outlined),
+                            icon: const MotionIcon(Icons.date_range_outlined),
                             label: Text(_dateRange == null
                                 ? (l10n.localeName.startsWith('ar')
                                     ? 'تصفية بالتاريخ'
@@ -452,31 +472,31 @@ class _SupervisorWithdrawalsScreenState
                                   : 'Clear date filter',
                               onPressed: () =>
                                   setState(() => _dateRange = null),
-                              icon: const Icon(Icons.close),
+                              icon: const MotionIcon(Icons.close),
                             ),
                         ],
-                      ),
+                      )),
                       const SizedBox(height: 12),
                       TextField(
                         controller: _searchController,
                         onChanged: (value) =>
                             setState(() => _searchQuery = value),
                         decoration: InputDecoration(
-                          prefixIcon: const Icon(Icons.search),
+                          prefixIcon: const MotionIcon(Icons.search),
                           hintText: l10n.localeName.startsWith('ar')
                               ? 'ابحث باسم المستفيد أو رقم الطلب'
                               : 'Search beneficiary or request number',
                           filled: true,
-                          fillColor: Colors.white,
+                          fillColor: AppColors.surface,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide:
-                                const BorderSide(color: AppColors.cardBorder),
+                                BorderSide(color: AppColors.cardBorder),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide:
-                                const BorderSide(color: AppColors.cardBorder),
+                                BorderSide(color: AppColors.cardBorder),
                           ),
                         ),
                       ),
@@ -498,7 +518,7 @@ class _SupervisorWithdrawalsScreenState
                       else
                         ..._filteredRequests.map(
                           (req) => _buildWithdrawalCard(context, req),
-                        ),
+                        ).staggered(),
                     ],
                   ),
 
@@ -515,6 +535,8 @@ class _SupervisorWithdrawalsScreenState
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 16, vertical: 12),
                             decoration: BoxDecoration(
+                              gradient: AppColors.blueFill,
+                              border: AppColors.blueEdge,
                               color: AppColors.primaryDark,
                               borderRadius: BorderRadius.circular(16),
                               boxShadow: [
@@ -533,7 +555,7 @@ class _SupervisorWithdrawalsScreenState
                                       color:
                                           Colors.white.withValues(alpha: 0.15),
                                       borderRadius: BorderRadius.circular(10)),
-                                  child: const Icon(Icons.calculate,
+                                  child: const MotionIcon(Icons.calculate,
                                       color: Colors.white, size: 24),
                                 ),
                                 const SizedBox(width: 12),
@@ -547,7 +569,7 @@ class _SupervisorWithdrawalsScreenState
                                           style: const TextStyle(
                                               color: Colors.white70,
                                               fontSize: 10)),
-                                      Text(
+                                      CountText(
                                           '${CurrencyFormatter.format(_totalPendingAmount, includeCurrency: false)} ${l10n.currencyEgy}',
                                           style: const TextStyle(
                                               color: Colors.white,
@@ -567,7 +589,7 @@ class _SupervisorWithdrawalsScreenState
                                             height: 1.2),
                                         textAlign: TextAlign.center),
                                     const SizedBox(height: 2),
-                                    Text('$_pendingCount ${l10n.ordersUnit}',
+                                    CountText('$_pendingCount ${l10n.ordersUnit}',
                                         style: const TextStyle(
                                             color: Colors.white,
                                             fontSize: 12,
@@ -582,8 +604,8 @@ class _SupervisorWithdrawalsScreenState
                             padding: const EdgeInsets.symmetric(
                                 vertical: 8, horizontal: 12),
                             decoration: BoxDecoration(
-                              color: Colors.white,
-                              border: Border.all(color: Colors.grey.shade300),
+                              color: AppColors.surface,
+                              border: Border.all(color: AppColors.cardBorder),
                               borderRadius: BorderRadius.circular(10),
                               boxShadow: [
                                 BoxShadow(
@@ -594,8 +616,8 @@ class _SupervisorWithdrawalsScreenState
                             ),
                             child: Row(
                               children: [
-                                Icon(Icons.shield_outlined,
-                                    color: Colors.blue.shade700, size: 24),
+                                MotionIcon(Icons.shield_outlined,
+                                    color: AppColors.infoDark, size: 24),
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Column(
@@ -603,16 +625,16 @@ class _SupervisorWithdrawalsScreenState
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(l10n.samaComplianceNotice,
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                               fontSize: 10,
                                               fontWeight: FontWeight.bold,
-                                              color: AppColors.primaryDark)),
+                                              color: AppColors.ink)),
                                     ],
                                   ),
                                 ),
-                                const Text('v3.4.1',
+                                Text('v3.4.1',
                                     style: TextStyle(
-                                        fontSize: 10, color: Colors.blue)),
+                                        fontSize: 10, color: AppColors.info)),
                               ],
                             ),
                           ),
@@ -641,22 +663,22 @@ class _SupervisorWithdrawalsScreenState
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primaryDark : Colors.white,
+          color: isSelected ? AppColors.primaryDark : AppColors.surface,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-              color: isSelected ? AppColors.primaryDark : Colors.grey.shade300),
+              color: isSelected ? AppColors.primaryDark : AppColors.cardBorder),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (icon != null)
-              Icon(icon,
-                  size: 14, color: isSelected ? Colors.white : Colors.black54),
+              MotionIcon(icon,
+                  size: 14, color: isSelected ? Colors.white : AppColors.textSecondary),
             if (icon != null) const SizedBox(width: 4),
             Text(
               label,
               style: TextStyle(
-                color: isSelected ? Colors.white : Colors.black54,
+                color: isSelected ? Colors.white : AppColors.textSecondary,
                 fontSize: 11,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
@@ -701,7 +723,7 @@ class _SupervisorWithdrawalsScreenState
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
             color: color == AppColors.danger
@@ -720,7 +742,7 @@ class _SupervisorWithdrawalsScreenState
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(icon, color: color, size: 20),
+              MotionIcon(icon, color: color, size: 20),
               const SizedBox(width: 4),
               Flexible(
                 child: Text(title,
@@ -730,7 +752,7 @@ class _SupervisorWithdrawalsScreenState
                         fontSize: 11,
                         color: color == AppColors.danger
                             ? AppColors.danger
-                            : Colors.blue.shade700,
+                            : AppColors.infoDark,
                         fontWeight: FontWeight.bold)),
               ),
             ],
@@ -740,7 +762,7 @@ class _SupervisorWithdrawalsScreenState
             alignment: Alignment.center,
             child: Column(
               children: [
-                Text(count,
+                CountText(count,
                     style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
@@ -750,7 +772,7 @@ class _SupervisorWithdrawalsScreenState
                         fontSize: 10,
                         color: color == AppColors.danger
                             ? AppColors.danger
-                            : Colors.grey)),
+                            : AppColors.textSecondary)),
               ],
             ),
           ),
@@ -778,7 +800,7 @@ class _SupervisorWithdrawalsScreenState
       RequestStatus.rejected => l10n.financeRequestRejectedBadge,
     };
     final statusColor = switch (req.status) {
-      RequestStatus.pending => isReady ? AppColors.primaryDark : Colors.black87,
+      RequestStatus.pending => isReady ? AppColors.primaryDark : AppColors.textPrimary,
       RequestStatus.underInvestigation ||
       RequestStatus.frozen ||
       RequestStatus.rejected =>
@@ -789,7 +811,7 @@ class _SupervisorWithdrawalsScreenState
     Color mainColor = isDanger ? AppColors.danger : AppColors.primaryDark;
     Color lightBgColor = isDanger
         ? AppColors.dangerLight
-        : (isReady ? Colors.blue.shade100 : const Color(0xFFF1F5F9));
+        : (isReady ? AppColors.infoLight : AppColors.surfaceLight);
 
     // Icon based on type
     IconData headerIcon = Icons.verified_user;
@@ -827,7 +849,7 @@ class _SupervisorWithdrawalsScreenState
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
             color: isDanger
@@ -854,7 +876,7 @@ class _SupervisorWithdrawalsScreenState
                   color: lightBgColor,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(
+                child: MotionIcon(
                   headerIcon,
                   color: mainColor,
                   size: 24,
@@ -874,18 +896,18 @@ class _SupervisorWithdrawalsScreenState
                                 child: Text(
                                   FinanceLocalizer.localizeWithdrawalText(
                                       context, req.beneficiaryName),
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                       fontWeight: FontWeight.w900,
                                       fontSize: 14,
-                                      color: Colors.black87),
+                                      color: AppColors.textPrimary),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                               if (!isDanger && !isReady) ...[
                                 const SizedBox(width: 4),
-                                const Icon(Icons.verified,
-                                    color: AppColors.primaryDark, size: 14),
+                                MotionIcon(Icons.verified,
+                                    color: AppColors.ink, size: 14),
                               ]
                             ],
                           ),
@@ -900,14 +922,14 @@ class _SupervisorWithdrawalsScreenState
                           fontSize: 10,
                           color: isDanger
                               ? AppColors.danger
-                              : Colors.grey.shade600,
+                              : AppColors.textSecondary,
                           fontWeight:
                               isDanger ? FontWeight.bold : FontWeight.normal),
                     ),
                     Text(
                       req.requestNumber,
                       style:
-                          TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                          TextStyle(fontSize: 10, color: AppColors.textSecondary),
                       textDirection: TextDirection.ltr,
                     ),
                   ],
@@ -926,16 +948,16 @@ class _SupervisorWithdrawalsScreenState
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (req.status == RequestStatus.pending && isReady)
-                        const Icon(Icons.flash_on,
-                            color: AppColors.primaryDark, size: 12),
+                        MotionIcon(Icons.flash_on,
+                            color: AppColors.ink, size: 12),
                       if (isDanger)
-                        const Icon(Icons.warning_amber,
+                        MotionIcon(Icons.warning_amber,
                             color: AppColors.danger, size: 12),
                       if (req.status == RequestStatus.pending &&
                           !isReady &&
                           !isDanger)
-                        const Icon(Icons.circle,
-                            color: AppColors.primaryDark, size: 8),
+                        MotionIcon(Icons.circle,
+                            color: AppColors.ink, size: 8),
                       const SizedBox(width: 4),
                       Flexible(
                         child: Text(
@@ -961,7 +983,7 @@ class _SupervisorWithdrawalsScreenState
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFFFAFAFA),
+              color: AppColors.surfaceMuted,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: AppColors.cardBorder),
             ),
@@ -973,15 +995,15 @@ class _SupervisorWithdrawalsScreenState
                     Expanded(
                         child: Text(grossTitle,
                             style: TextStyle(
-                                fontSize: 11, color: Colors.grey.shade700))),
+                                fontSize: 11, color: AppColors.textSecondary))),
                     FittedBox(
                         fit: BoxFit.scaleDown,
-                        child: Text(
+                        child: CountText(
                             '${CurrencyFormatter.format(req.grossAmount, includeCurrency: false)} ${l10n.currencyEgy}',
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.black87))),
+                                color: AppColors.textPrimary))),
                   ],
                 ),
                 if (req.platformFeePercentage > 0) ...[
@@ -992,30 +1014,29 @@ class _SupervisorWithdrawalsScreenState
                       Expanded(
                         child: Row(
                           children: [
-                            const Icon(Icons.remove_circle_outline,
+                            MotionIcon(Icons.remove_circle_outline,
                                 color: AppColors.danger, size: 14),
                             const SizedBox(width: 4),
                             Expanded(
-                                child: Text(feeTitle,
-                                    style: const TextStyle(
+                                child: FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart, child: CountText(feeTitle,
+                                    style: TextStyle(
                                         fontSize: 11, color: AppColors.danger),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis)),
+                                    maxLines: 1))),
                           ],
                         ),
                       ),
                       FittedBox(
                           fit: BoxFit.scaleDown,
-                          child: Text(
+                          child: CountText(
                               '- ${CurrencyFormatter.format(req.platformFeeAmount, includeCurrency: false)} ${l10n.currencyEgy}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
                                   color: AppColors.danger))),
                     ],
                   ),
                 ],
-                const Padding(
+                Padding(
                   padding: EdgeInsets.symmetric(vertical: 10),
                   child: Divider(height: 1, color: AppColors.cardBorder),
                 ),
@@ -1028,7 +1049,7 @@ class _SupervisorWithdrawalsScreenState
                         netTitle,
                         style: TextStyle(
                             fontSize: 11,
-                            color: isDanger ? AppColors.danger : Colors.black87,
+                            color: isDanger ? AppColors.danger : AppColors.textPrimary,
                             fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -1037,19 +1058,19 @@ class _SupervisorWithdrawalsScreenState
                       children: [
                         FittedBox(
                             fit: BoxFit.scaleDown,
-                            child: Text(
+                            child: CountText(
                                 CurrencyFormatter.format(req.netAmount,
                                     includeCurrency: false),
-                                style: const TextStyle(
+                                style: TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.w900,
-                                    color: Colors.black87))),
+                                    color: AppColors.textPrimary))),
                         const SizedBox(width: 4),
                         Text(l10n.currencyEgy,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.black87)),
+                                color: AppColors.textPrimary)),
                       ],
                     ),
                   ],
@@ -1057,13 +1078,13 @@ class _SupervisorWithdrawalsScreenState
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    Icon(
+                    MotionIcon(
                         isDanger
                             ? Icons.shield_outlined
                             : Icons.account_balance,
                         size: 14,
                         color:
-                            isDanger ? AppColors.danger : Colors.grey.shade600),
+                            isDanger ? AppColors.danger : AppColors.textSecondary),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
@@ -1073,7 +1094,7 @@ class _SupervisorWithdrawalsScreenState
                             fontSize: 10,
                             color: isDanger
                                 ? AppColors.danger
-                                : Colors.grey.shade700),
+                                : AppColors.textSecondary),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -1084,15 +1105,15 @@ class _SupervisorWithdrawalsScreenState
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      const Icon(Icons.bolt,
-                          size: 14, color: AppColors.primaryDark),
+                      MotionIcon(Icons.bolt,
+                          size: 14, color: AppColors.ink),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           FinanceLocalizer.localizeWithdrawalText(
                               context, req.transferMethod!),
-                          style: const TextStyle(
-                              fontSize: 10, color: AppColors.primaryDark),
+                          style: TextStyle(
+                              fontSize: 10, color: AppColors.ink),
                         ),
                       ),
                     ],
@@ -1102,15 +1123,15 @@ class _SupervisorWithdrawalsScreenState
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      const Icon(Icons.verified,
-                          size: 14, color: AppColors.primaryDark),
+                      MotionIcon(Icons.verified,
+                          size: 14, color: AppColors.ink),
                       const SizedBox(width: 6),
                       Text(
                           FinanceLocalizer.localizeWithdrawalText(
                               context, req.iban),
                           style: TextStyle(
                               fontSize: 10,
-                              color: Colors.grey.shade700,
+                              color: AppColors.textSecondary,
                               fontWeight: req.iban.contains('موثق')
                                   ? FontWeight.bold
                                   : FontWeight.normal)),
@@ -1126,19 +1147,19 @@ class _SupervisorWithdrawalsScreenState
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppColors.surface,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: AppColors.cardBorder),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
+                  MotionIcon(
                       req.sourceOfFunds!.contains('تفاصيل') ||
                               req.sourceOfFunds!.contains('أجور')
                           ? Icons.check_circle_outline
                           : Icons.description_outlined,
-                      color: Colors.blue.shade700,
+                      color: AppColors.infoDark,
                       size: 18),
                   const SizedBox(width: 8),
                   Expanded(
@@ -1149,10 +1170,10 @@ class _SupervisorWithdrawalsScreenState
                           req.sourceOfFunds!.contains('أجور')
                               ? l10n.fieldCompletionDetails
                               : l10n.disbursementSource,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
-                              color: Colors.grey),
+                              color: AppColors.textSecondary),
                         ),
                         const SizedBox(height: 2),
                         Text(
@@ -1160,7 +1181,7 @@ class _SupervisorWithdrawalsScreenState
                               context, req.sourceOfFunds!),
                           style: TextStyle(
                               fontSize: 10,
-                              color: Colors.grey.shade800,
+                              color: AppColors.textPrimary,
                               height: 1.4,
                               fontWeight: FontWeight.w600),
                         ),
@@ -1177,31 +1198,31 @@ class _SupervisorWithdrawalsScreenState
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
+                color: AppColors.infoLight,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.blue.shade100),
+                border: Border.all(color: AppColors.infoLight),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.verified, color: Colors.blue.shade700, size: 18),
+                  MotionIcon(Icons.verified, color: AppColors.infoDark, size: 18),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(l10n.complianceAndAuditResult,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
-                                color: AppColors.primaryDark)),
+                                color: AppColors.ink)),
                         const SizedBox(height: 4),
                         Text(
                             FinanceLocalizer.localizeWithdrawalText(
                                 context, req.auditCheckResult!),
                             style: TextStyle(
                                 fontSize: 10,
-                                color: Colors.blue.shade800,
+                                color: AppColors.infoDark,
                                 height: 1.4)),
                       ],
                     ),
@@ -1218,16 +1239,16 @@ class _SupervisorWithdrawalsScreenState
               decoration: BoxDecoration(
                 color: isDanger
                     ? AppColors.dangerLight.withValues(alpha: 0.3)
-                    : const Color(0xFFF1F5F9),
+                    : AppColors.surfaceLight,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                    color: isDanger ? AppColors.danger : Colors.grey.shade300),
+                    color: isDanger ? AppColors.danger : AppColors.cardBorder),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(isDanger ? Icons.warning_amber_rounded : Icons.bolt,
-                      color: isDanger ? AppColors.danger : Colors.grey.shade700,
+                  MotionIcon(isDanger ? Icons.warning_amber_rounded : Icons.bolt,
+                      color: isDanger ? AppColors.danger : AppColors.textSecondary,
                       size: 20),
                   const SizedBox(width: 8),
                   Expanded(
@@ -1236,7 +1257,7 @@ class _SupervisorWithdrawalsScreenState
                       children: [
                         if (isDanger)
                           Text(l10n.regulatoryNoticeFromServicesSupervisor,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
                                   color: AppColors.danger)),
@@ -1248,7 +1269,7 @@ class _SupervisorWithdrawalsScreenState
                               fontSize: 10,
                               color: isDanger
                                   ? AppColors.danger
-                                  : Colors.grey.shade700,
+                                  : AppColors.textSecondary,
                               height: 1.4),
                         ),
                       ],
@@ -1262,7 +1283,7 @@ class _SupervisorWithdrawalsScreenState
           const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: () => showWithdrawalRequestDetailsSheet(context, req),
-            icon: const Icon(Icons.receipt_long_outlined, size: 18),
+            icon: const MotionIcon(Icons.receipt_long_outlined, size: 18),
             label: Text(l10n.withdrawalRequestDetails),
           ),
           if (req.status == RequestStatus.pending) ...[
@@ -1279,7 +1300,7 @@ class _SupervisorWithdrawalsScreenState
                         borderRadius: BorderRadius.circular(12)),
                     elevation: 0,
                   ),
-                  icon: const Icon(Icons.check_circle_outline, size: 18),
+                  icon: const MotionIcon(Icons.check_circle_outline, size: 18),
                   onPressed: req.status != RequestStatus.pending ||
                           _processingRequestId == req.id
                       ? null
@@ -1322,12 +1343,12 @@ class _SupervisorWithdrawalsScreenState
                       child: OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AppColors.danger,
-                          side: const BorderSide(color: AppColors.danger),
+                          side: BorderSide(color: AppColors.danger),
                           padding: const EdgeInsets.symmetric(vertical: 11),
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12)),
                         ),
-                        icon: const Icon(Icons.cancel_outlined, size: 16),
+                        icon: const MotionIcon(Icons.cancel_outlined, size: 16),
                         onPressed: req.status != RequestStatus.pending ||
                                 _processingRequestId == req.id
                             ? null
@@ -1363,14 +1384,14 @@ class _SupervisorWithdrawalsScreenState
                     Expanded(
                       child: OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.orange.shade800,
-                          backgroundColor: Colors.orange.shade50,
-                          side: BorderSide(color: Colors.orange.shade200),
+                          foregroundColor: AppColors.warningDark,
+                          backgroundColor: AppColors.warningLight,
+                          side: BorderSide(color: AppColors.warningBorder),
                           padding: const EdgeInsets.symmetric(vertical: 11),
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12)),
                         ),
-                        icon: const Icon(Icons.pause_circle_outline, size: 16),
+                        icon: const MotionIcon(Icons.pause_circle_outline, size: 16),
                         onPressed: () async {
                           final confirmed =
                               await FinanceDialogs.showFreezeDialog(

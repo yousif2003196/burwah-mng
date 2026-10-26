@@ -2,8 +2,8 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../domain/entities/wasalny_ad.dart';
-import 'wasalny_ads_data_source.dart';
+import 'package:barwah_app/features/wasalny_supervisor/data/datasources/wasalny_ads_data_source.dart';
+import 'package:barwah_app/features/wasalny_supervisor/domain/entities/wasalny_ad.dart';
 
 class WasalnyAdsMockDataSource implements WasalnyAdsDataSource {
   WasalnyAdsMockDataSource() : _ads = _sampleAds();

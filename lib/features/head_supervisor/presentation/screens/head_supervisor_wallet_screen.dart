@@ -1,10 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../head_supervisor_text.dart';
-import '../../data/head_supervisor_audit_store.dart';
-import '../../../wasalny_supervisor/data/wasalny_local_event_store.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/theme/app_palette.dart';
+import 'package:barwah_app/features/admin/data/datasources/admin_request_store.dart';
+import 'package:barwah_app/features/admin/data/services/head_access_policy.dart';
+import 'package:barwah_app/features/admin/domain/entities/admin_request.dart';
+import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_audit_store.dart';
+import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_audit_record.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/utils/head_supervisor_text.dart';
+import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
+import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class HeadSupervisorWalletScreen extends StatefulWidget {
   const HeadSupervisorWalletScreen({super.key});
@@ -35,19 +44,19 @@ class _HeadSupervisorWalletScreenState extends State<HeadSupervisorWalletScreen>
 
   static const _transactions = [
     _WalletTransaction(
-      amount: '15,000 ر.س',
+      amount: '15,000 ج.م',
       bank: 'مصرف الراجحي',
       date: '12 يناير 2025',
       code: 'TXN-90218',
     ),
     _WalletTransaction(
-      amount: '12,500 ر.س',
+      amount: '12,500 ج.م',
       bank: 'مصرف الراجحي',
       date: '28 ديسمبر 2024',
       code: 'TXN-87421',
     ),
     _WalletTransaction(
-      amount: '8,000 ر.س',
+      amount: '8,000 ج.م',
       bank: 'الأهلي (SNB)',
       date: '15 ديسمبر 2024',
       code: 'TXN-84190',
@@ -71,7 +80,7 @@ class _HeadSupervisorWalletScreenState extends State<HeadSupervisorWalletScreen>
     if (_submitting) return;
     if (_amount < 500) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(headSupervisorText(context, arabic: 'الحد الأدنى لطلب السحب هو 500 ر.س.', english: 'The minimum withdrawal is SAR 500.'))),
+        SnackBar(content: Text(headSupervisorText(context, arabic: 'الحد الأدنى لطلب السحب هو 500 ج.م.', english: 'The minimum withdrawal is EGP 500.'))),
       );
       return;
     }
@@ -79,6 +88,45 @@ class _HeadSupervisorWalletScreenState extends State<HeadSupervisorWalletScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(headSupervisorText(context, arabic: 'المبلغ يتجاوز الرصيد المتاح للسحب الفوري.', english: 'The amount exceeds the available balance.'))),
       );
+      return;
+    }
+
+    final policy = await HeadAccessPolicy.load();
+    // كل سحب من محفظة رئيس مشرفين مقيَّد بصلاحيات الأدمن يمر على الأدمن للاعتماد.
+    if (policy.isRestricted) {
+      final escalationId = DateTime.now().millisecondsSinceEpoch;
+      try {
+        await AdminRequestStore().submit(AdminRequest(
+          id: 'head-wallet-$escalationId',
+          kind: AdminRequestKind.withdrawal,
+          titleAr: 'طلب سحب من محفظة رئيس المشرفين',
+          titleEn: 'Head supervisor wallet withdrawal',
+          detailsAr:
+              'طلب رئيس المشرفين سحب ${_amount.toStringAsFixed(0)} ج.م إلى $_selectedAccount.',
+          detailsEn:
+              'The head requested EGP ${_amount.toStringAsFixed(0)} to $_selectedAccount.',
+          fromAr: 'رئيس المشرفين',
+          fromEn: 'Head of supervisors',
+          origin: 'head',
+          refId: 'WDR-$escalationId',
+          amount: _amount,
+          createdAt: DateTime.now(),
+        ));
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(headSupervisorText(context, arabic: 'تم رفع طلب السحب للأدمن للموافقة، وسيصلك إشعار بالقرار.', english: 'Your withdrawal was sent to the admin for approval. You will be notified of the decision.'))),
+        );
+      } catch (error, stackTrace) {
+        FlutterError.reportError(FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'head wallet escalation',
+        ));
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(headSupervisorText(context, arabic: 'تعذر رفع الطلب للأدمن. حاول مرة أخرى.', english: 'Could not send the request to the admin. Try again.'))),
+        );
+      }
       return;
     }
 
@@ -90,23 +138,23 @@ class _HeadSupervisorWalletScreenState extends State<HeadSupervisorWalletScreen>
           id: 'head-wallet-withdrawal-$requestId',
           subjectId: 'WDR-$requestId',
           kind: 'wallet',
-          title: 'طلب سحب مالي بقيمة ${_amount.toStringAsFixed(0)} ر.س',
+          title: 'طلب سحب مالي بقيمة ${_amount.toStringAsFixed(0)} ج.م',
           details: 'تم إرسال الطلب إلى الإدارة المالية للتحقق من الحساب $_selectedAccount.',
           department: 'المحفظة',
           occurredAt: DateTime.now(),
         ),
       );
-      await WasalnyLocalEventStore().publish(
-        WasalnyLocalEvent(
+      await LocalEventStore().publish(
+        LocalEvent(
           id: 'head-wallet-withdrawal-$requestId',
           recipient: 'finance',
           source: 'head',
           titleAr: 'طلب سحب مالي جديد',
           titleEn: 'New wallet withdrawal request',
           messageAr:
-              'طلب رئيس المشرفين تحويل ${_amount.toStringAsFixed(0)} ر.س إلى $_selectedAccount عبر التحويل البنكي الفوري (SARIE).',
+              'طلب رئيس المشرفين تحويل ${_amount.toStringAsFixed(0)} ج.م إلى $_selectedAccount عبر التحويل البنكي الفوري (SARIE).',
           messageEn:
-              'The head supervisor requested an instant SARIE transfer of ${_amount.toStringAsFixed(0)} SAR to $_selectedAccount.',
+              'The head supervisor requested an instant SARIE transfer of ${_amount.toStringAsFixed(0)} EGP to $_selectedAccount.',
           createdAt: DateTime.now(),
         ),
       );
@@ -132,25 +180,25 @@ class _HeadSupervisorWalletScreenState extends State<HeadSupervisorWalletScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.scaffold,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: AppColors.primaryDark,
+        backgroundColor: AppColors.surface,
+        foregroundColor: AppColors.ink,
         elevation: 0,
         leading: IconButton(
           onPressed: () => Navigator.of(context).pop(),
-          icon: const Icon(Icons.arrow_forward),
+          icon: const MotionIcon(Icons.arrow_forward),
         ),
         title: Text(headSupervisorText(context, arabic: 'محفظة رئيس المشرفين', english: 'Supervisor Wallet'),
             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
         centerTitle: true,
-        actions: const [
+        actions: [
           Padding(
             padding: EdgeInsets.symmetric(horizontal: 8),
             child: CircleAvatar(
               radius: 16,
               backgroundColor: AppColors.primaryDark,
-              child: Icon(Icons.shield_outlined, color: Colors.white, size: 17),
+              child: MotionIcon(Icons.shield_outlined, color: Colors.white, size: 17),
             ),
           ),
         ],
@@ -158,29 +206,29 @@ class _HeadSupervisorWalletScreenState extends State<HeadSupervisorWalletScreen>
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
-          const _WalletSummaryCard(),
+          ScrollFx(child: const _WalletSummaryCard()),
           const SizedBox(height: 22),
-          _SectionTitle(title: headSupervisorText(context, arabic: 'طلب صرف وتحويل فوري', english: 'Instant withdrawal'), trailing: headSupervisorText(context, arabic: 'الحد الأدنى: 500 ر.س', english: 'Minimum: SAR 500')),
+          ScrollFx(child: _SectionTitle(title: headSupervisorText(context, arabic: 'طلب صرف وتحويل فوري', english: 'Instant withdrawal'), trailing: headSupervisorText(context, arabic: 'الحد الأدنى: 500 ج.م', english: 'Minimum: EGP 500'))),
           const SizedBox(height: 10),
-          _WithdrawalAmountCard(
+          ScrollFx(child: _WithdrawalAmountCard(
             controller: _amountController,
             onChanged: (_) => setState(() {}),
             onPreset: _setAmount,
-          ),
+          )),
           const SizedBox(height: 22),
-          _SectionTitle(
+          ScrollFx(child: _SectionTitle(
             title: headSupervisorText(context, arabic: 'طريقة وحساب الاستلام', english: 'Payout method and account'),
             action: TextButton.icon(
               onPressed: _showAddAccountDialog,
-              icon: const Icon(Icons.add_circle_outline, size: 15),
+              icon: const MotionIcon(Icons.add_circle_outline, size: 15),
               label: Text(headSupervisorText(context, arabic: 'إضافة وجهة جديدة', english: 'Add payout destination'), style: const TextStyle(fontSize: 10)),
             ),
-          ),
+          )),
           const SizedBox(height: 8),
-          _PayoutMethodSelector(
+          ScrollFx(child: _PayoutMethodSelector(
             selected: _accountType,
             onChanged: (value) => setState(() => _accountType = value),
-          ),
+          )),
           const SizedBox(height: 10),
           for (final account in _accounts)
             Padding(
@@ -192,7 +240,7 @@ class _HeadSupervisorWalletScreenState extends State<HeadSupervisorWalletScreen>
               ),
             ),
           const SizedBox(height: 12),
-          const _SecurityNotice(),
+          ScrollFx(child: const _SecurityNotice()),
           const SizedBox(height: 22),
           SizedBox(
             height: 48,
@@ -200,7 +248,7 @@ class _HeadSupervisorWalletScreenState extends State<HeadSupervisorWalletScreen>
               onPressed: _submitting ? null : _submitRequest,
               icon: _submitting
                   ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Icon(Icons.send_outlined, size: 17),
+                  : const MotionIcon(Icons.send_outlined, size: 17),
               label: Text(
                 _submitting
                     ? headSupervisorText(context, arabic: 'جارٍ إرسال الطلب...', english: 'Sending request...')
@@ -219,7 +267,7 @@ class _HeadSupervisorWalletScreenState extends State<HeadSupervisorWalletScreen>
             child: TextButton(
               onPressed: () => Navigator.of(context).pop(),
               style: TextButton.styleFrom(
-                backgroundColor: const Color(0xFFF0F2F4),
+                backgroundColor: AppColors.surfaceLight,
                 foregroundColor: AppColors.textSecondary,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
               ),
@@ -227,7 +275,7 @@ class _HeadSupervisorWalletScreenState extends State<HeadSupervisorWalletScreen>
             ),
           ),
           const SizedBox(height: 22),
-          _SectionTitle(title: headSupervisorText(context, arabic: 'سجل عمليات الصرف السابقة', english: 'Withdrawal history'), action: null, trailing: headSupervisorText(context, arabic: 'عرض الأرشيف المالي', english: 'View financial archive')),
+          ScrollFx(child: _SectionTitle(title: headSupervisorText(context, arabic: 'سجل عمليات الصرف السابقة', english: 'Withdrawal history'), action: null, trailing: headSupervisorText(context, arabic: 'عرض الأرشيف المالي', english: 'View financial archive'))),
           const SizedBox(height: 10),
           for (final transaction in _transactions)
             Padding(
@@ -258,9 +306,11 @@ class _WalletSummaryCard extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(15),
         decoration: BoxDecoration(
+          gradient: AppColors.blueFill,
+          border: AppColors.blueEdge,
           color: AppColors.primaryDark,
           borderRadius: BorderRadius.circular(15),
-          boxShadow: const [BoxShadow(color: Color(0x18000000), blurRadius: 12, offset: Offset(0, 6))],
+          boxShadow: const [BoxShadow(color: AppPalette.overlay18000000, blurRadius: 12, offset: Offset(0, 6))],
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
@@ -268,9 +318,9 @@ class _WalletSummaryCard extends StatelessWidget {
             _WalletPill(text: headSupervisorText(context, arabic: 'اعتماد الرقابة المالية الإدارية', english: 'Financial oversight approved'), icon: Icons.verified_user_outlined),
           ]),
           const SizedBox(height: 17),
-          Text(headSupervisorText(context, arabic: 'إجمالي المستحقات المعتمدة للإشراف', english: 'Total approved supervisor earnings'), textAlign: TextAlign.right, style: const TextStyle(fontSize: 10, color: Color(0xFF9CB2CD))),
+          Text(headSupervisorText(context, arabic: 'إجمالي المستحقات المعتمدة للإشراف', english: 'Total approved supervisor earnings'), textAlign: TextAlign.right, style: TextStyle(fontSize: 10, color: AppColors.info)),
           const SizedBox(height: 3),
-          Text(headSupervisorText(context, arabic: '45,800.00 ر.س', english: 'SAR 45,800.00'), textAlign: TextAlign.right, style: const TextStyle(fontSize: 25, fontWeight: FontWeight.bold, color: Colors.white)),
+          Text(headSupervisorText(context, arabic: '45,800.00 ج.م', english: 'EGP 45,800.00'), textAlign: TextAlign.right, style: const TextStyle(fontSize: 25, fontWeight: FontWeight.bold, color: Colors.white)),
           const SizedBox(height: 17),
           Row(children: [
             Expanded(child: _BalanceTile(label: headSupervisorText(context, arabic: 'الرصيد المعلق', english: 'Pending balance'), value: '7,800.00', icon: Icons.hourglass_top)),
@@ -290,14 +340,14 @@ class _WithdrawalAmountCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => _WhitePanel(
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text(headSupervisorText(context, arabic: 'المبلغ المطلوب سحبه', english: 'Withdrawal amount'), textAlign: TextAlign.right, style: const TextStyle(fontSize: 9, color: AppColors.textSecondary)),
+          Text(headSupervisorText(context, arabic: 'المبلغ المطلوب سحبه', english: 'Withdrawal amount'), textAlign: TextAlign.right, style: TextStyle(fontSize: 9, color: AppColors.textSecondary)),
           const SizedBox(height: 5),
           Container(
             height: 48,
             padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(color: const Color(0xFFF1F3F5), borderRadius: BorderRadius.circular(10)),
+            decoration: BoxDecoration(color: AppColors.surfaceLight, borderRadius: BorderRadius.circular(10)),
             child: Row(children: [
-          _WalletPill(text: headSupervisorText(context, arabic: 'ريال SAR', english: 'SAR')),
+          _WalletPill(text: headSupervisorText(context, arabic: 'جنيه EGP', english: 'EGP')),
               const Spacer(),
               SizedBox(
                 width: 125,
@@ -307,29 +357,29 @@ class _WithdrawalAmountCard extends StatelessWidget {
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   textAlign: TextAlign.right,
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primaryDark),
-                  decoration: const InputDecoration(border: InputBorder.none, suffixIcon: Icon(Icons.account_balance_wallet_outlined, size: 18, color: Color(0xFF315F9A))),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.ink),
+                  decoration: InputDecoration(border: InputBorder.none, suffixIcon: MotionIcon(Icons.account_balance_wallet_outlined, size: 18, color: AppColors.infoDark)),
                 ),
               ),
             ]),
           ),
           const SizedBox(height: 15),
-          Text(headSupervisorText(context, arabic: 'تحديد مبلغ سريع', english: 'Quick amount'), textAlign: TextAlign.right, style: const TextStyle(fontSize: 9, color: AppColors.textSecondary)),
+          Text(headSupervisorText(context, arabic: 'تحديد مبلغ سريع', english: 'Quick amount'), textAlign: TextAlign.right, style: TextStyle(fontSize: 9, color: AppColors.textSecondary)),
           const SizedBox(height: 7),
           Wrap(alignment: WrapAlignment.spaceBetween, runSpacing: 7, children: [
             _PresetButton(label: headSupervisorText(context, arabic: 'كامل المتاح (38,000)', english: 'Full available (38,000)'), selected: true, icon: Icons.bolt, onTap: () => onPreset(38000)),
-            _PresetButton(label: headSupervisorText(context, arabic: '20,000 ر.س', english: 'SAR 20,000'), onTap: () => onPreset(20000)),
-            _PresetButton(label: headSupervisorText(context, arabic: '10,000 ر.س', english: 'SAR 10,000'), onTap: () => onPreset(10000)),
-            _PresetButton(label: headSupervisorText(context, arabic: '5,000 ر.س', english: 'SAR 5,000'), onTap: () => onPreset(5000)),
+            _PresetButton(label: headSupervisorText(context, arabic: '20,000 ج.م', english: 'EGP 20,000'), onTap: () => onPreset(20000)),
+            _PresetButton(label: headSupervisorText(context, arabic: '10,000 ج.م', english: 'EGP 10,000'), onTap: () => onPreset(10000)),
+            _PresetButton(label: headSupervisorText(context, arabic: '5,000 ج.م', english: 'EGP 5,000'), onTap: () => onPreset(5000)),
           ]),
           const SizedBox(height: 14),
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: const Color(0xFFF1F3F5), borderRadius: BorderRadius.circular(10)),
+            decoration: BoxDecoration(color: AppColors.surfaceLight, borderRadius: BorderRadius.circular(10)),
             child: Row(children: [
-              const Icon(Icons.info_outline, color: Color(0xFF315F9A), size: 17),
+              MotionIcon(Icons.info_outline, color: AppColors.infoDark, size: 17),
               const SizedBox(width: 6),
-              Expanded(child: Text(headSupervisorText(context, arabic: 'تتم معالجة وإيداع المبالغ فورياً على مدار الساعة وطوال أيام الأسبوع عبر نظام المدفوعات الفورية السريع (SARIE).', english: 'Transfers are processed instantly, 24/7, through the SARIE instant payment system.'), textAlign: TextAlign.center, style: const TextStyle(fontSize: 9, height: 1.4, color: AppColors.textSecondary))),
+              Expanded(child: Text(headSupervisorText(context, arabic: 'تتم معالجة وإيداع المبالغ فورياً على مدار الساعة وطوال أيام الأسبوع عبر نظام المدفوعات الفورية السريع (SARIE).', english: 'Transfers are processed instantly, 24/7, through the SARIE instant payment system.'), textAlign: TextAlign.center, style: TextStyle(fontSize: 9, height: 1.4, color: AppColors.textSecondary))),
             ]),
           ),
         ]),
@@ -344,7 +394,7 @@ class _PayoutMethodSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(color: const Color(0xFFE5E7E9), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: AppColors.surfaceHighlight, borderRadius: BorderRadius.circular(12)),
         child: Row(children: [
           for (final method in const ['حساب بنكي', 'إنستاباي (IPA)', 'محفظة ذكية'])
             Expanded(
@@ -353,11 +403,11 @@ class _PayoutMethodSelector extends StatelessWidget {
                 borderRadius: BorderRadius.circular(9),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 9),
-                  decoration: BoxDecoration(color: method == selected ? Colors.white : Colors.transparent, borderRadius: BorderRadius.circular(9)),
+                  decoration: BoxDecoration(color: method == selected ? AppColors.surface : Colors.transparent, borderRadius: BorderRadius.circular(9)),
                   child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Icon(method == 'حساب بنكي' ? Icons.account_balance_outlined : method.startsWith('إنستاباي') ? Icons.bolt : Icons.wallet_outlined, size: 15, color: AppColors.primaryDark),
+                    MotionIcon(method == 'حساب بنكي' ? Icons.account_balance_outlined : method.startsWith('إنستاباي') ? Icons.bolt : Icons.wallet_outlined, size: 15, color: AppColors.ink),
                     const SizedBox(width: 3),
-                    Flexible(child: Text(headSupervisorText(context, arabic: method, english: switch (method) { 'حساب بنكي' => 'Bank account', 'إنستاباي (IPA)' => 'Instapay (IPA)', _ => 'Digital wallet' }), textAlign: TextAlign.center, style: const TextStyle(fontSize: 8, color: AppColors.textPrimary))),
+                    Flexible(child: Text(headSupervisorText(context, arabic: method, english: switch (method) { 'حساب بنكي' => 'Bank account', 'إنستاباي (IPA)' => 'Instapay (IPA)', _ => 'Digital wallet' }), textAlign: TextAlign.center, style: TextStyle(fontSize: 8, color: AppColors.textPrimary))),
                   ]),
                 ),
               ),
@@ -381,29 +431,29 @@ class _PayoutAccountCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(14),
           child: Container(
             padding: const EdgeInsets.all(13),
-            decoration: BoxDecoration(border: Border.all(color: const Color(0xFFE7EAED)), borderRadius: BorderRadius.circular(14)),
+            decoration: BoxDecoration(border: Border.all(color: AppColors.surfaceHighlight), borderRadius: BorderRadius.circular(14)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Row(children: [
-                Icon(Icons.account_balance_outlined, color: selected ? const Color(0xFF315F9A) : AppColors.textSecondary, size: 19),
+                MotionIcon(Icons.account_balance_outlined, color: selected ? AppColors.infoDark : AppColors.textSecondary, size: 19),
                 const SizedBox(width: 8),
                 const Spacer(),
                 if (account.badge == 'الأساسي المعتمد') _WalletPill(text: headSupervisorText(context, arabic: 'الأساسي المعتمد', english: 'Primary verified'), blue: true),
                 const SizedBox(width: 6),
-                Text(account.bank, textAlign: TextAlign.right, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.primaryDark)),
+                CountText(account.bank, textAlign: TextAlign.right, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.ink)),
                 const SizedBox(width: 7),
-                Icon(selected ? Icons.radio_button_checked : Icons.radio_button_unchecked, color: selected ? AppColors.primaryDark : const Color(0xFFE1E4E7), size: 19),
+                MotionIcon(selected ? Icons.radio_button_checked : Icons.radio_button_unchecked, color: selected ? AppColors.ink : AppColors.cardBorder, size: 19),
               ]),
               const SizedBox(height: 8),
-              Text(account.number, textAlign: TextAlign.left, style: const TextStyle(fontSize: 12, letterSpacing: .5, color: AppColors.textSecondary)),
+              CountText(account.number, textAlign: TextAlign.left, style: TextStyle(fontSize: 12, letterSpacing: .5, color: AppColors.textSecondary)),
               const SizedBox(height: 8),
-              Row(mainAxisAlignment: MainAxisAlignment.end, children: [const Icon(Icons.verified_outlined, size: 13, color: Color(0xFF315F9A)), const SizedBox(width: 4), Text(account.badge == 'الأساسي المعتمد' ? headSupervisorText(context, arabic: 'موثق بالبنك المركزي السعودي (SAMA) • معتمد', english: 'Verified by Saudi Central Bank (SAMA)') : headSupervisorText(context, arabic: account.badge, english: account.badge == 'حساب بدلات إشرافية معتمد' ? 'Verified supervisor allowances account' : account.badge), style: const TextStyle(fontSize: 8, color: AppColors.textSecondary))]),
+              Row(mainAxisAlignment: MainAxisAlignment.end, children: [MotionIcon(Icons.verified_outlined, size: 13, color: AppColors.infoDark), const SizedBox(width: 4), Text(account.badge == 'الأساسي المعتمد' ? headSupervisorText(context, arabic: 'موثق بالبنك المركزي السعودي (SAMA) • معتمد', english: 'Verified by Saudi Central Bank (SAMA)') : headSupervisorText(context, arabic: account.badge, english: account.badge == 'حساب بدلات إشرافية معتمد' ? 'Verified supervisor allowances account' : account.badge), style: TextStyle(fontSize: 8, color: AppColors.textSecondary))]),
             ]),
           ),
         ),
@@ -416,14 +466,14 @@ class _SecurityNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(13),
-        decoration: BoxDecoration(color: const Color(0xFFEAF2FF), borderRadius: BorderRadius.circular(14)),
+        decoration: BoxDecoration(color: AppColors.infoLight, borderRadius: BorderRadius.circular(14)),
         child: Row(children: [
-          const Icon(Icons.lock_outline, color: AppColors.primaryDark, size: 20),
+          MotionIcon(Icons.lock_outline, color: AppColors.ink, size: 20),
           const SizedBox(width: 9),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text(headSupervisorText(context, arabic: 'التحقق والحوكمة الإدارية المشددة', english: 'Verification and administrative governance'), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
+            Text(headSupervisorText(context, arabic: 'التحقق والحوكمة الإدارية المشددة', english: 'Verification and administrative governance'), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.ink)),
             const SizedBox(height: 5),
-            Text(headSupervisorText(context, arabic: 'لضمان سلامة العمليات المالية الحساسة، يتم إرسال رمز تحقق مؤقت عبر نفاذ الوطني أو رسالة نصية مسجلة إلى جوال رئيس المشرفين المعتمد قبل تنفيذ وتأكيد الحوالة.', english: 'For security, a one-time verification code is sent through Nafath or SMS to the approved Head Supervisor phone before the transfer is confirmed.'), textAlign: TextAlign.right, style: const TextStyle(fontSize: 8, height: 1.45, color: Color(0xFF315F9A))),
+            Text(headSupervisorText(context, arabic: 'لضمان سلامة العمليات المالية الحساسة، يتم إرسال رمز تحقق مؤقت عبر نفاذ الوطني أو رسالة نصية مسجلة إلى جوال رئيس المشرفين المعتمد قبل تنفيذ وتأكيد الحوالة.', english: 'For security, a one-time verification code is sent through Nafath or SMS to the approved Head Supervisor phone before the transfer is confirmed.'), textAlign: TextAlign.right, style: TextStyle(fontSize: 8, height: 1.45, color: AppColors.infoDark)),
           ])),
         ]),
       );
@@ -436,14 +486,14 @@ class _TransactionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: const Color(0xFFE8EBEF)), borderRadius: BorderRadius.circular(14)),
+        decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.surfaceHighlight), borderRadius: BorderRadius.circular(14)),
         child: Row(children: [
-          const CircleAvatar(radius: 17, backgroundColor: Color(0xFFF0F2F4), child: Icon(Icons.south_west, size: 17, color: AppColors.primaryDark)),
+          CircleAvatar(radius: 17, backgroundColor: AppColors.surfaceLight, child: MotionIcon(Icons.south_west, size: 17, color: AppColors.ink)),
           const SizedBox(width: 9),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(headSupervisorText(context, arabic: transaction.amount, english: transaction.amount.replaceAll(' ر.س', ' SAR')), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.primaryDark)), Flexible(child: Text(headSupervisorText(context, arabic: 'سحب فوري - ${transaction.bank}', english: 'Instant withdrawal • ${transaction.bank}'), textAlign: TextAlign.right, style: const TextStyle(fontSize: 10, color: AppColors.textPrimary)))]),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(headSupervisorText(context, arabic: transaction.amount, english: transaction.amount.replaceAll(' ج.م', ' EGP')), style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.ink)), Flexible(child: Text(headSupervisorText(context, arabic: 'سحب فوري - ${transaction.bank}', english: 'Instant withdrawal • ${transaction.bank}'), textAlign: TextAlign.right, style: TextStyle(fontSize: 10, color: AppColors.textPrimary)))]),
             const SizedBox(height: 4),
-            Row(mainAxisAlignment: MainAxisAlignment.end, children: [Text(headSupervisorText(context, arabic: '● ناجح', english: '● Successful'), style: const TextStyle(fontSize: 8, color: Color(0xFF315F9A))), const SizedBox(width: 12), Text(transaction.code, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: AppColors.primaryDark)), const SizedBox(width: 7), const Text('•', style: TextStyle(fontSize: 8, color: AppColors.textMuted)), const SizedBox(width: 7), Text(headSupervisorText(context, arabic: transaction.date, english: switch (transaction.date) { '12 يناير 2025' => 'Jan 12, 2025', '28 ديسمبر 2024' => 'Dec 28, 2024', _ => 'Dec 15, 2024' }), style: const TextStyle(fontSize: 8, color: AppColors.textSecondary))]),
+            Row(mainAxisAlignment: MainAxisAlignment.end, children: [Text(headSupervisorText(context, arabic: '● ناجح', english: '● Successful'), style: TextStyle(fontSize: 8, color: AppColors.infoDark)), const SizedBox(width: 12), Text(transaction.code, style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: AppColors.ink)), const SizedBox(width: 7), Text('•', style: TextStyle(fontSize: 8, color: AppColors.textMuted)), const SizedBox(width: 7), Text(headSupervisorText(context, arabic: transaction.date, english: switch (transaction.date) { '12 يناير 2025' => 'Jan 12, 2025', '28 ديسمبر 2024' => 'Dec 28, 2024', _ => 'Dec 15, 2024' }), style: TextStyle(fontSize: 8, color: AppColors.textSecondary))]),
           ])),
         ]),
       );
@@ -466,11 +516,11 @@ class _SectionTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(children: [
         if (action != null) action!,
-        if (trailing != null) Text(trailing!, style: const TextStyle(fontSize: 8, color: AppColors.textSecondary)),
+        if (trailing != null) Text(trailing!, style: TextStyle(fontSize: 8, color: AppColors.textSecondary)),
         const Spacer(),
-        Container(width: 4, height: 14, decoration: BoxDecoration(color: const Color(0xFF315F9A), borderRadius: BorderRadius.circular(4))),
+        Container(width: 4, height: 14, decoration: BoxDecoration(color: AppColors.infoDark, borderRadius: BorderRadius.circular(4))),
         const SizedBox(width: 7),
-        Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.primaryDark)),
+        Text(title, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.ink)),
       ]);
 }
 
@@ -481,7 +531,7 @@ class _WhitePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: const Color(0xFFE8EBEF)), borderRadius: BorderRadius.circular(15)),
+        decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.surfaceHighlight), borderRadius: BorderRadius.circular(15)),
         child: child,
       );
 }
@@ -499,8 +549,8 @@ class _PresetButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(9),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-          decoration: BoxDecoration(color: selected ? const Color(0xFFD8E5FF) : const Color(0xFFE9ECEF), borderRadius: BorderRadius.circular(9)),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [if (icon != null) Icon(icon, size: 13, color: AppColors.primaryDark), Text(label, style: TextStyle(fontSize: 8, color: AppColors.textPrimary, fontWeight: selected ? FontWeight.w600 : FontWeight.normal))]),
+          decoration: BoxDecoration(color: selected ? AppColors.infoBorder : AppColors.surfaceHighlight, borderRadius: BorderRadius.circular(9)),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [if (icon != null) MotionIcon(icon, size: 13, color: AppColors.ink), Text(label, style: TextStyle(fontSize: 8, color: AppColors.textPrimary, fontWeight: selected ? FontWeight.w600 : FontWeight.normal))]),
         ),
       );
 }
@@ -515,11 +565,11 @@ class _WalletPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-        decoration: BoxDecoration(color: blue ? const Color(0xFFD8E5FF) : const Color(0xFFE9ECEF), borderRadius: BorderRadius.circular(9)),
+        decoration: BoxDecoration(color: blue ? AppColors.infoBorder : AppColors.surfaceHighlight, borderRadius: BorderRadius.circular(9)),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Text(text, style: TextStyle(fontSize: 7, color: blue ? const Color(0xFF315F9A) : AppColors.textSecondary, fontWeight: FontWeight.w600)),
-          if (icon != null) ...[const SizedBox(width: 4), Icon(icon, size: 11, color: blue ? const Color(0xFF315F9A) : AppColors.textSecondary)],
-          if (dot) ...[const SizedBox(width: 4), const Icon(Icons.circle, size: 7, color: Color(0xFF9CC3FF))],
+          Text(text, style: TextStyle(fontSize: 7, color: blue ? AppColors.infoDark : AppColors.textSecondary, fontWeight: FontWeight.w600)),
+          if (icon != null) ...[const SizedBox(width: 4), MotionIcon(icon, size: 11, color: blue ? AppColors.infoDark : AppColors.textSecondary)],
+          if (dot) ...[const SizedBox(width: 4), MotionIcon(Icons.circle, size: 7, color: AppColors.info)],
         ]),
       );
 }
@@ -534,13 +584,13 @@ class _BalanceTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(9),
-        decoration: BoxDecoration(color: emphasized ? const Color(0xFF243F63) : const Color(0xFF1B3658), borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(color: emphasized ? AppColors.infoDark : AppColors.infoDark, borderRadius: BorderRadius.circular(10)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Row(mainAxisAlignment: MainAxisAlignment.end, children: [Text(label, style: const TextStyle(fontSize: 8, color: Color(0xFF9CB2CD))), const SizedBox(width: 4), Icon(icon, size: 14, color: const Color(0xFFB7CAE1))]),
+          Row(mainAxisAlignment: MainAxisAlignment.end, children: [Text(label, style: TextStyle(fontSize: 8, color: AppColors.info)), const SizedBox(width: 4), MotionIcon(icon, size: 14, color: AppColors.info)]),
           const SizedBox(height: 5),
-          Text(headSupervisorText(context, arabic: '$value ر.س', english: 'SAR $value'), textAlign: TextAlign.right, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+          Text(headSupervisorText(context, arabic: '$value ج.م', english: 'EGP $value'), textAlign: TextAlign.right, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
           const SizedBox(height: 3),
-          Text(emphasized ? headSupervisorText(context, arabic: 'متاح ومؤهل للتحويل', english: 'Available for transfer') : headSupervisorText(context, arabic: 'بدلات قيد التدقيق المحاسبي', english: 'Allowances under accounting review'), textAlign: TextAlign.right, style: const TextStyle(fontSize: 7, color: Color(0xFF9CB2CD))),
+          Text(emphasized ? headSupervisorText(context, arabic: 'متاح ومؤهل للتحويل', english: 'Available for transfer') : headSupervisorText(context, arabic: 'بدلات قيد التدقيق المحاسبي', english: 'Allowances under accounting review'), textAlign: TextAlign.right, style: TextStyle(fontSize: 7, color: AppColors.info)),
         ]),
       );
 }

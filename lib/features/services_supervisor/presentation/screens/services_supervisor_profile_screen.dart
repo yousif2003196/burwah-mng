@@ -3,10 +3,16 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../l10n/app_localizations.dart';
-import 'services_supervisor_account_screen.dart';
-import 'services_supervisor_wallet_screen.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/features/services_supervisor/presentation/screens/services_activity_log_screen.dart';
+import 'package:barwah_app/features/services_supervisor/presentation/screens/services_reports_screen.dart';
+import 'package:barwah_app/features/services_supervisor/presentation/screens/services_supervisor_account_screen.dart';
+import 'package:barwah_app/features/services_supervisor/presentation/widgets/services_escalations_entry.dart';
+import 'package:barwah_app/features/services_supervisor/presentation/screens/services_supervisor_wallet_screen.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class ServicesSupervisorProfileScreen extends StatefulWidget {
   final VoidCallback onLogout;
@@ -94,45 +100,45 @@ class _ServicesSupervisorProfileScreenState
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 22),
         children: [
-          _buildIdentityCard(l10n),
+          ScrollFx(child: _buildIdentityCard(l10n)),
           if (_profileLoadError != null)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
                 l10n.servicesProfileLoadError,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.danger,
                   fontSize: 11,
                 ),
               ),
             ),
           const SizedBox(height: 14),
-          _buildDemoDataNotice(l10n),
+          ScrollFx(child: _buildDemoDataNotice(l10n)),
           const SizedBox(height: 10),
-          _buildMetrics(l10n),
+          ScrollFx(child: _buildMetrics(l10n)),
           const SizedBox(height: 14),
-          _buildWalletCard(context, l10n),
+          ScrollFx(child: _buildWalletCard(context, l10n)),
           const SizedBox(height: 22),
           Text(
             l10n.servicesProfileAdministrationTitle,
-            style: const TextStyle(
-              color: AppColors.primaryDark,
+            style: TextStyle(
+              color: AppColors.ink,
               fontSize: 17,
               fontWeight: FontWeight.w800,
             ),
           ),
           const SizedBox(height: 9),
-          _buildAdministrationCard(context, l10n),
+          ScrollFx(child: _buildAdministrationCard(context, l10n)),
           const SizedBox(height: 18),
           SizedBox(
             height: 50,
             child: FilledButton.icon(
               onPressed: _confirmLogout,
-              icon: const Icon(Icons.logout, size: 19),
+              icon: const MotionIcon(Icons.logout, size: 19),
               label: Text(l10n.servicesProfileLogout),
               style: FilledButton.styleFrom(
-                foregroundColor: const Color(0xFFB42318),
-                backgroundColor: const Color(0xFFFFD9D5),
+                foregroundColor: AppColors.dangerDark,
+                backgroundColor: AppColors.dangerBorder,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
@@ -143,7 +149,7 @@ class _ServicesSupervisorProfileScreenState
           Text(
             l10n.servicesProfileFooter,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textMuted,
               fontSize: 9,
               height: 1.5,
@@ -182,12 +188,12 @@ class _ServicesSupervisorProfileScreenState
                 width: 58,
                 height: 66,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE7EDF4),
+                  color: AppColors.surfaceHighlight,
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: const Icon(
+                child: MotionIcon(
                   Icons.person,
-                  color: AppColors.primaryDark,
+                  color: AppColors.ink,
                   size: 36,
                 ),
               ),
@@ -202,8 +208,8 @@ class _ServicesSupervisorProfileScreenState
                           : l10n.servicesProfileName,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.primaryDark,
+                      style: TextStyle(
+                        color: AppColors.ink,
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
                       ),
@@ -225,7 +231,7 @@ class _ServicesSupervisorProfileScreenState
               _savedCoverage?.isNotEmpty == true
                   ? _savedCoverage!
                   : l10n.servicesProfileCoverage,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 10,
               ),
@@ -237,7 +243,7 @@ class _ServicesSupervisorProfileScreenState
               alignment: AlignmentDirectional.centerEnd,
               child: Text(
                 _savedPhone!,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 10,
                 ),
@@ -248,17 +254,17 @@ class _ServicesSupervisorProfileScreenState
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
             decoration: BoxDecoration(
-              color: const Color(0xFFF1F3F5),
+              color: AppColors.surfaceLight,
               borderRadius: BorderRadius.circular(11),
             ),
             child: Row(
               children: [
-                const Icon(Icons.circle, color: Color(0xFF16A37A), size: 10),
+                MotionIcon(Icons.circle, color: AppColors.success, size: 10),
                 const SizedBox(width: 7),
                 Expanded(
                   child: Text(
                     l10n.servicesProfileAvailability,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
@@ -291,7 +297,7 @@ class _ServicesSupervisorProfileScreenState
         label: l10n.servicesProfilePerformanceRating,
         value: '4.9',
         detail: l10n.servicesProfileRatingDetail,
-        color: const Color(0xFFE59A16),
+        color: AppColors.warning,
       ),
       _ProfileMetric(
         icon: Icons.access_time,
@@ -305,7 +311,7 @@ class _ServicesSupervisorProfileScreenState
         label: l10n.servicesProfileComplaintResolution,
         value: '99.2%',
         detail: l10n.servicesProfileResolutionDetail,
-        color: const Color(0xFF16A37A),
+        color: AppColors.success,
       ),
     ];
 
@@ -332,24 +338,24 @@ class _ServicesSupervisorProfileScreenState
   Widget _buildDemoDataNotice(AppLocalizations l10n) => Container(
         padding: const EdgeInsets.all(11),
         decoration: BoxDecoration(
-          color: const Color(0xFFFFF4DB),
+          color: AppColors.warningBorder,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFF0D99C)),
+          border: Border.all(color: AppColors.warning),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(
+            MotionIcon(
               Icons.info_outline,
-              color: Color(0xFF8A5A00),
+              color: AppColors.warningDark,
               size: 18,
             ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 l10n.servicesProfileDemoMetricsNotice,
-                style: const TextStyle(
-                  color: Color(0xFF6D4C00),
+                style: TextStyle(
+                  color: AppColors.warningDark,
                   fontSize: 11,
                   height: 1.45,
                 ),
@@ -363,6 +369,8 @@ class _ServicesSupervisorProfileScreenState
     return Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
+        gradient: AppColors.blueFill,
+        border: AppColors.blueEdge,
         color: AppColors.primaryDark,
         borderRadius: BorderRadius.circular(17),
         boxShadow: [
@@ -387,9 +395,9 @@ class _ServicesSupervisorProfileScreenState
                   ),
                 ),
               ),
-              const Icon(
+              MotionIcon(
                 Icons.account_balance_wallet_outlined,
-                color: Color(0xFFA7C8FF),
+                color: AppColors.infoBorder,
                 size: 25,
               ),
             ],
@@ -399,8 +407,8 @@ class _ServicesSupervisorProfileScreenState
             alignment: AlignmentDirectional.centerStart,
             child: Text(
               l10n.servicesProfileWalletDescription,
-              style: const TextStyle(
-                color: Color(0xFFB5C7DF),
+              style: TextStyle(
+                color: AppColors.info,
                 fontSize: 10,
               ),
             ),
@@ -436,11 +444,11 @@ class _ServicesSupervisorProfileScreenState
                   ),
                 ),
               ),
-              icon: const Icon(Icons.arrow_back, size: 18),
+              icon: const MotionIcon(Icons.arrow_back, size: 18),
               label: Text(l10n.servicesProfileOpenWallet),
               style: TextButton.styleFrom(
-                foregroundColor: AppColors.primaryDark,
-                backgroundColor: const Color(0xFFA7C8FF),
+                foregroundColor: AppColors.ink,
+                backgroundColor: AppColors.infoBorder,
                 alignment: AlignmentDirectional.center,
                 padding: const EdgeInsets.symmetric(vertical: 11),
                 shape: RoundedRectangleBorder(
@@ -493,7 +501,27 @@ class _ServicesSupervisorProfileScreenState
             icon: Icons.history_edu_outlined,
             title: l10n.servicesProfileAuditTitle,
             subtitle: l10n.servicesProfileAuditDetail,
-            onTap: () => _openAccountSettings(l10n),
+            onTap: () => Navigator.of(context).push<void>(
+              MaterialPageRoute<void>(
+                builder: (_) => const ServicesActivityLogScreen(),
+              ),
+            ),
+          ),
+          const Divider(height: 1, indent: 14, endIndent: 14),
+          _AdministrationRow(
+            icon: Icons.bar_chart_outlined,
+            title: 'تقارير الخدمات',
+            subtitle: 'مؤشرات القرارات والتصعيدات مع تصدير CSV',
+            onTap: () => Navigator.of(context).push<void>(
+              MaterialPageRoute<void>(
+                builder: (_) => const ServicesReportsScreen(),
+              ),
+            ),
+          ),
+          const Divider(height: 1, indent: 14, endIndent: 14),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 12),
+            child: ServicesEscalationsEntry(),
           ),
         ],
       ),
@@ -552,10 +580,10 @@ class _MetricCard extends StatelessWidget {
                 width: 25,
                 height: 25,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF0F3F7),
+                  color: AppColors.surfaceLight,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(metric.icon, size: 15, color: metric.color),
+                child: MotionIcon(metric.icon, size: 15, color: metric.color),
               ),
               const SizedBox(width: 6),
               Expanded(
@@ -563,7 +591,7 @@ class _MetricCard extends StatelessWidget {
                   metric.label,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 9,
                   ),
@@ -574,10 +602,10 @@ class _MetricCard extends StatelessWidget {
           const Spacer(),
           Align(
             alignment: AlignmentDirectional.centerEnd,
-            child: Text(
+            child: CountText(
               metric.value,
-              style: const TextStyle(
-                color: AppColors.primaryDark,
+              style: TextStyle(
+                color: AppColors.ink,
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
               ),
@@ -611,7 +639,10 @@ class _WalletBalance extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: const Color(0xFF0A2849),
+        gradient: AppColors.blueFill,
+        border: AppColors.blueEdge,
+        boxShadow: AppColors.blueGlow,
+        color: AppColors.primaryDark,
         borderRadius: BorderRadius.circular(11),
       ),
       child: Column(
@@ -621,13 +652,13 @@ class _WalletBalance extends StatelessWidget {
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Color(0xFFD1DCEB),
+            style: TextStyle(
+              color: AppColors.cardBorder,
               fontSize: 9,
             ),
           ),
           const SizedBox(height: 5),
-          Text(
+          CountText(
             amount,
             style: const TextStyle(
               color: Colors.white,
@@ -637,8 +668,8 @@ class _WalletBalance extends StatelessWidget {
           ),
           Text(
             currency,
-            style: const TextStyle(
-              color: Color(0xFFB5C7DF),
+            style: TextStyle(
+              color: AppColors.info,
               fontSize: 8,
             ),
           ),
@@ -660,21 +691,21 @@ class _InfoBadge extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: 170),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: const Color(0xFFEAF0F7),
+        color: AppColors.surfaceLight,
         borderRadius: BorderRadius.circular(18),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: AppColors.info, size: 12),
+          MotionIcon(icon, color: AppColors.info, size: 12),
           const SizedBox(width: 4),
           Flexible(
             child: Text(
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: AppColors.primaryDark,
+              style: TextStyle(
+                color: AppColors.ink,
                 fontSize: 8,
                 fontWeight: FontWeight.w700,
               ),
@@ -716,10 +747,10 @@ class _AdministrationRow extends StatelessWidget {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF0F2F4),
+                  color: AppColors.surfaceLight,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, color: AppColors.primaryDark, size: 19),
+                child: MotionIcon(icon, color: AppColors.ink, size: 19),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -728,7 +759,7 @@ class _AdministrationRow extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
@@ -737,8 +768,8 @@ class _AdministrationRow extends StatelessWidget {
                     const SizedBox(height: 3),
                     Text(
                       subtitle,
-                      style: const TextStyle(
-                        color: Color(0xFF16A37A),
+                      style: TextStyle(
+                        color: AppColors.success,
                         fontSize: 9,
                       ),
                     ),
@@ -749,7 +780,7 @@ class _AdministrationRow extends StatelessWidget {
                 const SizedBox(width: 6),
                 _InfoBadge(icon: Icons.check_circle_outline, label: trailing!),
               ] else
-                const Icon(Icons.chevron_left,
+                MotionIcon(Icons.chevron_left,
                     color: AppColors.textMuted, size: 20),
             ],
           ),
@@ -761,7 +792,7 @@ class _AdministrationRow extends StatelessWidget {
 
 BoxDecoration _cardDecoration() {
   return BoxDecoration(
-    color: Colors.white,
+    color: AppColors.surface,
     borderRadius: BorderRadius.circular(16),
     border: Border.all(color: AppColors.cardBorder),
   );

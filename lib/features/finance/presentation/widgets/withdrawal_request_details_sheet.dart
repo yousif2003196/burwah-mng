@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' as intl;
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/utils/currency_formatter.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../domain/entities/withdrawal_request_entity.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/utils/currency_formatter.dart';
+import 'package:barwah_app/features/finance/domain/entities/withdrawal_request_entity.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 Future<void> showWithdrawalRequestDetailsSheet(
   BuildContext context,
@@ -32,8 +34,8 @@ class _WithdrawalRequestDetailsSheet extends StatelessWidget {
     return Container(
       constraints:
           BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * .88),
-      decoration: const BoxDecoration(
-        color: Color(0xFFF5F7F9),
+      decoration: BoxDecoration(
+        color: AppColors.background,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
@@ -46,8 +48,8 @@ class _WithdrawalRequestDetailsSheet extends StatelessWidget {
                 Expanded(
                   child: Text(
                     l10n.withdrawalDetailsTitle,
-                    style: const TextStyle(
-                      color: AppColors.primaryDark,
+                    style: TextStyle(
+                      color: AppColors.ink,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
@@ -56,7 +58,7 @@ class _WithdrawalRequestDetailsSheet extends StatelessWidget {
                 IconButton(
                   tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
                   onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close),
+                  icon: const MotionIcon(Icons.close),
                 ),
               ],
             ),
@@ -70,7 +72,7 @@ class _WithdrawalRequestDetailsSheet extends StatelessWidget {
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: AppColors.surface,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: AppColors.cardBorder),
                     ),
@@ -78,16 +80,16 @@ class _WithdrawalRequestDetailsSheet extends StatelessWidget {
                       children: [
                         Text(
                           request.requestNumber,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: AppColors.info,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Text(
+                        CountText(
                           CurrencyFormatter.format(request.netAmount),
-                          style: const TextStyle(
-                            color: AppColors.primaryDark,
+                          style: TextStyle(
+                            color: AppColors.ink,
                             fontSize: 24,
                             fontWeight: FontWeight.w900,
                           ),
@@ -167,8 +169,8 @@ class _WithdrawalRequestDetailsSheet extends StatelessWidget {
                           l10n.localeName.startsWith('ar')
                               ? 'سجل حالة الطلب'
                               : 'Request status history',
-                          style: const TextStyle(
-                            color: AppColors.primaryDark,
+                          style: TextStyle(
+                            color: AppColors.ink,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -182,7 +184,7 @@ class _WithdrawalRequestDetailsSheet extends StatelessWidget {
                               l10n.localeName.startsWith('ar')
                                   ? 'لا توجد تغييرات حالة سابقة مسجلة.'
                                   : 'No previous status changes recorded.',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: AppColors.textSecondary,
                                 fontSize: 12,
                               ),
@@ -193,15 +195,15 @@ class _WithdrawalRequestDetailsSheet extends StatelessWidget {
                         ...request.history.reversed.map((event) => ListTile(
                               contentPadding: EdgeInsets.zero,
                               dense: true,
-                              leading: Icon(
+                              leading: MotionIcon(
                                 Icons.circle,
                                 size: 10,
                                 color: _statusColor(event.status),
                               ),
                               title: Text(
                                 _statusLabel(l10n, event.status),
-                                style: const TextStyle(
-                                  color: AppColors.primaryDark,
+                                style: TextStyle(
+                                  color: AppColors.ink,
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -299,7 +301,7 @@ class _DetailsCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.cardBorder),
       ),
@@ -329,18 +331,18 @@ class _DetailRow extends StatelessWidget {
           Expanded(
             child: Text(
               label,
-              style: const TextStyle(color: AppColors.textSecondary),
+              style: TextStyle(color: AppColors.textSecondary),
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Directionality(
               textDirection: valueDirection ?? Directionality.of(context),
-              child: Text(
+              child: CountText(
                 value,
                 textAlign: TextAlign.end,
-                style: const TextStyle(
-                  color: AppColors.primaryDark,
+                style: TextStyle(
+                  color: AppColors.ink,
                   fontWeight: FontWeight.w600,
                 ),
               ),

@@ -15,3 +15,7 @@ class ServerFailure extends Failure {
 class NetworkFailure extends Failure {
   const NetworkFailure([super.message = 'يرجى التحقق من اتصال الإنترنت']);
 }
+
+class AuthFailure extends Failure {
+  const AuthFailure([super.message = 'تعذر تسجيل الدخول. حاول مرة أخرى.']);
+}

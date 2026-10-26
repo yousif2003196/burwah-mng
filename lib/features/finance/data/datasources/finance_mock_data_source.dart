@@ -3,15 +3,15 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../domain/entities/subscription_request_entity.dart';
-import '../../domain/entities/department_wallet_entity.dart';
-import '../../domain/entities/expense_request_entity.dart';
-import '../../domain/entities/bank_account_edit_request_entity.dart';
-import '../../domain/entities/bank_link_request_entity.dart';
-import '../../domain/entities/withdrawal_request_entity.dart';
-import '../models/bank_account_model.dart';
-import '../models/finance_summary_model.dart';
-import 'finance_remote_data_source.dart';
+import 'package:barwah_app/features/finance/data/datasources/finance_remote_data_source.dart';
+import 'package:barwah_app/features/finance/data/models/bank_account_model.dart';
+import 'package:barwah_app/features/finance/data/models/finance_summary_model.dart';
+import 'package:barwah_app/features/finance/domain/entities/bank_account_edit_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/bank_link_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/department_wallet_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/expense_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/subscription_request_entity.dart';
+import 'package:barwah_app/features/finance/domain/entities/withdrawal_request_entity.dart';
 
 int _financialRequestSequence = 0;
 
@@ -136,7 +136,7 @@ class FinanceMockDataSource implements FinanceRemoteDataSource {
       bankName: 'بوابة سداد و مدى (Mada Gateway)',
       accountRole: 'الرصيد المعلق بانتظار التسوية البنكية اليومية',
       accountType: 'بوابة دفع إلكتروني',
-      iban: 'Gateway MID: 88401920-SAR',
+      iban: 'Gateway MID: 88401920-EGP',
       balance: 290000.00,
       isVerified: true,
     ),
@@ -203,6 +203,16 @@ class FinanceMockDataSource implements FinanceRemoteDataSource {
     final double subsAmount =
         pendingSubscriptions.fold(0.0, (sum, req) => sum + req.totalAmount);
 
+    // مصروفات الشهر الحالي = المصروفات المعتمدة فعليًا من الأدمن هذا الشهر.
+    final expenses = await getExpenseRequests();
+    final now = DateTime.now();
+    final double monthlyExpensesTotal = expenses
+        .where((e) =>
+            e.status == ExpenseRequestStatus.approved &&
+            e.submittedAt.year == now.year &&
+            e.submittedAt.month == now.month)
+        .fold(0.0, (sum, e) => sum + e.amount);
+
     return FinanceSummaryModel(
       totalLiquidity: calculatedTotalLiquidity,
       rajhiAccountBalance: rajhiBalance,
@@ -213,7 +223,7 @@ class FinanceMockDataSource implements FinanceRemoteDataSource {
       pendingSupervisorWithdrawalsAmount: supervisorAmount,
       pendingSubscriptionsCount: subsCount,
       pendingSubscriptionsAmount: subsAmount,
-      monthlyExpenses: 84320.00,
+      monthlyExpenses: monthlyExpensesTotal,
       monthlyCommissions: 142650.00,
     );
   }

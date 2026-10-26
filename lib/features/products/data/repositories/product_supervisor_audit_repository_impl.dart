@@ -1,6 +1,6 @@
-import '../../domain/entities/product_supervisor_audit_entry.dart';
-import '../../domain/repositories/product_supervisor_audit_repository.dart';
-import '../datasources/product_supervisor_audit_data_source.dart';
+import 'package:barwah_app/features/products/data/datasources/product_supervisor_audit_data_source.dart';
+import 'package:barwah_app/features/products/domain/entities/product_supervisor_audit_entry.dart';
+import 'package:barwah_app/features/products/domain/repositories/product_supervisor_audit_repository.dart';
 
 class ProductSupervisorAuditRepositoryImpl
     implements ProductSupervisorAuditRepository {

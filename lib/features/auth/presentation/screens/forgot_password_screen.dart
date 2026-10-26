@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   final String initialEmail;
@@ -33,7 +34,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     return Directionality(
       textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF0F1F3),
+        backgroundColor: AppColors.scaffold,
         body: Stack(
           fit: StackFit.expand,
           children: [
@@ -55,12 +56,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           child: IconButton.filledTonal(
                             onPressed: () => Navigator.of(context).pop(),
                             style: IconButton.styleFrom(
-                              backgroundColor: Colors.white.withValues(
+                              backgroundColor: AppColors.surface.withValues(
                                 alpha: .72,
                               ),
-                              foregroundColor: AppColors.primaryDark,
+                              foregroundColor: AppColors.ink,
                             ),
-                            icon: Icon(
+                            icon: MotionIcon(
                               isArabic
                                   ? Icons.arrow_forward_rounded
                                   : Icons.arrow_back_rounded,
@@ -74,10 +75,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             width: 88,
                             height: 88,
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: .62),
+                              color: AppColors.surface.withValues(alpha: .62),
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: Colors.white.withValues(alpha: .92),
+                                color: AppColors.surface.withValues(alpha: .92),
                                 width: 1.5,
                               ),
                               boxShadow: [
@@ -88,10 +89,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                 ),
                               ],
                             ),
-                            child: const Icon(
+                            child: MotionIcon(
                               Icons.lock_reset_rounded,
                               size: 42,
-                              color: AppColors.primaryDark,
+                              color: AppColors.ink,
                             ),
                           ),
                         ),
@@ -99,7 +100,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         Text(
                           l10n.forgotPassword,
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: AppColors.textPrimary,
                             fontSize: 26,
                             fontWeight: FontWeight.bold,
@@ -111,7 +112,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                               ? 'أدخل بريد العمل لمعرفة خطوات استعادة الوصول.'
                               : 'Enter your work email to see how to restore access.',
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: AppColors.textSecondary,
                             fontSize: 14,
                             height: 1.5,
@@ -123,10 +124,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           child: Container(
                             padding: const EdgeInsets.all(22),
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: .48),
+                              color: AppColors.surface.withValues(alpha: .48),
                               borderRadius: BorderRadius.circular(26),
                               border: Border.all(
-                                color: Colors.white.withValues(alpha: .86),
+                                color: AppColors.surface.withValues(alpha: .86),
                                 width: 1.4,
                               ),
                               boxShadow: [
@@ -144,7 +145,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                 children: [
                                   Text(
                                     l10n.workEmail,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       color: AppColors.textPrimary,
                                       fontSize: 13,
                                       fontWeight: FontWeight.w600,
@@ -170,10 +171,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                     },
                                     decoration: InputDecoration(
                                       filled: true,
-                                      fillColor: Colors.white.withValues(
+                                      fillColor: AppColors.surface.withValues(
                                         alpha: .72,
                                       ),
-                                      prefixIcon: const Icon(
+                                      prefixIcon: MotionIcon(
                                         Icons.mail_outline_rounded,
                                         color: AppColors.textSecondary,
                                       ),
@@ -184,14 +185,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                       ),
                                       errorBorder: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(15),
-                                        borderSide: const BorderSide(
+                                        borderSide: BorderSide(
                                           color: AppColors.danger,
                                         ),
                                       ),
                                       focusedBorder: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(15),
-                                        borderSide: const BorderSide(
-                                          color: AppColors.primaryDark,
+                                        borderSide: BorderSide(
+                                          color: AppColors.ink,
                                           width: 1.2,
                                         ),
                                       ),
@@ -216,7 +217,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                               BorderRadius.circular(15),
                                         ),
                                       ),
-                                      icon: const Icon(
+                                      icon: const MotionIcon(
                                         Icons.support_agent_rounded,
                                       ),
                                       label: Text(
@@ -254,7 +255,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                               ? 'حافظ على سرية كلمة المرور ولا تشاركها مع أي شخص.'
                               : 'Keep your password private and never share it.',
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: AppColors.textSecondary,
                             fontSize: 12,
                             height: 1.5,
@@ -284,16 +285,16 @@ class _RecoveryInstructions extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: .58),
+        color: AppColors.surface.withValues(alpha: .58),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: .9)),
+        border: Border.all(color: AppColors.surface.withValues(alpha: .9)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
+          MotionIcon(
             Icons.info_outline_rounded,
-            color: AppColors.primaryDark,
+            color: AppColors.ink,
             size: 22,
           ),
           const SizedBox(width: 10),
@@ -302,7 +303,7 @@ class _RecoveryInstructions extends StatelessWidget {
               isArabic
                   ? 'طلب استعادة الوصول للحساب $email يتم عبر المسؤول التقني. تواصل معه من بريد العمل لإكمال إعادة التعيين.'
                   : 'Access recovery for $email is handled by your technical administrator. Contact them from your work email to complete the reset.',
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textPrimary,
                 fontSize: 13,
                 height: 1.55,
@@ -320,7 +321,7 @@ class _RecoveryBackdrop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Stack(
+    return Stack(
       fit: StackFit.expand,
       children: [
         DecoratedBox(
@@ -328,19 +329,19 @@ class _RecoveryBackdrop extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFFF7F7F8), Color(0xFFE9EAEC), Color(0xFFF4F4F5)],
+              colors: [AppColors.background, AppColors.surfaceHighlight, AppColors.surfaceLight],
             ),
           ),
         ),
         const Positioned(
           top: -90,
           right: -70,
-          child: const _GlassOrb(size: 260, opacity: .26),
+          child: _GlassOrb(size: 260, opacity: .26),
         ),
         const Positioned(
           bottom: -110,
           left: -70,
-          child: const _GlassOrb(size: 310, opacity: .20),
+          child: _GlassOrb(size: 310, opacity: .20),
         ),
       ],
     );
@@ -361,8 +362,8 @@ class _GlassOrb extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: Colors.white.withValues(alpha: opacity),
-          border: Border.all(color: Colors.white.withValues(alpha: .65)),
+          color: AppColors.surface.withValues(alpha: opacity),
+          border: Border.all(color: AppColors.surface.withValues(alpha: .65)),
         ),
       ),
     );

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'package:barwah_app/core/widgets/motion_icon.dart';
+import 'package:barwah_app/core/theme/app_colors.dart';
+
 class AppSnackBar {
   static void showSuccess(
     BuildContext context,
@@ -11,8 +14,8 @@ class AppSnackBar {
     _show(
       context,
       message,
-      backgroundColor: const Color(0xFF10B981),
-      borderColor: const Color(0xFFA7F3D0),
+      backgroundColor: AppColors.success,
+      borderColor: AppColors.successBorder,
       icon: Icons.check_circle_outline_rounded,
       actionLabel: actionLabel,
       onActionTap: onActionTap,
@@ -30,8 +33,8 @@ class AppSnackBar {
     _show(
       context,
       message,
-      backgroundColor: const Color(0xFF0284C7),
-      borderColor: const Color(0xFFE0F2FE),
+      backgroundColor: AppColors.info,
+      borderColor: AppColors.infoBorder,
       icon: Icons.info_outline_rounded,
       actionLabel: actionLabel,
       onActionTap: onActionTap,
@@ -49,8 +52,8 @@ class AppSnackBar {
     _show(
       context,
       message,
-      backgroundColor: const Color(0xFFF59E0B),
-      borderColor: const Color(0xFFFDE68A),
+      backgroundColor: AppColors.warning,
+      borderColor: AppColors.warningBorder,
       icon: Icons.warning_amber_rounded,
       actionLabel: actionLabel,
       onActionTap: onActionTap,
@@ -68,8 +71,8 @@ class AppSnackBar {
     _show(
       context,
       message,
-      backgroundColor: const Color(0xFFEF4444),
-      borderColor: const Color(0xFFFECACA),
+      backgroundColor: AppColors.danger,
+      borderColor: AppColors.dangerBorder,
       icon: Icons.error_outline_rounded,
       actionLabel: actionLabel,
       onActionTap: onActionTap,
@@ -126,7 +129,7 @@ class AppSnackBar {
                 color: Colors.white.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(icon, color: Colors.white, size: 18),
+              child: MotionIcon(icon, color: Colors.white, size: 18),
             ),
             const SizedBox(width: 12),
             Expanded(
