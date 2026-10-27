@@ -4,7 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:barwah_app/core/localization/app_locale_controller.dart';
 import 'package:barwah_app/core/theme/app_theme_switcher.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
-import 'package:barwah_app/core/widgets/floating_brand_mark.dart';
+import 'package:barwah_app/core/widgets/pinwheel_mark.dart';
 import 'package:barwah_app/core/widgets/app_snack_bar.dart';
 import 'package:barwah_app/features/admin/data/datasources/admin_security_store.dart';
 import 'package:barwah_app/features/admin/presentation/widgets/admin_pin_dialog.dart';
@@ -136,8 +136,18 @@ class _LoginScreenState extends State<LoginScreen>
                         ),
                       ),
                       const SizedBox(height: 16),
-                      // الشعار يطفو بهدوء (بدون بطاقة خلفه)
-                      const FloatingBrandMark(size: 96, iconSize: 58),
+                      // مروحة برواح تدور بهدوء وتتطاير منها قطع صغيرة؛ تسرع أثناء التحميل.
+                      SizedBox(
+                        height: 150,
+                        child: Center(
+                          child: PinwheelMark(
+                            size: 124,
+                            fast: state is AuthLoading,
+                            rateScale: 2.2,
+                            particleSize: 1.4,
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 20),
 
                       // عنوان النظام

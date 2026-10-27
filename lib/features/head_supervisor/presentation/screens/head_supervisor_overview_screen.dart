@@ -181,52 +181,41 @@ class _HeadSupervisorOverviewScreenState
               return const Center(child: CircularProgressIndicator());
             }
             return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               children: [
-                ScrollFx(child: _WelcomeCard(
-                  title: headSupervisorText(context,
-                      arabic: 'مرحباً رئيس المشرفين',
-                      english: 'Welcome, Head Supervisor'),
-                  badge: headSupervisorText(context,
-                      arabic: 'لوحة متابعة', english: 'Live overview'),
-                  subtitle:
-                      'العمليات الميدانية نشطة الآن • تغطية شاملة لـ 4 أقسام تشغيلية بدقة وكفاءة',
-                )),
-                const SizedBox(height: 10),
-                ScrollFx(child: _SnapshotStrip(
+                ScrollFx(child: _HeroCard(
+                  pending: data.pendingRequests,
                   todayActions: data.todayActions,
-                  pendingRequests: data.pendingRequests,
+                  activeSupervisors: data.activeSupervisors,
+                  openComplaints: data.openComplaints,
                 )),
                 const SizedBox(height: 18),
-                ScrollFx(child: Row(children: [
-                  MotionIcon(Icons.analytics_outlined,
-                      color: AppColors.infoDark, size: 15),
-                  const SizedBox(width: 5),
-                  Expanded(
-                    child: Text('نظرة تشغيلية فورية',
-                        textAlign: TextAlign.right,
-                        style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.ink)),
-                  ),
-                  Text(headSupervisorText(context,
-                      arabic: '3 مؤشرات مباشرة',
-                      english: '3 live indicators'),
-                      style: TextStyle(
-                          fontSize: 8, color: AppColors.textSecondary)),
-                ])),
+                ScrollFx(child: _SectionTitle(
+                  title: headSupervisorText(context,
+                      arabic: 'يحتاج قرارك الآن',
+                      english: 'Needs your decision'),
+                  action: headSupervisorText(context,
+                      arabic: 'عرض الكل', english: 'View all'),
+                  onAction: () => _open(
+                      context, const HeadSupervisorRequestsScreen()),
+                )),
                 const SizedBox(height: 10),
+                ScrollFx(child: _PendingWorkPanel(
+                  events: data.pendingItems,
+                  onOpen: () => _open(
+                      context, const HeadSupervisorRequestsScreen()),
+                )),
+                const SizedBox(height: 12),
                 ScrollFx(child: Row(children: [
                   Expanded(
                     child: _MetricCard(
                       icon: Icons.badge_outlined,
-                  title: headSupervisorText(context,
-                      arabic: 'عدد المشرفين النشطين',
-                      english: 'Active supervisors'),
+                      title: headSupervisorText(context,
+                          arabic: 'المشرفون النشطون',
+                          english: 'Active supervisors'),
                       value: '${data.activeSupervisors}',
-                  subtitle: headSupervisorText(context,
-                      arabic: 'مشرفاً ميدانياً', english: 'Field supervisors'),
+                      color: AppColors.info,
+                      background: AppColors.infoLight,
                       onTap: () => _open(
                           context,
                           const HeadSupervisorSupervisorsScreen(
@@ -236,48 +225,22 @@ class _HeadSupervisorOverviewScreenState
                   const SizedBox(width: 10),
                   Expanded(
                     child: _MetricCard(
-                      icon: Icons.verified_user_outlined,
+                      icon: Icons.report_gmailerrorred_outlined,
                       title: headSupervisorText(context,
-                          arabic: 'طلبات قيد المراجعة',
-                          english: 'Requests under review'),
-                      value: '${data.pendingRequests}',
-                      iconBackground: AppColors.infoLight,
+                          arabic: 'الشكاوى المفتوحة',
+                          english: 'Open complaints'),
+                      value: '${data.openComplaints}',
+                      color: AppColors.danger,
+                      background: AppColors.dangerLight,
                       onTap: () => _open(
-                          context, const HeadSupervisorRequestsScreen()),
+                          context, const HeadSupervisorComplaintsScreen()),
                     ),
                   ),
                 ])),
                 const SizedBox(height: 12),
-                ScrollFx(child: _MetricCard(
-                  icon: Icons.report_gmailerrorred_outlined,
-                  title: headSupervisorText(context,
-                      arabic: 'الشكاوى المفتوحة', english: 'Open complaints'),
-                  value: '${data.openComplaints}',
-                  subtitle: headSupervisorText(context,
-                      arabic: 'تحتاج إلى مراجعة', english: 'Need review'),
-                  iconBackground: AppColors.dangerLight,
-                  onTap: () => _open(
-                      context, const HeadSupervisorComplaintsScreen()),
-                )),
-                const SizedBox(height: 14),
                 ScrollFx(child: _WorkflowChart(
                   days: data.trendDays,
                   trends: data.workflowTrends,
-                )),
-                const SizedBox(height: 12),
-                ScrollFx(child: _PendingWorkPanel(
-                  events: data.pendingItems,
-                  onOpen: () => _open(
-                      context, const HeadSupervisorRequestsScreen()),
-                )),
-                const SizedBox(height: 12),
-                ScrollFx(child: _QuickLinks(
-                  onRequests: () => _open(
-                      context, const HeadSupervisorRequestsScreen()),
-                  onSupervisors: () => _open(
-                      context, const HeadSupervisorSupervisorsScreen()),
-                  onComplaints: () => _open(
-                      context, const HeadSupervisorComplaintsScreen()),
                 )),
                 const SizedBox(height: 12),
                 ScrollFx(child: _SupervisorStrip(
@@ -316,73 +279,179 @@ class _OverviewData {
   });
 }
 
-class _WelcomeCard extends StatelessWidget {
+class _SectionTitle extends StatelessWidget {
   final String title;
-  final String badge;
-  final String subtitle;
+  final String? action;
+  final VoidCallback? onAction;
 
-  const _WelcomeCard({
-    required this.title,
-    required this.badge,
-    required this.subtitle,
+  const _SectionTitle({required this.title, this.action, this.onAction});
+
+  @override
+  Widget build(BuildContext context) => Row(children: [
+        Expanded(
+          child: Text(title,
+              style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.ink)),
+        ),
+        if (action != null)
+          InkWell(
+            onTap: onAction,
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+              child: Text(action!,
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.info)),
+            ),
+          ),
+      ]);
+}
+
+/// بطاقة الترحيب: الرقم الأهم (الطلبات المعلقة) بحجم كبير وتحته ثلاثة مؤشرات.
+class _HeroCard extends StatelessWidget {
+  final int pending;
+  final int todayActions;
+  final int activeSupervisors;
+  final int openComplaints;
+
+  const _HeroCard({
+    required this.pending,
+    required this.todayActions,
+    required this.activeSupervisors,
+    required this.openComplaints,
   });
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: AppColors.blueFill,
-          border: AppColors.blueEdge,
-          boxShadow: AppColors.blueGlow,
-          color: AppColors.primaryDark,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              MotionIcon(Icons.waving_hand_rounded,
-                  color: AppColors.warning, size: 20),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(title,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold)),
+  Widget build(BuildContext context) {
+    final soft = Colors.white.withValues(alpha: 0.78);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: AppColors.blueFill,
+        border: AppColors.blueEdge,
+        boxShadow: AppColors.blueGlow,
+        color: AppColors.primaryDark,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                      headSupervisorText(context,
+                          arabic: 'مرحباً رئيس المشرفين',
+                          english: 'Welcome, Head Supervisor'),
+                      style: TextStyle(fontSize: 12, color: soft)),
+                  const SizedBox(height: 4),
+                  pending == 0
+                      ? Text(
+                          headSupervisorText(context,
+                              arabic: 'لا طلبات بانتظار قرارك',
+                              english: 'No requests awaiting you'),
+                          style: const TextStyle(
+                              fontSize: 20,
+                              height: 1.25,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white))
+                      : Wrap(
+                          crossAxisAlignment: WrapCrossAlignment.end,
+                          spacing: 6,
+                          children: [
+                            CountText('$pending',
+                                style: const TextStyle(
+                                    fontSize: 30,
+                                    height: 1.15,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white)),
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: Text(
+                                  headSupervisorText(context,
+                                      arabic: 'طلبات بانتظار قرارك',
+                                      english: 'requests awaiting you'),
+                                  style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: soft)),
+                            ),
+                          ],
+                        ),
+                ],
               ),
-              MotionIcon(Icons.circle, color: AppColors.info, size: 8),
-              const SizedBox(width: 5),
-              Text(badge,
-                  style: const TextStyle(color: Colors.white, fontSize: 10)),
-            ]),
-            const SizedBox(height: 8),
-            Text(subtitle,
-                style: TextStyle(
-                    color: AppColors.info, fontSize: 11, height: 1.5)),
-            const SizedBox(height: 9),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-              decoration: BoxDecoration(
-                  gradient: AppColors.blueFill,
-                  border: AppColors.blueEdge,
-                  boxShadow: AppColors.blueGlow,
-                  color: AppColors.primaryDark,
-                  borderRadius: BorderRadius.circular(9)),
-              child: Row(children: [
-                MotionIcon(Icons.verified_user_outlined,
-                    size: 13, color: AppColors.infoBorder),
-                SizedBox(width: 5),
-                Expanded(
-                  child: Text('حالة الاعتماد الأمني: مفعّلة',
-                      textAlign: TextAlign.right,
-                      style: TextStyle(fontSize: 9, color: Colors.white)),
-                ),
-                Text('تحديث: منذ دقيقة',
-                    style: TextStyle(fontSize: 8, color: AppColors.info)),
-              ]),
             ),
-          ],
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const MotionIcon(Icons.shield_outlined,
+                  color: Colors.white, size: 26),
+            ),
+          ]),
+          const SizedBox(height: 14),
+          Row(children: [
+            _HeroStat(
+                value: '$todayActions',
+                label: headSupervisorText(context,
+                    arabic: 'إجراءات اليوم', english: 'Actions today')),
+            const SizedBox(width: 8),
+            _HeroStat(
+                value: '$activeSupervisors',
+                label: headSupervisorText(context,
+                    arabic: 'مشرف نشط', english: 'Active')),
+            const SizedBox(width: 8),
+            _HeroStat(
+                value: '$openComplaints',
+                label: headSupervisorText(context,
+                    arabic: 'شكاوى مفتوحة', english: 'Open complaints')),
+          ]),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeroStat extends StatelessWidget {
+  final String value;
+  final String label;
+
+  const _HeroStat({required this.value, required this.label});
+
+  @override
+  Widget build(BuildContext context) => Expanded(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CountText(value,
+                  style: const TextStyle(
+                      fontSize: 20,
+                      height: 1.15,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white)),
+              Text(label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.white.withValues(alpha: 0.78))),
+            ],
+          ),
         ),
       );
 }
@@ -391,127 +460,60 @@ class _MetricCard extends StatelessWidget {
   final IconData icon;
   final String title;
   final String value;
-  final String? subtitle;
-  final Color? iconBackground;
+  final Color color;
+  final Color background;
   final VoidCallback? onTap;
 
   const _MetricCard({
     required this.icon,
     required this.title,
     required this.value,
+    required this.color,
+    required this.background,
     this.onTap,
-    this.subtitle,
-    this.iconBackground,
   });
 
   @override
   Widget build(BuildContext context) => Material(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(20),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(20),
           child: Container(
-            height: 145,
-            padding: const EdgeInsets.all(11),
+            padding: const EdgeInsets.all(13),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.surfaceHighlight),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.cardBorder),
             ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  width: 36,
+                  height: 36,
                   decoration: BoxDecoration(
-                    color: iconBackground ?? AppColors.surfaceLight,
-                    borderRadius: BorderRadius.circular(9),
+                    color: background,
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: MotionIcon(icon, color: AppColors.ink, size: 18),
+                  child: MotionIcon(icon, color: color, size: 19),
                 ),
-                const Spacer(),
+                const SizedBox(height: 10),
+                CountText(value,
+                    style: TextStyle(
+                        fontSize: 26,
+                        height: 1.1,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.ink)),
+                const SizedBox(height: 2),
                 Text(title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                        fontSize: 10, color: AppColors.textSecondary)),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    if (subtitle != null)
-                      Text(subtitle!,
-                          style: TextStyle(
-                              fontSize: 8, color: AppColors.textSecondary)),
-                    CountText(value,
-                        style: TextStyle(
-                            fontSize: 23,
-                            height: 1.1,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.ink)),
-                  ],
-                ),
+                        fontSize: 12, color: AppColors.textSecondary)),
               ],
             ),
           ),
-        ),
-      );
-}
-
-class _SnapshotStrip extends StatelessWidget {
-  final int todayActions;
-  final int pendingRequests;
-
-  const _SnapshotStrip({
-    required this.todayActions,
-    required this.pendingRequests,
-  });
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(7),
-        decoration: BoxDecoration(
-            color: AppColors.surface, borderRadius: BorderRadius.circular(14)),
-        child: Row(children: [
-          const _SnapshotTile(value: '4', label: 'الأقسام الأساسية', icon: Icons.dashboard_outlined),
-          _SnapshotTile(value: '$todayActions', label: 'إجراءات اليوم', icon: Icons.check_circle_outline),
-          _SnapshotTile(value: '$pendingRequests', label: 'طلبات معلقة', icon: Icons.hourglass_bottom),
-        ]),
-      );
-}
-
-class _SnapshotTile extends StatelessWidget {
-  final String value;
-  final String label;
-  final IconData icon;
-  const _SnapshotTile({required this.value, required this.label, required this.icon});
-
-  @override
-  Widget build(BuildContext context) => Expanded(
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 2),
-          padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 4),
-          decoration: BoxDecoration(
-              color: AppColors.surfaceLight,
-              borderRadius: BorderRadius.circular(10)),
-          child: Column(children: [
-            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              MotionIcon(icon, size: 12, color: AppColors.infoDark),
-              const SizedBox(width: 3),
-              Flexible(child: Text(
-                  headSupervisorText(context,
-                      arabic: label,
-                      english: switch (label) {
-                        'الأقسام الأساسية' => 'Core departments',
-                        'إجراءات اليوم' => 'Actions today',
-                        _ => 'Pending requests',
-                      }),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 8, color: AppColors.infoDark))),
-            ]),
-            const SizedBox(height: 3),
-            CountText(value, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.ink)),
-          ]),
         ),
       );
 }
@@ -535,28 +537,28 @@ class _WorkflowChart extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-          color: AppColors.surface, borderRadius: BorderRadius.circular(15)),
+          color: AppColors.surface,
+          border: Border.all(color: AppColors.cardBorder),
+          borderRadius: BorderRadius.circular(20)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(headSupervisorText(context,
               arabic: 'مجرى سير العمل حسب القسم',
               english: 'Workflow by department'),
-              textAlign: TextAlign.right,
               style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
                   color: AppColors.ink)),
           const SizedBox(height: 3),
           Text(headSupervisorText(context,
               arabic: 'عدد الطلبات المسجلة يومياً • آخر 7 أيام',
               english: 'Daily recorded requests • Last 7 days'),
-              textAlign: TextAlign.right,
               style: TextStyle(
-                  fontSize: 8, color: AppColors.textSecondary)),
+                  fontSize: 11, color: AppColors.textSecondary)),
           const SizedBox(height: 12),
           Wrap(
-            alignment: WrapAlignment.end,
+            alignment: WrapAlignment.start,
             spacing: 12,
             runSpacing: 7,
             children: [
@@ -571,7 +573,7 @@ class _WorkflowChart extends StatelessWidget {
                         _ => 'Services',
                       }),
                       style: TextStyle(
-                          fontSize: 8, color: AppColors.textSecondary)),
+                          fontSize: 11, color: AppColors.textSecondary)),
                   const SizedBox(width: 4),
                   Container(
                     width: 8,
@@ -600,7 +602,7 @@ class _WorkflowChart extends StatelessWidget {
                   for (final day in days)
                     CountText('${day.day}',
                         style: TextStyle(
-                            fontSize: 8, color: AppColors.textMuted)),
+                            fontSize: 10, color: AppColors.textMuted)),
                 ],
               ),
             ),
@@ -612,7 +614,7 @@ class _WorkflowChart extends StatelessWidget {
                 english: 'No requests have been recorded during this period yet.'),
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                    fontSize: 8, color: AppColors.textMuted)),
+                    fontSize: 11, color: AppColors.textMuted)),
           ],
         ],
       ),
@@ -629,7 +631,7 @@ class _WorkflowChartPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    const left = 31.0;
+    const left = 34.0;
     const right = 7.0;
     const top = 8.0;
     const bottom = 7.0;
@@ -651,7 +653,7 @@ class _WorkflowChartPainter extends CustomPainter {
       final text = TextPainter(
         text: TextSpan(
           text: '$value',
-          style: TextStyle(fontSize: 8, color: AppColors.textMuted),
+          style: TextStyle(fontSize: 10, color: AppColors.textMuted),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
@@ -707,100 +709,109 @@ class _PendingWorkPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final isArabic = Localizations.localeOf(context).languageCode == 'ar';
     return Container(
-      padding: const EdgeInsets.all(13),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
-          color: AppColors.surface, borderRadius: BorderRadius.circular(15)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(children: [
-            TextButton.icon(
-              onPressed: onOpen,
-              icon: const MotionIcon(Icons.arrow_back_ios_new, size: 11),
-              label: Text(headSupervisorText(context,
-                  arabic: 'عرض الطلبات', english: 'View requests')),
-              style: TextButton.styleFrom(
-                  foregroundColor: AppColors.info,
-                  textStyle: const TextStyle(fontSize: 8)),
-            ),
-            const Spacer(),
-            Text(headSupervisorText(context,
-                arabic: 'مهام تحتاج تدخلك', english: 'Needs your attention'),
-                style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.ink)),
-            const SizedBox(width: 5),
-            MotionIcon(Icons.notification_important_outlined,
-                size: 15, color: AppColors.warning),
-          ]),
-          const SizedBox(height: 4),
-          if (events.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Text(headSupervisorText(context,
-                  arabic: 'لا توجد طلبات معلقة تحتاج إلى مراجعتك.',
-                  english: 'There are no pending requests that need your review.'),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                      fontSize: 9, color: AppColors.textSecondary)),
+        color: AppColors.surface,
+        border: Border.all(color: AppColors.cardBorder),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: events.isEmpty
+          ? Padding(
+              padding: const EdgeInsets.symmetric(vertical: 22),
+              child: Column(children: [
+                MotionIcon(Icons.task_alt_rounded,
+                    size: 28, color: AppColors.success),
+                const SizedBox(height: 8),
+                Text(
+                    headSupervisorText(context,
+                        arabic: 'لا توجد طلبات معلقة تحتاج إلى مراجعتك.',
+                        english:
+                            'There are no pending requests that need your review.'),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        fontSize: 13, color: AppColors.textSecondary)),
+              ]),
             )
-          else
-            for (final event in events)
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Material(
-                  color: AppColors.surfaceLight,
-                  borderRadius: BorderRadius.circular(11),
-                  child: InkWell(
-                    onTap: onOpen,
-                    borderRadius: BorderRadius.circular(11),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 9),
-                      child: Row(children: [
-                        MotionIcon(Icons.chevron_left,
-                            size: 16, color: AppColors.textMuted),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(isArabic ? event.titleAr : event.titleEn,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  textAlign: TextAlign.right,
-                                  style: TextStyle(
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.textPrimary)),
-                              const SizedBox(height: 3),
-                              Text(
-                                '${_departmentName(context, event.source)} • ${event.createdAt.toLocal().toString().substring(0, 16)}',
-                                textAlign: TextAlign.right,
+          : Column(children: [
+              for (var i = 0; i < events.length; i++) ...[
+                if (i > 0) Divider(height: 1, color: AppColors.cardBorder),
+                InkWell(
+                  onTap: onOpen,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Row(children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: _tint(events[i].source).withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: MotionIcon(Icons.assignment_outlined,
+                            size: 18, color: _tint(events[i].source)),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                                isArabic
+                                    ? events[i].titleAr
+                                    : events[i].titleEn,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                    fontSize: 7,
-                                    color: AppColors.textSecondary),
-                              ),
-                            ],
-                          ),
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.ink)),
+                            const SizedBox(height: 2),
+                            Text(
+                                '${_departmentName(context, events[i].source)} • ${_ago(context, events[i].createdAt)}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textSecondary)),
+                          ],
                         ),
-                        const SizedBox(width: 8),
-                        Container(
-                          width: 7,
-                          height: 7,
-                          decoration: BoxDecoration(
-                              color: AppColors.warning,
-                              shape: BoxShape.circle),
-                        ),
-                      ]),
-                    ),
+                      ),
+                      const SizedBox(width: 8),
+                      MotionIcon(Icons.chevron_right_rounded,
+                          size: 20, color: AppColors.textMuted),
+                    ]),
                   ),
                 ),
-              ),
-        ],
-      ),
+              ],
+            ]),
     );
+  }
+
+  Color _tint(String source) => switch (source) {
+        'merchant' => AppColors.info,
+        'wasalny' => AppColors.success,
+        'products' => AppColors.purple,
+        'services' => AppColors.warning,
+        _ => AppColors.textSecondary,
+      };
+
+  String _ago(BuildContext context, DateTime date) {
+    final minutes = DateTime.now().difference(date).inMinutes;
+    if (minutes < 1) {
+      return headSupervisorText(context, arabic: 'الآن', english: 'Just now');
+    }
+    if (minutes < 60) {
+      return headSupervisorText(context,
+          arabic: 'منذ $minutes د', english: '$minutes min ago');
+    }
+    final hours = minutes ~/ 60;
+    if (hours < 24) {
+      return headSupervisorText(context,
+          arabic: 'منذ $hours ساعة', english: '$hours h ago');
+    }
+    final days = hours ~/ 24;
+    return headSupervisorText(context,
+        arabic: 'منذ $days يوم', english: '$days d ago');
   }
 
   String _departmentName(BuildContext context, String source) {
@@ -822,35 +833,68 @@ class _SupervisorStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final visibleSupervisors = supervisors.take(3).toList();
+    final visibleSupervisors = supervisors.take(4).toList();
     return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(15)),
-      child: Column(children: [
-        Row(children: [
-          TextButton(onPressed: onShowAll, child: Text('عرض الكل', style: TextStyle(fontSize: 9, color: AppColors.info))),
-          const Spacer(),
-          Text('المشرفون المسؤولون في الوردية الحالية', textAlign: TextAlign.right,
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.ink)),
-        ]),
-        const SizedBox(height: 4),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        border: Border.all(color: AppColors.cardBorder),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        _SectionTitle(
+          title: headSupervisorText(context,
+              arabic: 'فريق الإشراف', english: 'Supervision team'),
+          action: headSupervisorText(context,
+              arabic: 'عرض الكل', english: 'View all'),
+          onAction: onShowAll,
+        ),
+        const SizedBox(height: 10),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
-          reverse: true,
           child: Row(children: [
             for (final supervisor in visibleSupervisors)
               Container(
-                width: 155,
-                margin: const EdgeInsets.only(left: 7),
-                padding: const EdgeInsets.all(7),
-                decoration: BoxDecoration(color: AppColors.surfaceLight, borderRadius: BorderRadius.circular(11)),
+                width: 190,
+                margin: const EdgeInsetsDirectional.only(end: 8),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceLight,
+                  borderRadius: BorderRadius.circular(14),
+                ),
                 child: Row(children: [
-                  CircleAvatar(radius: 15, backgroundColor: supervisor.color, child: Text(supervisor.avatar, style: const TextStyle(fontSize: 9, color: Colors.white))),
-                  const SizedBox(width: 6),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                    Text(supervisor.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: AppColors.ink)),
-                    Text(supervisor.department.replaceFirst('قسم ', 'مشرف '), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 7, color: AppColors.textSecondary)),
-                  ])),
+                  CircleAvatar(
+                    radius: 18,
+                    backgroundColor: supervisor.color,
+                    child: Text(supervisor.avatar,
+                        style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white)),
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(supervisor.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.ink)),
+                        Text(
+                            supervisor.department
+                                .replaceFirst('قسم ', 'مشرف '),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textSecondary)),
+                      ],
+                    ),
+                  ),
                 ]),
               ),
           ]),
@@ -858,60 +902,6 @@ class _SupervisorStrip extends StatelessWidget {
       ]),
     );
   }
-}
-
-class _QuickLinks extends StatelessWidget {
-  final VoidCallback onRequests;
-  final VoidCallback onSupervisors;
-  final VoidCallback onComplaints;
-
-  const _QuickLinks({
-    required this.onRequests,
-    required this.onSupervisors,
-    required this.onComplaints,
-  });
-
-  @override
-  Widget build(BuildContext context) => Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          _QuickLink(
-              label: headSupervisorText(context, arabic: 'الطلبات', english: 'Requests'),
-              icon: Icons.assignment_outlined,
-              onTap: onRequests),
-          _QuickLink(
-              label: headSupervisorText(context, arabic: 'المشرفون', english: 'Supervisors'),
-              icon: Icons.people_outline,
-              onTap: onSupervisors),
-          _QuickLink(
-              label: headSupervisorText(context, arabic: 'الشكاوى', english: 'Complaints'),
-              icon: Icons.shield_outlined,
-              onTap: onComplaints),
-        ],
-      );
-}
-
-class _QuickLink extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _QuickLink(
-      {required this.label, required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) => OutlinedButton.icon(
-        onPressed: onTap,
-        icon: MotionIcon(icon, size: 17),
-        label: Text(label),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.ink,
-          side: BorderSide(color: AppColors.cardBorder),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
 }
 
 class _FinanceNoticeCard extends StatelessWidget {
@@ -922,7 +912,7 @@ class _FinanceNoticeCard extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
             color: AppColors.surfaceLight,
-            borderRadius: BorderRadius.circular(15)),
+            borderRadius: BorderRadius.circular(20)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -936,12 +926,12 @@ class _FinanceNoticeCard extends StatelessWidget {
                     color: AppColors.cardBorder,
                     borderRadius: BorderRadius.circular(10)),
                 child: Text('غير متاح لرئيس المشرفين',
-                    style: TextStyle(fontSize: 8, color: AppColors.textSecondary)),
+                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
               ),
               const Spacer(),
               Text('القسم المالي والتحصيل',
                   style: TextStyle(
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: FontWeight.bold,
                       color: AppColors.textPrimary)),
             ]),
@@ -949,7 +939,7 @@ class _FinanceNoticeCard extends StatelessWidget {
             Text('صلاحيات حصرية للإدارة المالية',
                 textAlign: TextAlign.right,
                 style: TextStyle(
-                    fontSize: 9, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+                    fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(10),
@@ -960,16 +950,16 @@ class _FinanceNoticeCard extends StatelessWidget {
                 'الاطلاع على الأرصدة البنكية، طلبات سحب الأرباح، وحسابات التسوية المالية يقع خارج نطاق الإشراف التشغيلي، ويقتصر حصرياً على مجلس الإدارة المالية العليا ومكتب المدير العام لضمان بروتوكولات الحوكمة المعتمدة.',
                 textAlign: TextAlign.right,
                 style: TextStyle(
-                    fontSize: 9, height: 1.6, color: AppColors.textSecondary),
+                    fontSize: 12, height: 1.6, color: AppColors.textSecondary),
               ),
             ),
             const SizedBox(height: 10),
             Row(children: [
               Text('البروتوكول رقم 402',
-                  style: TextStyle(fontSize: 8, color: AppColors.textSecondary)),
+                  style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
               Spacer(),
               Text('نظام التشفير وحجب الصلاحيات: نشط ومقيد',
-                  style: TextStyle(fontSize: 8, color: AppColors.textSecondary)),
+                  style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
               SizedBox(width: 4),
               MotionIcon(Icons.shield_outlined, size: 12, color: AppColors.textSecondary),
             ]),

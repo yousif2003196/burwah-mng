@@ -176,7 +176,7 @@ class _ServicesSupervisorTabsShellState
             } else if (direction == ScrollDirection.forward) {
               bars = true;
             }
-            if (atTop) {
+            if (atTop && notification is ScrollEndNotification) {
               top = true;
             } else if (notification is ScrollUpdateNotification &&
                 (notification.scrollDelta ?? 0) > 0 &&

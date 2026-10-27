@@ -10,7 +10,6 @@ import 'package:barwah_app/app/navigation/services_supervisor_tabs_shell.dart';
 import 'package:barwah_app/app/navigation/wasalny_supervisor_tabs_shell.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/localization/app_locale_controller.dart';
-import 'package:barwah_app/core/theme/app_background.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/core/theme/app_theme.dart';
 import 'package:barwah_app/core/theme/app_theme_controller.dart';
@@ -175,7 +174,7 @@ class _StartupGateState extends State<_StartupGate>
   bool _showSplash = true;
   bool _covering = false;
 
-  // الموجة ترتفع وتغطي الشاشة، ثم تظهر شاشة الدخول وهي مغطاة، ثم تتلاشى الموجة.
+  // موجتا الاسبلاش ترتفعان وتغطيان الشاشة، ثم تظهر شاشة الدخول وهي مغطاة، ثم تتلاشى الموجة.
   late final AnimationController _rise = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 850),
@@ -198,9 +197,6 @@ class _StartupGateState extends State<_StartupGate>
       setState(() => _showSplash = false);
       return;
     }
-    // وقفة قصيرة ليظهر الشعار مكتملاً قبل أن تغطي الموجة الشاشة.
-    await Future<void>.delayed(const Duration(milliseconds: 1100));
-    if (!mounted || !_showSplash) return;
     setState(() => _covering = true);
     await _rise.forward();
     if (!mounted) return;
@@ -229,7 +225,7 @@ class _StartupGateState extends State<_StartupGate>
           ),
         if (_covering)
           Positioned.fill(
-            child: AppWaveCover(rise: _rise, fadeOut: _fade),
+            child: SplashWaveCover(rise: _rise, fadeOut: _fade),
           ),
       ],
     );

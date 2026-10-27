@@ -154,7 +154,7 @@ class _HeadSupervisorWalletScreenState extends State<HeadSupervisorWalletScreen>
           messageAr:
               'طلب رئيس المشرفين تحويل ${_amount.toStringAsFixed(0)} ج.م إلى $_selectedAccount عبر التحويل البنكي الفوري (SARIE).',
           messageEn:
-              'The head supervisor requested an instant SARIE transfer of ${_amount.toStringAsFixed(0)} EGP to $_selectedAccount.',
+              'The head supervisor requested an instant transfer of ${_amount.toStringAsFixed(0)} EGP to $_selectedAccount.',
           createdAt: DateTime.now(),
         ),
       );
@@ -252,7 +252,7 @@ class _HeadSupervisorWalletScreenState extends State<HeadSupervisorWalletScreen>
               label: Text(
                 _submitting
                     ? headSupervisorText(context, arabic: 'جارٍ إرسال الطلب...', english: 'Sending request...')
-                    : headSupervisorText(context, arabic: 'تأكيد طلب السحب والتحويل البنكي الفوري (SARIE)', english: 'Confirm instant bank withdrawal (SARIE)'),
+                    : headSupervisorText(context, arabic: 'تأكيد طلب السحب والتحويل البنكي الفوري.', english: 'Confirm instant bank withdrawal '),
                 style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
               ),
               style: FilledButton.styleFrom(
@@ -292,7 +292,7 @@ class _HeadSupervisorWalletScreenState extends State<HeadSupervisorWalletScreen>
       context: context,
       builder: (context) => AlertDialog(
         title: Text(headSupervisorText(context, arabic: 'إضافة وجهة استلام', english: 'Add payout destination')),
-        content: Text(headSupervisorText(context, arabic: 'تُضاف الحسابات البنكية بعد التحقق من ملكيتها عبر النفاذ الوطني.', english: 'Bank accounts can be added after ownership is verified through Nafath.')),
+        content: Text(headSupervisorText(context, arabic: 'تُضاف الحسابات البنكية بعد التحقق من ملكيتها عبر رسالة نصية.', english: 'Bank accounts can be added after ownership is verified through SMS.')),
         actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text(headSupervisorText(context, arabic: 'حسناً', english: 'OK')))],
       ),
     );
@@ -304,12 +304,12 @@ class _WalletSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(15),
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           gradient: AppColors.blueFill,
           border: AppColors.blueEdge,
           color: AppColors.primaryDark,
-          borderRadius: BorderRadius.circular(15),
+          borderRadius: BorderRadius.circular(20),
           boxShadow: const [BoxShadow(color: AppPalette.overlay18000000, blurRadius: 12, offset: Offset(0, 6))],
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -318,9 +318,9 @@ class _WalletSummaryCard extends StatelessWidget {
             _WalletPill(text: headSupervisorText(context, arabic: 'اعتماد الرقابة المالية الإدارية', english: 'Financial oversight approved'), icon: Icons.verified_user_outlined),
           ]),
           const SizedBox(height: 17),
-          Text(headSupervisorText(context, arabic: 'إجمالي المستحقات المعتمدة للإشراف', english: 'Total approved supervisor earnings'), textAlign: TextAlign.right, style: TextStyle(fontSize: 10, color: AppColors.info)),
+          Text(headSupervisorText(context, arabic: 'إجمالي المستحقات المعتمدة للإشراف', english: 'Total approved supervisor earnings'), textAlign: TextAlign.right, style: TextStyle(fontSize: 12, color: AppColors.info)),
           const SizedBox(height: 3),
-          Text(headSupervisorText(context, arabic: '45,800.00 ج.م', english: 'EGP 45,800.00'), textAlign: TextAlign.right, style: const TextStyle(fontSize: 25, fontWeight: FontWeight.bold, color: Colors.white)),
+          Text(headSupervisorText(context, arabic: '45,800.00 ج.م', english: 'EGP 45,800.00'), textAlign: TextAlign.right, style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: Colors.white)),
           const SizedBox(height: 17),
           Row(children: [
             Expanded(child: _BalanceTile(label: headSupervisorText(context, arabic: 'الرصيد المعلق', english: 'Pending balance'), value: '7,800.00', icon: Icons.hourglass_top)),
@@ -340,10 +340,10 @@ class _WithdrawalAmountCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => _WhitePanel(
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text(headSupervisorText(context, arabic: 'المبلغ المطلوب سحبه', english: 'Withdrawal amount'), textAlign: TextAlign.right, style: TextStyle(fontSize: 9, color: AppColors.textSecondary)),
+          Text(headSupervisorText(context, arabic: 'المبلغ المطلوب سحبه', english: 'Withdrawal amount'), textAlign: TextAlign.right, style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
           const SizedBox(height: 5),
           Container(
-            height: 48,
+            height: 54,
             padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(color: AppColors.surfaceLight, borderRadius: BorderRadius.circular(10)),
             child: Row(children: [
@@ -357,14 +357,14 @@ class _WithdrawalAmountCard extends StatelessWidget {
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   textAlign: TextAlign.right,
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.ink),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.ink),
                   decoration: InputDecoration(border: InputBorder.none, suffixIcon: MotionIcon(Icons.account_balance_wallet_outlined, size: 18, color: AppColors.infoDark)),
                 ),
               ),
             ]),
           ),
           const SizedBox(height: 15),
-          Text(headSupervisorText(context, arabic: 'تحديد مبلغ سريع', english: 'Quick amount'), textAlign: TextAlign.right, style: TextStyle(fontSize: 9, color: AppColors.textSecondary)),
+          Text(headSupervisorText(context, arabic: 'تحديد مبلغ سريع', english: 'Quick amount'), textAlign: TextAlign.right, style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
           const SizedBox(height: 7),
           Wrap(alignment: WrapAlignment.spaceBetween, runSpacing: 7, children: [
             _PresetButton(label: headSupervisorText(context, arabic: 'كامل المتاح (38,000)', english: 'Full available (38,000)'), selected: true, icon: Icons.bolt, onTap: () => onPreset(38000)),
@@ -379,7 +379,7 @@ class _WithdrawalAmountCard extends StatelessWidget {
             child: Row(children: [
               MotionIcon(Icons.info_outline, color: AppColors.infoDark, size: 17),
               const SizedBox(width: 6),
-              Expanded(child: Text(headSupervisorText(context, arabic: 'تتم معالجة وإيداع المبالغ فورياً على مدار الساعة وطوال أيام الأسبوع عبر نظام المدفوعات الفورية السريع (SARIE).', english: 'Transfers are processed instantly, 24/7, through the SARIE instant payment system.'), textAlign: TextAlign.center, style: TextStyle(fontSize: 9, height: 1.4, color: AppColors.textSecondary))),
+              Expanded(child: Text(headSupervisorText(context, arabic: 'تتم معالجة وإيداع المبالغ فورياً على مدار الساعة وطوال أيام الأسبوع عبر نظام التحويلات الفورية.', english: 'Transfers are processed instantly, 24/7, through the instant transfer system.'), textAlign: TextAlign.center, style: TextStyle(fontSize: 11, height: 1.45, color: AppColors.textSecondary))),
             ]),
           ),
         ]),
@@ -466,14 +466,14 @@ class _SecurityNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(13),
-        decoration: BoxDecoration(color: AppColors.infoLight, borderRadius: BorderRadius.circular(14)),
+        decoration: BoxDecoration(color: AppColors.infoLight, border: Border.all(color: AppColors.cardBorder), borderRadius: BorderRadius.circular(16)),
         child: Row(children: [
           MotionIcon(Icons.lock_outline, color: AppColors.ink, size: 20),
           const SizedBox(width: 9),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text(headSupervisorText(context, arabic: 'التحقق والحوكمة الإدارية المشددة', english: 'Verification and administrative governance'), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.ink)),
+            Text(headSupervisorText(context, arabic: 'التحقق والحوكمة الإدارية المشددة', english: 'Verification and administrative governance'), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.ink)),
             const SizedBox(height: 5),
-            Text(headSupervisorText(context, arabic: 'لضمان سلامة العمليات المالية الحساسة، يتم إرسال رمز تحقق مؤقت عبر نفاذ الوطني أو رسالة نصية مسجلة إلى جوال رئيس المشرفين المعتمد قبل تنفيذ وتأكيد الحوالة.', english: 'For security, a one-time verification code is sent through Nafath or SMS to the approved Head Supervisor phone before the transfer is confirmed.'), textAlign: TextAlign.right, style: TextStyle(fontSize: 8, height: 1.45, color: AppColors.infoDark)),
+            Text(headSupervisorText(context, arabic: 'لضمان سلامة العمليات المالية الحساسة، يتم إرسال رمز تحقق مؤقت عبر رسالة نصية مسجلة إلى جوال رئيس المشرفين المعتمد قبل تنفيذ وتأكيد الحوالة.', english: 'For security, a one-time verification code is sent through SMS to the approved Head Supervisor phone before the transfer is confirmed.'), textAlign: TextAlign.right, style: TextStyle(fontSize: 10, height: 1.5, color: AppColors.infoDark)),
           ])),
         ]),
       );
@@ -486,14 +486,14 @@ class _TransactionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.surfaceHighlight), borderRadius: BorderRadius.circular(14)),
+        decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.cardBorder), borderRadius: BorderRadius.circular(16)),
         child: Row(children: [
           CircleAvatar(radius: 17, backgroundColor: AppColors.surfaceLight, child: MotionIcon(Icons.south_west, size: 17, color: AppColors.ink)),
           const SizedBox(width: 9),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(headSupervisorText(context, arabic: transaction.amount, english: transaction.amount.replaceAll(' ج.م', ' EGP')), style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.ink)), Flexible(child: Text(headSupervisorText(context, arabic: 'سحب فوري - ${transaction.bank}', english: 'Instant withdrawal • ${transaction.bank}'), textAlign: TextAlign.right, style: TextStyle(fontSize: 10, color: AppColors.textPrimary)))]),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(headSupervisorText(context, arabic: transaction.amount, english: transaction.amount.replaceAll(' ج.م', ' EGP')), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.ink)), Flexible(child: Text(headSupervisorText(context, arabic: 'سحب فوري - ${transaction.bank}', english: 'Instant withdrawal • ${transaction.bank}'), textAlign: TextAlign.right, style: TextStyle(fontSize: 11, color: AppColors.textPrimary)))]),
             const SizedBox(height: 4),
-            Row(mainAxisAlignment: MainAxisAlignment.end, children: [Text(headSupervisorText(context, arabic: '● ناجح', english: '● Successful'), style: TextStyle(fontSize: 8, color: AppColors.infoDark)), const SizedBox(width: 12), Text(transaction.code, style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: AppColors.ink)), const SizedBox(width: 7), Text('•', style: TextStyle(fontSize: 8, color: AppColors.textMuted)), const SizedBox(width: 7), Text(headSupervisorText(context, arabic: transaction.date, english: switch (transaction.date) { '12 يناير 2025' => 'Jan 12, 2025', '28 ديسمبر 2024' => 'Dec 28, 2024', _ => 'Dec 15, 2024' }), style: TextStyle(fontSize: 8, color: AppColors.textSecondary))]),
+            Row(mainAxisAlignment: MainAxisAlignment.end, children: [Text(headSupervisorText(context, arabic: '● ناجح', english: '● Successful'), style: TextStyle(fontSize: 10, color: AppColors.infoDark)), const SizedBox(width: 12), Text(transaction.code, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.ink)), const SizedBox(width: 7), Text('•', style: TextStyle(fontSize: 10, color: AppColors.textMuted)), const SizedBox(width: 7), Text(headSupervisorText(context, arabic: transaction.date, english: switch (transaction.date) { '12 يناير 2025' => 'Jan 12, 2025', '28 ديسمبر 2024' => 'Dec 28, 2024', _ => 'Dec 15, 2024' }), style: TextStyle(fontSize: 10, color: AppColors.textSecondary))]),
           ])),
         ]),
       );
@@ -516,11 +516,11 @@ class _SectionTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(children: [
         if (action != null) action!,
-        if (trailing != null) Text(trailing!, style: TextStyle(fontSize: 8, color: AppColors.textSecondary)),
+        if (trailing != null) Text(trailing!, style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
         const Spacer(),
         Container(width: 4, height: 14, decoration: BoxDecoration(color: AppColors.infoDark, borderRadius: BorderRadius.circular(4))),
         const SizedBox(width: 7),
-        Text(title, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.ink)),
+        Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.ink)),
       ]);
 }
 
@@ -531,7 +531,7 @@ class _WhitePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.surfaceHighlight), borderRadius: BorderRadius.circular(15)),
+        decoration: BoxDecoration(color: AppColors.surface, border: Border.all(color: AppColors.cardBorder), borderRadius: BorderRadius.circular(18)),
         child: child,
       );
 }
@@ -548,9 +548,9 @@ class _PresetButton extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(9),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
           decoration: BoxDecoration(color: selected ? AppColors.infoBorder : AppColors.surfaceHighlight, borderRadius: BorderRadius.circular(9)),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [if (icon != null) MotionIcon(icon, size: 13, color: AppColors.ink), Text(label, style: TextStyle(fontSize: 8, color: AppColors.textPrimary, fontWeight: selected ? FontWeight.w600 : FontWeight.normal))]),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [if (icon != null) MotionIcon(icon, size: 13, color: AppColors.ink), Text(label, style: TextStyle(fontSize: 10, color: AppColors.textPrimary, fontWeight: selected ? FontWeight.w600 : FontWeight.normal))]),
         ),
       );
 }
@@ -567,7 +567,7 @@ class _WalletPill extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
         decoration: BoxDecoration(color: blue ? AppColors.infoBorder : AppColors.surfaceHighlight, borderRadius: BorderRadius.circular(9)),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Text(text, style: TextStyle(fontSize: 7, color: blue ? AppColors.infoDark : AppColors.textSecondary, fontWeight: FontWeight.w600)),
+          Text(text, style: TextStyle(fontSize: 9, color: blue ? AppColors.infoDark : AppColors.textSecondary, fontWeight: FontWeight.w600)),
           if (icon != null) ...[const SizedBox(width: 4), MotionIcon(icon, size: 11, color: blue ? AppColors.infoDark : AppColors.textSecondary)],
           if (dot) ...[const SizedBox(width: 4), MotionIcon(Icons.circle, size: 7, color: AppColors.info)],
         ]),
@@ -586,11 +586,11 @@ class _BalanceTile extends StatelessWidget {
         padding: const EdgeInsets.all(9),
         decoration: BoxDecoration(color: emphasized ? AppColors.infoDark : AppColors.infoDark, borderRadius: BorderRadius.circular(10)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Row(mainAxisAlignment: MainAxisAlignment.end, children: [Text(label, style: TextStyle(fontSize: 8, color: AppColors.info)), const SizedBox(width: 4), MotionIcon(icon, size: 14, color: AppColors.info)]),
+          Row(mainAxisAlignment: MainAxisAlignment.end, children: [Text(label, style: TextStyle(fontSize: 10, color: AppColors.info)), const SizedBox(width: 4), MotionIcon(icon, size: 14, color: AppColors.info)]),
           const SizedBox(height: 5),
-          Text(headSupervisorText(context, arabic: '$value ج.م', english: 'EGP $value'), textAlign: TextAlign.right, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+          Text(headSupervisorText(context, arabic: '$value ج.م', english: 'EGP $value'), textAlign: TextAlign.right, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white)),
           const SizedBox(height: 3),
-          Text(emphasized ? headSupervisorText(context, arabic: 'متاح ومؤهل للتحويل', english: 'Available for transfer') : headSupervisorText(context, arabic: 'بدلات قيد التدقيق المحاسبي', english: 'Allowances under accounting review'), textAlign: TextAlign.right, style: TextStyle(fontSize: 7, color: AppColors.info)),
+          Text(emphasized ? headSupervisorText(context, arabic: 'متاح ومؤهل للتحويل', english: 'Available for transfer') : headSupervisorText(context, arabic: 'بدلات قيد التدقيق المحاسبي', english: 'Allowances under accounting review'), textAlign: TextAlign.right, style: TextStyle(fontSize: 9, color: AppColors.info)),
         ]),
       );
 }

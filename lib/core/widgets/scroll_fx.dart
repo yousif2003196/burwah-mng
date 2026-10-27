@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
 /// حركة مرتبطة بالسكرول (scroll-driven) بدون أي rebuild:
-///  • العنصر الداخل من أسفل الشاشة يظهر تدريجياً (شفافية + صعود + تكبير خفيف).
-///  • العنصر الخارج من أعلى الشاشة يخفت ويصغر قليلاً.
+///  • العنصر الداخل من أسفل الشاشة يظهر تدريجياً (تلاشٍ ناعم + صعود خفيف).
+///  • العنصر الخارج من أعلى الشاشة يخفت ويصغر قليلاً على مسافة طويلة، فلا
+///    يظهر حدّ حاد. الحافتان ثابتتان عند بداية الشاشة ونهايتها، سواء ظهر
+///    الشريطان العلوي والسفلي أم اختفيا.
 ///  • تتحدد الحالة من موضع العنصر الفعلي داخل الـ viewport أثناء الرسم، لذلك
 ///    تتبع إصبع المستخدم بالضبط وتعمل بنفس الاتجاه عند السكرول للأعلى.
 ///
@@ -38,7 +40,6 @@ class ScrollFx extends SingleChildRenderObjectWidget {
   RenderObject createRenderObject(BuildContext context) => _RenderScrollFx(
         scrollable: _find(context),
         enabled: _on(context),
-        context: context,
       );
 
   @override
@@ -48,8 +49,7 @@ class ScrollFx extends SingleChildRenderObjectWidget {
   ) {
     renderObject
       ..enabled = _on(context)
-      ..scrollable = _find(context)
-      ..context = context;
+      ..scrollable = _find(context);
   }
 }
 
@@ -61,9 +61,7 @@ class _RenderScrollFx extends RenderProxyBox {
   _RenderScrollFx({
     ScrollableState? scrollable,
     required bool enabled,
-    required BuildContext context,
-  })  : _enabled = enabled,
-        _context = context {
+  })  : _enabled = enabled {
     _scrollable = scrollable;
     _position = _safePosition(scrollable);
   }
@@ -75,29 +73,12 @@ class _RenderScrollFx extends RenderProxyBox {
   static const double _armDistance = 1;
   static const double _margin = 64;
   // ارتفاع منطقة الدخول عند الحافة السفلية، ومنطقة الخروج عند الحافة العلوية.
-  static const double _zone = 200;
-  static const double _exitZone = 140;
-  // أقصى زاوية لفّ (راديان ≈ 62°).
-  static const double _maxTilt = 1.08;
+  static const double _zone = 150;
+  static const double _exitZone = 150;
 
   ScrollableState? _scrollable;
   ScrollPosition? _position;
   bool _enabled;
-  BuildContext _context;
-
-  set context(BuildContext value) => _context = value;
-
-  // ارتفاع الشريطين العائمين: يُقرأ وقت الرسم من MediaQuery بدون الاشتراك فيه
-  // (لا rebuild)، فيتبع الإخفاء/الإظهار تلقائياً.
-  EdgeInsets get _insets {
-    try {
-      if (!_context.mounted) return EdgeInsets.zero;
-      return _context.getInheritedWidgetOfExactType<MediaQuery>()?.data.padding ??
-          EdgeInsets.zero;
-    } catch (_) {
-      return EdgeInsets.zero;
-    }
-  }
 
   double? _lastY;
   double _lastPixels = 0;
@@ -189,10 +170,10 @@ class _RenderScrollFx extends RenderProxyBox {
       return;
     }
     final y = lastY - (pos.pixels - _lastPixels);
-    final vpEff = _viewport - _insets.bottom;
-    final nearEnter = y > vpEff - _zone - _margin && y < vpEff + _margin;
-    final nearExit = y < _insets.top + _margin &&
-        y > _insets.top - _exitZone - _margin;
+    // الحافتان ثابتتان عند بداية الـ viewport ونهايته (لا تتأثران بالشريطين).
+    final nearEnter =
+        y > _viewport - _zone - _margin && y < _viewport + _margin;
+    final nearExit = y < _exitZone + _margin && y > -size.height - _margin;
     if (nearEnter || nearExit) markNeedsPaint();
   }
 
@@ -247,9 +228,7 @@ class _RenderScrollFx extends RenderProxyBox {
 
     // أول قياس: العنصر المعروض أصلاً يُعدّ «ظاهراً» فلا يُخفَّت أبداً؛ أما
     // العنصر الذي يأتي من تحت الحافة فيُعاد تشغيل دخوله كل مرة يخرج فيها.
-    final ins = _insets;
-    final vpEff = vp - ins.bottom;
-    if (y > vpEff) {
+    if (y > vp) {
       _entered = false;
     } else {
       _entered ??= true;
@@ -261,32 +240,25 @@ class _RenderScrollFx extends RenderProxyBox {
       return;
     }
 
-    // دخول: يتقدم مع صعود العنصر داخل منطقة الحافة السفلية فقط.
+    // دخول: تلاشٍ ناعم مع صعود خفيف على مسافة _zone فوق الحافة السفلية.
     var enter = 1.0;
-    var raw = 1.0;
     if (_entered != true) {
-      raw = ((vpEff - y) / _zone).clamp(0.0, 1.0);
-      if (raw >= 1) _entered = true;
-      enter = Curves.easeOutCubic.transform(raw);
+      final t = ((vp - y) / _zone).clamp(0.0, 1.0);
+      if (t >= 1) _entered = true;
+      enter = t;
     }
 
-    // خروج: يبدأ فقط عندما يعبر أعلى العنصر الحافة العلوية.
-    final hidden = math.max(0.0, ins.top - y);
-    final exit = Curves.easeOut.transform(
-      (1 - hidden / math.min(h, _exitZone)).clamp(0.0, 1.0),
-    );
+    // خروج: يُقاس بمركز العنصر على مسافة طويلة من الحافة العلوية، فلا ينقطع
+    // العنصر فجأة عند عبوره الحافة.
+    final cy = y + h / 2;
+    final out = ((_exitZone - cy) / (_exitZone + h / 2 + 20)).clamp(0.0, 1.0);
 
-    // الشفافية خطية مع التقدم كي يظهر الفرق بوضوح.
-    final alpha = raw * (0.5 + 0.5 * exit);
-    // «رول»: عند الدخول ينفتح العنصر من حافته العلوية (الحافة السفلية مائلة
-    // للخلف)، وعند الخروج يلتف ويُغلق نحو حافته السفلية. منظور حقيقي بـ Matrix4.
-    final tiltIn = (1 - enter) * _maxTilt;
-    final tiltOut = (1 - exit) * _maxTilt;
-    final dy = (1 - enter) * 40;
-    final scale = 0.96 + 0.04 * exit;
+    final alpha = (1 - math.pow(1 - enter, 1.15).toDouble()) *
+        (1 - math.pow(out, 1.15).toDouble());
+    final dy = (1 - enter) * 12 + out * 8;
+    final scale = 1 - 0.05 * (1 - enter) - 0.05 * out;
 
-    final identity =
-        alpha >= 0.999 && tiltIn < 0.002 && tiltOut < 0.002 && dy < 0.05;
+    final identity = alpha >= 0.999 && dy < 0.05 && scale > 0.9995;
     _fxActive = !identity;
     if (identity) {
       context.paintChild(c, offset);
@@ -296,13 +268,9 @@ class _RenderScrollFx extends RenderProxyBox {
     if (a == 0) return;
 
     // المفصلة: أعلى العنصر للدخول، أسفله للخروج.
-    final exiting = tiltOut > tiltIn;
-    final pivotY = exiting ? h : 0.0;
-    final angle = exiting ? -tiltOut : tiltIn;
+    final pivotY = out > (1 - enter) ? h : 0.0;
     final m = Matrix4.identity()
-      ..setEntry(3, 2, 0.0012)
-      ..translateByDouble(w / 2, pivotY + (exiting ? 0.0 : dy), 0, 1)
-      ..rotateX(angle)
+      ..translateByDouble(w / 2, pivotY + dy, 0, 1)
       ..scaleByDouble(scale, scale, 1, 1)
       ..translateByDouble(-w / 2, -pivotY, 0, 1);
     _matrix = m;

@@ -3,16 +3,13 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'package:barwah_app/core/theme/app_colors.dart';
-import 'package:barwah_app/core/theme/app_palette.dart';
-import 'package:barwah_app/core/widgets/app_brand_mark.dart';
-import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/pinwheel_mark.dart';
 
-// ألوان الاسبلاش في الوضع الداكن (تتبع مود الجهاز وقت التشغيل).
-const Color _darkInk = Color(0xFFF2F6FF);
-const Color _darkShield = Color(0xFF5B8DEF);
-
-// يتبع المظهر المختار داخل التطبيق (فاتح/داكن/حسب الجهاز).
-bool _splashDark(BuildContext context) => AppColors.isDark;
+/// اسبلاش التطبيق: مروحة برواح تظهر وتدور بتسارع مع قطع متطايرة، ثم يظهر
+/// الاسم، فالجملة، فالأيقونات الثلاث تباعاً، وأخيراً موجتان (زرقاء وصفراء)
+/// متداخلتان. الخلفية شفافة: موجة التطبيق ترسم خلفه بلا انقطاع.
+/// مدة الاسبلاش بالثواني (آخر 0.4 ثانية منها حركة الموجتين فقط).
+const double kSplashSeconds = 5.2;
 
 class AppLaunchSplash extends StatefulWidget {
   final VoidCallback? onAnimationComplete;
@@ -25,44 +22,20 @@ class AppLaunchSplash extends StatefulWidget {
 
 class _AppLaunchSplashState extends State<AppLaunchSplash>
     with SingleTickerProviderStateMixin {
+  static const double _total = kSplashSeconds;
+  // أبعاد التصميم المرجعي (360×640).
+  static const double _refW = 360;
+  static const double _refH = 640;
+
   late final AnimationController _controller;
-
-  late final Animation<double> _markOpacity = CurvedAnimation(
-    parent: _controller,
-    curve: const Interval(0.65, 0.8, curve: Curves.easeOut),
-  );
-
-  late final Animation<double> _markScale = Tween<double>(
-    begin: 0.62,
-    end: 1,
-  ).animate(
-    CurvedAnimation(
-      parent: _controller,
-      curve: const Interval(0.63, 0.82, curve: Curves.easeOutBack),
-    ),
-  );
-
-  late final Animation<double> _textOpacity = CurvedAnimation(
-    parent: _controller,
-    curve: const Interval(0.75, 0.9, curve: Curves.easeOut),
-  );
-
-  late final Animation<Offset> _textOffset = Tween<Offset>(
-    begin: const Offset(0, 0.25),
-    end: Offset.zero,
-  ).animate(
-    CurvedAnimation(
-      parent: _controller,
-      curve: const Interval(0.75, 0.92, curve: Curves.easeOutCubic),
-    ),
-  );
+  bool _precached = false;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2400),
+      duration: Duration(milliseconds: (_total * 1000).round()),
     )..addStatusListener((status) {
         if (status == AnimationStatus.completed) {
           widget.onAnimationComplete?.call();
@@ -72,98 +45,154 @@ class _AppLaunchSplashState extends State<AppLaunchSplash>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_precached) return;
+    _precached = true;
+    for (final n in const [
+      'logo_word_navy',
+      'logo_word_white',
+      'logo_tag_navy',
+      'logo_tag_white',
+      'logo_row_navy',
+      'logo_row_white',
+    ]) {
+      precacheImage(AssetImage('assets/branding/$n.png'), context);
+    }
+  }
+
+  @override
   void dispose() {
     _controller.dispose();
     super.dispose();
   }
 
+  // تقدّم عنصر بين ثانيتين.
+  double _seg(double t, double from, double to, [Curve c = Curves.linear]) =>
+      c.transform(((t - from) / (to - from)).clamp(0.0, 1.0));
+
   @override
   Widget build(BuildContext context) {
-    final tagline = AppLocalizations.of(context)!.appSubtitle;
-    final dark = _splashDark(context);
+    final dark = AppColors.isDark;
+    final tone = dark ? 'white' : 'navy';
+    final reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
 
     return Scaffold(
-      // شفاف: خلفية التطبيق المتحركة (الموجة) ترسم خلف الاسبلاش ثم تكمل خلف
-      // شاشة الدخول بدون أي انقطاع.
       backgroundColor: Colors.transparent,
       body: LayoutBuilder(
-        builder: (context, constraints) {
-          final center = Offset(
-            constraints.maxWidth / 2,
-            constraints.maxHeight * 0.43,
-          );
+        builder: (context, box) {
+          final s = math.min(box.maxWidth / _refW, box.maxHeight / _refH)
+              .clamp(0.6, 1.6)
+              .toDouble();
+          final top = (box.maxHeight - _refH * s) / 2;
+          final w = box.maxWidth;
+          final head = 260 * s;
+          final wordW = 270 * s;
+          final tagW = 300 * s;
+          final rowW = 300 * s;
+          final rowH = rowW * 93 / 474;
 
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              Positioned(
-                left: center.dx - 76,
-                top: center.dy - 76,
-                width: 152,
-                height: 152,
-                child: FadeTransition(
-                  opacity: _markOpacity,
-                  child: ScaleTransition(
-                    scale: _markScale,
-                    child: const _FinishedBrandMark(),
+          return AnimatedBuilder(
+            animation: _controller,
+            builder: (context, _) {
+              final t = reduce ? _total : _controller.value * _total;
+
+              // المروحة: تظهر وتكبر.
+              final pop = _seg(t, 0, 1.1, Curves.easeOutBack);
+              final popOp = _seg(t, 0, 0.5);
+              // الاسم: ينكشف من اليمين لليسار.
+              final word = _seg(t, 1.25, 2.25, Curves.easeOutCubic);
+              final tag = _seg(t, 2.05, 2.75, Curves.easeOut);
+              final r1 = _seg(t, 2.4, 3.0, Curves.easeOut);
+              final r2 = _seg(t, 2.7, 3.3, Curves.easeOut);
+              final r3 = _seg(t, 3.0, 3.6, Curves.easeOut);
+              final wipe = _seg(t, 3.1, 4.2, Curves.easeOutCubic);
+
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned(
+                    left: (w - head) / 2,
+                    top: top + 56 * s,
+                    width: head,
+                    height: head,
+                    child: Opacity(
+                      opacity: popOp,
+                      child: Transform.scale(
+                        scale: 0.35 + 0.65 * pop,
+                        child: PinwheelMark(size: head, spinUp: true),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              _ShieldAssembly(
-                progress: _controller,
-                viewport: Size(constraints.maxWidth, constraints.maxHeight),
-                center: center,
-                dark: dark,
-              ),
-              Positioned(
-                left: 16,
-                right: 16,
-                top: center.dy + 97,
-                child: Column(
-                  children: [
-                    _AnimatedWordmark(progress: _controller, dark: dark),
-                    const SizedBox(height: 12),
-                    FadeTransition(
-                      opacity: _textOpacity,
-                      child: SlideTransition(
-                        position: _textOffset,
-                        child: Container(
-                          width: 48,
-                          height: 3,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                AppColors.info,
-                                AppColors.backdropGlow,
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(4),
+                  Positioned(
+                    left: (w - wordW) / 2,
+                    top: top + (324 + 10 * (1 - word)) * s,
+                    width: wordW,
+                    child: Opacity(
+                      opacity: word,
+                      child: ClipRect(
+                        clipper: _FracClipper(1 - word, 1),
+                        child: Image.asset(
+                          'assets/branding/logo_word_$tone.png',
+                          width: wordW,
+                          fit: BoxFit.fitWidth,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: (w - tagW) / 2,
+                    top: top + (424 + 10 * (1 - tag)) * s,
+                    width: tagW,
+                    child: Opacity(
+                      opacity: tag,
+                      child: Image.asset(
+                        'assets/branding/logo_tag_$tone.png',
+                        width: tagW,
+                        fit: BoxFit.fitWidth,
+                      ),
+                    ),
+                  ),
+                  for (final part in [
+                    (0.69, 1.0, r1),
+                    (0.34, 0.69, r2),
+                    (0.0, 0.34, r3),
+                  ])
+                    Positioned(
+                      left: (w - rowW) / 2,
+                      top: top + (458 + 10 * (1 - part.$3)) * s,
+                      width: rowW,
+                      height: rowH,
+                      child: Opacity(
+                        opacity: part.$3,
+                        child: ClipRect(
+                          clipper: _FracClipper(part.$1, part.$2),
+                          child: Image.asset(
+                            'assets/branding/logo_row_$tone.png',
+                            width: rowW,
+                            fit: BoxFit.fitWidth,
                           ),
                         ),
                       ),
                     ),
-                  ],
-                ),
-              ),
-              Positioned(
-                left: 24,
-                right: 24,
-                bottom: 42,
-                child: FadeTransition(
-                  opacity: _textOpacity,
-                  child: Text(
-                    tagline,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: AppPalette.blue75869A,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.35,
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    top: top + 548 * s,
+                    height: 70 * s,
+                    child: IgnorePointer(
+                      child: CustomPaint(
+                        painter: _WavesPainter(
+                          t: t,
+                          wipe: wipe,
+                          scale: s,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
-            ],
+                ],
+              );
+            },
           );
         },
       ),
@@ -171,332 +200,260 @@ class _AppLaunchSplashState extends State<AppLaunchSplash>
   }
 }
 
-class _AnimatedWordmark extends StatelessWidget {
-  const _AnimatedWordmark({required this.progress, required this.dark});
+/// يقصّ الصورة إلى الشريحة الأفقية [from, to] من عرضها.
+class _FracClipper extends CustomClipper<Rect> {
+  const _FracClipper(this.from, this.to);
 
-  static const String _wordmark = 'borwah_mng';
-
-  final Animation<double> progress;
-  final bool dark;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      key: const ValueKey('brand-wordmark'),
-      label: _wordmark,
-      child: ExcludeSemantics(
-        child: Directionality(
-          textDirection: TextDirection.ltr,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (var index = 0; index < _wordmark.length; index++)
-                _AnimatedLetter(
-                  character: _wordmark[index],
-                  index: index,
-                  progress: progress,
-                  dark: dark,
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AnimatedLetter extends StatelessWidget {
-  const _AnimatedLetter({
-    required this.character,
-    required this.index,
-    required this.progress,
-    required this.dark,
-  });
-
-  final bool dark;
-  final String character;
-  final int index;
-  final Animation<double> progress;
+  final double from;
+  final double to;
 
   @override
-  Widget build(BuildContext context) {
-    final start = 0.4 + index * 0.035;
-    final end = start + 0.1;
-
-    return AnimatedBuilder(
-      animation: progress,
-      builder: (context, child) {
-        final intervalProgress =
-            ((progress.value - start) / (end - start)).clamp(0.0, 1.0);
-        final value = Curves.easeOutBack.transform(intervalProgress);
-
-        return Opacity(
-          opacity: value.clamp(0.0, 1.0),
-          child: Transform.translate(
-            offset: Offset(
-              -92 * (1 - value),
-              -math.sin(value * math.pi) * 18,
-            ),
-            child: Transform.rotate(
-              angle: (1 - value) * -0.16,
-              child: Transform.scale(
-                scale: 0.62 + value * 0.38,
-                child: Text(
-                  character,
-                  key: ValueKey('brand-letter-$index'),
-                  style: TextStyle(
-                    color: dark ? _darkInk : AppPalette.blue142D49,
-                    fontSize: 27,
-                    letterSpacing: 1.2,
-                    fontWeight: FontWeight.w700,
-                    shadows: value < 1
-                        ? [
-                            Shadow(
-                              color: AppPalette.teal43C6AC
-                                  .withValues(alpha: (1 - value) * 0.6),
-                              blurRadius: 16 * (1 - value),
-                            ),
-                          ]
-                        : null,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _ShieldAssembly extends StatelessWidget {
-  const _ShieldAssembly({
-    required this.progress,
-    required this.viewport,
-    required this.center,
-    required this.dark,
-  });
-
-  final bool dark;
-
-  final Animation<double> progress;
-  final Size viewport;
-  final Offset center;
-
-  static const double _shieldSize = 62;
-  List<Color> get _colors => [
-    // قطع الدرع المتطايرة بدرجات الأزرق لتتماشى مع خلفية التطبيق.
-    dark ? _darkShield : const Color(0xFF3A7BD5),
-    dark ? const Color(0xFF8FB0FF) : AppPalette.blue173457,
-    dark ? const Color(0xFF3A7BD5) : const Color(0xFF4F8DF5),
-    dark ? const Color(0xFF9DB8FF) : const Color(0xFF8EBBFF),
-  ];
-  static const List<double> _delays = [0, 0.07, 0.14, 0.21];
-
-  List<Offset> get _starts => [
-        Offset(-_shieldSize * 0.55, viewport.height * 0.31),
-        Offset(viewport.width - _shieldSize * 0.45, viewport.height * 0.37),
-        Offset(viewport.width * 0.34, -_shieldSize * 0.58),
-        Offset(viewport.width * 0.66, viewport.height - _shieldSize * 0.42),
-      ];
-
-  List<Offset> get _destinations => [
-        center + const Offset(-18, -17),
-        center + const Offset(18, -17),
-        center + const Offset(-18, 17),
-        center + const Offset(18, 17),
-      ];
-
-  List<Offset> get _controls => [
-        Offset(center.dx * 0.48, center.dy * 0.3),
-        Offset(viewport.width - center.dx * 0.48, center.dy * 0.42),
-        Offset(center.dx * 0.64, center.dy * 0.18),
-        Offset(viewport.width - center.dx * 0.64, viewport.height * 0.78),
-      ];
+  Rect getClip(Size size) =>
+      Rect.fromLTRB(size.width * from, 0, size.width * to, size.height);
 
   @override
-  Widget build(BuildContext context) {
-    final starts = _starts;
-    final destinations = _destinations;
-    final controls = _controls;
-
-    return AnimatedBuilder(
-      animation: progress,
-      builder: (context, child) {
-        final overallProgress = (progress.value / 0.8).clamp(0.0, 1.0);
-        final trailOpacity =
-            (1 - ((progress.value - 0.76) / 0.13).clamp(0.0, 1.0)) * 0.78;
-
-        return Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Positioned.fill(
-              child: IgnorePointer(
-                child: CustomPaint(
-                  painter: _ShieldTrailsPainter(
-                    starts: starts,
-                    controls: controls,
-                    destinations: destinations,
-                    progress: overallProgress,
-                    colors: _colors,
-                    opacity: trailOpacity,
-                  ),
-                ),
-              ),
-            ),
-            for (var index = 0; index < starts.length; index++)
-              _buildShield(
-                index,
-                starts[index],
-                controls[index],
-                destinations[index],
-                overallProgress,
-              ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildShield(
-    int index,
-    Offset start,
-    Offset control,
-    Offset destination,
-    double overallProgress,
-  ) {
-    final progressForShield =
-        ((overallProgress - _delays[index]) / (1 - _delays[index]))
-            .clamp(0.0, 1.0);
-    final eased = Curves.easeInOutCubic.transform(progressForShield);
-    final position = _quadraticPoint(start, control, destination, eased);
-    final opacity = (1 - ((overallProgress - 0.76) / 0.15).clamp(0.0, 1.0));
-    final rotation = (1 - eased) * (index.isEven ? -0.42 : 0.42);
-    final scale = 0.82 + eased * 0.18;
-
-    return Positioned(
-      left: position.dx - _shieldSize / 2,
-      top: position.dy - _shieldSize / 2,
-      child: IgnorePointer(
-        child: Opacity(
-          opacity: opacity.clamp(0.0, 1.0),
-          child: Transform.rotate(
-            angle: rotation,
-            child: Transform.scale(
-              scale: scale,
-              child: Container(
-                width: _shieldSize,
-                height: _shieldSize,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: _colors[index].withValues(alpha: 0.28),
-                      blurRadius: 22,
-                      spreadRadius: 1,
-                    ),
-                    BoxShadow(
-                      color: Colors.white.withValues(alpha: 0.8),
-                      blurRadius: 8,
-                      spreadRadius: -2,
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  Icons.shield_rounded,
-                  color: _colors[index],
-                  size: 43,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  bool shouldReclip(_FracClipper old) => old.from != from || old.to != to;
 }
 
-class _ShieldTrailsPainter extends CustomPainter {
-  const _ShieldTrailsPainter({
-    required this.starts,
-    required this.controls,
-    required this.destinations,
-    required this.progress,
-    required this.colors,
-    required this.opacity,
+/// موجتان (زرقاء وصفراء) بسرعتين وطورين مختلفين فتتقاطعان، وتنكشفان من
+/// المنتصف نحو الطرفين.
+class _WavesPainter extends CustomPainter {
+  const _WavesPainter({
+    required this.t,
+    required this.wipe,
+    required this.scale,
   });
 
-  final List<Offset> starts;
-  final List<Offset> controls;
-  final List<Offset> destinations;
-  final double progress;
-  final List<Color> colors;
-  final double opacity;
+  final double t;
+  final double wipe;
+  final double scale;
 
   @override
   void paint(Canvas canvas, Size size) {
-    for (var index = 0; index < starts.length; index++) {
-      final flightProgress =
-          ((progress - index * 0.07) / (1 - index * 0.07)).clamp(0.0, 1.0);
-      if (flightProgress <= 0 || opacity <= 0) continue;
+    if (wipe <= 0) return;
+    final w = size.width;
+    final half = w * wipe / 2;
+    canvas.save();
+    canvas.clipRect(Rect.fromLTRB(w / 2 - half, 0, w / 2 + half, size.height));
+    final rect = Offset.zero & size;
 
-      final path = Path()
-        ..moveTo(starts[index].dx, starts[index].dy)
-        ..quadraticBezierTo(
-          controls[index].dx,
-          controls[index].dy,
-          destinations[index].dx,
-          destinations[index].dy,
-        );
-      final metric = path.computeMetrics().first;
-      final visiblePath = metric.extractPath(
-        0,
-        metric.length * Curves.easeInOutCubic.transform(flightProgress),
-      );
-      final paint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.4
-        ..strokeCap = StrokeCap.round
-        ..shader = LinearGradient(
-          colors: [
-            colors[index].withValues(alpha: 0),
-            colors[index].withValues(alpha: opacity),
-          ],
-        ).createShader(Offset.zero & size);
+    final blue = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 4.5 * scale
+      ..shader = const LinearGradient(
+        colors: [
+          Color(0x001E6FD0),
+          Color(0xFF1E6FD0),
+          Color(0xFF2F6BFF),
+          Color(0x002F6BFF),
+        ],
+        stops: [0, 0.25, 0.8, 1],
+      ).createShader(rect);
+    final yellow = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 3.5 * scale
+      ..shader = const LinearGradient(
+        colors: [
+          Color(0x00FFB300),
+          Color(0xFFFFB300),
+          Color(0xFFFFC107),
+          Color(0x00FFC107),
+        ],
+        stops: [0, 0.2, 0.75, 1],
+      ).createShader(rect);
 
-      canvas.drawPath(visiblePath, paint);
-    }
+    canvas.drawPath(
+      _wavePath(w, scale, 15, 0.034, t * 1.5, 36 * scale),
+      blue,
+    );
+    canvas.drawPath(
+      _wavePath(w, scale, 12, 0.041, -t * 1.9 + 1.4, 35 * scale),
+      yellow,
+    );
+    canvas.restore();
   }
 
   @override
-  bool shouldRepaint(covariant _ShieldTrailsPainter oldDelegate) =>
-      oldDelegate.progress != progress || oldDelegate.opacity != opacity;
+  bool shouldRepaint(_WavesPainter old) =>
+      old.t != t || old.wipe != wipe || old.scale != scale;
 }
 
-Offset _quadraticPoint(
-  Offset start,
-  Offset control,
-  Offset end,
-  double progress,
-) {
-  final remaining = 1 - progress;
-  return Offset(
-    remaining * remaining * start.dx +
-        2 * remaining * progress * control.dx +
-        progress * progress * end.dx,
-    remaining * remaining * start.dy +
-        2 * remaining * progress * control.dy +
-        progress * progress * end.dy,
-  );
+/// خط موجة: [yPx] مستوى الخط بالبكسل، و[amp] سعة التموج بوحدات التصميم.
+/// تُستعمل في الاسبلاش وفي غطاء الانتقال فتكون الموجتان متطابقتين تماماً.
+Path _wavePath(
+  double width,
+  double scale,
+  double amp,
+  double k,
+  double ph,
+  double yPx, {
+  double? closeAt,
+}) {
+  final path = Path();
+  final step = 6 * scale;
+  for (var x = 0.0; x <= width + 0.1; x += step) {
+    final nx = x / scale; // إحداثيات التصميم
+    final env = math.pow(math.sin(math.pi * (x / width)).abs(), 0.6);
+    final yy = yPx + amp * scale * math.sin(nx * k + ph) * env;
+    if (x == 0) {
+      path.moveTo(x, yy);
+    } else {
+      path.lineTo(x, yy);
+    }
+  }
+  if (closeAt != null) {
+    path
+      ..lineTo(width, closeAt)
+      ..lineTo(0, closeAt)
+      ..close();
+  }
+  return path;
 }
 
-class _FinishedBrandMark extends StatelessWidget {
-  const _FinishedBrandMark();
+/// الانتقال من الاسبلاش إلى شاشة الدخول: نفس الموجتين (الزرقاء والصفراء)
+/// ترتفعان من مكانهما وتملآن الشاشة، ثم تتلاشيان لتظهر شاشة الدخول.
+/// الشاشة التالية تُبدَّل خلفها وهي مغطاة فلا يُرى التبديل.
+class SplashWaveCover extends StatelessWidget {
+  const SplashWaveCover({super.key, required this.rise, required this.fadeOut});
+
+  final Animation<double> rise;
+  final Animation<double> fadeOut;
 
   @override
   Widget build(BuildContext context) {
-    // الشعار مباشرة بدون دائرة خلفه.
-    return const Center(child: AppBrandMark(size: 140, iconSize: 84));
+    return AbsorbPointer(
+      child: RepaintBoundary(
+        child: LayoutBuilder(
+          builder: (context, box) {
+            final s = math.min(box.maxWidth / 360, box.maxHeight / 640)
+                .clamp(0.6, 1.6)
+                .toDouble();
+            return CustomPaint(
+              size: Size.infinite,
+              painter: _CoverPainter(
+                rise: rise,
+                fadeOut: fadeOut,
+                scale: s,
+                top: (box.maxHeight - 640 * s) / 2,
+              ),
+            );
+          },
+        ),
+      ),
+    );
   }
+}
+
+class _CoverPainter extends CustomPainter {
+  _CoverPainter({
+    required this.rise,
+    required this.fadeOut,
+    required this.scale,
+    required this.top,
+  }) : super(repaint: Listenable.merge([rise, fadeOut]));
+
+  final Animation<double> rise;
+  final Animation<double> fadeOut;
+  final double scale;
+  final double top;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final alpha = 1 - fadeOut.value;
+    if (alpha <= 0) return;
+
+    final l = Curves.easeInOutCubic.transform(rise.value);
+    // يكمل التموج من حيث توقف الاسبلاش.
+    final t = kSplashSeconds + rise.value * 0.85;
+    final yBlue = top + (548 + 36) * scale;
+    final yYellow = top + (548 + 35) * scale;
+    final goal = -0.3 * h;
+    final edgeBlue = yBlue + (goal - yBlue) * l;
+    // الأصفر يتقدّم الأزرق قليلاً أثناء الارتفاع.
+    final edgeYellow =
+        yYellow + (goal - yYellow) * l - 0.07 * h * math.sin(math.pi * l);
+    final damp = 1 - 0.5 * l;
+    final fillA = alpha * (l / 0.06).clamp(0.0, 1.0);
+
+    final blue = _wavePath(w, scale, 15 * damp, 0.034, t * 1.5, edgeBlue,
+        closeAt: h + 2);
+    final yellow = _wavePath(
+        w, scale, 12 * damp, 0.041, -t * 1.9 + 1.4, edgeYellow,
+        closeAt: h + 2);
+
+    if (fillA > 0) {
+      canvas.drawPath(
+        yellow,
+        Paint()
+          ..shader = LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              const Color(0xFFFFC107).withValues(alpha: fillA),
+              const Color(0xFFFFB300).withValues(alpha: fillA),
+            ],
+          ).createShader(Rect.fromLTRB(0, edgeYellow, w, h)),
+      );
+      canvas.drawPath(
+        blue,
+        Paint()
+          ..shader = LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              const Color(0xFF2F6BFF).withValues(alpha: fillA),
+              const Color(0xFF1B3BA0).withValues(alpha: fillA),
+            ],
+          ).createShader(Rect.fromLTRB(0, edgeBlue, w, h)),
+      );
+    }
+
+    // الخطان نفسهما فوق الحواف (متطابقان مع خطي الاسبلاش عند البداية).
+    final rect = Offset.zero & size;
+    canvas.saveLayer(
+      null,
+      Paint()..color = Colors.white.withValues(alpha: alpha),
+    );
+    canvas.drawPath(
+      _wavePath(w, scale, 15 * damp, 0.034, t * 1.5, edgeBlue),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = 4.5 * scale
+        ..shader = const LinearGradient(
+          colors: [
+            Color(0x001E6FD0),
+            Color(0xFF1E6FD0),
+            Color(0xFF2F6BFF),
+            Color(0x002F6BFF),
+          ],
+          stops: [0, 0.25, 0.8, 1],
+        ).createShader(rect),
+    );
+    canvas.drawPath(
+      _wavePath(w, scale, 12 * damp, 0.041, -t * 1.9 + 1.4, edgeYellow),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = 3.5 * scale
+        ..shader = const LinearGradient(
+          colors: [
+            Color(0x00FFB300),
+            Color(0xFFFFB300),
+            Color(0xFFFFC107),
+            Color(0x00FFC107),
+          ],
+          stops: [0, 0.2, 0.75, 1],
+        ).createShader(rect),
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_CoverPainter old) =>
+      old.scale != scale || old.top != top;
 }

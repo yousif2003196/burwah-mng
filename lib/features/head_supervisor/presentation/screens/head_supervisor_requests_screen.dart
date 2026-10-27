@@ -342,11 +342,26 @@ class _SearchBar extends StatelessWidget {
   final TextEditingController controller;
   const _SearchBar({required this.controller});
   @override
-  Widget build(BuildContext context) => Row(children: [
-        Container(width: 44, height: 44, decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(13)), child: MotionIcon(Icons.tune, color: AppColors.ink, size: 19)),
-        const SizedBox(width: 7),
-        Expanded(child: TextField(controller: controller, textAlign: TextAlign.right, decoration: InputDecoration(hintText: headSupervisorText(context, arabic: 'بحث برقم الطلب، اسم المشرف، أو القسم', english: 'Search by request ID, supervisor, or department'), hintStyle: TextStyle(fontSize: 10, color: AppColors.textMuted), suffixIcon: const MotionIcon(Icons.search, size: 19), filled: true, fillColor: AppColors.surface, contentPadding: const EdgeInsets.symmetric(horizontal: 13, vertical: 13), border: OutlineInputBorder(borderRadius: BorderRadius.circular(13), borderSide: BorderSide.none)))),
-      ]);
+  Widget build(BuildContext context) => TextField(
+        controller: controller,
+        decoration: InputDecoration(
+          hintText: headSupervisorText(context,
+              arabic: 'بحث برقم الطلب، اسم المشرف، أو القسم',
+              english: 'Search by request ID, supervisor, or department'),
+          hintStyle: TextStyle(fontSize: 13, color: AppColors.textMuted),
+          prefixIcon: const MotionIcon(Icons.search, size: 20),
+          filled: true,
+          fillColor: AppColors.surface,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(vertical: 14),
+          enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(color: AppColors.cardBorder)),
+          border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(color: AppColors.cardBorder)),
+        ),
+      );
 }
 
 class _FilterBar extends StatelessWidget {
@@ -365,9 +380,37 @@ class _FilterBar extends StatelessWidget {
       ('الخدمات', 'Services'),
       ('المنتجات', 'Products'),
     ];
-    return SingleChildScrollView(scrollDirection: Axis.horizontal, reverse: true, child: Row(children: [
-      for (final (arabic, english) in labels) Padding(padding: const EdgeInsets.only(left: 6), child: ChoiceChip(label: CountText('${headSupervisorText(context, arabic: arabic, english: english)}  ${counts[arabic] ?? 0}', style: const TextStyle(fontSize: 9)), selected: selected == arabic, onSelected: (_) => onChanged(arabic), selectedColor: AppColors.primaryDark, backgroundColor: AppColors.surface, labelStyle: TextStyle(color: selected == arabic ? Colors.white : AppColors.textSecondary), side: BorderSide.none, visualDensity: VisualDensity.compact)),
-    ]));
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(children: [
+        for (final (arabic, english) in labels)
+          Padding(
+            padding: const EdgeInsetsDirectional.only(end: 8),
+            child: ChoiceChip(
+              label: CountText(
+                  '${headSupervisorText(context, arabic: arabic, english: english)}  ${counts[arabic] ?? 0}',
+                  style: const TextStyle(fontSize: 12)),
+              selected: selected == arabic,
+              onSelected: (_) => onChanged(arabic),
+              showCheckmark: false,
+              selectedColor: AppColors.primaryDark,
+              backgroundColor: AppColors.surface,
+              labelStyle: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: selected == arabic
+                      ? Colors.white
+                      : AppColors.textSecondary),
+              side: BorderSide(
+                  color: selected == arabic
+                      ? Colors.transparent
+                      : AppColors.cardBorder),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18)),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+            ),
+          ),
+      ]),
+    );
   }
 }
 
@@ -375,15 +418,35 @@ class _Summary extends StatelessWidget {
   final int count;
   const _Summary({required this.count});
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14)), child: Row(children: [
-        MotionIcon(Icons.circle, size: 9, color: AppColors.danger),
-        const SizedBox(width: 7),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(headSupervisorText(context, arabic: 'إجمالي العمليات:', english: 'Total operations:'), style: TextStyle(fontSize: 9, color: AppColors.textSecondary)), Text(headSupervisorText(context, arabic: 'سجل الحوكمة الرقابي المباشر لجميع الإدارات', english: 'Live governance queue across all departments'), style: TextStyle(fontSize: 8, color: AppColors.textSecondary))])),
-        const SizedBox(width: 8),
-        CountText('$count', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.ink)),
-        const SizedBox(width: 5),
-        Text(headSupervisorText(context, arabic: 'عمليات جديدة', english: 'new items'), style: TextStyle(fontSize: 9, color: AppColors.danger, fontWeight: FontWeight.bold)),
-      ]));
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: count == 0 ? AppColors.successLight : AppColors.infoLight,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(children: [
+          MotionIcon(count == 0 ? Icons.task_alt_rounded : Icons.schedule,
+              size: 20,
+              color: count == 0 ? AppColors.successDark : AppColors.infoDark),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+                count == 0
+                    ? headSupervisorText(context,
+                        arabic: 'لا إحالات بانتظار مراجعتك',
+                        english: 'No referrals awaiting your review')
+                    : headSupervisorText(context,
+                        arabic: '$count إحالات تنتظر مراجعتك',
+                        english: '$count referrals awaiting your review'),
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: count == 0
+                        ? AppColors.successDark
+                        : AppColors.infoDark)),
+          ),
+        ]),
+      );
 }
 
 class _RequestCard extends StatelessWidget {
@@ -393,42 +456,152 @@ class _RequestCard extends StatelessWidget {
   final VoidCallback onIntervene;
   const _RequestCard({required this.event, required this.request, required this.onDecide, required this.onIntervene});
 
+  Color get _tint => switch (request.source) {
+        'merchant' => AppColors.info,
+        'wasalny' => AppColors.success,
+        'products' => AppColors.purple,
+        'services' => AppColors.warning,
+        _ => AppColors.textSecondary,
+      };
+
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(13), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.surfaceHighlight)), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+  Widget build(BuildContext context) {
+    final tint = _tint;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
-          _RequestBadge(label: headSupervisorText(context, arabic: 'قرار المشرف: ${request.supervisorDecision}', english: 'Supervisor decision: ${request.supervisorDecision}'), urgent: request.urgent),
-          const Spacer(),
-          Text(request.department, style: TextStyle(fontSize: 9, color: request.color, fontWeight: FontWeight.bold)),
-          const SizedBox(width: 6),
-          Container(width: 27, height: 27, decoration: BoxDecoration(color: AppColors.infoLight, borderRadius: BorderRadius.circular(8)), child: MotionIcon(request.icon, size: 16, color: request.color)),
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+                color: tint.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(11)),
+            child: MotionIcon(request.icon, size: 18, color: tint),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(request.department,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: tint)),
+                Text(request.id,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 11, color: AppColors.textSecondary)),
+              ],
+            ),
+          ),
+          _RequestBadge(
+              label: request.supervisorDecision, urgent: request.urgent),
         ]),
-        const SizedBox(height: 9),
-        Row(children: [
-          MotionIcon(Icons.forward_to_inbox_outlined, size: 13, color: AppColors.textSecondary),
-          const SizedBox(width: 3),
-          Expanded(child: Text(headSupervisorText(context, arabic: 'إحالة واردة من مشرف القسم للمراجعة الرقابية', english: 'Referral from the department supervisor for review'), maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.right, style: TextStyle(fontSize: 9, color: AppColors.textSecondary))),
-          const SizedBox(width: 5),
-          Text(request.id, style: TextStyle(fontSize: 9, color: AppColors.textSecondary)),
-        ]),
-        const SizedBox(height: 7),
-        Text(request.title, textAlign: TextAlign.right, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.ink)),
+        const SizedBox(height: 12),
+        Text(request.title,
+            style: TextStyle(
+                fontSize: 15,
+                height: 1.35,
+                fontWeight: FontWeight.w800,
+                color: AppColors.ink)),
         if (request.reason.isNotEmpty) ...[
-          const SizedBox(height: 3),
-          Text(request.reason, textAlign: TextAlign.right, style: TextStyle(fontSize: 9, height: 1.4, color: AppColors.textSecondary)),
+          const SizedBox(height: 4),
+          Text(request.reason,
+              style: TextStyle(
+                  fontSize: 12,
+                  height: 1.5,
+                  color: AppColors.textSecondary)),
         ],
-        const SizedBox(height: 9),
-        Container(padding: const EdgeInsets.all(9), decoration: BoxDecoration(color: AppColors.surfaceLight, borderRadius: BorderRadius.circular(12)), child: Column(children: [
-          Row(children: [CircleAvatar(radius: 14, backgroundColor: AppColors.infoDark, child: Text(request.supervisor.substring(0, 1), style: const TextStyle(fontSize: 9, color: Colors.white))), const SizedBox(width: 7), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(headSupervisorText(context, arabic: 'المشرف: ${request.supervisor}', english: 'Supervisor: ${request.supervisor}'), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.ink)), Text(headSupervisorText(context, arabic: 'رمز المشرف: ${request.supervisorCode}', english: 'Supervisor ID: ${request.supervisorCode}'), style: TextStyle(fontSize: 8, color: AppColors.textSecondary))])), Text(_elapsed(event.createdAt, context), style: TextStyle(fontSize: 8, color: AppColors.textSecondary)), MotionIcon(Icons.access_time, size: 12, color: AppColors.textSecondary)]),
-          const SizedBox(height: 7),
-          Container(width: double.infinity, padding: const EdgeInsets.all(9), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(9)), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [MotionIcon(Icons.warning_amber_rounded, size: 15, color: AppColors.danger), const SizedBox(width: 5), Expanded(child: Text(headSupervisorText(context, arabic: 'سبب قرار المشرف: ${request.reason}', english: 'Supervisor decision reason: ${request.reason}'), textAlign: TextAlign.right, style: TextStyle(fontSize: 9, height: 1.4, color: AppColors.textSecondary)))])),
-        ])),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+          decoration: BoxDecoration(
+              color: AppColors.surfaceLight,
+              borderRadius: BorderRadius.circular(14)),
+          child: Row(children: [
+            CircleAvatar(
+                radius: 15,
+                backgroundColor: AppColors.infoDark,
+                child: Text(request.supervisor.substring(0, 1),
+                    style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white))),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Text(
+                  request.supervisor,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.ink)),
+            ),
+            MotionIcon(Icons.access_time,
+                size: 14, color: AppColors.textSecondary),
+            const SizedBox(width: 4),
+            Text(_elapsed(event.createdAt, context),
+                style: TextStyle(
+                    fontSize: 11, color: AppColors.textSecondary)),
+          ]),
+        ),
+        const SizedBox(height: 12),
         Row(children: [
-          Expanded(child: OutlinedButton.icon(onPressed: onDecide, icon: const MotionIcon(Icons.rule_outlined, size: 15), label: Text(headSupervisorText(context, arabic: 'إعادة مراجعة القرار', english: 'Review decision'), style: const TextStyle(fontSize: 9)), style: OutlinedButton.styleFrom(foregroundColor: AppColors.ink, padding: const EdgeInsets.symmetric(vertical: 11), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11))))),
-          const SizedBox(width: 7),
-          Expanded(child: FilledButton.icon(onPressed: onIntervene, icon: const MotionIcon(Icons.tune, size: 15), label: Text(headSupervisorText(context, arabic: 'التدخل الرقابي', english: 'Oversight intervention'), style: const TextStyle(fontSize: 9)), style: FilledButton.styleFrom(backgroundColor: AppColors.primaryDark, padding: const EdgeInsets.symmetric(vertical: 11), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11))))),
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: onDecide,
+              icon: const MotionIcon(Icons.rule_outlined, size: 17),
+              label: Text(
+                  headSupervisorText(context,
+                      arabic: 'إعادة مراجعة القرار',
+                      english: 'Review decision'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w800)),
+              style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.ink,
+                  side: BorderSide(color: AppColors.cardBorder),
+                  minimumSize: const Size(0, 44),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14))),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: FilledButton.icon(
+              onPressed: onIntervene,
+              icon: const MotionIcon(Icons.tune, size: 17),
+              label: Text(
+                  headSupervisorText(context,
+                      arabic: 'التدخل الرقابي',
+                      english: 'Oversight intervention'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w800)),
+              style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primaryDark,
+                  minimumSize: const Size(0, 44),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14))),
+            ),
+          ),
         ]),
-      ]));
+      ]),
+    );
+  }
 }
 
 String _elapsed(DateTime date, BuildContext context) {
@@ -455,22 +628,83 @@ class _RequestBadge extends StatelessWidget {
   final bool urgent;
   const _RequestBadge({required this.label, required this.urgent});
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5), decoration: BoxDecoration(color: urgent ? AppColors.dangerBorder : AppColors.infoLight, borderRadius: BorderRadius.circular(12)), child: Row(mainAxisSize: MainAxisSize.min, children: [MotionIcon(urgent ? Icons.warning_amber_rounded : Icons.circle, size: 9, color: urgent ? AppColors.dangerDark : AppColors.infoDark), const SizedBox(width: 4), Text(label, style: TextStyle(fontSize: 8, color: urgent ? AppColors.dangerDark : AppColors.infoDark, fontWeight: FontWeight.w600))]));
+  Widget build(BuildContext context) {
+    final color = urgent ? AppColors.dangerDark : AppColors.infoDark;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+          color: urgent ? AppColors.dangerLight : AppColors.infoLight,
+          borderRadius: BorderRadius.circular(10)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        MotionIcon(urgent ? Icons.warning_amber_rounded : Icons.circle,
+            size: urgent ? 13 : 7, color: color),
+        const SizedBox(width: 4),
+        Text(label,
+            style: TextStyle(
+                fontSize: 11, color: color, fontWeight: FontWeight.w700)),
+      ]),
+    );
+  }
 }
 
 class _GovernanceFooter extends StatelessWidget {
   const _GovernanceFooter();
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(gradient: AppColors.blueFill,
-border: AppColors.blueEdge,
-boxShadow: AppColors.blueGlow, color: AppColors.primaryDark, borderRadius: BorderRadius.circular(15)), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(headSupervisorText(context, arabic: 'صلاحيات الإشراف الإداري والرقابي', english: 'Administrative and oversight authority'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)), const SizedBox(height: 5), Text(headSupervisorText(context, arabic: 'تمنح منصة رئيس المشرفين حق مراجعة القرارات التشغيلية. وتظل القرارات المالية والحسابات مقيدة بموافقة الإدارة المالية وفق المعايير.', english: 'The Head Supervisor can review operational decisions. Financial decisions and accounts remain subject to finance approval.'), textAlign: TextAlign.right, style: TextStyle(fontSize: 9, height: 1.55, color: AppColors.cardBorder))])),
-        const SizedBox(width: 10), MotionIcon(Icons.admin_panel_settings_outlined, size: 20, color: AppColors.cardBorder),
-      ]));
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+            gradient: AppColors.blueFill,
+            border: AppColors.blueEdge,
+            boxShadow: AppColors.blueGlow,
+            color: AppColors.primaryDark,
+            borderRadius: BorderRadius.circular(20)),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          MotionIcon(Icons.admin_panel_settings_outlined,
+              size: 24, color: Colors.white.withValues(alpha: 0.9)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                    headSupervisorText(context,
+                        arabic: 'صلاحيات الإشراف الإداري والرقابي',
+                        english: 'Administrative and oversight authority'),
+                    style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white)),
+                const SizedBox(height: 5),
+                Text(
+                    headSupervisorText(context,
+                        arabic:
+                            'تمنح منصة رئيس المشرفين حق مراجعة القرارات التشغيلية. وتظل القرارات المالية والحسابات مقيدة بموافقة الإدارة المالية وفق المعايير.',
+                        english:
+                            'The Head Supervisor can review operational decisions. Financial decisions and accounts remain subject to finance approval.'),
+                    style: TextStyle(
+                        fontSize: 12,
+                        height: 1.55,
+                        color: Colors.white.withValues(alpha: 0.82))),
+              ],
+            ),
+          ),
+        ]),
+      );
 }
 
 class _EmptyQueue extends StatelessWidget {
   const _EmptyQueue();
   @override
-  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.symmetric(vertical: 54), child: Column(children: [MotionIcon(Icons.inbox_outlined, size: 42, color: AppColors.textMuted), const SizedBox(height: 10), Text(headSupervisorText(context, arabic: 'لا توجد طلبات جديدة بانتظار القرار', english: 'No new requests are awaiting a decision'), style: TextStyle(fontSize: 12, color: AppColors.textSecondary))]));
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 54),
+        child: Column(children: [
+          MotionIcon(Icons.inbox_outlined, size: 44, color: AppColors.textMuted),
+          const SizedBox(height: 10),
+          Text(
+              headSupervisorText(context,
+                  arabic: 'لا توجد طلبات جديدة بانتظار القرار',
+                  english: 'No new requests are awaiting a decision'),
+              style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+        ]),
+      );
 }

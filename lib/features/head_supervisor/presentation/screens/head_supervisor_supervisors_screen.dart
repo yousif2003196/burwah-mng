@@ -491,16 +491,18 @@ class _HeadSupervisorSupervisorsScreenState
                     },
                     icon: const MotionIcon(Icons.close),
                   ),
+            hintStyle: TextStyle(fontSize: 13, color: AppColors.textSecondary),
             filled: true,
             fillColor: AppColors.surface,
+            contentPadding: const EdgeInsets.symmetric(vertical: 14),
             isDense: true,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: AppColors.surfaceHighlight),
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(color: AppColors.cardBorder),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: AppColors.surfaceHighlight),
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(color: AppColors.cardBorder),
             ),
           ),
         ),
@@ -551,27 +553,57 @@ class _ScreenHeading extends StatelessWidget {
         children: [
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                  Text(headSupervisorText(context, arabic: 'إدارة المشرفين', english: 'Supervisor management'), textAlign: TextAlign.right, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.ink)),
-                  const SizedBox(width: 7),
-                  _CountPill(label: '$count مشرفاً'),
+                Row(children: [
+                  Flexible(
+                    child: Text(
+                        headSupervisorText(context,
+                            arabic: 'إدارة المشرفين',
+                            english: 'Supervisor management'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.ink)),
+                  ),
+                  const SizedBox(width: 8),
+                  _CountPill(
+                      label: headSupervisorText(context,
+                          arabic: '$count مشرفاً', english: '$count')),
                 ]),
                 const SizedBox(height: 4),
-                Text(headSupervisorText(context, arabic: 'متابعة كادر الإشراف الميداني وتفويض الصلاحيات للأقسام الأربعة', english: 'Manage field supervisors and delegate access across departments'), textAlign: TextAlign.right, style: TextStyle(fontSize: 9, color: AppColors.textSecondary)),
+                Text(
+                    headSupervisorText(context,
+                        arabic:
+                            'متابعة كادر الإشراف الميداني وتفويض الصلاحيات للأقسام الأربعة',
+                        english:
+                            'Manage field supervisors and delegate access across departments'),
+                    style: TextStyle(
+                        fontSize: 12,
+                        height: 1.4,
+                        color: AppColors.textSecondary)),
               ],
             ),
           ),
           const SizedBox(width: 10),
-          FilledButton.icon(
-            onPressed: onAdd,
-            icon: const MotionIcon(Icons.person_add_alt_1, size: 15),
-            label: Text(headSupervisorText(context, arabic: 'مشرف جديد', english: 'Add supervisor'), style: const TextStyle(fontSize: 10)),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.primaryDark,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          Tooltip(
+            message: headSupervisorText(context,
+                arabic: 'مشرف جديد', english: 'Add supervisor'),
+            child: Material(
+              color: AppColors.primaryDark,
+              borderRadius: BorderRadius.circular(16),
+              child: InkWell(
+                onTap: onAdd,
+                borderRadius: BorderRadius.circular(16),
+                child: const SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: MotionIcon(Icons.person_add_alt_1,
+                      size: 22, color: Colors.white),
+                ),
+              ),
             ),
           ),
         ],
@@ -583,9 +615,15 @@ class _CountPill extends StatelessWidget {
   const _CountPill({required this.label});
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-        decoration: BoxDecoration(color: AppColors.infoLight, borderRadius: BorderRadius.circular(12)),
-        child: Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.infoDark)),
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+        decoration: BoxDecoration(
+            color: AppColors.infoLight,
+            borderRadius: BorderRadius.circular(12)),
+        child: Text(label,
+            style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: AppColors.infoDark)),
       );
 }
 
@@ -602,27 +640,40 @@ class _FilterBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        reverse: true,
         child: Row(
           children: [
             for (final filter in filters)
               Padding(
-                padding: const EdgeInsets.only(left: 6),
+                padding: const EdgeInsetsDirectional.only(end: 8),
                 child: ChoiceChip(
                   selected: selected == filter.key,
                   onSelected: (_) => onChanged(filter.key),
-                  avatar: MotionIcon(filter.icon, size: 14),
-                  label: CountText('${filter.label} ${filter.count}',
-                      style: const TextStyle(fontSize: 9)),
-                  selectedColor: AppColors.primaryDark,
-                  backgroundColor: AppColors.surfaceLight,
-                  labelStyle: TextStyle(
+                  avatar: MotionIcon(
+                    filter.icon,
+                    size: 16,
                     color: selected == filter.key
                         ? Colors.white
                         : AppColors.textSecondary,
                   ),
-                  side: BorderSide.none,
-                  visualDensity: VisualDensity.compact,
+                  label: CountText('${filter.label} ${filter.count}',
+                      style: const TextStyle(fontSize: 12)),
+                  selectedColor: AppColors.primaryDark,
+                  backgroundColor: AppColors.surface,
+                  showCheckmark: false,
+                  labelStyle: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: selected == filter.key
+                        ? Colors.white
+                        : AppColors.textSecondary,
+                  ),
+                  side: BorderSide(
+                      color: selected == filter.key
+                          ? Colors.transparent
+                          : AppColors.cardBorder),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
                 ),
               ),
           ],
@@ -687,45 +738,182 @@ class _SupervisorCard extends StatelessWidget {
           english: 'Field services and maintenance'),
       _ => supervisor.department,
     };
+    final tagBg = supervisor.deletionPending
+        ? AppColors.dangerLight
+        : supervisor.suspended
+            ? AppColors.warningLight
+            : AppColors.successLight;
+    final tagColor = supervisor.deletionPending
+        ? AppColors.dangerDark
+        : supervisor.suspended
+            ? AppColors.warningDark
+            : AppColors.successDark;
     return InkWell(
       onTap: onOpen,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(20),
       child: Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.surfaceHighlight)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Row(children: [
-          IconButton(onPressed: () => _showActions(context), icon: const MotionIcon(Icons.more_vert, size: 18), visualDensity: VisualDensity.compact, style: IconButton.styleFrom(backgroundColor: AppColors.surfaceLight)),
-          const SizedBox(width: 6),
-          Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4), decoration: BoxDecoration(color: supervisor.deletionPending ? AppColors.dangerLight : supervisor.suspended ? AppColors.warningBorder : AppColors.infoLight, borderRadius: BorderRadius.circular(12)), child: Row(children: [MotionIcon(Icons.circle, size: 6, color: statusColor), const SizedBox(width: 4), Text(statusLabel, style: TextStyle(fontSize: 8, color: statusColor, fontWeight: FontWeight.w600))])),
-          const Spacer(),
-          Text(supervisor.id, style: TextStyle(fontSize: 9, color: AppColors.textSecondary)),
-          const SizedBox(width: 6),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(supervisor.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.ink)), const SizedBox(height: 3), Text(department, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.right, style: TextStyle(fontSize: 9, color: AppColors.textSecondary))])),
-          const SizedBox(width: 8),
-          CircleAvatar(radius: 22, backgroundColor: supervisor.color, child: Text(supervisor.avatar, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold))),
-        ]),
-        const SizedBox(height: 12),
-        Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9), decoration: BoxDecoration(color: supervisor.suspended ? AppColors.warningLight : AppColors.background, borderRadius: BorderRadius.circular(11)), child: Row(children: [MotionIcon(Icons.location_on_outlined, size: 15, color: supervisor.suspended ? AppColors.warningDark : AppColors.infoDark), const SizedBox(width: 5), Expanded(child: Text('${supervisor.area} • ${supervisor.city} • ${supervisor.marketScope}', maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.right, style: TextStyle(fontSize: 9, color: AppColors.textPrimary, fontWeight: FontWeight.w600)))])),
-        if (supervisor.deletionPending) ...[
-          const SizedBox(height: 5),
-          Text(headSupervisorText(context, arabic: 'طلب ${supervisor.deletionRequestId} • ${supervisor.deletionReason}', english: 'Request ${supervisor.deletionRequestId} • ${supervisor.deletionReason}'), maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.right, style: TextStyle(fontSize: 8, color: AppColors.dangerDark)),
-        ],
-        if (supervisor.suspended && supervisor.suspensionReason.isNotEmpty) ...[
-          const SizedBox(height: 5),
-          Text(headSupervisorText(context, arabic: 'تعليق ${supervisor.suspensionDuration} • ${supervisor.suspensionReason}', english: 'Suspended ${supervisor.suspensionDuration} • ${supervisor.suspensionReason}'), maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.right, style: TextStyle(fontSize: 8, color: AppColors.warningDark)),
-        ],
-        const SizedBox(height: 10),
-        Row(children: [
-          Expanded(child: _ActionButton(label: supervisor.deletionPending ? headSupervisorText(context, arabic: 'طلب الحذف مرفوع', english: 'Deletion requested') : headSupervisorText(context, arabic: 'حذف', english: 'Delete'), color: AppColors.dangerBorder, textColor: AppColors.danger, onTap: onDelete)),
-          const SizedBox(width: 5),
-          Expanded(child: _ActionButton(label: headSupervisorText(context, arabic: 'الصلاحيات', english: 'Access'), onTap: onPermissions)),
-          const SizedBox(width: 5),
-          Expanded(child: _ActionButton(label: headSupervisorText(context, arabic: 'السجل الكامل', english: 'Full record'), onTap: onFullRecord)),
-          const SizedBox(width: 5),
-          Expanded(child: _ActionButton(label: supervisor.suspended ? headSupervisorText(context, arabic: 'إعادة التفعيل', english: 'Reactivate') : headSupervisorText(context, arabic: 'تعليق', english: 'Suspend'), icon: supervisor.suspended ? Icons.play_circle_outline : Icons.pause_circle_outline, onTap: onToggle, dark: supervisor.suspended)),
-        ]),
-      ]),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.cardBorder),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(children: [
+              CircleAvatar(
+                radius: 22,
+                backgroundColor: supervisor.color,
+                child: Text(supervisor.avatar,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(supervisor.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.ink)),
+                    const SizedBox(height: 2),
+                    Text('${supervisor.id} • $department',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 12, color: AppColors.textSecondary)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              IconButton(
+                onPressed: () => _showActions(context),
+                icon: const MotionIcon(Icons.more_vert, size: 20),
+                visualDensity: VisualDensity.compact,
+                tooltip: headSupervisorText(context,
+                    arabic: 'إجراءات', english: 'Actions'),
+              ),
+            ]),
+            const SizedBox(height: 10),
+            Row(children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                    color: tagBg, borderRadius: BorderRadius.circular(10)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  MotionIcon(Icons.circle, size: 7, color: tagColor),
+                  const SizedBox(width: 5),
+                  Text(statusLabel,
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: tagColor,
+                          fontWeight: FontWeight.w700)),
+                ]),
+              ),
+            ]),
+            const SizedBox(height: 10),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceLight,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(children: [
+                MotionIcon(Icons.location_on_outlined,
+                    size: 17, color: AppColors.infoDark),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: Text(
+                      '${supervisor.area} • ${supervisor.city} • ${supervisor.marketScope}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w600)),
+                ),
+              ]),
+            ),
+            if (supervisor.deletionPending) ...[
+              const SizedBox(height: 8),
+              Text(
+                  headSupervisorText(context,
+                      arabic:
+                          'طلب ${supervisor.deletionRequestId} • ${supervisor.deletionReason}',
+                      english:
+                          'Request ${supervisor.deletionRequestId} • ${supervisor.deletionReason}'),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontSize: 12, height: 1.4, color: AppColors.dangerDark)),
+            ],
+            if (supervisor.suspended &&
+                supervisor.suspensionReason.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                  headSupervisorText(context,
+                      arabic:
+                          'تعليق ${supervisor.suspensionDuration} • ${supervisor.suspensionReason}',
+                      english:
+                          'Suspended ${supervisor.suspensionDuration} • ${supervisor.suspensionReason}'),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontSize: 12, height: 1.4, color: AppColors.warningDark)),
+            ],
+            const SizedBox(height: 12),
+            Row(children: [
+              _ActionButton(
+                  iconOnly: true,
+                  tooltip: supervisor.deletionPending
+                      ? headSupervisorText(context,
+                          arabic: 'طلب الحذف مرفوع',
+                          english: 'Deletion requested')
+                      : headSupervisorText(context,
+                          arabic: 'حذف', english: 'Delete'),
+                  label: '',
+                  icon: Icons.delete_outline,
+                  color: AppColors.dangerLight,
+                  textColor: AppColors.danger,
+                  onTap: onDelete),
+              const SizedBox(width: 6),
+              Expanded(
+                  child: _ActionButton(
+                      label: headSupervisorText(context,
+                          arabic: 'الصلاحيات', english: 'Access'),
+                      icon: Icons.key_outlined,
+                      onTap: onPermissions)),
+              const SizedBox(width: 6),
+              Expanded(
+                  child: _ActionButton(
+                      label: headSupervisorText(context,
+                          arabic: 'السجل', english: 'Record'),
+                      onTap: onFullRecord)),
+              const SizedBox(width: 6),
+              Expanded(
+                  child: _ActionButton(
+                      label: supervisor.suspended
+                          ? headSupervisorText(context,
+                              arabic: 'تفعيل', english: 'Reactivate')
+                          : headSupervisorText(context,
+                              arabic: 'تعليق', english: 'Suspend'),
+                      icon: supervisor.suspended
+                          ? Icons.play_circle_outline
+                          : Icons.pause_circle_outline,
+                      onTap: onToggle,
+                      dark: supervisor.suspended)),
+            ]),
+          ],
+        ),
       ),
     );
   }
@@ -748,22 +936,53 @@ class _ActionButton extends StatelessWidget {
   final Color? color;
   final Color? textColor;
   final bool dark;
-  const _ActionButton({required this.label, required this.onTap, this.icon, this.color, this.textColor, this.dark = false});
+  final bool iconOnly;
+  final String? tooltip;
+  const _ActionButton({
+    required this.label,
+    required this.onTap,
+    this.icon,
+    this.color,
+    this.textColor,
+    this.dark = false,
+    this.iconOnly = false,
+    this.tooltip,
+  });
 
   @override
-  Widget build(BuildContext context) => Material(
-        color: dark ? AppColors.primaryDark : color ?? AppColors.surfaceLight,
-        borderRadius: BorderRadius.circular(11),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(11),
-          child: Padding(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            if (icon != null) MotionIcon(icon, size: 13, color: dark ? Colors.white : textColor ?? AppColors.textPrimary),
-            if (icon != null) const SizedBox(width: 3),
-            Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 8, fontWeight: dark ? FontWeight.bold : FontWeight.w500, color: dark ? Colors.white : textColor ?? AppColors.infoDark))),
-          ])),
+  Widget build(BuildContext context) {
+    final fg = dark ? Colors.white : textColor ?? AppColors.ink;
+    final button = Material(
+      color: dark ? AppColors.primaryDark : color ?? AppColors.surfaceLight,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: SizedBox(
+          height: 42,
+          width: iconOnly ? 46 : null,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (icon != null) MotionIcon(icon, size: 17, color: fg),
+              if (icon != null && !iconOnly) const SizedBox(width: 4),
+              if (!iconOnly)
+                Flexible(
+                  child: Text(label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: fg)),
+                ),
+            ],
+          ),
         ),
-      );
+      ),
+    );
+    return tooltip == null ? button : Tooltip(message: tooltip!, child: button);
+  }
 }
 
 class _GovernanceNote extends StatelessWidget {
@@ -771,11 +990,45 @@ class _GovernanceNote extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: AppColors.surfaceLight, borderRadius: BorderRadius.circular(15)),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          border: Border.all(color: AppColors.cardBorder),
+          borderRadius: BorderRadius.circular(20),
+        ),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(headSupervisorText(context, arabic: 'حوكمة الإدارة والترخيص الرقابي', english: 'Management governance and regulatory licensing'), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.ink)), const SizedBox(height: 5), Text(headSupervisorText(context, arabic: 'صلاحيات الحذف النهائي وإلغاء ترخيص المشرفين تتطلب موافقة مالك التطبيق والمدير العام بموجب لائحة الحوكمة الإدارية رقم 14.', english: 'Permanent deletion and supervisor license revocation require approval from the app owner and general manager under Administrative Governance Regulation No. 14.'), textAlign: TextAlign.right, style: TextStyle(fontSize: 9, height: 1.5, color: AppColors.textSecondary))])),
+          CircleAvatar(
+              radius: 18,
+              backgroundColor: AppColors.primaryDark,
+              child: MotionIcon(Icons.verified_user_outlined,
+                  size: 18, color: Colors.white)),
           const SizedBox(width: 10),
-          CircleAvatar(radius: 17, backgroundColor: AppColors.primaryDark, child: MotionIcon(Icons.verified_user_outlined, size: 17, color: Colors.white)),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                    headSupervisorText(context,
+                        arabic: 'حوكمة الإدارة والترخيص الرقابي',
+                        english:
+                            'Management governance and regulatory licensing'),
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.ink)),
+                const SizedBox(height: 5),
+                Text(
+                    headSupervisorText(context,
+                        arabic:
+                            'صلاحيات الحذف النهائي وإلغاء ترخيص المشرفين تتطلب موافقة مالك التطبيق والمدير العام بموجب لائحة الحوكمة الإدارية رقم 14.',
+                        english:
+                            'Permanent deletion and supervisor license revocation require approval from the app owner and general manager under Administrative Governance Regulation No. 14.'),
+                    style: TextStyle(
+                        fontSize: 12,
+                        height: 1.5,
+                        color: AppColors.textSecondary)),
+              ],
+            ),
+          ),
         ]),
       );
 }

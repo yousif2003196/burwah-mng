@@ -307,15 +307,19 @@ class _HeadSupervisorComplaintsScreenState
                         arabic: 'بحث برقم الشكوى أو اسم التاجر أو المشرف',
                         english: 'Search by complaint ID, merchant, or supervisor'),
                     hintStyle: TextStyle(
-                        fontSize: 10, color: AppColors.textMuted),
+                        fontSize: 11, color: AppColors.textMuted),
                     suffixIcon: const MotionIcon(Icons.search, size: 19),
                     filled: true,
                     fillColor: AppColors.surface,
                     contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 13, vertical: 12),
+                        horizontal: 13, vertical: 13),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(13),
-                      borderSide: BorderSide.none,
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: AppColors.cardBorder),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: AppColors.cardBorder),
                     ),
                   ),
                 ),
@@ -333,7 +337,7 @@ class _HeadSupervisorComplaintsScreenState
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12)),
                   textStyle: const TextStyle(
-                      fontSize: 9, fontWeight: FontWeight.bold),
+                      fontSize: 11, fontWeight: FontWeight.bold),
                 ),
               ),
             ],
@@ -367,7 +371,7 @@ class _HeadSupervisorComplaintsScreenState
               child: Center(
                 child: Text(headSupervisorText(context, arabic: 'لا توجد شكاوى ضمن هذا التصنيف', english: 'No complaints in this category'),
                     style: TextStyle(
-                        fontSize: 11, color: AppColors.textSecondary)),
+                        fontSize: 12, color: AppColors.textSecondary)),
               ),
             ),
           ScrollFx(child: const _GovernanceNote()),
@@ -389,7 +393,8 @@ class _ComplaintFilters extends StatelessWidget {
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
           color: AppColors.surfaceHighlight,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.cardBorder),
         ),
         child: Row(children: [
           for (final option in const [
@@ -464,7 +469,7 @@ class _ComplaintFilterOption extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 10,
+                        fontSize: 11,
                         fontWeight:
                             selected ? FontWeight.bold : FontWeight.w600,
                         color: selected ? Colors.white : AppColors.textPrimary,
@@ -486,7 +491,7 @@ class _ComplaintFilterOption extends StatelessWidget {
                       '$count',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 9,
+                        fontSize: 10,
                         fontWeight: FontWeight.bold,
                         color: selected ? Colors.white : AppColors.ink,
                       ),
@@ -551,13 +556,24 @@ class HeadSupervisorComplaintCard extends StatelessWidget {
         : complaint.warning
             ? AppColors.infoDark
             : AppColors.dangerDark;
-    return Material(
-      color: AppColors.surface,
-      borderRadius: BorderRadius.circular(17),
-      child: InkWell(
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(17),
-        child: Padding(
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(
+              right: BorderSide(color: badgeColor, width: 4),
+            ),
+          ),
           padding: const EdgeInsets.all(14),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Row(children: [
@@ -572,8 +588,8 @@ class HeadSupervisorComplaintCard extends StatelessWidget {
               const Spacer(),
               Text('#${complaint.id}',
                   style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
                       color: AppColors.ink)),
             ]),
             const SizedBox(height: 11),
@@ -582,7 +598,7 @@ class HeadSupervisorComplaintCard extends StatelessWidget {
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 13,
                     height: 1.5,
                     fontWeight: FontWeight.bold,
                     color: AppColors.textPrimary)),
@@ -592,15 +608,16 @@ class HeadSupervisorComplaintCard extends StatelessWidget {
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                    fontSize: 9,
-                    height: 1.45,
+                    fontSize: 11,
+                    height: 1.5,
                     color: AppColors.textSecondary)),
             const SizedBox(height: 11),
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                   color: AppColors.surfaceLight,
-                  borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(13),
+                  border: Border.all(color: AppColors.cardBorder)),
               child: Column(children: [
                 _InfoRow(
                   icon: Icons.store_outlined,
@@ -645,7 +662,7 @@ class HeadSupervisorComplaintCard extends StatelessWidget {
                   label: Text(headSupervisorText(context,
                       arabic: 'إعادة مراجعة الشكوى',
                       english: 'Review complaint again'),
-                      style: const TextStyle(fontSize: 9)),
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.primaryDark,
                     padding: const EdgeInsets.symmetric(vertical: 11),
@@ -662,7 +679,7 @@ class HeadSupervisorComplaintCard extends StatelessWidget {
                     maxLines: 2,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                        fontSize: 8,
+                        fontSize: 10,
                         height: 1.3,
                         color: AppColors.ink,
                         fontWeight: FontWeight.bold),
@@ -674,7 +691,7 @@ class HeadSupervisorComplaintCard extends StatelessWidget {
                     onPressed: onTap,
                     icon: const MotionIcon(Icons.open_in_new, size: 13),
                     label: Text(headSupervisorText(context, arabic: 'تفاصيل الشكوى', english: 'Complaint details'),
-                        style: const TextStyle(fontSize: 8)),
+                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
                     style: FilledButton.styleFrom(
                       backgroundColor: AppColors.primaryDark,
                       padding: const EdgeInsets.symmetric(vertical: 10),
@@ -685,6 +702,7 @@ class HeadSupervisorComplaintCard extends StatelessWidget {
                 ),
               ]),
           ]),
+        ),
         ),
       ),
     );
@@ -2330,10 +2348,10 @@ class _ComplaintBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(12)),
         child: Text(label,
-            style: TextStyle(fontSize: 8, color: color, fontWeight: FontWeight.bold)),
+            style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.bold)),
       );
 }
 
@@ -2345,16 +2363,17 @@ class _GovernanceNote extends StatelessWidget {
         padding: const EdgeInsets.all(15),
         decoration: BoxDecoration(
             color: AppColors.surfaceLight,
-            borderRadius: BorderRadius.circular(15)),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.cardBorder)),
         child: Row(children: [
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
               Text(headSupervisorText(context, arabic: 'حقوق التجار والمساءلة الإدارية', english: 'Merchant rights and management accountability'),
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.ink)),
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.ink)),
               const SizedBox(height: 6),
               Text(headSupervisorText(context, arabic: 'تخضع قرارات المشرفين للطعن والمراجعة أمام رئيس المشرفين لضمان الشفافية وحماية استثمارات التجار داخل المنصة.', english: 'Supervisor decisions may be appealed and reviewed by the head supervisor to ensure transparency and protect merchants’ investments on the platform.'),
                   textAlign: TextAlign.right,
-                  style: TextStyle(fontSize: 8, height: 1.55, color: AppColors.textSecondary)),
+                  style: TextStyle(fontSize: 10, height: 1.55, color: AppColors.textSecondary)),
             ]),
           ),
           const SizedBox(width: 10),
