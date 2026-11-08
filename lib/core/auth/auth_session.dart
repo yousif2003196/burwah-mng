@@ -1,0 +1,29 @@
+/// جلسة الدخول الحالية (توكن الباك إند) محفوظة في الذاكرة فقط.
+///
+/// تُملأ عند تسجيل دخول ناجح من الباك إند وتُمسح عند الخروج، وتقرأها
+/// طبقة الشبكة لإضافة `Authorization: Bearer` لكل طلب.
+class AuthSession {
+  AuthSession._();
+
+  static String? accessToken;
+  static String? refreshToken;
+
+  /// يُستدعى عند انتهاء الجلسة نهائيًا (فشل تجديد التوكن) للعودة لشاشة الدخول.
+  static void Function()? onExpired;
+
+  static void notifyExpired() => onExpired?.call();
+
+  static bool get isSignedIn => (accessToken ?? '').trim().isNotEmpty;
+
+  static void start({required String token, String? refresh}) {
+    accessToken = token;
+    refreshToken = refresh;
+  }
+
+  static void clear() {
+    accessToken = null;
+    refreshToken = null;
+  }
+
+  static Future<String?> tokenProvider() async => accessToken;
+}

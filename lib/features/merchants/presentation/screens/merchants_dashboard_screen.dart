@@ -195,7 +195,7 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
                       l10n.merchantLinkLocalScopeNotice,
                       style: TextStyle(
                         color: AppColors.textSecondary,
-                        fontSize: 11,
+                        fontSize: 12,
                       ),
                     ),
                   ),
@@ -419,7 +419,8 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
             child: Stack(
               children: [
                 ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
+                  padding: EdgeInsets.fromLTRB(
+                      16, 12, 16, 90 + MediaQuery.paddingOf(context).bottom),
                   children: [
                     // 1. Supervisor Welcome & Stats Header Card
                     ScrollFx(child: SupervisorHeaderCard(stats: loadedState.stats)),
@@ -469,7 +470,7 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
                                 Text(
                                   l10n.recentlyActiveSort,
                                   style: TextStyle(
-                                    fontSize: 10,
+                                    fontSize: 11,
                                     color: AppColors.textSecondary,
                                     fontWeight: FontWeight.w500,
                                   ),
@@ -500,7 +501,7 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
                                     loadedState.allMerchants.length.toString(),
                                   ),
                                   style: TextStyle(
-                                    fontSize: 10,
+                                    fontSize: 11,
                                     fontWeight: FontWeight.bold,
                                     color: AppColors.textSecondary,
                                   ),
@@ -579,7 +580,8 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
 
                 // Floating Action Button: [ربط تاجر جديد]
                 Positioned(
-                  bottom: 20,
+                  // يرتفع فوق الشريط السفلي ويتبعه عند اختفائه.
+                  bottom: 20 + MediaQuery.paddingOf(context).bottom,
                   left: 20,
                   child: ElevatedButton.icon(
                     onPressed: () => _showAddMerchantSheet(context),

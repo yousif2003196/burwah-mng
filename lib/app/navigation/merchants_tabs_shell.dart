@@ -189,8 +189,26 @@ class _MerchantsTabsShellState extends State<MerchantsTabsShell> {
                 ],
               ),
       ),
-      body: NotificationListener<ScrollNotification>(
-        onNotification: (notification) {
+      body: NotificationListener<Notification>(
+        onNotification: (event) {
+          // لو المحتوى لم يعد قابلاً للتمرير (مثلاً بعد اختفاء الشريطين واتساع
+          // الشاشة) لا يوجد سكرول يعيد الشريطين، فنعيدهما هنا.
+          if (event is ScrollMetricsNotification) {
+            if (event.metrics.axis == Axis.vertical &&
+                event.metrics.maxScrollExtent <= 4 &&
+                (!_topDocked || !_isBarsVisible)) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                setState(() {
+                  _topDocked = true;
+                  _isBarsVisible = true;
+                });
+              });
+            }
+            return false;
+          }
+          if (event is! ScrollNotification) return false;
+          final notification = event;
           if (notification.metrics.axis == Axis.vertical) {
             final direction = notification is UserScrollNotification
                 ? notification.direction

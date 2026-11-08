@@ -1,3 +1,4 @@
+import 'package:barwah_app/features/products/data/datasources/product_category_api_data_source.dart';
 import 'package:barwah_app/features/products/domain/entities/product_review.dart';
 
 abstract class ProductReviewState {
@@ -18,11 +19,17 @@ class ProductReviewLoaded extends ProductReviewState {
   final String searchQuery;
   final ProductCategory? categoryFilter;
 
+  /// تصنيفات الباك إند وفلتر المعرّف (الوضع الحقيقي).
+  final List<ProductCategoryOption> categories;
+  final int? categoryIdFilter;
+
   const ProductReviewLoaded({
     required this.reviews,
     required this.approvedCount,
     this.searchQuery = '',
     this.categoryFilter,
+    this.categories = const [],
+    this.categoryIdFilter,
   });
 
   int get pendingCount => reviews
@@ -32,8 +39,9 @@ class ProductReviewLoaded extends ProductReviewState {
   List<ProductReview> get visibleReviews {
     final query = searchQuery.trim().toLowerCase();
     final filtered = reviews.where((review) {
-      final matchesCategory =
-          categoryFilter == null || review.category == categoryFilter;
+      final matchesCategory = categories.isNotEmpty
+          ? categoryIdFilter == null || review.categoryId == categoryIdFilter
+          : categoryFilter == null || review.category == categoryFilter;
       final matchesQuery = query.isEmpty ||
           review.reference.toLowerCase().contains(query) ||
           review.titleAr.toLowerCase().contains(query) ||
@@ -57,6 +65,8 @@ class ProductReviewLoaded extends ProductReviewState {
     String? searchQuery,
     ProductCategory? categoryFilter,
     bool clearCategoryFilter = false,
+    int? categoryIdFilter,
+    bool clearCategoryIdFilter = false,
   }) {
     return ProductReviewLoaded(
       reviews: reviews ?? this.reviews,
@@ -64,6 +74,10 @@ class ProductReviewLoaded extends ProductReviewState {
       searchQuery: searchQuery ?? this.searchQuery,
       categoryFilter:
           clearCategoryFilter ? null : categoryFilter ?? this.categoryFilter,
+      categories: categories,
+      categoryIdFilter: clearCategoryIdFilter
+          ? null
+          : categoryIdFilter ?? this.categoryIdFilter,
     );
   }
 }

@@ -593,7 +593,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: 10,
+                            fontSize: 11,
                             color: AppColors.textSecondary,
                           ),
                         ),
@@ -653,7 +653,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                   l10n.adsReviewGateway,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white, fontSize: 10),
+                  style: const TextStyle(color: Colors.white, fontSize: 11),
                 ),
               ),
               const SizedBox(width: 8),
@@ -674,7 +674,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 9,
+                      fontSize: 11,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -731,7 +731,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.infoBorder, fontSize: 9),
+              style: TextStyle(color: AppColors.infoBorder, fontSize: 11),
             ),
             const SizedBox(height: 5),
             Row(
@@ -788,7 +788,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                 hintText: l10n.adsSearchHint,
                 hintStyle: TextStyle(
                   color: AppColors.textMuted,
-                  fontSize: 11,
+                  fontSize: 12,
                 ),
                 prefixIcon: MotionIcon(
                   Icons.search,
@@ -850,7 +850,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                 color: _categoryFilter == filters[index].category
                     ? Colors.white
                     : AppColors.textSecondary,
-                fontSize: 10,
+                fontSize: 11,
                 fontWeight: _categoryFilter == filters[index].category
                     ? FontWeight.bold
                     : FontWeight.normal,
@@ -932,14 +932,14 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                         textAlign: TextAlign.end,
                         style: TextStyle(
                           color: AppColors.textSecondary,
-                          fontSize: 10,
+                          fontSize: 11,
                         ),
                       ),
                       Text(
                         _adReference(ad),
                         style: TextStyle(
                           color: AppColors.textMuted,
-                          fontSize: 9,
+                          fontSize: 11,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -1015,7 +1015,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: AppColors.textSecondary,
-                      fontSize: 10,
+                      fontSize: 11,
                     ),
                   ),
                 ),
@@ -1307,7 +1307,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                     label,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: color, fontSize: 9),
+                    style: TextStyle(color: color, fontSize: 11),
                   ),
                 ),
               ],
@@ -1333,7 +1333,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: AppColors.textSecondary,
-                      fontSize: 9,
+                      fontSize: 11,
                     ),
                   ),
                 ),
@@ -1457,7 +1457,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                 textAlign: TextAlign.end,
                 style: TextStyle(
                   color: AppColors.textSecondary,
-                  fontSize: 10,
+                  fontSize: 11,
                 ),
               ),
               const SizedBox(height: 6),
@@ -1492,7 +1492,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
           const SizedBox(width: 4),
           Text(
             l10n.adsImageCount('$count'),
-            style: const TextStyle(color: Colors.white, fontSize: 9),
+            style: const TextStyle(color: Colors.white, fontSize: 11),
           ),
         ],
       ),
@@ -1607,7 +1607,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
           label,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
+          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
         ),
         style: ElevatedButton.styleFrom(
           elevation: 0,
@@ -1635,7 +1635,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
           color: foreground,
-          fontSize: 9,
+          fontSize: 11,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -1770,7 +1770,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                                         textAlign: TextAlign.end,
                                         style: TextStyle(
                                           color: AppColors.textSecondary,
-                                          fontSize: 10,
+                                          fontSize: 11,
                                         ),
                                       ),
                                     ],
@@ -1798,7 +1798,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                               textAlign: TextAlign.end,
                               style: TextStyle(
                                 color: AppColors.textSecondary,
-                                fontSize: 11,
+                                fontSize: 12,
                                 height: 1.5,
                               ),
                             ),
@@ -1871,7 +1871,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                                     textAlign: TextAlign.end,
                                     style: TextStyle(
                                       color: AppColors.ink,
-                                      fontSize: 11,
+                                      fontSize: 12,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
@@ -1881,7 +1881,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
                                   l10n.adsRejectGuidanceDirectLabel,
                                   style: TextStyle(
                                     color: AppColors.textSecondary,
-                                    fontSize: 9,
+                                    fontSize: 11,
                                   ),
                                 ),
                               ],

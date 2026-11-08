@@ -1,7 +1,13 @@
 import 'package:get_it/get_it.dart';
 
 import 'package:barwah_app/core/network/api_configuration.dart';
+import 'package:barwah_app/core/auth/auth_refresh_interceptor.dart';
+import 'package:barwah_app/core/auth/auth_session.dart';
+import 'package:barwah_app/features/products/data/datasources/product_report_api_data_source.dart';
 import 'package:barwah_app/core/network/api_consumer.dart';
+import 'package:barwah_app/features/auth/data/datasources/auth_api_data_source.dart';
+import 'package:barwah_app/features/products/data/datasources/product_category_api_data_source.dart';
+import 'package:barwah_app/features/products/data/datasources/product_promotion_api_data_source.dart';
 import 'package:barwah_app/features/admin/data/datasources/admin_security_store.dart';
 import 'package:barwah_app/features/admin/data/datasources/head_account_store.dart';
 import 'package:barwah_app/features/auth/data/repositories/auth_repository_impl.dart';
@@ -45,6 +51,7 @@ import 'package:barwah_app/features/merchants/domain/usecases/get_supervised_mer
 import 'package:barwah_app/features/merchants/domain/usecases/get_supervisor_stats_usecase.dart';
 import 'package:barwah_app/features/merchants/presentation/controllers/merchants_cubit.dart';
 import 'package:barwah_app/features/products/data/datasources/product_review_data_source.dart';
+import 'package:barwah_app/features/products/data/datasources/product_review_api_data_source.dart';
 import 'package:barwah_app/features/products/data/datasources/product_review_mock_data_source.dart';
 import 'package:barwah_app/features/products/data/datasources/product_supervisor_audit_data_source.dart';
 import 'package:barwah_app/features/products/data/datasources/product_supervisor_audit_shared_preferences_data_source.dart';
@@ -74,11 +81,51 @@ Future<void> initDependencies() async {
   sl.registerLazySingleton(() => AdminSecurityStore());
   sl.registerLazySingleton(() => HeadAccountStore());
   sl.registerLazySingleton(() => HeadSupervisorRosterStore());
+  // عميل واحد لباك إند Berwah بتوكن الجلسة (AuthSession).
+  const berwahApiUrl = String.fromEnvironment(
+    'BERWAH_API_URL',
+    defaultValue: 'https://berwah.runasp.net/',
+  );
+  sl.registerLazySingleton<ApiConsumer>(
+    () {
+      final consumer = ApiConsumer(
+        baseUrl: berwahApiUrl,
+        accessTokenProvider: AuthSession.tokenProvider,
+      );
+      consumer.dio.interceptors.add(
+        AuthRefreshInterceptor(
+          baseUrl: berwahApiUrl,
+          client: consumer.dio,
+          onSessionExpired: AuthSession.notifyExpired,
+        ),
+      );
+      return consumer;
+    },
+    instanceName: 'berwah',
+  );
+  sl.registerLazySingleton<ProductReportApiDataSource>(
+    () => ProductReportApiDataSource(
+      apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'),
+    ),
+  );
+  sl.registerLazySingleton<ProductCategoryApiDataSource>(
+    () => ProductCategoryApiDataSource(
+      apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'),
+    ),
+  );
+  sl.registerLazySingleton<ProductPromotionApiDataSource>(
+    () => ProductPromotionApiDataSource(
+      apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'),
+    ),
+  );
   sl.registerLazySingleton<AuthRepository>(
     () => AuthRepositoryImpl(
       adminSecurity: sl(),
       headAccounts: sl(),
       supervisorRoster: sl(),
+      api: AuthApiDataSource(apiConsumer: sl(instanceName: 'berwah')),
+      // الحسابات المحلية التجريبية متاحة في وضع البيانات التجريبية فقط.
+      allowLocalAccounts: ApiConfiguration.fromEnvironment().useMockData,
     ),
   );
   sl.registerLazySingleton(() => LoginUseCase(sl()));
@@ -151,8 +198,16 @@ Future<void> initDependencies() async {
   sl.registerLazySingleton<ProductSupervisorAuditRepository>(
     () => ProductSupervisorAuditRepositoryImpl(dataSource: sl()),
   );
+  // مراجعة الإعلانات من واجهة Berwah (SupervisorForAd).
+  // للعودة للبيانات التجريبية: --dart-define=USE_MOCK_PRODUCTS=true
+  const useMockProducts = bool.fromEnvironment('USE_MOCK_PRODUCTS');
   sl.registerLazySingleton<ProductReviewDataSource>(
-    () => ProductReviewMockDataSource(),
+    () => useMockProducts
+        ? ProductReviewMockDataSource()
+        : ProductReviewApiDataSource(
+            apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'),
+            categories: sl<ProductCategoryApiDataSource>(),
+          ),
   );
   sl.registerLazySingleton<ProductReviewRepository>(
     () => ProductReviewRepositoryImpl(dataSource: sl()),
@@ -170,6 +225,8 @@ Future<void> initDependencies() async {
       changeProductReviewStatus: sl(),
       updateProductReview: sl(),
       auditRepository: sl(),
+      categoryLoader:
+          useMockProducts ? null : sl<ProductCategoryApiDataSource>().load,
     ),
   );
 

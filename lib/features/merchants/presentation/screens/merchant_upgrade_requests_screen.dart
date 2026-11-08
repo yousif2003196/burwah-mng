@@ -422,7 +422,7 @@ class _MerchantUpgradeRequestsScreenState
                           color: _statusFilter == filter.key
                               ? Colors.white
                               : AppColors.textSecondary,
-                          fontSize: 11,
+                          fontSize: 12,
                         ),
                       ),
                     )).toList(),
@@ -461,7 +461,7 @@ class _MerchantUpgradeRequestsScreenState
                           Text(request.id,
                               style: TextStyle(
                                   color: AppColors.textSecondary,
-                                  fontSize: 11)),
+                                  fontSize: 12)),
                         ]),
                         const SizedBox(height: 10),
                         Text(
@@ -521,7 +521,7 @@ class _MerchantUpgradeRequestsScreenState
               padding: const EdgeInsets.only(top: 8),
               child: Text(_copy(l10n, 'notice'),
                   style: TextStyle(
-                      color: AppColors.textSecondary, fontSize: 11)),
+                      color: AppColors.textSecondary, fontSize: 12)),
             )),
           ],
         ),

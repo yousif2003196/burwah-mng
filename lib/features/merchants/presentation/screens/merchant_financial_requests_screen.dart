@@ -457,7 +457,7 @@ class _MerchantFinancialRequestsScreenState
                 l10n.finRequestUpdatedJustNow,
                 style: TextStyle(
                   color: AppColors.textSecondary,
-                  fontSize: 9,
+                  fontSize: 11,
                 ),
               ),
               MotionIcon(Icons.history, size: 13, color: AppColors.textMuted),
@@ -594,7 +594,7 @@ class _MerchantFinancialRequestsScreenState
                   textAlign: TextAlign.start,
                   style: TextStyle(
                     color: AppColors.textSecondary,
-                    fontSize: 10,
+                    fontSize: 11,
                   ),
                 ),
               ),
@@ -618,7 +618,7 @@ class _MerchantFinancialRequestsScreenState
             textAlign: TextAlign.end,
             style: TextStyle(
               color: isCount ? AppColors.textSecondary : AppColors.info,
-              fontSize: 9,
+              fontSize: 11,
             ),
           ),
         ],
@@ -661,7 +661,7 @@ class _MerchantFinancialRequestsScreenState
                 color: _selectedType == filters[index].type
                     ? Colors.white
                     : AppColors.info,
-                fontSize: 10,
+                fontSize: 11,
                 fontWeight: FontWeight.w500,
               ),
               side: BorderSide(
@@ -734,7 +734,7 @@ class _MerchantFinancialRequestsScreenState
                 request.date,
                 style: TextStyle(
                   color: AppColors.textSecondary,
-                  fontSize: 10,
+                  fontSize: 11,
                 ),
               ),
               const SizedBox(width: 4),
@@ -781,7 +781,7 @@ class _MerchantFinancialRequestsScreenState
                             textAlign: TextAlign.start,
                             style: TextStyle(
                               color: AppColors.textSecondary,
-                              fontSize: 10,
+                              fontSize: 11,
                             ),
                           ),
                         ],
@@ -806,7 +806,7 @@ class _MerchantFinancialRequestsScreenState
                     l10n.finRequestCurrency,
                     style: TextStyle(
                       color: AppColors.textSecondary,
-                      fontSize: 9,
+                      fontSize: 11,
                     ),
                   ),
                 ],
@@ -830,7 +830,7 @@ class _MerchantFinancialRequestsScreenState
                     textAlign: TextAlign.end,
                     style: TextStyle(
                       color: AppColors.textSecondary,
-                      fontSize: 10,
+                      fontSize: 11,
                     ),
                   ),
                 ),
@@ -853,7 +853,7 @@ class _MerchantFinancialRequestsScreenState
                 l10n.finRequestRestrictedStatus,
                 style: TextStyle(
                   color: AppColors.info,
-                  fontSize: 9,
+                  fontSize: 11,
                 ),
               ),
             ),
@@ -864,7 +864,7 @@ class _MerchantFinancialRequestsScreenState
               '${l10n.finRequestRejectReason}: $rejection',
               style: TextStyle(
                 color: AppColors.danger,
-                fontSize: 10,
+                fontSize: 11,
               ),
             ),
           ],
@@ -889,7 +889,7 @@ class _MerchantFinancialRequestsScreenState
                           : l10n.finRequestSendToFinance,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 10),
+                      style: const TextStyle(fontSize: 11),
                     ),
                     style: OutlinedButton.styleFrom(
                       backgroundColor: AppColors.surfaceLight,
@@ -912,7 +912,7 @@ class _MerchantFinancialRequestsScreenState
                     l10n.finRequestViewDetails,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 10),
+                    style: const TextStyle(fontSize: 11),
                   ),
                   style: ElevatedButton.styleFrom(
                     elevation: 0,
@@ -979,7 +979,7 @@ class _MerchantFinancialRequestsScreenState
                   textAlign: TextAlign.start,
                   style: TextStyle(
                     color: AppColors.textSecondary,
-                    fontSize: 10,
+                    fontSize: 11,
                     height: 1.4,
                   ),
                 ),
@@ -1017,7 +1017,7 @@ class _MerchantFinancialRequestsScreenState
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: foreground,
-                fontSize: 9,
+                fontSize: 11,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -1304,7 +1304,7 @@ class _MerchantFinancialRequestsScreenState
               label,
               style: TextStyle(
                 color: AppColors.textSecondary,
-                fontSize: 11,
+                fontSize: 12,
               ),
             ),
           ),

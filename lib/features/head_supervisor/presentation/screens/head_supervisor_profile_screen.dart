@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/theme/app_theme_switcher.dart';
+import 'package:barwah_app/core/localization/app_locale_controller.dart';
 import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_audit_store.dart';
 import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_audit_record.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_wallet_screen.dart';
@@ -185,6 +187,8 @@ class _HeadSupervisorProfileScreenState extends State<HeadSupervisorProfileScree
           const SizedBox(height: 14),
           ScrollFx(child: const _SecurityCard()),
           const SizedBox(height: 14),
+          ScrollFx(child: const _PreferencesCard()),
+          const SizedBox(height: 14),
           SizedBox(
             height: 48,
             child: OutlinedButton.icon(
@@ -274,6 +278,65 @@ class _HeadSupervisorProfileScreenState extends State<HeadSupervisorProfileScree
     );
     if (confirmed == true) onLogout();
   }
+}
+
+class _PreferencesCard extends StatelessWidget {
+  const _PreferencesCard();
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+        listenable: AppLocaleController.instance,
+        builder: (context, _) {
+          final isArabic = AppLocaleController.instance.isArabic;
+          Widget row(String title, Widget trailing) => Row(children: [
+                trailing,
+                const Spacer(),
+                Text(title,
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.ink)),
+              ]);
+          return Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: AppColors.cardBorder),
+            ),
+            child: Column(children: [
+              row(isArabic ? 'المظهر (فاتح / داكن)' : 'Appearance (light / dark)',
+                  const AppThemeSwitcherButton()),
+              Divider(height: 18, color: AppColors.cardBorder),
+              row(
+                isArabic ? 'اللغة' : 'Language',
+                InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: AppLocaleController.instance.toggle,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceLight,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppColors.cardBorder),
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      MotionIcon(Icons.language, color: AppColors.ink, size: 15),
+                      const SizedBox(width: 5),
+                      Text(isArabic ? 'English' : 'العربية',
+                          style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.ink)),
+                    ]),
+                  ),
+                ),
+              ),
+            ]),
+          );
+        },
+      );
 }
 
 class _SessionBanner extends StatelessWidget {

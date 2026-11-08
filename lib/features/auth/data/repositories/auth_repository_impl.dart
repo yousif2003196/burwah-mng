@@ -1,5 +1,7 @@
 import 'package:dartz/dartz.dart';
 
+import 'package:barwah_app/core/auth/auth_session.dart';
+import 'package:barwah_app/features/auth/data/datasources/auth_api_data_source.dart';
 import 'package:barwah_app/core/errors/failures.dart';
 import 'package:barwah_app/features/admin/data/datasources/admin_managed_account_store.dart';
 import 'package:barwah_app/features/admin/data/datasources/admin_security_store.dart';
@@ -17,16 +19,23 @@ class AuthRepositoryImpl implements AuthRepository {
   final HeadAccountStore headAccounts;
   final HeadSupervisorRosterStore supervisorRoster;
   final AdminManagedAccountStore managedAccounts;
+  final AuthApiDataSource? api;
+
+  /// الدخول بحسابات محلية تجريبية (بادئة البريد). يُقفل في النسخة الحقيقية.
+  final bool allowLocalAccounts;
 
   AuthRepositoryImpl({
     required this.adminSecurity,
     required this.headAccounts,
     required this.supervisorRoster,
     AdminManagedAccountStore? managedAccounts,
+    this.api,
+    this.allowLocalAccounts = true,
   }) : managedAccounts = managedAccounts ?? AdminManagedAccountStore();
 
   @override
   void logout() {
+    AuthSession.clear();
     HeadAccessPolicy.activeEmail = null;
   }
 
@@ -44,6 +53,33 @@ class AuthRepositoryImpl implements AuthRepository {
         emailParts.last.isEmpty ||
         password.trim().isEmpty) {
       return const Left(AuthFailure('يرجى إدخال البريد الإلكتروني وكلمة المرور'));
+    }
+
+    // 1) الباك إند الحقيقي أولًا: لو الحساب موجود هناك نستخدم توكنه ودوره.
+    final remote = api;
+    if (remote != null) {
+      try {
+        final result = await remote.login(normalizedEmail, password);
+        if (result != null) {
+          AuthSession.start(token: result.token, refresh: result.refreshToken);
+          return Right(UserEntity(
+            id: result.userId,
+            name: result.name.isEmpty ? result.email : result.name,
+            email: result.email,
+            role: result.role,
+            roleBadgeCode: result.backendRole,
+          ));
+        }
+        if (!allowLocalAccounts) {
+          return const Left(AuthFailure(
+              'تعذر الاتصال بالسيرفر. تحقق من الإنترنت وحاول مرة أخرى.'));
+        }
+      } on ApiLoginRejected catch (rejected) {
+        // الحساب غير مصرّح له، أو البيانات خاطئة والحسابات المحلية مقفولة.
+        if (!rejected.credentialsWrong || !allowLocalAccounts) {
+          return Left(AuthFailure(rejected.message));
+        }
+      }
     }
 
     if (emailParts.first == 'admin') {

@@ -26,6 +26,12 @@ class ProductReview {
   final String? decisionNote;
   final bool isFeatured;
   final bool merchantNotificationRequested;
+  final List<String> imageUrls;
+
+  /// معرّفات وتسمية التصنيف الحقيقي من الباك إند (null في الوضع التجريبي).
+  final int? categoryId;
+  final int? subCategoryId;
+  final String? categoryName;
 
   const ProductReview({
     required this.id,
@@ -47,6 +53,10 @@ class ProductReview {
     this.decisionNote,
     this.isFeatured = false,
     this.merchantNotificationRequested = false,
+    this.imageUrls = const [],
+    this.categoryId,
+    this.subCategoryId,
+    this.categoryName,
   });
 
   ProductReview copyWith({
@@ -60,6 +70,9 @@ class ProductReview {
     String? decisionNote,
     bool? isFeatured,
     bool? merchantNotificationRequested,
+    int? categoryId,
+    int? subCategoryId,
+    String? categoryName,
   }) {
     return ProductReview(
       id: id,
@@ -82,6 +95,10 @@ class ProductReview {
       isFeatured: isFeatured ?? this.isFeatured,
       merchantNotificationRequested:
           merchantNotificationRequested ?? this.merchantNotificationRequested,
+      imageUrls: imageUrls,
+      categoryId: categoryId ?? this.categoryId,
+      subCategoryId: subCategoryId ?? this.subCategoryId,
+      categoryName: categoryName ?? this.categoryName,
     );
   }
 }

@@ -329,6 +329,47 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
     ProductReviewLoaded state,
     AppLocalizations l10n,
   ) {
+    if (state.categories.isNotEmpty) {
+      final options = <({String label, int? id})>[
+        (label: l10n.productCategoryAll, id: null),
+        for (final category in state.categories)
+          (label: category.name, id: category.id),
+      ];
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (var index = 0; index < options.length; index++) ...[
+              if (index > 0) const SizedBox(width: 7),
+              ChoiceChip(
+                label: Text(
+                  '${options[index].label} (${_pendingCategoryIdCount(state, options[index].id)})',
+                ),
+                selected: state.categoryIdFilter == options[index].id,
+                onSelected: (_) => context
+                    .read<ProductReviewCubit>()
+                    .setCategoryIdFilter(options[index].id),
+                showCheckmark: false,
+                selectedColor: AppColors.primaryDark,
+                backgroundColor: AppColors.surface,
+                labelStyle: TextStyle(
+                  color: state.categoryIdFilter == options[index].id
+                      ? Colors.white
+                      : AppColors.textSecondary,
+                  fontSize: 10,
+                ),
+                side: BorderSide(
+                  color: state.categoryIdFilter == options[index].id
+                      ? AppColors.ink
+                      : AppColors.cardBorder,
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
     final categories = <({String label, ProductCategory? category})>[
       (label: l10n.productCategoryAll, category: null),
       (
@@ -504,7 +545,8 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
                       children: [
                         if (product.isFeatured)
                           _featuredTag(l10n.productFeaturedBadge),
-                        _categoryTag(_categoryLabel(product.category, l10n)),
+                        _categoryTag(
+            product.categoryName ?? _categoryLabel(product.category, l10n)),
                         _categoryTag(
                           product.condition == ProductCondition.used
                               ? l10n.productConditionUsed
@@ -725,6 +767,16 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
         ],
       ),
     );
+  }
+
+  int _pendingCategoryIdCount(ProductReviewLoaded state, int? categoryId) {
+    return state.reviews
+        .where(
+          (review) =>
+              review.status == ProductReviewStatus.pending &&
+              (categoryId == null || review.categoryId == categoryId),
+        )
+        .length;
   }
 
   int _pendingCategoryCount(

@@ -68,7 +68,7 @@ class MerchantSearchFilterBar extends StatelessWidget {
                   decoration: InputDecoration(
                     hintText: l10n.searchMerchantsHint,
                     hintStyle: TextStyle(
-                        fontSize: 11, color: AppColors.textMuted),
+                        fontSize: 12, color: AppColors.textMuted),
                     suffixIcon: searchController.text.isNotEmpty
                         ? IconButton(
                             icon: const MotionIcon(Icons.clear, size: 16),
@@ -162,7 +162,7 @@ class MerchantSearchFilterBar extends StatelessWidget {
         child: Text(
           label,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: 12,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
             color: isSelected ? Colors.white : AppColors.textSecondary,
           ),

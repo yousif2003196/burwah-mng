@@ -244,7 +244,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                 l10n.merchantProfileLocalOnlyNotice,
                 style: TextStyle(
                   color: AppColors.textSecondary,
-                  fontSize: 10,
+                  fontSize: 11,
                 ),
               ),
             )),
@@ -261,7 +261,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                 l10n.merchantProfileLocalAuditNotice,
                 style: TextStyle(
                   color: AppColors.textSecondary,
-                  fontSize: 10,
+                  fontSize: 11,
                 ),
               ),
             )),
@@ -393,7 +393,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                       textAlign: TextAlign.end,
                       style: TextStyle(
                         color: AppColors.textSecondary,
-                        fontSize: 10,
+                        fontSize: 11,
                       ),
                     ),
                     const SizedBox(height: 7),
@@ -498,7 +498,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: AppColors.textSecondary,
-                  fontSize: 9,
+                  fontSize: 11,
                 ),
               ),
             ],
@@ -536,7 +536,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
             trailing,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: AppColors.info, fontSize: 9),
+            style: TextStyle(color: AppColors.info, fontSize: 11),
           ),
         ],
       ],
@@ -576,7 +576,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                       textAlign: TextAlign.end,
                       style: TextStyle(
                         color: AppColors.textSecondary,
-                        fontSize: 9,
+                        fontSize: 11,
                       ),
                     ),
                     const SizedBox(height: 5),
@@ -620,7 +620,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                     l10n.merchantProfileOpenDocument,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 11),
+                    style: const TextStyle(fontSize: 12),
                   ),
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.primaryDark,
@@ -678,7 +678,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                   textAlign: TextAlign.end,
                   style: TextStyle(
                     color: AppColors.textSecondary,
-                    fontSize: 9,
+                    fontSize: 11,
                   ),
                 ),
               ],
@@ -884,7 +884,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                 textAlign: TextAlign.end,
                 style: TextStyle(
                   color: AppColors.textSecondary,
-                  fontSize: 9,
+                  fontSize: 11,
                 ),
               ),
             ],
@@ -921,7 +921,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: AppColors.ink,
-                    fontSize: 10,
+                    fontSize: 11,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -935,7 +935,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                 l10n.merchantAuditLoadError,
                 style: TextStyle(
                   color: AppColors.danger,
-                  fontSize: 11,
+                  fontSize: 12,
                 ),
               ),
             ),
@@ -946,7 +946,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                 l10n.merchantProfileNoLocalActivity,
                 style: TextStyle(
                   color: AppColors.textSecondary,
-                  fontSize: 11,
+                  fontSize: 12,
                 ),
               ),
             ),
@@ -1101,7 +1101,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                   textAlign: TextAlign.end,
                   style: TextStyle(
                     color: AppColors.ink,
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -1112,7 +1112,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                   textAlign: TextAlign.end,
                   style: TextStyle(
                     color: AppColors.textSecondary,
-                    fontSize: 9,
+                    fontSize: 11,
                   ),
                 ),
               ],
@@ -1126,7 +1126,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: AppColors.textSecondary,
-                fontSize: 9,
+                fontSize: 11,
               ),
             ),
           ),
@@ -1169,7 +1169,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                     l10n.merchantProfileBalanceTitle,
                     style: TextStyle(
                       color: AppColors.textSecondary,
-                      fontSize: 10,
+                      fontSize: 11,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -1188,7 +1188,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
                     textAlign: TextAlign.end,
                     style: TextStyle(
                       color: AppColors.textSecondary,
-                      fontSize: 9,
+                      fontSize: 11,
                     ),
                   ),
                 ],
@@ -1232,7 +1232,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: foreground,
-                fontSize: 9,
+                fontSize: 11,
                 fontWeight: FontWeight.w600,
               ),
             ),

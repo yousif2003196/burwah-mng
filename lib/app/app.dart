@@ -8,6 +8,7 @@ import 'package:barwah_app/app/navigation/merchants_tabs_shell.dart';
 import 'package:barwah_app/app/navigation/product_supervisor_tabs_shell.dart';
 import 'package:barwah_app/app/navigation/services_supervisor_tabs_shell.dart';
 import 'package:barwah_app/app/navigation/wasalny_supervisor_tabs_shell.dart';
+import 'package:barwah_app/core/auth/auth_session.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/localization/app_locale_controller.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
@@ -30,6 +31,36 @@ class BarwahApp extends StatefulWidget {
 class _BarwahAppState extends State<BarwahApp> {
   static final GlobalKey<NavigatorState> _navigatorKey =
       GlobalKey<NavigatorState>();
+
+  @override
+  void initState() {
+    super.initState();
+    AuthSession.onExpired = _onSessionExpired;
+  }
+
+  @override
+  void dispose() {
+    AuthSession.onExpired = null;
+    super.dispose();
+  }
+
+  /// انتهت الجلسة: نرجع لشاشة الدخول مع رسالة بدل أخطاء 401 متكررة.
+  void _onSessionExpired() {
+    final navigator = _navigatorKey.currentState;
+    final context = _navigatorKey.currentContext;
+    if (navigator == null || context == null) return;
+    context.read<AuthCubit>().logout();
+    navigator.pushAndRemoveUntil(
+      MaterialPageRoute<void>(builder: _buildLogin),
+      (_) => false,
+    );
+    ScaffoldMessenger.maybeOf(_navigatorKey.currentContext ?? context)
+        ?.showSnackBar(
+      const SnackBar(
+        content: Text('انتهت الجلسة، سجّل الدخول مرة أخرى'),
+      ),
+    );
+  }
 
   void _openFinance(BuildContext context) {
     Navigator.of(context).pushReplacement(

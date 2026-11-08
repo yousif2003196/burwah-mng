@@ -957,9 +957,14 @@ class _FinanceNoticeCard extends StatelessWidget {
             Row(children: [
               Text('البروتوكول رقم 402',
                   style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-              Spacer(),
-              Text('نظام التشفير وحجب الصلاحيات: نشط ومقيد',
-                  style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text('نظام التشفير وحجب الصلاحيات: نشط ومقيد',
+                    textAlign: TextAlign.end,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+              ),
               SizedBox(width: 4),
               MotionIcon(Icons.shield_outlined, size: 12, color: AppColors.textSecondary),
             ]),

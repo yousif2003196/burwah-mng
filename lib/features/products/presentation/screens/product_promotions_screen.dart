@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import 'package:barwah_app/core/auth/auth_session.dart';
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
@@ -11,6 +12,7 @@ import 'package:barwah_app/features/finance/domain/entities/withdrawal_request_e
 import 'package:barwah_app/features/finance/domain/repositories/finance_repository.dart';
 import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
 import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
+import 'package:barwah_app/features/products/data/datasources/product_promotion_api_data_source.dart';
 import 'package:barwah_app/features/products/data/datasources/product_promotion_local_store.dart';
 import 'package:barwah_app/features/products/domain/entities/product_promotion_request.dart';
 import 'package:barwah_app/features/products/domain/entities/product_supervisor_audit_entry.dart';
@@ -41,6 +43,9 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
   bool _isSaving = false;
   bool _isLoading = true;
 
+  /// الباك إند الحقيقي لمشرف المنتجات بعد تسجيل دخول ناجح؛ وصلني تجريبي.
+  bool get _remote => AuthSession.isSignedIn && !widget.isWasalny;
+
   @override
   void initState() {
     super.initState();
@@ -60,7 +65,7 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
   /// Picks up finance decisions as soon as they are published, instead of
   /// only when the screen is opened.
   Future<void> _onEventsChanged() async {
-    if (_refreshingFinance || _isLoading || !mounted) return;
+    if (_remote || _refreshingFinance || _isLoading || !mounted) return;
     _refreshingFinance = true;
     try {
       await _refreshFinanceDecisions();
@@ -73,16 +78,18 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
 
   Future<void> _loadRequests() async {
     try {
-      final requests = await _localStore.load(
-        account: _accountKey,
-        initialRequests: _sampleRequests(),
-      );
+      final requests = _remote
+          ? await sl<ProductPromotionApiDataSource>().load()
+          : await _localStore.load(
+              account: _accountKey,
+              initialRequests: _sampleRequests(),
+            );
       if (!mounted) return;
       setState(() {
         _requests = requests;
         _isLoading = false;
       });
-      await _refreshFinanceDecisions();
+      if (!_remote) await _refreshFinanceDecisions();
       if (widget.isWasalny) await _publishNewProductEvents();
     } catch (error, stackTrace) {
       FlutterError.reportError(
@@ -649,6 +656,10 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
     String? note,
   }) async {
     if (_isSaving) return;
+    if (_remote) {
+      await _decideRemote(request, status, l10n, note: note);
+      return;
+    }
     if (status == ProductPromotionStatus.active &&
         !request.paymentConfirmedByFinance) {
       if (request.financeReviewPending) {
@@ -798,6 +809,77 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.productAuditSaveError)),
       );
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  /// قرار حقيقي على الباك إند: قبول (يبدأ الترويج ويصل إشعار للعميل) أو رفض بسبب.
+  Future<void> _decideRemote(
+    ProductPromotionRequest request,
+    ProductPromotionStatus status,
+    AppLocalizations l10n, {
+    String? note,
+  }) async {
+    final isArabic = l10n.localeName.startsWith('ar');
+    if (status != ProductPromotionStatus.active &&
+        status != ProductPromotionStatus.rejected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isArabic
+              ? 'الباك إند لا يدعم هذا الإجراء بعد'
+              : 'This action is not supported by the server yet'),
+        ),
+      );
+      return;
+    }
+    setState(() => _isSaving = true);
+    try {
+      final api = sl<ProductPromotionApiDataSource>();
+      if (status == ProductPromotionStatus.active) {
+        await api.approve(request.id);
+      } else {
+        await api.reject(request.id, reason: note);
+      }
+      try {
+        await sl<ProductSupervisorAuditRepository>().recordEntry(
+          ProductSupervisorAuditEntry(
+            id: DateTime.now().microsecondsSinceEpoch.toString(),
+            actionKey: status == ProductPromotionStatus.active
+                ? 'promotion_approved'
+                : 'promotion_rejected',
+            subject: _title(request, isArabic),
+            details: [
+              request.adReference,
+              '${request.durationDays} ${l10n.productPromotionDays}',
+              if (note != null) note,
+            ].join(' • '),
+            occurredAt: DateTime.now(),
+          ),
+        );
+      } catch (_) {}
+      if (!mounted) return;
+      setState(() {
+        _requests = _requests
+            .map((item) => item.id == request.id
+                ? item.copyWith(status: status, decisionNote: note)
+                : item)
+            .toList();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(status == ProductPromotionStatus.active
+              ? l10n.productPromotionApproved
+              : l10n.productPromotionRejected),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.productAuditSaveError)),
+      );
+      // قد يكون الطلب روجع من مشرف آخر: نحدّث القائمة.
+      _loadRequests();
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -1093,6 +1175,11 @@ class _PromotionRequestCard extends StatelessWidget {
                   icon: Icons.payments_outlined,
                   text: '${request.price} ${l10n.productWalletCurrency}',
                 ),
+                if ((request.paymentNote ?? '').isNotEmpty)
+                  _DetailBadge(
+                    icon: Icons.account_balance_wallet_outlined,
+                    text: request.paymentNote!,
+                  ),
               ],
             ),
             const SizedBox(height: 8),

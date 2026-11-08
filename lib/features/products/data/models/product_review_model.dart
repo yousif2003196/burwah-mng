@@ -21,6 +21,10 @@ class ProductReviewModel extends ProductReview {
     super.decisionNote,
     super.isFeatured,
     super.merchantNotificationRequested,
+    super.imageUrls,
+    super.categoryId,
+    super.subCategoryId,
+    super.categoryName,
   });
 
   factory ProductReviewModel.fromEntity(ProductReview entity) {
@@ -44,6 +48,10 @@ class ProductReviewModel extends ProductReview {
       decisionNote: entity.decisionNote,
       isFeatured: entity.isFeatured,
       merchantNotificationRequested: entity.merchantNotificationRequested,
+      imageUrls: entity.imageUrls,
+      categoryId: entity.categoryId,
+      subCategoryId: entity.subCategoryId,
+      categoryName: entity.categoryName,
     );
   }
 
@@ -59,6 +67,9 @@ class ProductReviewModel extends ProductReview {
     String? decisionNote,
     bool? isFeatured,
     bool? merchantNotificationRequested,
+    int? categoryId,
+    int? subCategoryId,
+    String? categoryName,
   }) {
     return ProductReviewModel(
       id: id,
@@ -81,6 +92,10 @@ class ProductReviewModel extends ProductReview {
       isFeatured: isFeatured ?? this.isFeatured,
       merchantNotificationRequested:
           merchantNotificationRequested ?? this.merchantNotificationRequested,
+      imageUrls: imageUrls,
+      categoryId: categoryId ?? this.categoryId,
+      subCategoryId: subCategoryId ?? this.subCategoryId,
+      categoryName: categoryName ?? this.categoryName,
     );
   }
 }

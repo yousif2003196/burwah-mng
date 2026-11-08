@@ -19,6 +19,9 @@ class ProductPromotionRequest {
   final ProductPromotionStatus status;
   final String? decisionNote;
 
+  /// طريقة الدفع ومرجعه كما كتبهما العميل (من الباك إند).
+  final String? paymentNote;
+
   const ProductPromotionRequest({
     required this.id,
     required this.adReference,
@@ -34,6 +37,7 @@ class ProductPromotionRequest {
     this.financeReviewPending = false,
     this.status = ProductPromotionStatus.pending,
     this.decisionNote,
+    this.paymentNote,
   });
 
   ProductPromotionRequest copyWith({
@@ -58,6 +62,7 @@ class ProductPromotionRequest {
       financeReviewPending: financeReviewPending ?? this.financeReviewPending,
       status: status ?? this.status,
       decisionNote: decisionNote ?? this.decisionNote,
+      paymentNote: paymentNote,
     );
   }
 
@@ -76,6 +81,7 @@ class ProductPromotionRequest {
         'financeReviewPending': financeReviewPending,
         'status': status.name,
         'decisionNote': decisionNote,
+        'paymentNote': paymentNote,
       };
 
   factory ProductPromotionRequest.fromJson(Map<String, dynamic> json) {
@@ -96,6 +102,7 @@ class ProductPromotionRequest {
       financeReviewPending: _optionalBool(json, 'financeReviewPending'),
       status: ProductPromotionStatus.values.byName(statusName),
       decisionNote: _optionalString(json, 'decisionNote'),
+      paymentNote: _optionalString(json, 'paymentNote'),
     );
   }
 

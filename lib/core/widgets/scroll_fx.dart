@@ -251,7 +251,12 @@ class _RenderScrollFx extends RenderProxyBox {
     // خروج: يُقاس بمركز العنصر على مسافة طويلة من الحافة العلوية، فلا ينقطع
     // العنصر فجأة عند عبوره الحافة.
     final cy = y + h / 2;
-    final out = ((_exitZone - cy) / (_exitZone + h / 2 + 20)).clamp(0.0, 1.0);
+    // عند أول القائمة لا يُخفَّت شيء: التأثير يتدرّج مع المسافة المقطوعة فقط،
+    // فلا يظهر أول عنصر باهتاً وهو في مكانه الطبيعي.
+    final travelled =
+        ((pos.pixels - pos.minScrollExtent) / 90).clamp(0.0, 1.0);
+    final out = ((_exitZone - cy) / (_exitZone + h / 2 + 20)).clamp(0.0, 1.0) *
+        travelled;
 
     final alpha = (1 - math.pow(1 - enter, 1.15).toDouble()) *
         (1 - math.pow(out, 1.15).toDouble());

@@ -74,7 +74,7 @@ class SupervisorHeaderCard extends StatelessWidget {
                               Text(
                                 stats.getSupervisorTag(isArabic),
                                 style: const TextStyle(
-                                  fontSize: 10,
+                                  fontSize: 11,
                                   fontWeight: FontWeight.w600,
                                   color: Colors.white,
                                 ),
@@ -90,7 +90,7 @@ class SupervisorHeaderCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         color: Colors.white.withValues(alpha: 0.7),
                       ),
                     ),
@@ -178,7 +178,7 @@ class SupervisorHeaderCard extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: 12,
                               color: Colors.white.withValues(alpha: 0.7),
                             ),
                           ),
@@ -235,7 +235,7 @@ class SupervisorHeaderCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 12,
                           color: Colors.white.withValues(alpha: 0.7),
                         ),
                       ),

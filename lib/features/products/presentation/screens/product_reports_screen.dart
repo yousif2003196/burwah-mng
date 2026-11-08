@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:barwah_app/core/auth/auth_session.dart';
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/core/utils/csv_exporter.dart';
 import 'package:barwah_app/features/products/data/datasources/product_escalation_store.dart';
+import 'package:barwah_app/features/products/data/datasources/product_report_api_data_source.dart';
 import 'package:barwah_app/features/products/domain/entities/product_supervisor_audit_entry.dart';
 import 'package:barwah_app/features/products/domain/repositories/product_supervisor_audit_repository.dart';
 import 'package:barwah_app/l10n/app_localizations.dart';
@@ -147,12 +149,75 @@ class _ProductReportsScreenState extends State<ProductReportsScreen> {
   bool _hasUnsavedChanges = false;
   List<ProductSupervisorAuditEntry> _auditEntries = [];
   late Future<_LiveStats> _liveFuture;
+  _ReportMetrics? _remoteMetrics;
+
+  bool get _remote => AuthSession.isSignedIn;
+
+  String? get _apiPeriod => switch (_period) {
+        _ReportPeriod.today => 'today',
+        _ReportPeriod.week => 'week',
+        _ReportPeriod.month => 'month',
+        _ReportPeriod.custom => null,
+      };
+
+  /// أرقام وسجل المراجعات الحقيقيان من الباك إند (بدل السجل المحلي).
+  Future<void> _loadRemoteReport() async {
+    final period = _apiPeriod;
+    if (!_remote || period == null) {
+      if (mounted) setState(() => _remoteMetrics = null);
+      return;
+    }
+    try {
+      final report = await sl<ProductReportApiDataSource>().load(period);
+      if (!mounted) return;
+      final actions = [
+        for (final log in report.logs)
+          _AuditAction(
+            adNumber: log.adNumber,
+            titleAr: log.title,
+            titleEn: log.title,
+            ageAr: log.timeAgo,
+            ageEn: log.timeAgo,
+            status: log.actionType.contains('اعتماد')
+                ? _ReportActionStatus.approved
+                : log.actionType.contains('رفض')
+                    ? _ReportActionStatus.rejected
+                    : _ReportActionStatus.hidden,
+            reasonAr: log.reason,
+            reasonEn: log.reason,
+          ),
+      ];
+      setState(() {
+        _remoteMetrics = _ReportMetrics(
+          reviewed: report.reviewed,
+          approved: report.approved,
+          declined: report.declined,
+          approvalRate: '${report.approvalRate.round()}%',
+          averageMinutes: '—',
+        );
+        _savedActions = List.of(actions);
+        _draftActions = List.of(actions);
+        _hasUnsavedChanges = false;
+      });
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'product reports',
+      ));
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     _liveFuture = _loadLiveStats();
     _loadAuditEntries();
+    if (_remote) {
+      _savedActions = [];
+      _draftActions = [];
+    }
+    _loadRemoteReport();
   }
 
   Future<_LiveStats> _loadLiveStats() async {
@@ -263,6 +328,10 @@ class _ProductReportsScreenState extends State<ProductReportsScreen> {
   }
 
   _ReportMetrics _metricsForSelectedPeriod() {
+    final remote = _remoteMetrics;
+    if (_remote && remote != null && _period != _ReportPeriod.custom) {
+      return remote;
+    }
     final now = DateTime.now();
     late final DateTime start;
     late final DateTime end;
@@ -481,6 +550,7 @@ class _ProductReportsScreenState extends State<ProductReportsScreen> {
       return;
     }
     setState(() => _period = period);
+    _loadRemoteReport();
   }
 
   String _formatDateRange(DateTimeRange range) {

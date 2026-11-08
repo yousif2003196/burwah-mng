@@ -101,7 +101,7 @@ class MerchantCard extends StatelessWidget {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  fontSize: 10,
+                                  fontSize: 11,
                                   color: AppColors.textSecondary,
                                 ),
                               ),
@@ -110,7 +110,7 @@ class MerchantCard extends StatelessWidget {
                               padding: EdgeInsets.symmetric(horizontal: 5),
                               child: Text('•',
                                   style: TextStyle(
-                                      fontSize: 10,
+                                      fontSize: 11,
                                       color: AppColors.textMuted)),
                             ),
                             Flexible(
@@ -119,7 +119,7 @@ class MerchantCard extends StatelessWidget {
                                 maxLines: 1,
  softWrap: false,
                                 style: TextStyle(
-                                  fontSize: 10,
+                                  fontSize: 11,
                                   color: AppColors.textSecondary,
                                 ),
                               )),
@@ -160,7 +160,7 @@ class MerchantCard extends StatelessWidget {
                                 l10n.merchantFeaturedBadge,
                                 style: TextStyle(
                                   color: AppColors.warningDark,
-                                  fontSize: 9,
+                                  fontSize: 11,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
@@ -206,7 +206,7 @@ class MerchantCard extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                fontSize: 10,
+                                fontSize: 11,
                                 color: isSuspended
                                     ? AppColors.textSecondary
                                     : AppColors.textSecondary,
@@ -226,7 +226,7 @@ class MerchantCard extends StatelessWidget {
                             Text(
                               merchant.getAdsSectionTitle(isArabic),
                               style: TextStyle(
-                                fontSize: 9,
+                                fontSize: 11,
                                 color: AppColors.textMuted,
                               ),
                             ),
@@ -279,7 +279,7 @@ class MerchantCard extends StatelessWidget {
                       child: Text(
                         isArabic ? 'سجل التاجر' : 'Merchant record',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: FontWeight.bold,
                           color: merchant.status == MerchantStatus.underAudit
                               ? AppColors.info
@@ -308,7 +308,7 @@ class MerchantCard extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: 10,
+                            fontSize: 11,
                             fontWeight: FontWeight.w500,
                             color: AppColors.adaptOrNull(merchant.footerStatusColor) ??
                                 (isSuspended
@@ -400,7 +400,7 @@ class MerchantCard extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 9,
+                  fontSize: 11,
                   fontWeight: FontWeight.bold,
                   color: textColor,
                 ),

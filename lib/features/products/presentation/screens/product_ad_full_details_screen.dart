@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/features/products/data/datasources/product_category_api_data_source.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/core/theme/app_palette.dart';
 import 'package:barwah_app/features/products/domain/entities/product_review.dart';
@@ -34,6 +36,17 @@ class _ProductAdFullDetailsScreenState
   late final TextEditingController _descriptionController;
   late ProductCategory _category;
   late ProductCondition _condition;
+  int? _categoryId;
+  String? _selectedCategoryName;
+
+  List<ProductCategoryOption> get _realCategories {
+    if (widget.product.categoryId == null) return const [];
+    try {
+      return sl<ProductCategoryApiDataSource>().items;
+    } catch (_) {
+      return const [];
+    }
+  }
   int _selectedPhotoIndex = 0;
   bool _isSubmitting = false;
 
@@ -51,6 +64,8 @@ class _ProductAdFullDetailsScreenState
       text: widget.isArabic ? product.descriptionAr : product.descriptionEn,
     );
     _category = product.category;
+    _categoryId = product.categoryId;
+    _selectedCategoryName = product.categoryName;
     _condition = product.condition;
   }
 
@@ -552,21 +567,45 @@ class _ProductAdFullDetailsScreenState
           const SizedBox(height: 14),
           _fieldLabel(l10n.productApprovedCategory, required: true),
           const SizedBox(height: 5),
-          DropdownButtonFormField<ProductCategory>(
-            initialValue: _category,
-            decoration: _inputDecoration(),
-            items: ProductCategory.values
-                .map(
-                  (category) => DropdownMenuItem(
-                    value: category,
-                    child: Text(_categoryName(category, l10n)),
-                  ),
-                )
-                .toList(),
-            onChanged: (value) {
-              if (value != null) setState(() => _category = value);
-            },
-          ),
+          if (_realCategories.isNotEmpty)
+            DropdownButtonFormField<int>(
+              initialValue: _realCategories.any((c) => c.id == _categoryId)
+                  ? _categoryId
+                  : null,
+              decoration: _inputDecoration(),
+              items: _realCategories
+                  .map(
+                    (category) => DropdownMenuItem(
+                      value: category.id,
+                      child: Text(category.name),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() {
+                  _categoryId = value;
+                  _selectedCategoryName =
+                      _realCategories.firstWhere((c) => c.id == value).name;
+                });
+              },
+            )
+          else
+            DropdownButtonFormField<ProductCategory>(
+              initialValue: _category,
+              decoration: _inputDecoration(),
+              items: ProductCategory.values
+                  .map(
+                    (category) => DropdownMenuItem(
+                      value: category,
+                      child: Text(_categoryName(category, l10n)),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                if (value != null) setState(() => _category = value);
+              },
+            ),
           const SizedBox(height: 13),
           _fieldLabel(l10n.productDetailsPrice, required: true),
           const SizedBox(height: 5),
@@ -889,6 +928,8 @@ class _ProductAdFullDetailsScreenState
     final localizedPrice = widget.isArabic ? '$price ج.م' : 'EGP $price';
     final updatedProduct = widget.product.copyWith(
       category: _category,
+      categoryId: _categoryId,
+      categoryName: _selectedCategoryName,
       condition: _condition,
       priceAr: widget.isArabic ? localizedPrice : widget.product.priceAr,
       priceEn: widget.isArabic ? widget.product.priceEn : localizedPrice,

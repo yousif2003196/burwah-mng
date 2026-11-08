@@ -61,6 +61,13 @@ class ApiConsumer {
     return dio.post<T>(path, data: data);
   }
 
+  Future<Response<T>> put<T>(
+    String path, {
+    Object? data,
+  }) {
+    return dio.put<T>(path, data: data);
+  }
+
   static String _normalizeBaseUrl(String baseUrl) {
     final trimmed = baseUrl.trim();
     if (trimmed.isEmpty) {
