@@ -233,7 +233,10 @@ class _ServicesRequestsReviewScreenState
       final approved = await api.load('approved');
       final rejected = [
         ...await api.load('rejected'),
-        ...await api.load('suspended'),
+        ...await api.load('suspended').catchError((Object e) {
+          debugPrint('Suspended list unavailable: $e');
+          return <ServicesRemoteRequest>[];
+        }),
       ];
       if (!mounted) return;
       setState(() {

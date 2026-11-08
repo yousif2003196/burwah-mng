@@ -79,7 +79,19 @@ class ServicesRequestApiDataSource {
   Future<List<ServicesRemoteRequest>> load(String status) async {
     final response = await apiConsumer.get<Object>(
       '$_base/requests',
-      queryParameters: {'status': status, 'page': 1, 'pageSize': 100},
+      queryParameters: {
+        // the deployed API may only understand the numeric enum value
+        'status': switch (status) {
+          'pending' => 1,
+          'approved' => 2,
+          'rejected' => 5,
+          'suspended' => 6,
+          'escalated' => 7,
+          _ => 1,
+        },
+        'page': 1,
+        'pageSize': 100,
+      },
     );
     final body = response.data;
     final data = body is Map ? body['data'] : null;
