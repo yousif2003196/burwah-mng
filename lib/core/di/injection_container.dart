@@ -3,6 +3,7 @@ import 'package:get_it/get_it.dart';
 import 'package:barwah_app/core/network/api_configuration.dart';
 import 'package:barwah_app/core/auth/auth_refresh_interceptor.dart';
 import 'package:barwah_app/core/auth/auth_session.dart';
+import 'package:barwah_app/core/realtime/realtime_hub.dart';
 import 'package:barwah_app/features/products/data/datasources/product_report_api_data_source.dart';
 import 'package:barwah_app/core/network/api_consumer.dart';
 import 'package:barwah_app/features/auth/data/datasources/auth_api_data_source.dart';
@@ -86,6 +87,7 @@ Future<void> initDependencies() async {
     'BERWAH_API_URL',
     defaultValue: 'https://berwah.runasp.net/',
   );
+  RealtimeHub.instance.baseUrl = berwahApiUrl;
   sl.registerLazySingleton<ApiConsumer>(
     () {
       final consumer = ApiConsumer(

@@ -566,6 +566,20 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
+                    if (!isPending &&
+                        (product.decisionNote ?? '').trim().isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        '${isArabic ? 'السبب' : 'Reason'}: ${product.decisionNote}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.start,
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 7),
                     Row(
                       children: [

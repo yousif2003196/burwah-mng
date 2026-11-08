@@ -1,8 +1,15 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:barwah_app/core/auth/auth_session.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/network/api_consumer.dart';
+import 'package:barwah_app/core/realtime/realtime_hub.dart';
+import 'package:barwah_app/features/services_supervisor/data/datasources/services_provider_api_data_source.dart';
+import 'package:barwah_app/features/services_supervisor/data/datasources/services_request_api_data_source.dart';
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/core/widgets/app_snack_bar.dart';
@@ -153,6 +160,100 @@ class _ServicesRequestsReviewScreenState
   final Map<String, ({bool approved, String? reason})> _decisions = {};
   bool _isLoading = true;
   bool _showArchive = false;
+
+  // وضع الباك إند الحقيقي: الطلبات من السيرفر بدل القايمة التجريبية.
+  final bool _remote = AuthSession.isSignedIn;
+  List<_ServiceRequest> _requests = _serviceRequests;
+  bool _remoteFailed = false;
+  Timer? _remoteTimer;
+  StreamSubscription<RealtimeNotification>? _remoteLive;
+
+  _ServiceCategory _categoryFor(String name) {
+    if (name.contains('كهرب')) return _ServiceCategory.electrical;
+    if (name.contains('نقل') || name.contains('أثاث') || name.contains('توصيل')) {
+      return _ServiceCategory.moving;
+    }
+    return _ServiceCategory.maintenance;
+  }
+
+  IconData _iconFor(_ServiceCategory category) => switch (category) {
+        _ServiceCategory.electrical => Icons.electrical_services_outlined,
+        _ServiceCategory.moving => Icons.local_shipping_outlined,
+        _ServiceCategory.maintenance => Icons.build_circle_outlined,
+      };
+
+  _ServiceRequest _fromRemote(ServicesRemoteRequest r) {
+    final category = _categoryFor(r.subCategory);
+    final price = r.price == r.price.roundToDouble()
+        ? r.price.toStringAsFixed(0)
+        : r.price.toStringAsFixed(2);
+    final t = r.createdAt;
+    final time =
+        '${t.day}/${t.month} ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+    final service = r.subCategory.isEmpty ? 'خدمة' : r.subCategory;
+    return _ServiceRequest(
+      id: 'SRV-${r.id}',
+      serviceAr: service,
+      serviceEn: service,
+      providerAr: r.client,
+      providerEn: r.client,
+      descriptionAr: r.description,
+      descriptionEn: r.description,
+      locationAr: r.address,
+      locationEn: r.address,
+      timeAr: time,
+      timeEn: time,
+      price: price,
+      diagnosticFee: '0',
+      workFee: price,
+      phone: r.phone,
+      category: category,
+      icon: _iconFor(category),
+    );
+  }
+
+  int _remoteId(_ServiceRequest r) =>
+      int.tryParse(r.id.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+
+  Future<void> _loadRemote() async {
+    try {
+      final api = ServicesRequestApiDataSource(
+          apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'));
+      final pending = await api.load('pending');
+      final approved = await api.load('approved');
+      final rejected = await api.load('rejected');
+      if (!mounted) return;
+      setState(() {
+        _requests = [
+          ...pending.map(_fromRemote),
+          ...approved.map(_fromRemote),
+          ...rejected.map(_fromRemote),
+        ];
+        _resolvedRequestIds
+          ..clear()
+          ..addAll(approved.map((r) => 'SRV-${r.id}'))
+          ..addAll(rejected.map((r) => 'SRV-${r.id}'));
+        _decisions.removeWhere((key, _) => !_resolvedRequestIds.contains(key));
+        for (final r in approved) {
+          _decisions['SRV-${r.id}'] = (approved: true, reason: null);
+        }
+        for (final r in rejected) {
+          _decisions.putIfAbsent(
+              'SRV-${r.id}', () => (approved: false, reason: null));
+        }
+        _remoteFailed = false;
+        _isLoading = false;
+      });
+    } catch (error) {
+      debugPrint('Services requests load failed: $error');
+      if (!mounted) return;
+      setState(() {
+        _remoteFailed = _requests.isEmpty || identical(_requests, _serviceRequests);
+        if (_remoteFailed) _requests = const [];
+        _isLoading = false;
+      });
+    }
+  }
   final _escalationStore = ServicesEscalationStore();
   Map<String, ServicesEscalation> _escalations = const {};
 
@@ -215,6 +316,8 @@ class _ServicesRequestsReviewScreenState
 
   @override
   void dispose() {
+    _remoteTimer?.cancel();
+    _remoteLive?.cancel();
     LocalEventStore.revision.removeListener(_loadEscalations);
     _searchController.dispose();
     super.dispose();
@@ -223,7 +326,18 @@ class _ServicesRequestsReviewScreenState
   @override
   void initState() {
     super.initState();
-    _loadReviewState();
+    if (_remote) {
+      _requests = const [];
+      _loadRemote();
+      ServicesProviderApiDataSource.refreshCatalog();
+      _remoteTimer =
+          Timer.periodic(const Duration(seconds: 45), (_) => _loadRemote());
+      _remoteLive = RealtimeHub.instance.notifications
+          .where((n) => n.type == 'service_review')
+          .listen((_) => _loadRemote());
+    } else {
+      _loadReviewState();
+    }
     _loadEscalations();
     LocalEventStore.revision.addListener(_loadEscalations);
   }
@@ -289,6 +403,11 @@ class _ServicesRequestsReviewScreenState
   }
 
   Future<void> _restoreRequest(_ServiceRequest request) async {
+    if (_remote) {
+      AppSnackBar.showError(
+          context, 'لا يمكن إعادة طلب تم البت فيه من هنا.');
+      return;
+    }
     final decision = _decisions[request.id];
     setState(() {
       _resolvedRequestIds.remove(request.id);
@@ -319,10 +438,28 @@ class _ServicesRequestsReviewScreenState
     final l10n = AppLocalizations.of(context)!;
     final isArabic = l10n.localeName.startsWith('ar');
     if (_isLoading) return const Center(child: CircularProgressIndicator());
-    final pendingRequests = _serviceRequests
+    if (_remote && _remoteFailed) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('تعذر تحميل طلبات الخدمات'),
+            const SizedBox(height: 10),
+            FilledButton(
+              onPressed: () {
+                setState(() => _isLoading = true);
+                _loadRemote();
+              },
+              child: const Text('إعادة المحاولة'),
+            ),
+          ],
+        ),
+      );
+    }
+    final pendingRequests = _requests
         .where((request) => !_resolvedRequestIds.contains(request.id))
         .toList();
-    final archiveRequests = _serviceRequests
+    final archiveRequests = _requests
         .where((request) => _resolvedRequestIds.contains(request.id))
         .toList();
     final query = _searchController.text.trim().toLowerCase();
@@ -668,12 +805,28 @@ class _ServicesRequestsReviewScreenState
     required AppLocalizations l10n,
   }) async {
     if (!mounted) return false;
+    if (_remote) {
+      try {
+        final api = ServicesRequestApiDataSource(
+            apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'));
+        final id = _remoteId(request);
+        if (approved) {
+          await api.approve(id);
+        } else {
+          await api.reject(id, rejectionReason ?? '');
+        }
+      } catch (error) {
+        debugPrint('Services decision failed: $error');
+        if (mounted) AppSnackBar.showError(context, 'تعذر تنفيذ القرار، حاول مرة أخرى.');
+        return false;
+      }
+    }
     setState(() {
       _resolvedRequestIds.add(request.id);
       _decisions[request.id] = (approved: approved, reason: rejectionReason);
     });
     try {
-      await _saveReviewState();
+      if (!_remote) await _saveReviewState();
     } catch (error, stackTrace) {
       FlutterError.reportError(FlutterErrorDetails(
         exception: error,
@@ -733,6 +886,26 @@ class _ServicesRequestsReviewScreenState
           icon: request.icon,
           photoUrls: request.photoUrls,
           onAssign: (provider) async {
+            if (_remote) {
+              try {
+                await ServicesProviderApiDataSource.reassign(
+                  requestId: _remoteId(request),
+                  providerId: provider.id,
+                  reason: 'إسناد من مشرف الخدمات',
+                );
+                if (mounted) {
+                  setState(() => _assignedProviders[request.id] = provider);
+                  _loadRemote();
+                }
+                return true;
+              } catch (error) {
+                debugPrint('Reassign failed: $error');
+                if (mounted) {
+                  AppSnackBar.showError(context, 'تعذر إسناد الطلب لمقدم الخدمة.');
+                }
+                return false;
+              }
+            }
             final previousProvider = _assignedProviders[request.id];
             setState(() => _assignedProviders[request.id] = provider);
             try {

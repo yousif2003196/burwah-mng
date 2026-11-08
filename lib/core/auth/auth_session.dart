@@ -1,3 +1,5 @@
+import 'package:barwah_app/core/realtime/realtime_hub.dart';
+
 /// جلسة الدخول الحالية (توكن الباك إند) محفوظة في الذاكرة فقط.
 ///
 /// تُملأ عند تسجيل دخول ناجح من الباك إند وتُمسح عند الخروج، وتقرأها
@@ -18,11 +20,14 @@ class AuthSession {
   static void start({required String token, String? refresh}) {
     accessToken = token;
     refreshToken = refresh;
+    // إشعارات ومحادثات لحظية.
+    RealtimeHub.instance.start();
   }
 
   static void clear() {
     accessToken = null;
     refreshToken = null;
+    RealtimeHub.instance.stop();
   }
 
   static Future<String?> tokenProvider() async => accessToken;

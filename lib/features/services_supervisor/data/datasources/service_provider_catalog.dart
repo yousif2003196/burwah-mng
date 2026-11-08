@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'package:barwah_app/features/services_supervisor/domain/entities/service_provider.dart';
 
-const serviceProviders = <ServiceProvider>[
+/// قابلة للتعديل: تُستبدل بمقدمي الخدمات الحقيقيين بعد تسجيل الدخول.
+final List<ServiceProvider> serviceProviders = <ServiceProvider>[
   ServiceProvider(
     id: 'PRO-1042',
     nameAr: 'مؤسسة التبريد المتقن للصيانة',

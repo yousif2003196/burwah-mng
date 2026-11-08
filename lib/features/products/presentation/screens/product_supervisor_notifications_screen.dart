@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:barwah_app/core/auth/auth_session.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/network/api_consumer.dart';
+import 'package:barwah_app/core/realtime/realtime_hub.dart';
+import 'package:barwah_app/features/products/presentation/screens/ad_quick_review_screen.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/features/messaging/presentation/screens/local_event_inbox_screen.dart';
 import 'package:barwah_app/l10n/app_localizations.dart';
@@ -29,8 +31,12 @@ class _RemoteItem {
     required this.title,
     required this.message,
     required this.createdAt,
+    this.type = '',
+    this.refId = 0,
   });
 
+  final String type;
+  final int refId;
   final String title;
   final String message;
   final DateTime createdAt;
@@ -51,11 +57,31 @@ class _RemoteNotificationsViewState extends State<_RemoteNotificationsView> {
   bool _loading = true;
   bool _failed = false;
   Timer? _timer;
+  StreamSubscription<RealtimeNotification>? _live;
 
   @override
   void initState() {
     super.initState();
     _load();
+    RealtimeHub.instance.unread.value = 0;
+    _live = RealtimeHub.instance.notifications.listen((n) {
+      if (!mounted) return;
+      RealtimeHub.instance.unread.value = 0;
+      setState(() {
+        _failed = false;
+        _loading = false;
+        _items = [
+          _RemoteItem(
+            title: n.title,
+            message: n.message,
+            createdAt: n.createdAt,
+            type: n.type,
+            refId: n.refId,
+          ),
+          ..._items,
+        ];
+      });
+    });
     // تحديث دوري حتى تظهر الطلبات الجديدة دون سحب.
     _timer = Timer.periodic(const Duration(seconds: 45), (_) => _load());
   }
@@ -63,6 +89,7 @@ class _RemoteNotificationsViewState extends State<_RemoteNotificationsView> {
   @override
   void dispose() {
     _timer?.cancel();
+    _live?.cancel();
     super.dispose();
   }
 
@@ -80,6 +107,8 @@ class _RemoteNotificationsViewState extends State<_RemoteNotificationsView> {
             _RemoteItem(
               title: '${item['title'] ?? ''}',
               message: '${item['message'] ?? ''}',
+              type: '${item['type'] ?? ''}',
+              refId: int.tryParse('${item['refId'] ?? 0}') ?? 0,
               createdAt:
                   DateTime.tryParse('${item['createdAt']}')?.toLocal() ??
                       DateTime.now(),
@@ -98,6 +127,16 @@ class _RemoteNotificationsViewState extends State<_RemoteNotificationsView> {
         _failed = _items.isEmpty;
       });
     }
+  }
+
+  void _open(_RemoteItem item) {
+    if (item.refId <= 0) return;
+    Widget? page;
+    if (item.type == 'ad_review') {
+      page = AdQuickReviewScreen(adId: item.refId);
+    }
+    if (page == null) return;
+    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page!));
   }
 
   @override
@@ -150,7 +189,10 @@ class _RemoteNotificationsViewState extends State<_RemoteNotificationsView> {
                                 const SizedBox(height: 10),
                             itemBuilder: (context, index) {
                               final item = _items[index];
-                              return Container(
+                              return InkWell(
+                                borderRadius: BorderRadius.circular(14),
+                                onTap: () => _open(item),
+                                child: Container(
                                 padding: const EdgeInsets.all(14),
                                 decoration: BoxDecoration(
                                   color: AppColors.surface,
@@ -186,7 +228,7 @@ class _RemoteNotificationsViewState extends State<_RemoteNotificationsView> {
                                     ),
                                   ],
                                 ),
-                              );
+                              ));
                             },
                           ),
                   ),

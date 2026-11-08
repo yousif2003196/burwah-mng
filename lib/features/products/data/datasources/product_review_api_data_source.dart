@@ -238,6 +238,9 @@ class ProductReviewApiDataSource implements ProductReviewDataSource {
       descriptionEn: description,
       status: _statusFrom(json['status']),
       imageUrls: images,
+      decisionNote: (json['reviewNote'] as String?)?.trim().isEmpty ?? true
+          ? null
+          : (json['reviewNote'] as String).trim(),
       categoryId: (json['categoryId'] as num?)?.toInt(),
       subCategoryId: (json['subCategoryId'] as num?)?.toInt(),
     );

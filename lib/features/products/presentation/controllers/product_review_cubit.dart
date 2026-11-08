@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'package:barwah_app/features/products/data/datasources/product_category_api_data_source.dart';
@@ -51,7 +52,8 @@ class ProductReviewCubit extends Cubit<ProductReviewState> {
         approvedCount: 28,
         categories: categories,
       ));
-    } catch (_) {
+    } catch (error) {
+      debugPrint('ProductReview load failed: $error');
       emit(const ProductReviewError(ProductReviewFailure.loading));
     }
   }
@@ -107,7 +109,8 @@ class ProductReviewCubit extends Cubit<ProductReviewState> {
           .toList();
       emit(current.copyWith(reviews: reviews));
       return true;
-    } catch (_) {
+    } catch (error) {
+      debugPrint('ProductReview save failed: $error');
       emit(const ProductReviewError(ProductReviewFailure.saving));
       return false;
     }
@@ -153,7 +156,8 @@ class ProductReviewCubit extends Cubit<ProductReviewState> {
         ),
       );
       return true;
-    } catch (_) {
+    } catch (error) {
+      debugPrint('ProductReview update failed: $error');
       emit(const ProductReviewError(ProductReviewFailure.updating));
       return false;
     }

@@ -20,6 +20,8 @@ class RoleAccountCatalog {
     'wasalny': RoleAccount(UserRole.wasalnySupervisor, 'مشرف وصلني', '#WAS-01'),
     'services': RoleAccount(UserRole.servicesSupervisor, 'مشرف الخدمات', '#SRV-01'),
     'products': RoleAccount(UserRole.productSupervisor, 'مشرف المنتجات', '#PRD-01'),
+    // ad@berwah.com = مشرف المنتجات (نفس حساب SupervisorForAd في الباك إند).
+    'ad': RoleAccount(UserRole.productSupervisor, 'مشرف المنتجات', '#PRD-01'),
     'finance': RoleAccount(UserRole.financialSupervisor, 'المشرف المالي', '#FIN-01'),
   };
 

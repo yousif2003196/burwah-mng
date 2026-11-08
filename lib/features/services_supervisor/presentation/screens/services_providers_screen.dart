@@ -1,3 +1,5 @@
+import 'package:barwah_app/core/auth/auth_session.dart';
+import 'package:barwah_app/features/services_supervisor/data/datasources/services_provider_api_data_source.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -33,6 +35,11 @@ class _ServicesProvidersScreenState extends State<ServicesProvidersScreen> {
     super.initState();
     _loadStates();
     ServicesProviderStateStore.revision.addListener(_loadStates);
+    if (AuthSession.isSignedIn) {
+      ServicesProviderApiDataSource.refreshCatalog().then((_) {
+        if (mounted) setState(() {});
+      });
+    }
   }
 
   Future<void> _loadStates() async {
