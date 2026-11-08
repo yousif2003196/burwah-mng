@@ -21,7 +21,7 @@ import 'package:barwah_app/l10n/app_localizations.dart';
 import 'package:barwah_app/core/widgets/scroll_fx.dart';
 import 'package:barwah_app/core/widgets/motion_icon.dart';
 
-enum _PromotionFilter { all, pending, active, completed }
+enum _PromotionFilter { pending, active, completed, all }
 
 class ProductPromotionsScreen extends StatefulWidget {
   final bool isWasalny;
@@ -39,7 +39,7 @@ class ProductPromotionsScreen extends StatefulWidget {
 class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
   final ProductPromotionLocalStore _localStore = ProductPromotionLocalStore();
   late List<ProductPromotionRequest> _requests;
-  _PromotionFilter _filter = _PromotionFilter.all;
+  _PromotionFilter _filter = _PromotionFilter.pending;
   bool _isSaving = false;
   bool _isLoading = true;
 
@@ -335,10 +335,9 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
           request.status == ProductPromotionStatus.pending,
         _PromotionFilter.active =>
           request.status == ProductPromotionStatus.active,
+        // الأرشيف: كل طلب اتُّخذ فيه قرار (معتمد أو مرفوض أو موقوف أو منتهي).
         _PromotionFilter.completed =>
-          request.status == ProductPromotionStatus.rejected ||
-              request.status == ProductPromotionStatus.suspended ||
-              request.status == ProductPromotionStatus.expired,
+          request.status != ProductPromotionStatus.pending,
       };
     }).toList();
     filtered.sort((a, b) {

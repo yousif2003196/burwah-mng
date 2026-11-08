@@ -49,9 +49,15 @@ class ServicesRequestApiDataSource {
 
   /// [status]: pending | approved | rejected
   Future<List<ServicesRemoteRequest>> load(String status) async {
+    // السيرفر يقبل رقم الحالة: 1 Pending / 2 Approved / 5 Cancelled (مرفوض).
+    final code = switch (status.toLowerCase()) {
+      'approved' => 2,
+      'rejected' || 'cancelled' => 5,
+      _ => 1,
+    };
     final response = await apiConsumer.get<Object>(
       '$_base/requests',
-      queryParameters: {'status': status, 'page': 1, 'pageSize': 100},
+      queryParameters: {'status': code, 'page': 1, 'pageSize': 100},
     );
     final body = response.data;
     final data = body is Map ? body['data'] : null;
