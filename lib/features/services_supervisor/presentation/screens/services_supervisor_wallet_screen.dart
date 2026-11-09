@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'package:barwah_app/core/auth/auth_session.dart';
+import 'package:barwah_app/core/network/api_consumer.dart';
+
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
@@ -30,7 +33,27 @@ class ServicesSupervisorWalletScreen extends StatefulWidget {
 
 class _ServicesSupervisorWalletScreenState
     extends State<ServicesSupervisorWalletScreen> {
-  static const _availableBalance = 4850;
+  num _availableBalance = AuthSession.isSignedIn ? 0 : 4850;
+  bool _balanceLoaded = false;
+
+  Future<void> _loadBalance() async {
+    if (!AuthSession.isSignedIn) return;
+    try {
+      final response = await sl<ApiConsumer>(instanceName: 'berwah')
+          .get<Object>('api/SupervisorForSR/advanced-wallet');
+      final body = response.data;
+      final data = body is Map ? body['data'] : null;
+      final balance = data is Map ? data['balance'] : null;
+      if (balance is num && mounted) {
+        setState(() {
+          _availableBalance = balance;
+          _balanceLoaded = true;
+        });
+      }
+    } on Object catch (error) {
+      debugPrint('Services wallet balance failed: $error');
+    }
+  }
 
   final _amountController = TextEditingController(text: '480');
   final _instapayController =
@@ -53,6 +76,7 @@ class _ServicesSupervisorWalletScreenState
   @override
   void initState() {
     super.initState();
+    _loadBalance();
     _loadRequests();
   }
 
@@ -144,7 +168,9 @@ class _ServicesSupervisorWalletScreenState
         body: ListView(
           padding: const EdgeInsets.fromLTRB(18, 10, 18, 24),
           children: [
-            ScrollFx(child: _WalletSummaryCard(l10n: l10n)),
+            ScrollFx(child: _WalletSummaryCard(
+                l10n: l10n,
+                balance: AuthSession.isSignedIn ? _availableBalance : null)),
             const SizedBox(height: 15),
             ScrollFx(child: _buildWithdrawalForm(l10n)),
             const SizedBox(height: 18),
@@ -274,7 +300,7 @@ class _ServicesSupervisorWalletScreenState
                   child: _AmountPreset(
                     label: l10n.servicesWalletMaxAmount,
                     emphasized: true,
-                    onTap: () => _setAmount(_availableBalance),
+                    onTap: () => _setAmount(_availableBalance.round()),
                   ),
                 ),
               ],
@@ -716,7 +742,17 @@ class _ServicesSupervisorWalletScreenState
 class _WalletSummaryCard extends StatelessWidget {
   final AppLocalizations l10n;
 
-  const _WalletSummaryCard({required this.l10n});
+  const _WalletSummaryCard({required this.l10n, this.balance});
+
+  /// null = demo data; otherwise the real balance from the server.
+  final num? balance;
+
+  String get _money {
+    final v = balance;
+    if (v == null) return '';
+    final s = v.round().toString();
+    return s.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => ',');
+  }
 
   @override
   Widget build(BuildContext context) => Container(
@@ -790,8 +826,8 @@ class _WalletSummaryCard extends StatelessWidget {
             Text.rich(
               TextSpan(
                 children: [
-                  const TextSpan(
-                    text: '6,050 ',
+                  TextSpan(
+                    text: balance == null ? '6,050 ' : '$_money ',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 31,
@@ -814,7 +850,7 @@ class _WalletSummaryCard extends StatelessWidget {
                 Expanded(
                   child: _BalanceMetric(
                     title: l10n.servicesWalletAvailable,
-                    amount: '4,850',
+                    amount: balance == null ? '4,850' : _money,
                     detail: l10n.servicesWalletReadyForTransfer,
                     icon: Icons.circle,
                     iconColor: AppColors.success,
@@ -825,7 +861,7 @@ class _WalletSummaryCard extends StatelessWidget {
                 Expanded(
                   child: _BalanceMetric(
                     title: l10n.servicesWalletPending,
-                    amount: '1,200',
+                    amount: balance == null ? '1,200' : '0',
                     detail: l10n.servicesWalletExpectedThisWeek,
                     icon: Icons.hourglass_bottom,
                     iconColor: AppColors.warning,

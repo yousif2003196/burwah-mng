@@ -199,8 +199,8 @@ class _ServicesRequestsReviewScreenState
       providerEn: r.client,
       descriptionAr: r.description,
       descriptionEn: r.description,
-      locationAr: r.address,
-      locationEn: r.address,
+      locationAr: _remoteLocation(r),
+      locationEn: _remoteLocation(r),
       timeAr: time,
       timeEn: time,
       price: price,
@@ -209,7 +209,17 @@ class _ServicesRequestsReviewScreenState
       phone: r.phone,
       category: category,
       icon: _iconFor(category),
+      photoUrls: r.imageUrls,
     );
+  }
+
+  String _remoteLocation(ServicesRemoteRequest r) {
+    final from = r.pickupAddress.trim();
+    final to = r.deliveryAddress.trim();
+    if (from.isNotEmpty && to.isNotEmpty && from != to) {
+      return 'من: $from\nإلى: $to';
+    }
+    return r.address;
   }
 
   int _remoteId(_ServiceRequest r) =>
@@ -221,7 +231,10 @@ class _ServicesRequestsReviewScreenState
           apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'));
       final pending = await api.load('pending');
       final approved = await api.load('approved');
-      final rejected = await api.load('rejected');
+      final rejected = [
+        ...await api.load('rejected'),
+        ...await api.load('suspended'),
+      ];
       if (!mounted) return;
       setState(() {
         _requests = [
@@ -238,8 +251,13 @@ class _ServicesRequestsReviewScreenState
           _decisions['SRV-${r.id}'] = (approved: true, reason: null);
         }
         for (final r in rejected) {
-          _decisions.putIfAbsent(
-              'SRV-${r.id}', () => (approved: false, reason: null));
+          final why = r.rejectionReason.isEmpty ? null : r.rejectionReason;
+          _decisions['SRV-${r.id}'] = (
+            approved: false,
+            reason: r.status == 'Suspended' && why != null
+                ? 'معلّق: $why'
+                : why
+          );
         }
         _remoteFailed = false;
         _isLoading = false;
@@ -269,6 +287,29 @@ class _ServicesRequestsReviewScreenState
     }
   }
 
+  Future<void> _suspendRequest(
+    _ServiceRequest request,
+    AppLocalizations l10n,
+  ) async {
+    final isArabic = l10n.localeName.startsWith('ar');
+    final reason = await askProductEscalationReason(context, isArabic: isArabic);
+    if (reason == null || !mounted) return;
+    if (_remote) {
+      try {
+        await ServicesRequestApiDataSource(
+                apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'))
+            .suspendRequest(_remoteId(request), reason);
+      } on Object catch (error) {
+        debugPrint('Services suspend failed: $error');
+        if (mounted) AppSnackBar.showError(context, 'تعذر تعليق الطلب');
+        return;
+      }
+    }
+    if (_remote) await _loadRemote();
+    if (!mounted) return;
+    AppSnackBar.showSuccess(context, 'تم تعليق الطلب ${request.id}.');
+  }
+
   Future<void> _escalateRequest(
     _ServiceRequest request,
     AppLocalizations l10n,
@@ -276,6 +317,17 @@ class _ServicesRequestsReviewScreenState
     final isArabic = l10n.localeName.startsWith('ar');
     final reason = await askProductEscalationReason(context, isArabic: isArabic);
     if (reason == null || !mounted) return;
+    if (_remote) {
+      try {
+        await ServicesRequestApiDataSource(
+                apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'))
+            .escalateRequest(_remoteId(request), reason);
+      } on Object catch (error) {
+        debugPrint('Services escalate failed: $error');
+        if (mounted) AppSnackBar.showError(context, 'تعذر رفع الطلب لرئيس المشرفين');
+        return;
+      }
+    }
     try {
       await _escalationStore.escalate(
         kind: ServicesEscalationKind.request,
@@ -577,6 +629,7 @@ class _ServicesRequestsReviewScreenState
               onRestore: () => _restoreRequest(request),
               escalation: _escalationOf(request),
               onEscalate: () => _escalateRequest(request, l10n),
+              onSuspend: () => _suspendRequest(request, l10n),
             ),
             const SizedBox(height: 14),
           ],
@@ -885,6 +938,38 @@ class _ServicesRequestsReviewScreenState
           workFee: request.workFee,
           icon: request.icon,
           photoUrls: request.photoUrls,
+          loadCategoryOptions: _remote
+              ? () => ServicesRequestApiDataSource(
+                      apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'))
+                  .categoryOptions(_remoteId(request))
+              : null,
+          onSaveCategory: _remote
+              ? (id) async {
+                  try {
+                    await ServicesRequestApiDataSource(
+                            apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'))
+                        .updateCategory(_remoteId(request), id);
+                    if (mounted) _loadRemote();
+                    return true;
+                  } catch (error) {
+                    debugPrint('Update category failed: $error');
+                    return false;
+                  }
+                }
+              : null,
+          onRequestInfo: _remote
+              ? (message) async {
+                  try {
+                    await ServicesRequestApiDataSource(
+                            apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'))
+                        .requestInfo(_remoteId(request), message);
+                    return true;
+                  } catch (error) {
+                    debugPrint('Request info failed: $error');
+                    return false;
+                  }
+                }
+              : null,
           onAssign: (provider) async {
             if (_remote) {
               try {
@@ -1362,6 +1447,7 @@ class _ServiceRequestCard extends StatelessWidget {
   final VoidCallback onRestore;
   final ServicesEscalation? escalation;
   final VoidCallback onEscalate;
+  final VoidCallback? onSuspend;
 
   const _ServiceRequestCard({
     required this.request,
@@ -1376,6 +1462,7 @@ class _ServiceRequestCard extends StatelessWidget {
     required this.onRestore,
     required this.escalation,
     required this.onEscalate,
+    this.onSuspend,
   });
 
   @override
@@ -1617,6 +1704,17 @@ class _ServiceRequestCard extends StatelessWidget {
                         : 'Escalate to head (suspicious)'),
                   ),
           ),
+          if (onSuspend != null && !archived) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: onSuspend,
+                icon: const MotionIcon(Icons.pause_circle_outline, size: 16),
+                label: Text(isArabic ? 'تعليق الطلب' : 'Suspend request'),
+              ),
+            ),
+          ],
           const SizedBox(height: 8),
           Row(
             children: [

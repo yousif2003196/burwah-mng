@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,11 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/auth/auth_session.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/network/api_consumer.dart';
+import 'package:barwah_app/core/realtime/realtime_hub.dart';
+import 'package:barwah_app/features/support/data/datasources/support_inbox_api_data_source.dart';
 import 'package:barwah_app/features/merchants/presentation/screens/merchant_conversation_screen.dart';
 import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
 import 'package:barwah_app/features/products/presentation/widgets/product_head_escalation.dart' show askProductEscalationReason;
@@ -102,11 +108,96 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
   }
 
   late final List<_ServiceComplaint> _complaints = _createComplaints();
+  final bool _remote = AuthSession.isSignedIn;
+  Timer? _remoteTimer;
+  StreamSubscription<dynamic>? _remoteLive;
+  late final SupportInboxApiDataSource _inbox = SupportInboxApiDataSource(
+    apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'),
+  );
+
+  String _ageOf(DateTime t) {
+    final d = DateTime.now().difference(t);
+    if (d.inMinutes < 60) return 'منذ ${d.inMinutes < 1 ? 1 : d.inMinutes} دقيقة';
+    if (d.inHours < 24) return 'منذ ${d.inHours} ساعة';
+    return 'منذ ${d.inDays} يوم';
+  }
+
+  Future<void> _loadRemote() async {
+    try {
+      final tickets = await _inbox.load();
+      if (!mounted) return;
+      final waiting = {
+        for (final c in _complaints)
+          if (c.status == _ComplaintStatus.waiting) c.id
+      };
+      setState(() {
+        _complaints
+          ..clear()
+          ..addAll(tickets.map((t) => _ServiceComplaint(
+                id: t.id.toString(),
+                status: t.isClosed
+                    ? _ComplaintStatus.closed
+                    : (waiting.contains(t.id.toString())
+                        ? _ComplaintStatus.waiting
+                        : _ComplaintStatus.investigating),
+                priority: t.ticketNumber,
+                age: _ageOf(t.createdAt),
+                client: t.name,
+                provider: '—',
+                service: t.title,
+                description: t.description,
+                location: t.email,
+                price: '—',
+                clientPhone: t.phoneNumber,
+                providerPhone: '',
+                photoUrls: const [],
+                action: '',
+              )));
+        _isLoadingActions = false;
+      });
+      await _loadEscalations();
+    } on Object catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'services complaints (inbox)',
+      ));
+      if (mounted) setState(() => _isLoadingActions = false);
+    }
+  }
+
+  Future<bool> _closeAndPersist(
+      _ServiceComplaint complaint, AppLocalizations l10n) async {
+    final ticketId = int.tryParse(complaint.id);
+    if (_remote && ticketId != null) {
+      try {
+        await _inbox.close(ticketId);
+      } on Object catch (error, stackTrace) {
+        FlutterError.reportError(FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'services complaints close',
+        ));
+        _showMessage('تعذر إغلاق الشكوى، حاول مرة أخرى.');
+        return false;
+      }
+    }
+    return _persistComplaintActions(l10n);
+  }
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadSavedActions());
+    if (_remote) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadRemote());
+      _remoteTimer =
+          Timer.periodic(const Duration(seconds: 45), (_) => _loadRemote());
+      _remoteLive = RealtimeHub.instance.notifications
+          .where((n) => n.type == 'support_ticket')
+          .listen((_) => _loadRemote());
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadSavedActions());
+    }
     LocalEventStore.revision.addListener(_loadEscalations);
     ServicesEscalationStore.revision.addListener(_loadEscalations);
   }
@@ -115,6 +206,8 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
   void dispose() {
     LocalEventStore.revision.removeListener(_loadEscalations);
     ServicesEscalationStore.revision.removeListener(_loadEscalations);
+    _remoteTimer?.cancel();
+    _remoteLive?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -149,6 +242,7 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
   }
 
   Future<void> _saveComplaintActions() async {
+    if (_remote) return;
     final prefs = await SharedPreferences.getInstance();
     final saved = await prefs.setString(
       _storageKey,
@@ -165,6 +259,7 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
   }
 
   List<_ServiceComplaint> _createComplaints() {
+    if (AuthSession.isSignedIn) return <_ServiceComplaint>[];
     final l10n = AppLocalizations.of(context)!;
     return [
       _ServiceComplaint(
@@ -584,7 +679,7 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
       complaint.status = _ComplaintStatus.closed;
       complaint.action = l10n.servicesComplaintShowResolution;
     });
-    final saved = await _persistComplaintActions(l10n);
+    final saved = await _closeAndPersist(complaint, l10n);
     if (!saved) {
       if (mounted) {
         setState(() {

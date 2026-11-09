@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/auth/auth_session.dart';
+import 'package:barwah_app/core/network/api_consumer.dart';
+import 'package:barwah_app/core/realtime/realtime_hub.dart';
+import 'package:barwah_app/features/support/data/datasources/support_inbox_api_data_source.dart';
 import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
 import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
 import 'package:barwah_app/features/products/data/datasources/product_escalation_store.dart';
@@ -144,6 +149,62 @@ class _ProductSupervisorComplaintsScreenState
   Map<String, ProductEscalation> _escalations = const {};
   bool _isLoading = true;
   Object? _loadError;
+  final bool _remote = AuthSession.isSignedIn;
+  Timer? _remoteTimer;
+  StreamSubscription<dynamic>? _remoteLive;
+  late final SupportInboxApiDataSource _inbox = SupportInboxApiDataSource(
+    apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'),
+  );
+
+  _ProductComplaint _fromTicket(SupportInboxTicket t) => _ProductComplaint(
+        id: t.id.toString(),
+        customerId: t.email.isEmpty ? t.id.toString() : t.email,
+        customerAr: t.name,
+        customerEn: t.name,
+        subjectAr: t.title,
+        subjectEn: t.title,
+        productAr: t.ticketNumber,
+        productEn: t.ticketNumber,
+        latestMessage: t.description,
+        status: t.isClosed ? _ComplaintStatus.resolved : _ComplaintStatus.newCase,
+        updatedAt: t.createdAt,
+      );
+
+  Future<void> _loadRemote() async {
+    try {
+      final tickets = await _inbox.load();
+      if (!mounted) return;
+      final previous = {for (final c in _complaints) c.id: c};
+      setState(() {
+        _complaints
+          ..clear()
+          ..addAll(tickets.map((t) {
+            final fresh = _fromTicket(t);
+            final old = previous[fresh.id];
+            // keep a local in-progress mark until the server closes it
+            return old != null &&
+                    old.status == _ComplaintStatus.inProgress &&
+                    fresh.status == _ComplaintStatus.newCase
+                ? fresh.copyWith(status: _ComplaintStatus.inProgress)
+                : fresh;
+          }));
+        _isLoading = false;
+        _loadError = null;
+      });
+    } on Object catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'product supervisor complaints (inbox)',
+      ));
+      if (mounted && _complaints.isEmpty) {
+        setState(() {
+          _isLoading = false;
+          _loadError = error;
+        });
+      }
+    }
+  }
 
   /// Open complaints that waited more than a day without supervisor action.
   static const _supervisorSla = Duration(hours: 24);
@@ -167,7 +228,17 @@ class _ProductSupervisorComplaintsScreenState
     super.initState();
     LocalEventStore.revision.addListener(_loadEscalations);
     ProductEscalationStore.revision.addListener(_loadEscalations);
-    _load();
+    if (_remote) {
+      _complaints.clear();
+      _loadRemote();
+      _remoteTimer =
+          Timer.periodic(const Duration(seconds: 45), (_) => _loadRemote());
+      _remoteLive = RealtimeHub.instance.notifications
+          .where((n) => n.type == 'support_ticket')
+          .listen((_) => _loadRemote());
+    } else {
+      _load();
+    }
     _loadEscalations();
   }
 
@@ -175,6 +246,8 @@ class _ProductSupervisorComplaintsScreenState
   void dispose() {
     LocalEventStore.revision.removeListener(_loadEscalations);
     ProductEscalationStore.revision.removeListener(_loadEscalations);
+    _remoteTimer?.cancel();
+    _remoteLive?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -229,6 +302,7 @@ class _ProductSupervisorComplaintsScreenState
   }
 
   Future<void> _save() async {
+    if (_remote) return;
     final prefs = await SharedPreferences.getInstance();
     final saved = await prefs.setString(
       _storageKey,
@@ -276,6 +350,13 @@ class _ProductSupervisorComplaintsScreenState
     final updated = complaint.copyWith(status: status, updatedAt: DateTime.now());
     setState(() => _complaints[index] = updated);
     try {
+      final ticketId = int.tryParse(complaint.id);
+      if (_remote &&
+          ticketId != null &&
+          (status == _ComplaintStatus.resolved ||
+              status == _ComplaintStatus.archived)) {
+        await _inbox.close(ticketId);
+      }
       await _save();
     } catch (error, stackTrace) {
       FlutterError.reportError(FlutterErrorDetails(

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:barwah_app/core/auth/auth_session.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/features/services_supervisor/presentation/screens/services_supervisor_wallet_screen.dart';
 import 'package:barwah_app/l10n/app_localizations.dart';
@@ -48,8 +49,11 @@ class _ServicesSupervisorAccountScreenState
               jsonDecode(encoded) as Map<String, dynamic>,
             );
       if (!mounted) return;
+      final shown = loaded.name.isEmpty && AuthSession.name.isNotEmpty
+          ? loaded.copyWith(name: AuthSession.name)
+          : loaded;
       setState(() {
-        _data = loaded;
+        _data = shown;
         _isLoading = false;
       });
     } on Object catch (error) {

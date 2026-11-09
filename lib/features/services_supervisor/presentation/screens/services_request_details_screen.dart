@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/features/services_supervisor/data/datasources/services_request_api_data_source.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/core/widgets/app_snack_bar.dart';
 import 'package:barwah_app/features/services_supervisor/data/datasources/service_provider_catalog.dart';
@@ -30,6 +31,13 @@ class ServicesRequestDetailsScreen extends StatefulWidget {
   final String initialCategory;
   final Future<bool> Function() onConfirm;
 
+  /// عند الربط بالسيرفر: يرسل طلب التوضيح لصاحب الطلب.
+  final Future<bool> Function(String message)? onRequestInfo;
+
+  /// عند الربط بالسيرفر: التصنيفات الحقيقية وحفظ التصنيف.
+  final Future<List<ServicesCategoryOption>> Function()? loadCategoryOptions;
+  final Future<bool> Function(int subCategoryId)? onSaveCategory;
+
   const ServicesRequestDetailsScreen({
     super.key,
     required this.reference,
@@ -48,6 +56,9 @@ class ServicesRequestDetailsScreen extends StatefulWidget {
     required this.icon,
     required this.initialCategory,
     required this.onConfirm,
+    this.onRequestInfo,
+    this.loadCategoryOptions,
+    this.onSaveCategory,
   });
 
   @override
@@ -62,12 +73,31 @@ class _ServicesRequestDetailsScreenState
   ServiceProvider? _selectedProvider;
   bool _requiresPhotos = false;
   bool _isEvening = true;
+  List<ServicesCategoryOption> _categoryOptions = const [];
+  int? _selectedOptionId;
 
   @override
   void initState() {
     super.initState();
     _selectedCategory = _ServiceCategory.values.byName(widget.initialCategory);
     _selectedProvider = widget.assignedProvider;
+    _loadCategoryOptions();
+  }
+
+  Future<void> _loadCategoryOptions() async {
+    final load = widget.loadCategoryOptions;
+    if (load == null) return;
+    try {
+      final options = await load();
+      if (!mounted) return;
+      setState(() {
+        _categoryOptions = options;
+        final current = options.where((o) => o.isCurrent);
+        _selectedOptionId = current.isNotEmpty ? current.first.id : null;
+      });
+    } catch (error) {
+      debugPrint('Category options load failed: $error');
+    }
   }
 
   @override
@@ -672,6 +702,20 @@ class _ServicesRequestDetailsScreenState
             ),
           ),
           const SizedBox(height: 6),
+          if (_categoryOptions.isNotEmpty) ...[
+            DropdownButtonFormField<int>(
+              initialValue: _selectedOptionId,
+              isExpanded: true,
+              decoration: _fieldDecoration(),
+              items: [
+                for (final option in _categoryOptions)
+                  DropdownMenuItem(value: option.id, child: Text(option.name)),
+              ],
+              onChanged: (value) => setState(() => _selectedOptionId = value),
+            ),
+            const SizedBox(height: 10),
+          ],
+          if (_categoryOptions.isEmpty)
           DropdownButtonFormField<_ServiceCategory>(
             initialValue: _selectedCategory,
             isExpanded: true,
@@ -761,19 +805,40 @@ class _ServicesRequestDetailsScreenState
     AppSnackBar.showError(context, l10n.servicesContactUnavailable);
   }
 
-  void _sendInfoRequest() {
+  Future<void> _sendInfoRequest() async {
     final l10n = AppLocalizations.of(context)!;
-    if (_additionalInfoController.text.trim().isEmpty) {
+    final message = _additionalInfoController.text.trim();
+    if (message.isEmpty) {
       AppSnackBar.showError(context, l10n.servicesInfoRequestRequired);
       return;
+    }
+    final send = widget.onRequestInfo;
+    if (send != null) {
+      final sent = await send(message);
+      if (!mounted) return;
+      if (!sent) {
+        AppSnackBar.showError(context, 'تعذر إرسال طلب التوضيح، حاول مرة أخرى.');
+        return;
+      }
     }
     AppSnackBar.showSuccess(context, l10n.servicesInfoRequestSent);
     _additionalInfoController.clear();
   }
 
-  void _saveClassification() {
-    if (_selectedCategory == null) return;
+  Future<void> _saveClassification() async {
     final l10n = AppLocalizations.of(context)!;
+    final save = widget.onSaveCategory;
+    if (save != null && _selectedOptionId != null) {
+      final ok = await save(_selectedOptionId!);
+      if (!mounted) return;
+      if (!ok) {
+        AppSnackBar.showError(context, 'تعذر حفظ التصنيف، حاول مرة أخرى.');
+        return;
+      }
+      AppSnackBar.showSuccess(context, l10n.servicesClassificationSaved);
+      return;
+    }
+    if (_selectedCategory == null) return;
     AppSnackBar.showSuccess(context, l10n.servicesClassificationSaved);
   }
 
