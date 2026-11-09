@@ -4,6 +4,7 @@ import 'package:flutter/rendering.dart';
 import 'package:barwah_app/core/widgets/rolling_app_bar.dart';
 import 'package:barwah_app/features/messaging/presentation/widgets/unread_events_dot.dart';
 import 'package:barwah_app/core/widgets/side_panel.dart';
+import 'package:barwah_app/core/realtime/realtime_hub.dart';
 import 'package:barwah_app/core/widgets/edge_swipe_opener.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/features/finance/presentation/widgets/finance_navigation.dart';
@@ -154,8 +155,11 @@ class _ServicesSupervisorTabsShellState
                         IconButton(
                           tooltip: l10n.servicesNotificationsTitle,
                           onPressed: () => _showNotices(context, l10n),
-                          icon: _ServicesNotificationBell(
-                            unreadCount: _unreadNotifications,
+                          icon: ValueListenableBuilder<int>(
+                            valueListenable: RealtimeHub.instance.unread,
+                            builder: (_, live, __) => _ServicesNotificationBell(
+                              unreadCount: _unreadNotifications + live,
+                            ),
                           ),
                         ),
                       ]

@@ -3,6 +3,10 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:barwah_app/core/auth/auth_session.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/network/api_consumer.dart';
+
 class ServicesProviderState {
   final String id;
   final bool? available;
@@ -88,9 +92,19 @@ class ServicesProviderStateStore {
     revision.value++;
   }
 
+  /// Pushes the change to the server (real accounts only).
+  Future<void> _remote(String id, Map<String, Object?> body) async {
+    if (!AuthSession.isSignedIn) return;
+    final providerId = int.tryParse(id.replaceAll(RegExp(r'[^0-9]'), ''));
+    if (providerId == null) return;
+    await sl<ApiConsumer>(instanceName: 'berwah')
+        .post<Object>('api/SupervisorForSR/provider-state/$providerId', data: body);
+  }
+
   Future<void> suspend(String id, String reason) async {
     final clean = reason.trim();
     if (clean.length < 5) throw ArgumentError('A reason is required.');
+    await _remote(id, {'suspended': true, 'reason': clean});
     final all = await load();
     final s = all[id] ?? ServicesProviderState(id: id);
     all[id] = s.copyWith(suspended: true, available: false, reason: clean);
@@ -98,6 +112,7 @@ class ServicesProviderStateStore {
   }
 
   Future<void> reactivate(String id) async {
+    await _remote(id, {'suspended': false});
     final all = await load();
     final s = all[id] ?? ServicesProviderState(id: id);
     all[id] = s.copyWith(suspended: false, available: true);
@@ -105,6 +120,7 @@ class ServicesProviderStateStore {
   }
 
   Future<void> setVerified(String id, bool verified) async {
+    await _remote(id, {'verified': verified});
     final all = await load();
     final s = all[id] ?? ServicesProviderState(id: id);
     all[id] = s.copyWith(verified: verified);

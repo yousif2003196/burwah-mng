@@ -151,6 +151,11 @@ class ServicesRequestApiDataSource {
         data: {'reason': reason, 'adminNotes': ''},
       );
 
+  Future<void> returnRequest(int id, String note) => apiConsumer.post<Object>(
+        '$_base/return-request/$id',
+        data: {'reason': note, 'adminNotes': ''},
+      );
+
   Future<void> reject(int id, String reason) => apiConsumer.post<Object>(
         '$_base/reject/$id',
         data: {'reason': reason, 'adminNotes': ''},

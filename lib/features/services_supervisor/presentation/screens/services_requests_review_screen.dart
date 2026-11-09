@@ -459,8 +459,23 @@ class _ServicesRequestsReviewScreenState
 
   Future<void> _restoreRequest(_ServiceRequest request) async {
     if (_remote) {
-      AppSnackBar.showError(
-          context, 'لا يمكن إعادة طلب تم البت فيه من هنا.');
+      if (_decisions[request.id]?.approved != false) {
+        AppSnackBar.showError(
+            context, 'لا يمكن إعادة طلب معتمد، لأنه ظاهر للمزودين بالفعل.');
+        return;
+      }
+      try {
+        await ServicesRequestApiDataSource(
+                apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'))
+            .returnRequest(_remoteId(request), 'أعاده المشرف للمراجعة');
+        if (!mounted) return;
+        setState(() => _showArchive = false);
+        await _loadRemote();
+        if (mounted) AppSnackBar.showSuccess(context, 'رجع الطلب لقائمة المراجعة.');
+      } on Object catch (error) {
+        debugPrint('Services restore failed: $error');
+        if (mounted) AppSnackBar.showError(context, 'تعذرت إعادة الطلب.');
+      }
       return;
     }
     final decision = _decisions[request.id];

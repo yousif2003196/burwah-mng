@@ -140,14 +140,16 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
                     : (waiting.contains(t.id.toString())
                         ? _ComplaintStatus.waiting
                         : _ComplaintStatus.investigating),
-                priority: t.ticketNumber,
+                priority: t.serviceRequestNumber.isEmpty
+                    ? t.ticketNumber
+                    : '${t.ticketNumber} • ${t.serviceRequestNumber}',
                 age: _ageOf(t.createdAt),
                 client: t.name,
-                provider: '—',
+                provider: t.providerName.isEmpty ? '—' : t.providerName,
                 service: t.title,
                 description: t.description,
                 location: t.email,
-                price: '—',
+                price: t.price == null ? '—' : '${t.price!.round()} ج.م',
                 clientPhone: t.phoneNumber,
                 providerPhone: '',
                 photoUrls: const [],

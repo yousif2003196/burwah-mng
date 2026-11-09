@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/auth/auth_session.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_service_escalations_panel.dart';
 import 'package:barwah_app/features/admin/data/datasources/admin_request_store.dart';
 import 'package:barwah_app/features/admin/data/services/head_access_policy.dart';
 import 'package:barwah_app/features/admin/domain/entities/admin_request.dart';
@@ -238,6 +240,10 @@ class _HeadSupervisorRequestsScreenState
           const SizedBox(height: 12),
           ScrollFx(child: _Summary(count: _events.where((event) => !event.isRead).length)),
           const SizedBox(height: 12),
+          if (AuthSession.isSignedIn) ...[
+            const HeadServiceEscalationsPanel(),
+            const SizedBox(height: 12),
+          ],
           if (requests.isEmpty)
             const _EmptyQueue()
           else

@@ -12,6 +12,9 @@ class SupportInboxTicket {
     required this.title,
     required this.description,
     required this.createdAt,
+    this.serviceRequestNumber = '',
+    this.providerName = '',
+    this.price,
   });
 
   final int id;
@@ -24,6 +27,9 @@ class SupportInboxTicket {
   final String title;
   final String description;
   final DateTime createdAt;
+  final String serviceRequestNumber;
+  final String providerName;
+  final double? price;
 
   bool get isClosed => status.toLowerCase() == 'closed';
 
@@ -40,6 +46,9 @@ class SupportInboxTicket {
       title: s('title'),
       description: s('description'),
       createdAt: DateTime.tryParse(s('createdAt'))?.toLocal() ?? DateTime.now(),
+      serviceRequestNumber: s('serviceRequestNumber'),
+      providerName: s('providerName'),
+      price: (json['price'] as num?)?.toDouble(),
     );
   }
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'package:barwah_app/core/auth/auth_session.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/features/messaging/presentation/screens/server_notifications_screen.dart';
 import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
 import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
 import 'package:barwah_app/l10n/app_localizations.dart';
@@ -105,6 +107,9 @@ class _LocalEventInboxScreenState extends State<LocalEventInboxScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (AuthSession.isSignedIn) {
+      return ServerNotificationsScreen(title: widget.title);
+    }
     final l10n = AppLocalizations.of(context)!;
     final isArabic = l10n.localeName.startsWith('ar');
 
