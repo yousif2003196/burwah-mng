@@ -25,6 +25,7 @@ class ProductReviewModel extends ProductReview {
     super.categoryId,
     super.subCategoryId,
     super.categoryName,
+    super.details,
   });
 
   factory ProductReviewModel.fromEntity(ProductReview entity) {
@@ -52,6 +53,7 @@ class ProductReviewModel extends ProductReview {
       categoryId: entity.categoryId,
       subCategoryId: entity.subCategoryId,
       categoryName: entity.categoryName,
+      details: entity.details,
     );
   }
 
@@ -96,6 +98,7 @@ class ProductReviewModel extends ProductReview {
       categoryId: categoryId ?? this.categoryId,
       subCategoryId: subCategoryId ?? this.subCategoryId,
       categoryName: categoryName ?? this.categoryName,
+      details: details,
     );
   }
 }

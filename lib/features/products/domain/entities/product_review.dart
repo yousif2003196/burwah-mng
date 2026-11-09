@@ -33,6 +33,9 @@ class ProductReview {
   final int? subCategoryId;
   final String? categoryName;
 
+  /// بيانات إضافية من الباك إند (حالة، موقع، بائع، خصائص…) بترتيب العرض.
+  final List<MapEntry<String, String>> details;
+
   const ProductReview({
     required this.id,
     required this.reference,
@@ -57,6 +60,7 @@ class ProductReview {
     this.categoryId,
     this.subCategoryId,
     this.categoryName,
+    this.details = const [],
   });
 
   ProductReview copyWith({
@@ -99,6 +103,7 @@ class ProductReview {
       categoryId: categoryId ?? this.categoryId,
       subCategoryId: subCategoryId ?? this.subCategoryId,
       categoryName: categoryName ?? this.categoryName,
+      details: details,
     );
   }
 }

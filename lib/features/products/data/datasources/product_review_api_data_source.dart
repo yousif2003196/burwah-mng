@@ -221,6 +221,7 @@ class ProductReviewApiDataSource implements ProductReviewDataSource {
         if (url is String && url.isNotEmpty) url,
     ];
     final description = '${json['description'] ?? ''}'.trim();
+    final details = _details(json, images.length);
     return ProductReviewModel(
       id: id,
       reference: 'AD-$id',
@@ -243,7 +244,56 @@ class ProductReviewApiDataSource implements ProductReviewDataSource {
           : (json['reviewNote'] as String).trim(),
       categoryId: (json['categoryId'] as num?)?.toInt(),
       subCategoryId: (json['subCategoryId'] as num?)?.toInt(),
+      condition: '${json['condition']}'.toLowerCase() == 'used'
+          ? ProductCondition.used
+          : ProductCondition.newInBox,
+      details: details,
     );
+  }
+
+  static List<MapEntry<String, String>> _details(
+    Map<String, dynamic> json,
+    int photos,
+  ) {
+    final result = <MapEntry<String, String>>[];
+    void add(String label, Object? value) {
+      final text = '${value ?? ''}'.trim();
+      if (text.isNotEmpty && text != 'null') result.add(MapEntry(label, text));
+    }
+
+    final condition = '${json['condition'] ?? ''}'.toLowerCase();
+    add(
+      'الحالة',
+      condition == 'new'
+          ? 'جديد'
+          : condition == 'used'
+              ? 'مستعمل'
+              : json['condition'],
+    );
+    final place = [
+      '${json['governorate'] ?? ''}'.trim(),
+      '${json['city'] ?? ''}'.trim(),
+    ].where((e) => e.isNotEmpty).join(' - ');
+    add('الموقع', place);
+    if (json['isNegotiable'] != null) {
+      add('قابل للتفاوض', json['isNegotiable'] == true ? 'نعم' : 'لا');
+    }
+    add('اسم البائع', json['sellerName']);
+    add('رقم البائع', json['sellerPhone']);
+    add('عدد الصور', photos);
+    final created = DateTime.tryParse('${json['createdAt']}');
+    if (created != null) {
+      final t = created.toLocal();
+      add('تاريخ النشر',
+          '${t.day}/${t.month}/${t.year} ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}');
+    }
+    final specs = json['specifications'];
+    if (specs is List) {
+      for (final spec in specs) {
+        if (spec is Map) add('${spec['key'] ?? ''}', spec['value']);
+      }
+    }
+    return result;
   }
 
   static int _minutesAgo(Object? createdAt) {

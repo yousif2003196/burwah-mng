@@ -1,3 +1,5 @@
+import 'package:barwah_app/core/auth/auth_session.dart';
+import 'package:barwah_app/features/messaging/presentation/screens/ad_owner_chat_screen.dart';
 import 'package:flutter/material.dart';
 
 import 'package:barwah_app/core/di/injection_container.dart';
@@ -126,6 +128,25 @@ class _ProductAdFullDetailsScreenState
           const SizedBox(height: 10),
           ScrollFx(child: _photoThumbnails(product)),
           const SizedBox(height: 16),
+          if (product.details.isNotEmpty) ...[
+            ScrollFx(child: _adInfoCard(product)),
+            const SizedBox(height: 16),
+          ],
+          if (AuthSession.isSignedIn && int.tryParse(product.id) != null) ...[
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => AdOwnerChatScreen(
+                    adId: int.parse(product.id),
+                    adTitle: product.titleAr,
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.chat_bubble_outline),
+              label: const Text('محادثة صاحب الإعلان'),
+            ),
+            const SizedBox(height: 16),
+          ],
           ScrollFx(child: _inquiryCard(l10n)),
           const SizedBox(height: 16),
           ScrollFx(child: _editAdCard(l10n, product, title, merchant)),
@@ -352,6 +373,28 @@ class _ProductAdFullDetailsScreenState
                 ),
               ),
             ),
+            if (product.imageUrls.isNotEmpty)
+              Positioned.fill(
+                child: GestureDetector(
+                  onTap: () => _openPhotoViewer(product),
+                  child: Container(
+                    color: Colors.black,
+                    child: Image.network(
+                      product.imageUrls[
+                          _selectedPhotoIndex.clamp(0, product.imageUrls.length - 1)],
+                      fit: BoxFit.contain,
+                      loadingBuilder: (context, child, progress) =>
+                          progress == null
+                              ? child
+                              : const Center(child: CircularProgressIndicator()),
+                      errorBuilder: (_, __, ___) => const Center(
+                        child: Icon(Icons.broken_image_outlined,
+                            color: Colors.white70, size: 48),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             PositionedDirectional(
               top: 10,
               start: 10,
@@ -426,6 +469,70 @@ class _ProductAdFullDetailsScreenState
     );
   }
 
+  void _openPhotoViewer(ProductReview product) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(
+            backgroundColor: Colors.black,
+            foregroundColor: Colors.white,
+          ),
+          body: PageView.builder(
+            controller: PageController(initialPage: _selectedPhotoIndex),
+            itemCount: product.imageUrls.length,
+            itemBuilder: (_, i) => InteractiveViewer(
+              child: Center(
+                child: Image.network(product.imageUrls[i], fit: BoxFit.contain),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _adInfoCard(ProductReview product) {
+    return _whiteCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionTitle('بيانات الإعلان', Icons.info_outline),
+          const SizedBox(height: 10),
+          for (final entry in product.details)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 5),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 110,
+                    child: Text(
+                      entry.key,
+                      style: TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      entry.value,
+                      style: TextStyle(
+                        color: AppColors.ink,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _photoPill(String label, IconData icon) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
@@ -452,7 +559,7 @@ class _ProductAdFullDetailsScreenState
       height: 70,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        itemCount: product.photoCount,
+        itemCount: product.imageUrls.isNotEmpty ? product.imageUrls.length : product.photoCount,
         separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (context, index) => InkWell(
           onTap: () => setState(() => _selectedPhotoIndex = index),
@@ -472,12 +579,22 @@ class _ProductAdFullDetailsScreenState
                 width: 2,
               ),
             ),
-            child: MotionIcon(
-              index % 3 == 0
-                  ? Icons.receipt_long_outlined
-                  : _icon(product.imageKind),
-              color: AppColors.ink.withValues(alpha: 0.72),
-            ),
+            child: index < product.imageUrls.length
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      product.imageUrls[index],
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          const Icon(Icons.broken_image_outlined),
+                    ),
+                  )
+                : MotionIcon(
+                    index % 3 == 0
+                        ? Icons.receipt_long_outlined
+                        : _icon(product.imageKind),
+                    color: AppColors.ink.withValues(alpha: 0.72),
+                  ),
           ),
         ),
       ),

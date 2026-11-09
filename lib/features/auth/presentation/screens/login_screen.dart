@@ -42,7 +42,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen>
     with SingleTickerProviderStateMixin {
-  final _emailController = TextEditingController(text: 'finance@barwah.com');
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController(text: '••••••••••••');
   late final AnimationController _successController = AnimationController(
     vsync: this,

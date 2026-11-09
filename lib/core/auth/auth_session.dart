@@ -10,6 +10,11 @@ class AuthSession {
   static String? accessToken;
   static String? refreshToken;
 
+  /// بيانات الحساب الحالي (من رد تسجيل الدخول).
+  static String name = '';
+  static String email = '';
+  static String backendRole = '';
+
   /// يُستدعى عند انتهاء الجلسة نهائيًا (فشل تجديد التوكن) للعودة لشاشة الدخول.
   static void Function()? onExpired;
 
@@ -17,7 +22,16 @@ class AuthSession {
 
   static bool get isSignedIn => (accessToken ?? '').trim().isNotEmpty;
 
-  static void start({required String token, String? refresh}) {
+  static void start({
+    required String token,
+    String? refresh,
+    String name = '',
+    String email = '',
+    String backendRole = '',
+  }) {
+    AuthSession.name = name;
+    AuthSession.email = email;
+    AuthSession.backendRole = backendRole;
     accessToken = token;
     refreshToken = refresh;
     // إشعارات ومحادثات لحظية.
@@ -27,6 +41,9 @@ class AuthSession {
   static void clear() {
     accessToken = null;
     refreshToken = null;
+    name = '';
+    email = '';
+    backendRole = '';
     RealtimeHub.instance.stop();
   }
 

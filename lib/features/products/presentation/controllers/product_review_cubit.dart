@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'package:barwah_app/core/auth/auth_session.dart';
+import 'package:barwah_app/core/realtime/realtime_hub.dart';
 import 'package:barwah_app/features/products/data/datasources/product_category_api_data_source.dart';
 import 'package:barwah_app/features/products/domain/entities/product_review.dart';
 import 'package:barwah_app/features/products/domain/entities/product_supervisor_audit_entry.dart';
@@ -25,7 +29,60 @@ class ProductReviewCubit extends Cubit<ProductReviewState> {
     required this.updateProductReview,
     this.auditRepository,
     this.categoryLoader,
-  }) : super(const ProductReviewInitial());
+  }) : super(const ProductReviewInitial()) {
+    if (AuthSession.isSignedIn) {
+      // إعلان جديد = إشعار لحظي، وتحديث دوري احتياطي لو الاتصال وقع.
+      _live = RealtimeHub.instance.notifications
+          .where((n) => n.type == 'ad_review')
+          .listen((_) => refresh());
+      _timer = Timer.periodic(const Duration(seconds: 30), (_) => refresh());
+    }
+  }
+
+  StreamSubscription<RealtimeNotification>? _live;
+  Timer? _timer;
+  bool _refreshing = false;
+
+  @override
+  Future<void> close() {
+    _live?.cancel();
+    _timer?.cancel();
+    return super.close();
+  }
+
+  /// تحديث بدون شاشة تحميل ولا فقدان الفلاتر.
+  Future<void> refresh() async {
+    final current = state;
+    if (current is! ProductReviewLoaded) {
+      if (state is! ProductReviewLoading) await loadReviews();
+      return;
+    }
+    if (_refreshing) return;
+    _refreshing = true;
+    try {
+      var reviews = await getProductReviews();
+      final names = {for (final c in current.categories) c.id: c.name};
+      reviews = [
+        for (final review in reviews)
+          names[review.categoryId] == null
+              ? review
+              : review.copyWith(categoryName: names[review.categoryId]),
+      ];
+      if (isClosed) return;
+      emit(current.copyWith(
+        reviews: reviews,
+        approvedCount: categoryLoader != null
+            ? reviews
+                .where((r) => r.status == ProductReviewStatus.approved)
+                .length
+            : current.approvedCount,
+      ));
+    } catch (error) {
+      debugPrint('ProductReview refresh failed: $error');
+    } finally {
+      _refreshing = false;
+    }
+  }
 
   Future<void> loadReviews() async {
     emit(const ProductReviewLoading());
@@ -49,7 +106,11 @@ class ProductReviewCubit extends Cubit<ProductReviewState> {
       }
       emit(ProductReviewLoaded(
         reviews: reviews,
-        approvedCount: 28,
+        approvedCount: categoryLoader != null
+            ? reviews
+                .where((r) => r.status == ProductReviewStatus.approved)
+                .length
+            : 28,
         categories: categories,
       ));
     } catch (error) {

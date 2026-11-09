@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/auth/auth_session.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/features/products/data/datasources/product_report_api_data_source.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/features/products/domain/entities/product_supervisor_audit_entry.dart';
 import 'package:barwah_app/features/products/domain/repositories/product_supervisor_audit_repository.dart';
@@ -45,11 +47,47 @@ class _ProductSupervisorProfileScreenState
   bool _isSavingPreference = false;
   Object? _preferencesLoadError;
 
+  // بيانات حقيقية من السيرفر (تقرير آخر 30 يوم).
+  bool get _remote => AuthSession.isSignedIn;
+  ProductReportData? _report;
+  bool _reportLoading = false;
+  bool _reportFailed = false;
+
   @override
   void initState() {
     super.initState();
     _loadPreferences();
+    if (_remote) _loadReport();
   }
+
+  Future<void> _loadReport() async {
+    setState(() {
+      _reportLoading = true;
+      _reportFailed = false;
+    });
+    try {
+      final data = await sl<ProductReportApiDataSource>().load('month');
+      if (!mounted) return;
+      setState(() {
+        _report = data;
+        _reportLoading = false;
+      });
+    } catch (error) {
+      debugPrint('Profile report load failed: $error');
+      if (!mounted) return;
+      setState(() {
+        _reportLoading = false;
+        _reportFailed = true;
+      });
+    }
+  }
+
+  String get _roleLabel => switch (AuthSession.backendRole) {
+        'SupervisorUsed' => 'مشرف وصلني (المستعمل)',
+        'Admin' => 'مدير النظام',
+        'BossOfSupervisor' => 'رئيس المشرفين',
+        _ => 'مشرف مراجعة المنتجات الجديدة',
+      };
 
   String _preferenceKey(String name) =>
       'product_supervisor_profile_preferences_v1_'
@@ -327,7 +365,9 @@ class _ProductSupervisorProfileScreenState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      l10n.productProfileName,
+                      _remote && AuthSession.name.isNotEmpty
+                          ? AuthSession.name
+                          : l10n.productProfileName,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -344,7 +384,7 @@ class _ProductSupervisorProfileScreenState
                         const SizedBox(width: 3),
                         Expanded(
                           child: Text(
-                            l10n.productProfileRegion,
+                            _remote ? AuthSession.email : l10n.productProfileRegion,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
@@ -367,7 +407,7 @@ class _ProductSupervisorProfileScreenState
             alignment: WrapAlignment.spaceBetween,
             children: [
               _profileBadge(
-                l10n.productProfileSupervisorId,
+                _remote ? _roleLabel : l10n.productProfileSupervisorId,
                 Icons.shield_outlined,
               ),
               _profileBadge(
@@ -464,6 +504,61 @@ class _ProductSupervisorProfileScreenState
   }
 
   Widget _buildMetrics(AppLocalizations l10n) {
+    if (_remote) {
+      if (_reportLoading && _report == null) {
+        return const Padding(
+          padding: EdgeInsets.all(24),
+          child: Center(child: CircularProgressIndicator()),
+        );
+      }
+      final r = _report;
+      if (r == null) {
+        return TextButton.icon(
+          onPressed: _loadReport,
+          icon: const MotionIcon(Icons.refresh),
+          label: Text(_reportFailed
+              ? 'تعذر تحميل المؤشرات، اضغط للمحاولة'
+              : 'تحميل المؤشرات'),
+        );
+      }
+      final real = [
+        _ProfileMetric(
+          title: 'إعلانات تمت مراجعتها',
+          value: '${r.reviewed}',
+          detail: 'آخر 30 يومًا',
+          icon: Icons.verified_outlined,
+          color: AppColors.info,
+        ),
+        _ProfileMetric(
+          title: 'نسبة القبول',
+          value: '${r.approvalRate.toStringAsFixed(1)}%',
+          detail: '${r.approved} معتمد من ${r.reviewed}',
+          icon: Icons.handshake_outlined,
+          color: AppColors.info,
+        ),
+        _ProfileMetric(
+          title: 'إعلانات مرفوضة',
+          value: '${r.declined}',
+          detail: 'آخر 30 يومًا',
+          icon: Icons.block_outlined,
+          color: AppColors.infoDark,
+        ),
+      ];
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          const gap = 10.0;
+          final width = (constraints.maxWidth - gap) / 2;
+          return Wrap(
+            spacing: gap,
+            runSpacing: gap,
+            children: [
+              for (final m in real)
+                SizedBox(width: width, height: 118, child: _buildMetricCard(m)),
+            ],
+          );
+        },
+      );
+    }
     final metrics = [
       _ProfileMetric(
         title: l10n.productProfileReviewed,
@@ -745,7 +840,7 @@ class _ProductSupervisorProfileScreenState
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      l10n.productProfileWalletAmount,
+                      _remote ? 'عرض المحفظة' : l10n.productProfileWalletAmount,
                       style: TextStyle(
                         color: AppColors.ink,
                         fontSize: 19,
@@ -754,7 +849,7 @@ class _ProductSupervisorProfileScreenState
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      l10n.productProfileWalletDetail,
+                      _remote ? '' : l10n.productProfileWalletDetail,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(

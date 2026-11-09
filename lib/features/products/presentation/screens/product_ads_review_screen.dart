@@ -70,7 +70,10 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
           return const SizedBox.shrink();
         }
 
-        return ListView(
+        return RefreshIndicator(
+          onRefresh: () => context.read<ProductReviewCubit>().refresh(),
+          child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           children: [
             ScrollFx(child: _buildSummary(state, l10n)),
@@ -151,6 +154,7 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
                 l10n,
               ),
           ],
+        ),
         );
       },
     );
@@ -498,13 +502,31 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
                   ),
                   child: Stack(
                     children: [
-                      Center(
-                        child: MotionIcon(
-                          _iconFor(product.imageKind),
-                          color: AppColors.ink,
-                          size: 38,
+                      if (product.imageUrls.isNotEmpty)
+                        Positioned.fill(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.network(
+                              product.imageUrls.first,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Center(
+                                child: MotionIcon(
+                                  _iconFor(product.imageKind),
+                                  color: AppColors.ink,
+                                  size: 38,
+                                ),
+                              ),
+                            ),
+                          ),
+                        )
+                      else
+                        Center(
+                          child: MotionIcon(
+                            _iconFor(product.imageKind),
+                            color: AppColors.ink,
+                            size: 38,
+                          ),
                         ),
-                      ),
                       PositionedDirectional(
                         end: 4,
                         bottom: 4,

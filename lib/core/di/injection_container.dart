@@ -125,9 +125,8 @@ Future<void> initDependencies() async {
       adminSecurity: sl(),
       headAccounts: sl(),
       supervisorRoster: sl(),
+      // الدخول عن طريق السيرفر فقط.
       api: AuthApiDataSource(apiConsumer: sl(instanceName: 'berwah')),
-      // الحسابات المحلية التجريبية متاحة في وضع البيانات التجريبية فقط.
-      allowLocalAccounts: ApiConfiguration.fromEnvironment().useMockData,
     ),
   );
   sl.registerLazySingleton(() => LoginUseCase(sl()));
