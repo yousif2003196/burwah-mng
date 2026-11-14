@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import 'package:barwah_app/core/network/api_consumer.dart';
+import 'package:barwah_app/core/network/api_endpoints.dart';
 import 'package:barwah_app/features/auth/domain/entities/user_role.dart';
 
 /// نتيجة تسجيل دخول ناجح من الباك إند.
@@ -31,7 +32,7 @@ class ApiLoginRejected implements Exception {
   final bool credentialsWrong;
 }
 
-/// POST api/Account/Login
+/// تسجيل الدخول: POST [ApiEndpoints.login].
 class AuthApiDataSource {
   AuthApiDataSource({required this.apiConsumer});
 
@@ -52,7 +53,7 @@ class AuthApiDataSource {
   Future<ApiLoginResult?> login(String email, String password) async {
     try {
       final response = await apiConsumer.post<Object>(
-        'api/Account/Login',
+        ApiEndpoints.login,
         data: {'email': email, 'password': password},
       );
       final body = response.data;

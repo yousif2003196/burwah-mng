@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/network/api_consumer.dart';
+import 'package:barwah_app/core/network/api_endpoints.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/features/messaging/presentation/screens/ad_owner_chat_screen.dart';
 
@@ -22,8 +23,6 @@ class _AdQuickReviewScreenState extends State<AdQuickReviewScreen> {
   bool _busy = false;
   String? _error;
 
-  static const _base = 'api/SupervisorForAd';
-
   @override
   void initState() {
     super.initState();
@@ -32,7 +31,7 @@ class _AdQuickReviewScreenState extends State<AdQuickReviewScreen> {
 
   Future<void> _load() async {
     try {
-      final r = await _api.get<Object>('$_base/ad/${widget.adId}');
+      final r = await _api.get<Object>(ApiEndpoints.ad(widget.adId));
       final body = r.data;
       final data = body is Map ? (body['data'] ?? body) : null;
       if (data is! Map) throw const FormatException('bad ad');
@@ -93,7 +92,7 @@ class _AdQuickReviewScreenState extends State<AdQuickReviewScreen> {
     );
     if (reason == null || reason.isEmpty) return;
     await _run(
-      () => _api.post<Object>('$_base/reject/${widget.adId}', data: {
+      () => _api.post<Object>(ApiEndpoints.adReject(widget.adId), data: {
         'rejectReason': reason,
         'supervisorNotes': '',
         'allowResubmission': true,
@@ -149,7 +148,8 @@ class _AdQuickReviewScreenState extends State<AdQuickReviewScreen> {
                                   ? null
                                   : () => _run(
                                         () => _api.post<Object>(
-                                            '$_base/update-ad-status/${widget.adId}',
+                                            ApiEndpoints.adUpdateStatus(
+                                                widget.adId),
                                             data: {'status': 1}),
                                         'تم قبول الإعلان ونشره',
                                       ),
@@ -163,7 +163,7 @@ class _AdQuickReviewScreenState extends State<AdQuickReviewScreen> {
                                   ? null
                                   : () => _run(
                                         () => _api.post<Object>(
-                                            '$_base/hide/${widget.adId}',
+                                            ApiEndpoints.adHide(widget.adId),
                                             data: {
                                               'notificationMessage': '',
                                               'sendSmsNotification': false,

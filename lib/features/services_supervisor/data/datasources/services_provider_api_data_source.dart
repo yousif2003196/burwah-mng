@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/network/api_consumer.dart';
+import 'package:barwah_app/core/network/api_endpoints.dart';
 import 'package:barwah_app/features/services_supervisor/data/datasources/service_provider_catalog.dart';
 import 'package:barwah_app/features/services_supervisor/domain/entities/service_provider.dart';
 
@@ -10,8 +11,6 @@ import 'package:barwah_app/features/services_supervisor/domain/entities/service_
 /// وإعادة الإسناد `reassign/{id}`.
 class ServicesProviderApiDataSource {
   ServicesProviderApiDataSource._();
-
-  static const _base = 'api/SupervisorForSR';
 
   static ServiceProviderCategory _categoryFor(String trade) {
     if (trade.contains('كهرب')) return ServiceProviderCategory.electrical;
@@ -62,7 +61,8 @@ class ServicesProviderApiDataSource {
   static Future<void> refreshCatalog() async {
     try {
       final api = sl<ApiConsumer>(instanceName: 'berwah');
-      final response = await api.get<Object>('$_base/providers-directory');
+      final response =
+          await api.get<Object>(ApiEndpoints.serviceProvidersDirectory);
       final body = response.data;
       final data = body is Map ? body['data'] : null;
       if (data is! List) return;
@@ -87,7 +87,7 @@ class ServicesProviderApiDataSource {
     String reason = '',
   }) async {
     final api = sl<ApiConsumer>(instanceName: 'berwah');
-    await api.post<Object>('$_base/reassign/$requestId', data: {
+    await api.post<Object>(ApiEndpoints.serviceReassign(requestId), data: {
       'newProviderId': idOf(providerId),
       'reassignmentReason': reason,
       'sendInstantNotification': true,

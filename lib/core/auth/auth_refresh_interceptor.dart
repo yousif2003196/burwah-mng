@@ -1,19 +1,25 @@
 import 'package:dio/dio.dart';
 
 import 'package:barwah_app/core/auth/auth_session.dart';
+import 'package:barwah_app/core/network/api_consumer.dart';
+import 'package:barwah_app/core/network/api_endpoints.dart';
 
-/// عند 401 يجدّد التوكن مرة واحدة من `api/Account/RefreshToken` ثم يعيد الطلب.
+/// عند 401 يجدّد التوكن مرة واحدة من [ApiEndpoints.refreshToken] ثم يعيد الطلب.
 ///
 /// لو فشل التجديد تُمسح الجلسة ويُستدعى [onSessionExpired] (للعودة لشاشة الدخول).
 class AuthRefreshInterceptor extends Interceptor {
   AuthRefreshInterceptor({
     required this.baseUrl,
     required this.client,
+    required this.deviceIdProvider,
     this.onSessionExpired,
   });
 
   final String baseUrl;
   final Dio client;
+
+  /// طلب التجديد يمر بـ Dio منفصل، فيُضاف له `X-Device-Id` هنا.
+  final ApiDeviceIdProvider deviceIdProvider;
   final void Function()? onSessionExpired;
 
   Future<bool>? _refreshing;
@@ -24,7 +30,8 @@ class AuthRefreshInterceptor extends Interceptor {
     ErrorInterceptorHandler handler,
   ) async {
     final request = err.requestOptions;
-    final isAuthCall = request.path.contains('api/Account/');
+    final isAuthCall = request.path == ApiEndpoints.login ||
+        request.path == ApiEndpoints.refreshToken;
     final alreadyRetried = request.extra['retried'] == true;
     if (err.response?.statusCode != 401 ||
         isAuthCall ||
@@ -59,9 +66,10 @@ class AuthRefreshInterceptor extends Interceptor {
         baseUrl: baseUrl.endsWith('/') ? baseUrl : '$baseUrl/',
         connectTimeout: const Duration(seconds: 15),
         receiveTimeout: const Duration(seconds: 30),
+        headers: {ApiConsumer.deviceIdHeader: await deviceIdProvider()},
       ));
       final response = await plain.post<Object>(
-        'api/Account/RefreshToken',
+        ApiEndpoints.refreshToken,
         data: {
           'token': AuthSession.accessToken,
           'refreshToken': AuthSession.refreshToken,

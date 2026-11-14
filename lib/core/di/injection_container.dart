@@ -3,6 +3,7 @@ import 'package:get_it/get_it.dart';
 import 'package:barwah_app/core/network/api_configuration.dart';
 import 'package:barwah_app/core/auth/auth_refresh_interceptor.dart';
 import 'package:barwah_app/core/auth/auth_session.dart';
+import 'package:barwah_app/core/auth/device_id_store.dart';
 import 'package:barwah_app/core/realtime/realtime_hub.dart';
 import 'package:barwah_app/features/products/data/datasources/product_report_api_data_source.dart';
 import 'package:barwah_app/core/network/api_consumer.dart';
@@ -88,16 +89,21 @@ Future<void> initDependencies() async {
     defaultValue: 'https://berwah.runasp.net/',
   );
   RealtimeHub.instance.baseUrl = berwahApiUrl;
+  // معرّف الجهاز يُرسل مع كل طلب في ترويسة X-Device-Id.
+  sl.registerLazySingleton(() => DeviceIdStore());
   sl.registerLazySingleton<ApiConsumer>(
     () {
+      final deviceIds = sl<DeviceIdStore>();
       final consumer = ApiConsumer(
         baseUrl: berwahApiUrl,
         accessTokenProvider: AuthSession.tokenProvider,
+        deviceIdProvider: deviceIds.read,
       );
       consumer.dio.interceptors.add(
         AuthRefreshInterceptor(
           baseUrl: berwahApiUrl,
           client: consumer.dio,
+          deviceIdProvider: deviceIds.read,
           onSessionExpired: AuthSession.notifyExpired,
         ),
       );

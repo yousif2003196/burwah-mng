@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:barwah_app/core/auth/auth_session.dart';
 import 'package:barwah_app/core/network/api_consumer.dart';
+import 'package:barwah_app/core/network/api_endpoints.dart';
 
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
@@ -40,7 +41,7 @@ class _ServicesSupervisorWalletScreenState
     if (!AuthSession.isSignedIn) return;
     try {
       final response = await sl<ApiConsumer>(instanceName: 'berwah')
-          .get<Object>('api/SupervisorForSR/advanced-wallet');
+          .get<Object>(ApiEndpoints.serviceAdvancedWallet);
       final body = response.data;
       final data = body is Map ? body['data'] : null;
       final balance = data is Map ? data['balance'] : null;

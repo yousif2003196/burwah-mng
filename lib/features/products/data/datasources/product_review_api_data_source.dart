@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import 'package:barwah_app/core/network/api_consumer.dart';
+import 'package:barwah_app/core/network/api_endpoints.dart';
 import 'package:barwah_app/features/products/data/datasources/product_category_api_data_source.dart';
 import 'package:barwah_app/features/products/data/datasources/product_review_data_source.dart';
 import 'package:barwah_app/features/products/data/models/product_review_model.dart';
@@ -23,7 +24,6 @@ class ProductReviewApiDataSource implements ProductReviewDataSource {
   final ApiConsumer apiConsumer;
   final ProductCategoryApiDataSource? categories;
 
-  static const _basePath = 'api/SupervisorForAd';
   static const _pageSize = 100;
 
   final Map<String, ProductReviewModel> _cache = {};
@@ -39,7 +39,7 @@ class ProductReviewApiDataSource implements ProductReviewDataSource {
       'Suspended',
     ]) {
       final response = await apiConsumer.get<Object>(
-        '$_basePath/ads',
+        ApiEndpoints.adList,
         queryParameters: {'status': status, 'page': 1, 'pageSize': _pageSize},
       );
       final body = response.data;
@@ -89,7 +89,7 @@ class ProductReviewApiDataSource implements ProductReviewDataSource {
       if (changed && price != null && ids != null) {
         try {
           await apiConsumer.put<Object>(
-            '$_basePath/ad/$adId',
+            ApiEndpoints.ad(adId),
             data: {
               'title': review.titleAr,
               'description': description,
@@ -152,7 +152,7 @@ class ProductReviewApiDataSource implements ProductReviewDataSource {
       switch (status) {
         case ProductReviewStatus.rejected:
           await apiConsumer.post<Object>(
-            '$_basePath/reject/$adId',
+            ApiEndpoints.adReject(adId),
             data: {
               'rejectReason': note.isEmpty ? 'مخالف لشروط النشر' : note,
               'supervisorNotes': '',
@@ -162,7 +162,7 @@ class ProductReviewApiDataSource implements ProductReviewDataSource {
         case ProductReviewStatus.suspended:
         case ProductReviewStatus.hidden:
           await apiConsumer.post<Object>(
-            '$_basePath/hide/$adId',
+            ApiEndpoints.adHide(adId),
             data: {
               'notificationMessage':
                   note.isEmpty ? 'تم تعليق إعلانك مؤقتًا من المراجعة.' : note,
@@ -172,7 +172,7 @@ class ProductReviewApiDataSource implements ProductReviewDataSource {
         case ProductReviewStatus.approved:
         case ProductReviewStatus.pending:
           await apiConsumer.post<Object>(
-            '$_basePath/update-ad-status/$adId',
+            ApiEndpoints.adUpdateStatus(adId),
             data: {'status': _statusCode(status)},
           );
       }

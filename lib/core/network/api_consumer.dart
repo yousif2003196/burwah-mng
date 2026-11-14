@@ -1,11 +1,13 @@
 import 'package:dio/dio.dart';
 
 typedef ApiAccessTokenProvider = Future<String?> Function();
+typedef ApiDeviceIdProvider = Future<String> Function();
 
 class ApiConsumer {
   ApiConsumer({
     required String baseUrl,
     ApiAccessTokenProvider? accessTokenProvider,
+    ApiDeviceIdProvider? deviceIdProvider,
     Dio? dio,
   }) : dio = dio ??
             Dio(
@@ -19,12 +21,15 @@ class ApiConsumer {
                 },
               ),
             ) {
-    if (accessTokenProvider != null) {
+    if (accessTokenProvider != null || deviceIdProvider != null) {
       this.dio.interceptors.add(
         InterceptorsWrapper(
           onRequest: (options, handler) async {
             try {
-              final token = await accessTokenProvider();
+              if (deviceIdProvider != null) {
+                options.headers[deviceIdHeader] = await deviceIdProvider();
+              }
+              final token = await accessTokenProvider?.call();
               if (token != null && token.trim().isNotEmpty) {
                 options.headers['Authorization'] = 'Bearer ${token.trim()}';
               }
@@ -44,6 +49,9 @@ class ApiConsumer {
       );
     }
   }
+
+  /// ترويسة معرّف الجهاز التي يتتبّع بها الباك إند الجلسات.
+  static const deviceIdHeader = 'X-Device-Id';
 
   final Dio dio;
 

@@ -1,4 +1,5 @@
 import 'package:barwah_app/core/network/api_consumer.dart';
+import 'package:barwah_app/core/network/api_endpoints.dart';
 
 class ProductReportLog {
   const ProductReportLog({
@@ -40,7 +41,7 @@ class ProductReportApiDataSource {
 
   Future<ProductReportData> load(String period) async {
     final response = await apiConsumer.get<Object>(
-      'api/SupervisorForAd/reports',
+      ApiEndpoints.adReports,
       queryParameters: {'period': period},
     );
     final body = response.data;

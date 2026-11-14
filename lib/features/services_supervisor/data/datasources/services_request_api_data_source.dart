@@ -1,4 +1,5 @@
 import 'package:barwah_app/core/network/api_consumer.dart';
+import 'package:barwah_app/core/network/api_endpoints.dart';
 
 class ServicesRemoteRequest {
   const ServicesRemoteRequest({
@@ -73,12 +74,10 @@ class ServicesRequestApiDataSource {
 
   final ApiConsumer apiConsumer;
 
-  static const _base = 'api/SupervisorForSR';
-
   /// [status]: pending | approved | rejected
   Future<List<ServicesRemoteRequest>> load(String status) async {
     final response = await apiConsumer.get<Object>(
-      '$_base/requests',
+      ApiEndpoints.serviceRequests,
       queryParameters: {
         // the deployed API may only understand the numeric enum value
         'status': switch (status) {
@@ -103,7 +102,7 @@ class ServicesRequestApiDataSource {
   }
 
   Future<void> approve(int id) => apiConsumer.post<Object>(
-        '$_base/approve/$id',
+        ApiEndpoints.serviceApprove(id),
         data: {
           'finalEstimatedPrice': 0,
           'subCategoryId': 0,
@@ -112,8 +111,9 @@ class ServicesRequestApiDataSource {
       );
 
   Future<List<ServicesCategoryOption>> categoryOptions(int requestId) async {
-    final response =
-        await apiConsumer.get<Object>('$_base/subcategories/$requestId');
+    final response = await apiConsumer.get<Object>(
+      ApiEndpoints.serviceSubcategories(requestId),
+    );
     final body = response.data;
     final data = body is Map ? body['data'] : null;
     if (data is! List) throw const FormatException('bad subcategories');
@@ -130,34 +130,34 @@ class ServicesRequestApiDataSource {
 
   Future<void> updateCategory(int requestId, int subCategoryId) =>
       apiConsumer.post<Object>(
-        '$_base/update-category/$requestId',
+        ApiEndpoints.serviceUpdateCategory(requestId),
         data: {'subCategoryId': subCategoryId},
       );
 
   Future<void> requestInfo(int id, String message) => apiConsumer.post<Object>(
-        '$_base/request-info/$id',
+        ApiEndpoints.serviceRequestInfo(id),
         data: {'message': message},
       );
 
   Future<void> escalateRequest(int id, String reason) =>
       apiConsumer.post<Object>(
-        '$_base/escalate-request/$id',
+        ApiEndpoints.serviceEscalateRequest(id),
         data: {'reason': reason, 'adminNotes': ''},
       );
 
   Future<void> suspendRequest(int id, String reason) =>
       apiConsumer.post<Object>(
-        '$_base/suspend-request/$id',
+        ApiEndpoints.serviceSuspendRequest(id),
         data: {'reason': reason, 'adminNotes': ''},
       );
 
   Future<void> returnRequest(int id, String note) => apiConsumer.post<Object>(
-        '$_base/return-request/$id',
+        ApiEndpoints.serviceReturnRequest(id),
         data: {'reason': note, 'adminNotes': ''},
       );
 
   Future<void> reject(int id, String reason) => apiConsumer.post<Object>(
-        '$_base/reject/$id',
+        ApiEndpoints.serviceReject(id),
         data: {'reason': reason, 'adminNotes': ''},
       );
 }

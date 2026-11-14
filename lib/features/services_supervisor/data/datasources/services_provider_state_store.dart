@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:barwah_app/core/auth/auth_session.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/network/api_consumer.dart';
+import 'package:barwah_app/core/network/api_endpoints.dart';
 
 class ServicesProviderState {
   final String id;
@@ -98,7 +99,7 @@ class ServicesProviderStateStore {
     final providerId = int.tryParse(id.replaceAll(RegExp(r'[^0-9]'), ''));
     if (providerId == null) return;
     await sl<ApiConsumer>(instanceName: 'berwah')
-        .post<Object>('api/SupervisorForSR/provider-state/$providerId', data: body);
+        .post<Object>(ApiEndpoints.serviceProviderState(providerId), data: body);
   }
 
   Future<void> suspend(String id, String reason) async {
