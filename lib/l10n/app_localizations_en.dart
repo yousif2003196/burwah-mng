@@ -7263,4 +7263,70 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get merchantInfoAdHidden => 'Hidden';
+
+  @override
+  String get sectionPickerTitle => 'Choose a section';
+
+  @override
+  String get sectionPickerSubtitle =>
+      'Admin accounts can open every section. Use the switch-section button in the top bar to move between them.';
+
+  @override
+  String get sectionAdminDashboard => 'Admin dashboard';
+
+  @override
+  String get sectionAdminDashboardHint =>
+      'Accounts, finance, escalations and the PUSE market';
+
+  @override
+  String get sectionAdsReview => 'Ads review';
+
+  @override
+  String get sectionAdsReviewHint =>
+      'Approve or reject new ads and follow up on reports';
+
+  @override
+  String get sectionMerchants => 'Merchants';
+
+  @override
+  String get sectionMerchantsHint => 'Stores, their ads and commission rates';
+
+  @override
+  String get sectionServiceRequests => 'Service requests';
+
+  @override
+  String get sectionServiceRequestsHint => 'Requests, providers and complaints';
+
+  @override
+  String get sectionUsedGoods => 'Used goods & Wasalny';
+
+  @override
+  String get sectionUsedGoodsHint =>
+      'Used ads, Wasalny orders and their complaints';
+
+  @override
+  String get sectionFinance => 'Finance';
+
+  @override
+  String get sectionFinanceHint => 'Withdrawals, subscriptions and settlements';
+
+  @override
+  String get sectionHeadOfSupervisors => 'Head of supervisors';
+
+  @override
+  String get sectionHeadOfSupervisorsHint =>
+      'Supervisors, complaints and escalations';
+
+  @override
+  String get switchSection => 'Switch section';
+
+  @override
+  String get sectionAccessDenied => 'You don\'t have access to this section';
+
+  @override
+  String get sessionPinWaiting => 'Enter your PIN to continue';
+
+  @override
+  String get sessionPinFailed =>
+      'Two-factor check failed. Please sign in again.';
 }

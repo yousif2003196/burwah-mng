@@ -6,6 +6,7 @@ import 'package:barwah_app/core/widgets/rolling_app_bar.dart';
 import 'package:barwah_app/features/messaging/presentation/widgets/unread_events_dot.dart';
 import 'package:barwah_app/core/widgets/side_panel.dart';
 import 'package:barwah_app/core/widgets/edge_swipe_opener.dart';
+import 'package:barwah_app/core/widgets/switch_section_button.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/features/finance/presentation/widgets/finance_navigation.dart';
@@ -31,7 +32,14 @@ import 'package:barwah_app/core/widgets/motion_icon.dart';
 class WasalnySupervisorTabsShell extends StatefulWidget {
   final VoidCallback onLogout;
 
-  const WasalnySupervisorTabsShell({super.key, required this.onLogout});
+  /// للأدمن فقط: العودة لشاشة اختيار القسم.
+  final VoidCallback? onSwitchSection;
+
+  const WasalnySupervisorTabsShell({
+    super.key,
+    required this.onLogout,
+    this.onSwitchSection,
+  });
 
   @override
   State<WasalnySupervisorTabsShell> createState() =>
@@ -181,8 +189,10 @@ class _WasalnySupervisorTabsShellState
                 subtitle: l10n.wasalnySupervisorRoleBadge,
                 showProfileButton: true,
                 onProfilePressed: () => _selectPage(0),
-                additionalActions: _currentIndex == 3
-                    ? [
+                additionalActions: [
+                    if (widget.onSwitchSection != null)
+                      SwitchSectionButton(onPressed: widget.onSwitchSection!),
+                    if (_currentIndex == 3) ...[
                         IconButton(
                           tooltip: l10n.productChatsTitle,
                           onPressed: () =>
@@ -198,8 +208,8 @@ class _WasalnySupervisorTabsShellState
                             unreadCount: _unreadNotifications,
                           ),
                         ),
-                      ]
-                    : const [],
+                      ],
+                  ],
               ),
       ),
       body: NotificationListener<Notification>(

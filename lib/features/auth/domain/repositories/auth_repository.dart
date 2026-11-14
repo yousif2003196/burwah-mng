@@ -11,6 +11,10 @@ abstract class AuthRepository {
     required String password,
   });
 
-  /// Ends the current session.
-  void logout();
+  /// Restores the session saved by a previous launch. `Right(null)` means there
+  /// is no usable saved session, so the login screen should show.
+  Future<Either<Failure, UserEntity?>> restoreSession();
+
+  /// Ends the current session and forgets the saved one.
+  Future<void> logout();
 }

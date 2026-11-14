@@ -31,7 +31,14 @@ import 'package:barwah_app/features/messaging/presentation/screens/local_event_i
 class AdminTabsShell extends StatefulWidget {
   final VoidCallback onLogout;
 
-  const AdminTabsShell({super.key, required this.onLogout});
+  /// العودة لشاشة اختيار القسم (لوحة الإدارة أو أحد الأقسام الأربعة).
+  final VoidCallback? onSwitchSection;
+
+  const AdminTabsShell({
+    super.key,
+    required this.onLogout,
+    this.onSwitchSection,
+  });
 
   @override
   State<AdminTabsShell> createState() => _AdminTabsShellState();
@@ -218,6 +225,7 @@ class _AdminTabsShellState extends State<AdminTabsShell> {
                 },
                 onLogout: widget.onLogout,
                 onNotifications: _openNotifications,
+                onSwitchSection: widget.onSwitchSection,
               ),
       ),
       body: NotificationListener<Notification>(

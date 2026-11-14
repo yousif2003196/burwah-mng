@@ -6,6 +6,7 @@ import 'package:barwah_app/core/theme/floating_bar.dart';
 import 'package:barwah_app/features/admin/presentation/utils/admin_text.dart';
 import 'package:barwah_app/features/admin/presentation/widgets/admin_widgets.dart';
 import 'package:barwah_app/core/widgets/motion_icon.dart';
+import 'package:barwah_app/core/widgets/switch_section_button.dart';
 
 /// تبويبات مقسّمة (Segmented) بعدّاد اختياري، مثل "رؤساء المشرفين (6)".
 class AdminSegmentedTabs extends StatelessWidget {
@@ -352,6 +353,9 @@ class AdminTopBar extends StatelessWidget {
   final VoidCallback onNotifications;
   final int unread;
 
+  /// زر العودة لشاشة اختيار القسم.
+  final VoidCallback? onSwitchSection;
+
   const AdminTopBar({
     super.key,
     required this.title,
@@ -361,6 +365,7 @@ class AdminTopBar extends StatelessWidget {
     required this.onLogout,
     required this.onNotifications,
     this.unread = 0,
+    this.onSwitchSection,
   });
 
   static const double height = 56 + 56 + 2 * FloatingBarFrame.verticalGap;
@@ -440,6 +445,8 @@ class AdminTopBar extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (onSwitchSection != null)
+                    SwitchSectionButton(onPressed: onSwitchSection!),
                   IconButton(
                     tooltip: adminText(context,
                         ar: 'الإشعارات', en: 'Notifications'),

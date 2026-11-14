@@ -6,6 +6,7 @@ import 'package:barwah_app/core/widgets/rolling_app_bar.dart';
 import 'package:barwah_app/features/messaging/presentation/widgets/unread_events_dot.dart';
 import 'package:barwah_app/core/widgets/side_panel.dart';
 import 'package:barwah_app/core/widgets/edge_swipe_opener.dart';
+import 'package:barwah_app/core/widgets/switch_section_button.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/features/finance/presentation/widgets/finance_navigation.dart';
 import 'package:barwah_app/features/merchants/presentation/controllers/merchants_cubit.dart';
@@ -24,7 +25,14 @@ import 'package:barwah_app/core/widgets/motion_icon.dart';
 class MerchantsTabsShell extends StatefulWidget {
   final VoidCallback onLogout;
 
-  const MerchantsTabsShell({super.key, required this.onLogout});
+  /// للأدمن فقط: العودة لشاشة اختيار القسم.
+  final VoidCallback? onSwitchSection;
+
+  const MerchantsTabsShell({
+    super.key,
+    required this.onLogout,
+    this.onSwitchSection,
+  });
 
   @override
   State<MerchantsTabsShell> createState() => _MerchantsTabsShellState();
@@ -121,6 +129,8 @@ class _MerchantsTabsShellState extends State<MerchantsTabsShell> {
                 showProfileButton: _currentIndex == 0,
                 onProfilePressed: () => _selectPage(4),
                 additionalActions: [
+                  if (widget.onSwitchSection != null)
+                    SwitchSectionButton(onPressed: widget.onSwitchSection!),
                   IconButton(
                     tooltip: l10n.productChatsTitle,
                     onPressed: () => Navigator.of(context).push(

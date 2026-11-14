@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import 'package:barwah_app/core/network/api_consumer.dart';
 import 'package:barwah_app/core/network/api_endpoints.dart';
+import 'package:barwah_app/features/auth/data/models/session_user_model.dart';
 import 'package:barwah_app/features/auth/domain/entities/user_role.dart';
 
 /// نتيجة تسجيل دخول ناجح من الباك إند.
@@ -14,6 +15,7 @@ class ApiLoginResult {
     required this.backendRole,
     required this.token,
     required this.refreshToken,
+    this.lastLogin,
   });
 
   final String userId;
@@ -23,6 +25,7 @@ class ApiLoginResult {
   final String backendRole;
   final String token;
   final String refreshToken;
+  final DateTime? lastLogin;
 }
 
 /// سبب فشل الدخول: بيانات خاطئة (401) أو دور غير مسموح له بالتطبيق.
@@ -42,7 +45,8 @@ class AuthApiDataSource {
   static UserRole? roleFor(String backendRole) => switch (backendRole) {
         'Admin' => UserRole.admin,
         'BossOfSupervisor' => UserRole.headOfSupervisors,
-        'SupervisorForAd' || 'SupervisorUsed' => UserRole.productSupervisor,
+        'SupervisorForAd' => UserRole.productSupervisor,
+        'SupervisorUsed' => UserRole.wasalnySupervisor,
         'SupervisorForMerchant' => UserRole.merchantSupervisor,
         'SupervisorForServices' => UserRole.servicesSupervisor,
         'Accountant' => UserRole.financialSupervisor,
@@ -61,21 +65,22 @@ class AuthApiDataSource {
       final data = body['data'];
       final token = '${body['token'] ?? ''}';
       if (data is! Map<String, dynamic> || token.isEmpty) return null;
-      final backendRole = '${data['role'] ?? ''}';
-      final role = roleFor(backendRole);
+      final user = SessionUserModel.fromJson(data);
+      final role = roleFor(user.role);
       if (role == null) {
         throw const ApiLoginRejected(
           'هذا الحساب غير مصرّح له بدخول تطبيق الإدارة.',
         );
       }
       return ApiLoginResult(
-        userId: '${data['userId'] ?? ''}',
-        name: '${data['name'] ?? ''}'.trim(),
-        email: '${data['email'] ?? email}',
+        userId: user.userId,
+        name: user.name,
+        email: user.email.isEmpty ? email : user.email,
         role: role,
-        backendRole: backendRole,
+        backendRole: user.role,
         token: token,
         refreshToken: '${body['refreshToken'] ?? ''}',
+        lastLogin: user.lastLogin,
       );
     } on DioException catch (error) {
       final code = error.response?.statusCode;

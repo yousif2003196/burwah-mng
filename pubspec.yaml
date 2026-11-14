@@ -29,6 +29,7 @@ dependencies:
 
   # Local Storage (لحفظ لغة التطبيق وتوكن الدخول)
   shared_preferences: ^2.2.3
+  flutter_secure_storage: ^11.2.0 # توكنات الجلسة مشفّرة (Keychain / Keystore)
 
   # Icons
   cupertino_icons: ^1.0.8

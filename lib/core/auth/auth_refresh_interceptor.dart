@@ -1,17 +1,22 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import 'package:barwah_app/core/auth/auth_session.dart';
+import 'package:barwah_app/core/auth/auth_token_store.dart';
 import 'package:barwah_app/core/network/api_consumer.dart';
 import 'package:barwah_app/core/network/api_endpoints.dart';
 
-/// عند 401 يجدّد التوكن مرة واحدة من [ApiEndpoints.refreshToken] ثم يعيد الطلب.
+/// عند 401 يجدّد التوكن مرة واحدة من [ApiEndpoints.refreshToken] ثم يعيد الطلب،
+/// ويحفظ التوكنات الجديدة لتبقى بعد إغلاق التطبيق.
 ///
-/// لو فشل التجديد تُمسح الجلسة ويُستدعى [onSessionExpired] (للعودة لشاشة الدخول).
+/// لو فشل التجديد تُمسح الجلسة (من الذاكرة والتخزين) ويُستدعى
+/// [onSessionExpired] (للعودة لشاشة الدخول).
 class AuthRefreshInterceptor extends Interceptor {
   AuthRefreshInterceptor({
     required this.baseUrl,
     required this.client,
     required this.deviceIdProvider,
+    required this.tokenStore,
     this.onSessionExpired,
   });
 
@@ -20,6 +25,7 @@ class AuthRefreshInterceptor extends Interceptor {
 
   /// طلب التجديد يمر بـ Dio منفصل، فيُضاف له `X-Device-Id` هنا.
   final ApiDeviceIdProvider deviceIdProvider;
+  final AuthTokenStore tokenStore;
   final void Function()? onSessionExpired;
 
   Future<bool>? _refreshing;
@@ -46,6 +52,7 @@ class AuthRefreshInterceptor extends Interceptor {
     }));
     if (!ok) {
       AuthSession.clear();
+      await _forgetSavedTokens();
       onSessionExpired?.call();
       return handler.next(err);
     }
@@ -80,10 +87,29 @@ class AuthRefreshInterceptor extends Interceptor {
       final token = '${body['token'] ?? ''}';
       final refresh = '${body['refreshToken'] ?? ''}';
       if (token.isEmpty || refresh.isEmpty) return false;
-      AuthSession.start(token: token, refresh: refresh);
+      AuthSession.updateTokens(token: token, refresh: refresh);
+      await _saveTokens(token, refresh);
       return true;
     } on Object {
       return false;
+    }
+  }
+
+  /// فشل الحفظ لا يُفشل الطلب الحالي؛ أسوأ حالة أن يُطلب الدخول مرة أخرى بعد
+  /// إعادة تشغيل التطبيق.
+  Future<void> _saveTokens(String token, String refresh) async {
+    try {
+      await tokenStore.save(accessToken: token, refreshToken: refresh);
+    } on Object catch (error) {
+      debugPrint('Saving refreshed tokens failed: $error');
+    }
+  }
+
+  Future<void> _forgetSavedTokens() async {
+    try {
+      await tokenStore.clear();
+    } on Object catch (error) {
+      debugPrint('Clearing saved tokens failed: $error');
     }
   }
 }

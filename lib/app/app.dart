@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'package:barwah_app/app/navigation/admin_section_picker.dart';
 import 'package:barwah_app/app/navigation/admin_tabs_shell.dart';
 import 'package:barwah_app/app/navigation/finance_tabs_shell.dart';
 import 'package:barwah_app/app/navigation/head_supervisor_tabs_shell.dart';
@@ -17,7 +18,12 @@ import 'package:barwah_app/core/theme/app_theme_controller.dart';
 import 'package:barwah_app/core/theme/app_theme_switcher.dart';
 import 'package:barwah_app/core/widgets/app_scroll_behavior.dart';
 import 'package:barwah_app/core/widgets/app_launch_splash.dart';
+import 'package:barwah_app/core/widgets/app_snack_bar.dart';
+import 'package:barwah_app/features/auth/domain/entities/app_section.dart';
+import 'package:barwah_app/features/auth/domain/entities/user_entity.dart';
+import 'package:barwah_app/features/auth/domain/entities/user_role.dart';
 import 'package:barwah_app/features/auth/presentation/controllers/auth_cubit.dart';
+import 'package:barwah_app/features/auth/presentation/controllers/auth_state.dart';
 import 'package:barwah_app/features/auth/presentation/screens/login_screen.dart';
 import 'package:barwah_app/l10n/app_localizations.dart';
 
@@ -62,60 +68,92 @@ class _BarwahAppState extends State<BarwahApp> {
     );
   }
 
-  void _openFinance(BuildContext context) {
-    Navigator.of(context).pushReplacement(
+  /// حارس الأقسام: يرجع صاحب الجلسة لو سُمح له، وإلا يعالج الرفض (بلا جلسة:
+  /// شاشة الدخول، ودور غير مسموح له: رسالة رفض).
+  UserEntity? _authorize(bool Function(UserEntity user) isAllowed) {
+    final context = _navigatorKey.currentContext;
+    if (context == null) return null;
+    final state = context.read<AuthCubit>().state;
+    if (state is! AuthSuccess) {
+      _logout();
+      return null;
+    }
+    if (!isAllowed(state.user)) {
+      AppSnackBar.showError(
+        context,
+        AppLocalizations.of(context)!.sectionAccessDenied,
+      );
+      return null;
+    }
+    return state.user;
+  }
+
+  void _openSection(AppSection section) {
+    final user = _authorize((user) => section.isAllowedFor(user.role));
+    if (user == null) return;
+    _navigatorKey.currentState?.pushReplacement(
+      MaterialPageRoute<void>(builder: (_) => _sectionScreen(section, user)),
+    );
+  }
+
+  /// اختيار القسم للأدمن: بعد الدخول، ومن زر "تبديل القسم" داخل الأقسام.
+  void _openSectionPicker() {
+    final user = _authorize((user) => user.role == UserRole.admin);
+    if (user == null) return;
+    _navigatorKey.currentState?.pushReplacement(
       MaterialPageRoute<void>(
-        builder: (_) => FinanceTabsShell(onLogout: _logout),
+        builder: (_) => _sectionPicker(user, requirePin: false),
       ),
     );
   }
 
-  void _openMerchants(BuildContext context) {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(
-        builder: (_) => MerchantsTabsShell(onLogout: _logout),
-      ),
+  Widget _sectionPicker(UserEntity user, {required bool requirePin}) {
+    return AdminSectionPicker(
+      user: user,
+      sections: AppSection.allowedFor(user.role),
+      requirePin: requirePin,
+      onOpenSection: _openSection,
+      onLogout: _logout,
     );
   }
 
-  void _openProducts(BuildContext context) {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(
-        builder: (_) => ProductSupervisorTabsShell(onLogout: _logout),
-      ),
-    );
+  Widget _sectionScreen(AppSection section, UserEntity user) {
+    final onSwitchSection =
+        user.role == UserRole.admin ? _openSectionPicker : null;
+    return switch (section) {
+      AppSection.adminDashboard => AdminTabsShell(
+          onLogout: _logout,
+          onSwitchSection: onSwitchSection,
+        ),
+      AppSection.adsReview => ProductSupervisorTabsShell(
+          onLogout: _logout,
+          onSwitchSection: onSwitchSection,
+        ),
+      AppSection.merchants => MerchantsTabsShell(
+          onLogout: _logout,
+          onSwitchSection: onSwitchSection,
+        ),
+      AppSection.serviceRequests => ServicesSupervisorTabsShell(
+          onLogout: _logout,
+          onSwitchSection: onSwitchSection,
+        ),
+      AppSection.usedGoods => WasalnySupervisorTabsShell(
+          onLogout: _logout,
+          onSwitchSection: onSwitchSection,
+        ),
+      AppSection.finance => FinanceTabsShell(onLogout: _logout),
+      AppSection.headOfSupervisors =>
+        HeadSupervisorTabsShell(onLogout: _logout),
+    };
   }
 
-  void _openWasalny(BuildContext context) {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(
-        builder: (_) => WasalnySupervisorTabsShell(onLogout: _logout),
-      ),
-    );
-  }
-
-  void _openServices(BuildContext context) {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(
-        builder: (_) => ServicesSupervisorTabsShell(onLogout: _logout),
-      ),
-    );
-  }
-
-  void _openHeadSupervisor(BuildContext context) {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(
-        builder: (_) => HeadSupervisorTabsShell(onLogout: _logout),
-      ),
-    );
-  }
-
-  void _openAdmin(BuildContext context) {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(
-        builder: (_) => AdminTabsShell(onLogout: _logout),
-      ),
-    );
+  /// أول شاشة عند استعادة جلسة محفوظة: قسم الحساب مباشرة، أو اختيار القسم
+  /// للأدمن بعد رمز التحقق الثاني.
+  Widget _buildHome(BuildContext context, UserEntity user) {
+    if (user.role == UserRole.admin) {
+      return _sectionPicker(user, requirePin: true);
+    }
+    return _sectionScreen(AppSection.allowedFor(user.role).single, user);
   }
 
   void _logout() {
@@ -134,13 +172,13 @@ class _BarwahAppState extends State<BarwahApp> {
 
   Widget _buildLogin(BuildContext context) {
     return LoginScreen(
-      onFinancialLogin: () => _openFinance(context),
-      onMerchantLogin: () => _openMerchants(context),
-      onProductLogin: () => _openProducts(context),
-      onWasalnyLogin: () => _openWasalny(context),
-      onServicesLogin: () => _openServices(context),
-      onHeadSupervisorLogin: () => _openHeadSupervisor(context),
-      onAdminLogin: () => _openAdmin(context),
+      onFinancialLogin: () => _openSection(AppSection.finance),
+      onMerchantLogin: () => _openSection(AppSection.merchants),
+      onProductLogin: () => _openSection(AppSection.adsReview),
+      onWasalnyLogin: () => _openSection(AppSection.usedGoods),
+      onServicesLogin: () => _openSection(AppSection.serviceRequests),
+      onHeadSupervisorLogin: () => _openSection(AppSection.headOfSupervisors),
+      onAdminLogin: _openSectionPicker,
     );
   }
 
@@ -182,7 +220,9 @@ class _BarwahAppState extends State<BarwahApp> {
               );
             },
             home: _StartupGate(
+              restoreSession: () => context.read<AuthCubit>().restoreSession(),
               loginBuilder: _buildLogin,
+              homeBuilder: _buildHome,
             ),
           );
         },
@@ -192,9 +232,15 @@ class _BarwahAppState extends State<BarwahApp> {
 }
 
 class _StartupGate extends StatefulWidget {
+  final Future<UserEntity?> Function() restoreSession;
   final WidgetBuilder loginBuilder;
+  final Widget Function(BuildContext context, UserEntity user) homeBuilder;
 
-  const _StartupGate({required this.loginBuilder});
+  const _StartupGate({
+    required this.restoreSession,
+    required this.loginBuilder,
+    required this.homeBuilder,
+  });
 
   @override
   State<_StartupGate> createState() => _StartupGateState();
@@ -204,8 +250,14 @@ class _StartupGateState extends State<_StartupGate>
     with TickerProviderStateMixin {
   bool _showSplash = true;
   bool _covering = false;
+  bool _leavingSplash = false;
+  UserEntity? _restoredUser;
 
-  // موجتا الاسبلاش ترتفعان وتغطيان الشاشة، ثم تظهر شاشة الدخول وهي مغطاة، ثم تتلاشى الموجة.
+  /// الجلسة المحفوظة تُستعاد أثناء الاسبلاش فلا يتأخر ظهور القسم.
+  late final Future<UserEntity?> _restoring;
+
+  // موجتا الاسبلاش ترتفعان وتغطيان الشاشة، ثم تظهر الشاشة التالية (الدخول أو
+  // قسم الجلسة المستعادة) وهي مغطاة، ثم تتلاشى الموجة.
   late final AnimationController _rise = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 850),
@@ -216,6 +268,21 @@ class _StartupGateState extends State<_StartupGate>
   );
 
   @override
+  void initState() {
+    super.initState();
+    _restoring = _restore();
+  }
+
+  Future<UserEntity?> _restore() async {
+    try {
+      return await widget.restoreSession();
+    } on Object catch (error) {
+      debugPrint('Session restore failed: $error');
+      return null;
+    }
+  }
+
+  @override
   void dispose() {
     _rise.dispose();
     _fade.dispose();
@@ -223,16 +290,22 @@ class _StartupGateState extends State<_StartupGate>
   }
 
   Future<void> _onSplashAnimationComplete() async {
-    if (!mounted || !_showSplash || _covering) return;
-    if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
-      setState(() => _showSplash = false);
-      return;
+    if (!mounted || !_showSplash || _leavingSplash) return;
+    _leavingSplash = true;
+    final animate = !(MediaQuery.maybeDisableAnimationsOf(context) ?? false);
+    if (animate) {
+      setState(() => _covering = true);
+      await _rise.forward();
     }
-    setState(() => _covering = true);
-    await _rise.forward();
+    // لو لم تنتهِ الاستعادة بعد، تبقى الموجة مغطية للشاشة حتى تنتهي.
+    final user = await _restoring;
     if (!mounted) return;
-    setState(() => _showSplash = false);
-    // إطار واحد ليُبنى الدخول تحت الموجة قبل أن تبدأ بالتلاشي.
+    setState(() {
+      _restoredUser = user;
+      _showSplash = false;
+    });
+    if (!animate) return;
+    // إطار واحد لتُبنى الشاشة التالية تحت الموجة قبل أن تبدأ بالتلاشي.
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted) return;
     await _fade.forward();
@@ -241,6 +314,7 @@ class _StartupGateState extends State<_StartupGate>
 
   @override
   Widget build(BuildContext context) {
+    final restoredUser = _restoredUser;
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -248,6 +322,11 @@ class _StartupGateState extends State<_StartupGate>
           AppLaunchSplash(
             key: const ValueKey('splash'),
             onAnimationComplete: _onSplashAnimationComplete,
+          )
+        else if (restoredUser != null)
+          Builder(
+            key: const ValueKey('home'),
+            builder: (context) => widget.homeBuilder(context, restoredUser),
           )
         else
           Builder(

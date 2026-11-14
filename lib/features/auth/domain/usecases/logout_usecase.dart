@@ -4,5 +4,5 @@ class LogoutUseCase {
   final AuthRepository repository;
   LogoutUseCase(this.repository);
 
-  void call() => repository.logout();
+  Future<void> call() => repository.logout();
 }

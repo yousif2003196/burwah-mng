@@ -13173,6 +13173,126 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'مخفي'**
   String get merchantInfoAdHidden;
+
+  /// No description provided for @sectionPickerTitle.
+  ///
+  /// In ar, this message translates to:
+  /// **'اختر القسم'**
+  String get sectionPickerTitle;
+
+  /// No description provided for @sectionPickerSubtitle.
+  ///
+  /// In ar, this message translates to:
+  /// **'حساب الأدمن يفتح كل الأقسام، ويمكنك التنقل بينها من زر تبديل القسم في الشريط العلوي.'**
+  String get sectionPickerSubtitle;
+
+  /// No description provided for @sectionAdminDashboard.
+  ///
+  /// In ar, this message translates to:
+  /// **'لوحة الإدارة'**
+  String get sectionAdminDashboard;
+
+  /// No description provided for @sectionAdminDashboardHint.
+  ///
+  /// In ar, this message translates to:
+  /// **'الحسابات والمالية والتصعيدات وسوق PUSE'**
+  String get sectionAdminDashboardHint;
+
+  /// No description provided for @sectionAdsReview.
+  ///
+  /// In ar, this message translates to:
+  /// **'مراجعة الإعلانات'**
+  String get sectionAdsReview;
+
+  /// No description provided for @sectionAdsReviewHint.
+  ///
+  /// In ar, this message translates to:
+  /// **'اعتماد الإعلانات الجديدة ورفضها ومتابعة البلاغات'**
+  String get sectionAdsReviewHint;
+
+  /// No description provided for @sectionMerchants.
+  ///
+  /// In ar, this message translates to:
+  /// **'التجار'**
+  String get sectionMerchants;
+
+  /// No description provided for @sectionMerchantsHint.
+  ///
+  /// In ar, this message translates to:
+  /// **'المتاجر وإعلاناتها ونسب العمولة'**
+  String get sectionMerchantsHint;
+
+  /// No description provided for @sectionServiceRequests.
+  ///
+  /// In ar, this message translates to:
+  /// **'طلبات الخدمات'**
+  String get sectionServiceRequests;
+
+  /// No description provided for @sectionServiceRequestsHint.
+  ///
+  /// In ar, this message translates to:
+  /// **'الطلبات ومقدمو الخدمة والشكاوى'**
+  String get sectionServiceRequestsHint;
+
+  /// No description provided for @sectionUsedGoods.
+  ///
+  /// In ar, this message translates to:
+  /// **'المستعمل ووصلني'**
+  String get sectionUsedGoods;
+
+  /// No description provided for @sectionUsedGoodsHint.
+  ///
+  /// In ar, this message translates to:
+  /// **'إعلانات المستعمل وطلبات وصلني وشكاواها'**
+  String get sectionUsedGoodsHint;
+
+  /// No description provided for @sectionFinance.
+  ///
+  /// In ar, this message translates to:
+  /// **'المالية'**
+  String get sectionFinance;
+
+  /// No description provided for @sectionFinanceHint.
+  ///
+  /// In ar, this message translates to:
+  /// **'السحوبات والاشتراكات والتسويات'**
+  String get sectionFinanceHint;
+
+  /// No description provided for @sectionHeadOfSupervisors.
+  ///
+  /// In ar, this message translates to:
+  /// **'رئيس المشرفين'**
+  String get sectionHeadOfSupervisors;
+
+  /// No description provided for @sectionHeadOfSupervisorsHint.
+  ///
+  /// In ar, this message translates to:
+  /// **'المشرفون والشكاوى والتصعيدات'**
+  String get sectionHeadOfSupervisorsHint;
+
+  /// No description provided for @switchSection.
+  ///
+  /// In ar, this message translates to:
+  /// **'تبديل القسم'**
+  String get switchSection;
+
+  /// No description provided for @sectionAccessDenied.
+  ///
+  /// In ar, this message translates to:
+  /// **'لا تملك صلاحية فتح هذا القسم'**
+  String get sectionAccessDenied;
+
+  /// No description provided for @sessionPinWaiting.
+  ///
+  /// In ar, this message translates to:
+  /// **'أدخل رمز التحقق للمتابعة'**
+  String get sessionPinWaiting;
+
+  /// No description provided for @sessionPinFailed.
+  ///
+  /// In ar, this message translates to:
+  /// **'فشل التحقق بخطوتين. سجّل الدخول مرة أخرى.'**
+  String get sessionPinFailed;
 }
 
 class _AppLocalizationsDelegate

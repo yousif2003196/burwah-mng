@@ -7057,4 +7057,67 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get merchantInfoAdHidden => 'مخفي';
+
+  @override
+  String get sectionPickerTitle => 'اختر القسم';
+
+  @override
+  String get sectionPickerSubtitle =>
+      'حساب الأدمن يفتح كل الأقسام، ويمكنك التنقل بينها من زر تبديل القسم في الشريط العلوي.';
+
+  @override
+  String get sectionAdminDashboard => 'لوحة الإدارة';
+
+  @override
+  String get sectionAdminDashboardHint =>
+      'الحسابات والمالية والتصعيدات وسوق PUSE';
+
+  @override
+  String get sectionAdsReview => 'مراجعة الإعلانات';
+
+  @override
+  String get sectionAdsReviewHint =>
+      'اعتماد الإعلانات الجديدة ورفضها ومتابعة البلاغات';
+
+  @override
+  String get sectionMerchants => 'التجار';
+
+  @override
+  String get sectionMerchantsHint => 'المتاجر وإعلاناتها ونسب العمولة';
+
+  @override
+  String get sectionServiceRequests => 'طلبات الخدمات';
+
+  @override
+  String get sectionServiceRequestsHint => 'الطلبات ومقدمو الخدمة والشكاوى';
+
+  @override
+  String get sectionUsedGoods => 'المستعمل ووصلني';
+
+  @override
+  String get sectionUsedGoodsHint => 'إعلانات المستعمل وطلبات وصلني وشكاواها';
+
+  @override
+  String get sectionFinance => 'المالية';
+
+  @override
+  String get sectionFinanceHint => 'السحوبات والاشتراكات والتسويات';
+
+  @override
+  String get sectionHeadOfSupervisors => 'رئيس المشرفين';
+
+  @override
+  String get sectionHeadOfSupervisorsHint => 'المشرفون والشكاوى والتصعيدات';
+
+  @override
+  String get switchSection => 'تبديل القسم';
+
+  @override
+  String get sectionAccessDenied => 'لا تملك صلاحية فتح هذا القسم';
+
+  @override
+  String get sessionPinWaiting => 'أدخل رمز التحقق للمتابعة';
+
+  @override
+  String get sessionPinFailed => 'فشل التحقق بخطوتين. سجّل الدخول مرة أخرى.';
 }

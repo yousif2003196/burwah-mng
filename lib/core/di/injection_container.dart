@@ -3,11 +3,13 @@ import 'package:get_it/get_it.dart';
 import 'package:barwah_app/core/network/api_configuration.dart';
 import 'package:barwah_app/core/auth/auth_refresh_interceptor.dart';
 import 'package:barwah_app/core/auth/auth_session.dart';
+import 'package:barwah_app/core/auth/auth_token_store.dart';
 import 'package:barwah_app/core/auth/device_id_store.dart';
 import 'package:barwah_app/core/realtime/realtime_hub.dart';
 import 'package:barwah_app/features/products/data/datasources/product_report_api_data_source.dart';
 import 'package:barwah_app/core/network/api_consumer.dart';
 import 'package:barwah_app/features/auth/data/datasources/auth_api_data_source.dart';
+import 'package:barwah_app/features/auth/data/datasources/session_user_store.dart';
 import 'package:barwah_app/features/products/data/datasources/product_category_api_data_source.dart';
 import 'package:barwah_app/features/products/data/datasources/product_promotion_api_data_source.dart';
 import 'package:barwah_app/features/admin/data/datasources/admin_security_store.dart';
@@ -16,6 +18,7 @@ import 'package:barwah_app/features/auth/data/repositories/auth_repository_impl.
 import 'package:barwah_app/features/auth/domain/repositories/auth_repository.dart';
 import 'package:barwah_app/features/auth/domain/usecases/login_usecase.dart';
 import 'package:barwah_app/features/auth/domain/usecases/logout_usecase.dart';
+import 'package:barwah_app/features/auth/domain/usecases/restore_session_usecase.dart';
 import 'package:barwah_app/features/auth/presentation/controllers/auth_cubit.dart';
 import 'package:barwah_app/features/finance/data/datasources/finance_mock_data_source.dart';
 import 'package:barwah_app/features/finance/data/datasources/finance_remote_data_source.dart';
@@ -91,6 +94,8 @@ Future<void> initDependencies() async {
   RealtimeHub.instance.baseUrl = berwahApiUrl;
   // معرّف الجهاز يُرسل مع كل طلب في ترويسة X-Device-Id.
   sl.registerLazySingleton(() => DeviceIdStore());
+  // التوكنات في التخزين الآمن لتبقى الجلسة بعد إغلاق التطبيق.
+  sl.registerLazySingleton(() => AuthTokenStore());
   sl.registerLazySingleton<ApiConsumer>(
     () {
       final deviceIds = sl<DeviceIdStore>();
@@ -104,6 +109,7 @@ Future<void> initDependencies() async {
           baseUrl: berwahApiUrl,
           client: consumer.dio,
           deviceIdProvider: deviceIds.read,
+          tokenStore: sl<AuthTokenStore>(),
           onSessionExpired: AuthSession.notifyExpired,
         ),
       );
@@ -126,6 +132,8 @@ Future<void> initDependencies() async {
       apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'),
     ),
   );
+  // بيانات حساب الجلسة غير الحساسة (الاسم والبريد والدور) في SharedPreferences.
+  sl.registerLazySingleton(() => SessionUserStore());
   sl.registerLazySingleton<AuthRepository>(
     () => AuthRepositoryImpl(
       adminSecurity: sl(),
@@ -133,12 +141,19 @@ Future<void> initDependencies() async {
       supervisorRoster: sl(),
       // الدخول عن طريق السيرفر فقط.
       api: AuthApiDataSource(apiConsumer: sl(instanceName: 'berwah')),
+      tokenStore: sl<AuthTokenStore>(),
+      userStore: sl<SessionUserStore>(),
     ),
   );
   sl.registerLazySingleton(() => LoginUseCase(sl()));
   sl.registerLazySingleton(() => LogoutUseCase(sl()));
+  sl.registerLazySingleton(() => RestoreSessionUseCase(sl()));
   sl.registerFactory(
-    () => AuthCubit(loginUseCase: sl(), logoutUseCase: sl()),
+    () => AuthCubit(
+      loginUseCase: sl(),
+      logoutUseCase: sl(),
+      restoreSessionUseCase: sl(),
+    ),
   );
 
   final apiConfiguration = ApiConfiguration.fromEnvironment();

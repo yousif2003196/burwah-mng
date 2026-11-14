@@ -6,6 +6,7 @@ import 'package:barwah_app/features/auth/data/repositories/auth_repository_impl.
 import 'package:barwah_app/features/auth/domain/entities/user_role.dart';
 import 'package:barwah_app/features/auth/domain/usecases/login_usecase.dart';
 import 'package:barwah_app/features/auth/domain/usecases/logout_usecase.dart';
+import 'package:barwah_app/features/auth/domain/usecases/restore_session_usecase.dart';
 import 'package:barwah_app/features/auth/presentation/controllers/auth_cubit.dart';
 import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_roster_store.dart';
 
@@ -65,5 +66,6 @@ AuthCubit buildAuthCubit() {
   return AuthCubit(
     loginUseCase: LoginUseCase(repository),
     logoutUseCase: LogoutUseCase(repository),
+    restoreSessionUseCase: RestoreSessionUseCase(repository),
   );
 }
