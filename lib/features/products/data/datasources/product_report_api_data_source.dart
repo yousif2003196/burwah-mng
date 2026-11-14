@@ -1,37 +1,6 @@
 import 'package:barwah_app/core/network/api_consumer.dart';
 import 'package:barwah_app/core/network/api_endpoints.dart';
-
-class ProductReportLog {
-  const ProductReportLog({
-    required this.adNumber,
-    required this.title,
-    required this.actionType,
-    required this.reason,
-    required this.timeAgo,
-  });
-
-  final String adNumber;
-  final String title;
-  final String actionType;
-  final String reason;
-  final String timeAgo;
-}
-
-class ProductReportData {
-  const ProductReportData({
-    required this.reviewed,
-    required this.approved,
-    required this.declined,
-    required this.approvalRate,
-    required this.logs,
-  });
-
-  final int reviewed;
-  final int approved;
-  final int declined;
-  final double approvalRate;
-  final List<ProductReportLog> logs;
-}
+import 'package:barwah_app/features/products/data/models/product_report_model.dart';
 
 /// GET api/SupervisorForAd/reports?period=today|week|month
 class ProductReportApiDataSource {
@@ -39,7 +8,7 @@ class ProductReportApiDataSource {
 
   final ApiConsumer apiConsumer;
 
-  Future<ProductReportData> load(String period) async {
+  Future<ProductReportModel> load(String period) async {
     final response = await apiConsumer.get<Object>(
       ApiEndpoints.adReports,
       queryParameters: {'period': period},
@@ -49,25 +18,6 @@ class ProductReportApiDataSource {
     if (data is! Map<String, dynamic>) {
       throw const FormatException('reports: data must be an object.');
     }
-    final reviewed = (data['adsCount'] as num?)?.toInt() ?? 0;
-    final approvalRate = (data['approvalRate'] as num?)?.toDouble() ?? 0;
-    final rejectionRate = (data['rejectionRate'] as num?)?.toDouble() ?? 0;
-    return ProductReportData(
-      reviewed: reviewed,
-      approved: (reviewed * approvalRate / 100).round(),
-      declined: (reviewed * rejectionRate / 100).round(),
-      approvalRate: approvalRate,
-      logs: [
-        for (final item in (data['recentLogs'] as List<dynamic>? ?? const []))
-          if (item is Map<String, dynamic>)
-            ProductReportLog(
-              adNumber: '${item['adNumber'] ?? ''}'.replaceFirst('#', ''),
-              title: '${item['title'] ?? ''}',
-              actionType: '${item['actionType'] ?? ''}',
-              reason: '${item['reason'] ?? ''}',
-              timeAgo: '${item['timeAgo'] ?? ''}',
-            ),
-      ],
-    );
+    return ProductReportModel.fromJson(data);
   }
 }

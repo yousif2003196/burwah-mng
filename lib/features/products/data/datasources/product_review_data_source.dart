@@ -4,6 +4,9 @@ import 'package:barwah_app/features/products/domain/entities/product_review.dart
 abstract class ProductReviewDataSource {
   Future<List<ProductReviewModel>> getProductReviews();
 
+  /// التفاصيل الكاملة لإعلان واحد (الصور والمواصفات والكمية والبائع).
+  Future<ProductReviewModel> getProductReview(String id);
+
   Future<ProductReviewModel> updateProductReview(ProductReviewModel review);
 
   Future<ProductReviewModel> changeProductReviewStatus({

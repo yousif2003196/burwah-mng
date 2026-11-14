@@ -14,6 +14,11 @@ class ProductReviewRepositoryImpl implements ProductReviewRepository {
   }
 
   @override
+  Future<ProductReview> getProductReview(String id) {
+    return dataSource.getProductReview(id);
+  }
+
+  @override
   Future<ProductReview> updateProductReview(ProductReview review) {
     return dataSource.updateProductReview(
       ProductReviewModel.fromEntity(review),

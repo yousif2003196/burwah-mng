@@ -10,9 +10,10 @@ import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/core/utils/csv_exporter.dart';
 import 'package:barwah_app/features/products/data/datasources/product_escalation_store.dart';
-import 'package:barwah_app/features/products/data/datasources/product_report_api_data_source.dart';
 import 'package:barwah_app/features/products/domain/entities/product_supervisor_audit_entry.dart';
 import 'package:barwah_app/features/products/domain/repositories/product_supervisor_audit_repository.dart';
+import 'package:barwah_app/features/products/presentation/controllers/product_report_cubit.dart';
+import 'package:barwah_app/features/products/presentation/controllers/product_report_state.dart';
 import 'package:barwah_app/l10n/app_localizations.dart';
 import 'package:barwah_app/core/widgets/scroll_fx.dart';
 import 'package:barwah_app/core/widgets/motion_icon.dart';
@@ -151,6 +152,9 @@ class _ProductReportsScreenState extends State<ProductReportsScreen> {
   late Future<_LiveStats> _liveFuture;
   _ReportMetrics? _remoteMetrics;
 
+  /// تقرير الباك إند للفترة المختارة (للحسابات الحقيقية فقط).
+  ProductReportCubit? _reportCubit;
+
   bool get _remote => AuthSession.isSignedIn;
 
   String? get _apiPeriod => switch (_period) {
@@ -162,50 +166,50 @@ class _ProductReportsScreenState extends State<ProductReportsScreen> {
 
   /// أرقام وسجل المراجعات الحقيقيان من الباك إند (بدل السجل المحلي).
   Future<void> _loadRemoteReport() async {
+    final cubit = _reportCubit;
     final period = _apiPeriod;
-    if (!_remote || period == null) {
+    if (cubit == null || period == null) {
       if (mounted) setState(() => _remoteMetrics = null);
       return;
     }
-    try {
-      final report = await sl<ProductReportApiDataSource>().load(period);
-      if (!mounted) return;
-      final actions = [
-        for (final log in report.logs)
-          _AuditAction(
-            adNumber: log.adNumber,
-            titleAr: log.title,
-            titleEn: log.title,
-            ageAr: log.timeAgo,
-            ageEn: log.timeAgo,
-            status: log.actionType.contains('اعتماد')
-                ? _ReportActionStatus.approved
-                : log.actionType.contains('رفض')
-                    ? _ReportActionStatus.rejected
-                    : _ReportActionStatus.hidden,
-            reasonAr: log.reason,
-            reasonEn: log.reason,
-          ),
-      ];
-      setState(() {
-        _remoteMetrics = _ReportMetrics(
-          reviewed: report.reviewed,
-          approved: report.approved,
-          declined: report.declined,
-          approvalRate: '${report.approvalRate.round()}%',
-          averageMinutes: '—',
-        );
-        _savedActions = List.of(actions);
-        _draftActions = List.of(actions);
-        _hasUnsavedChanges = false;
-      });
-    } catch (error, stackTrace) {
-      FlutterError.reportError(FlutterErrorDetails(
-        exception: error,
-        stack: stackTrace,
-        library: 'product reports',
-      ));
+    await cubit.load(period);
+    final state = cubit.state;
+    // الفشل يُسجَّل في المستودع وتبقى الأرقام المعروضة كما هي.
+    if (!mounted ||
+        state is! ProductReportLoaded ||
+        state.period != _apiPeriod) {
+      return;
     }
+    final report = state.report;
+    final actions = [
+      for (final log in report.logs)
+        _AuditAction(
+          adNumber: log.adNumber,
+          titleAr: log.title,
+          titleEn: log.title,
+          ageAr: log.timeAgo,
+          ageEn: log.timeAgo,
+          status: log.actionType.contains('اعتماد')
+              ? _ReportActionStatus.approved
+              : log.actionType.contains('رفض')
+                  ? _ReportActionStatus.rejected
+                  : _ReportActionStatus.hidden,
+          reasonAr: log.reason,
+          reasonEn: log.reason,
+        ),
+    ];
+    setState(() {
+      _remoteMetrics = _ReportMetrics(
+        reviewed: report.reviewed,
+        approved: report.approved,
+        declined: report.declined,
+        approvalRate: '${report.approvalRate.round()}%',
+        averageMinutes: '—',
+      );
+      _savedActions = List.of(actions);
+      _draftActions = List.of(actions);
+      _hasUnsavedChanges = false;
+    });
   }
 
   @override
@@ -216,8 +220,15 @@ class _ProductReportsScreenState extends State<ProductReportsScreen> {
     if (_remote) {
       _savedActions = [];
       _draftActions = [];
+      _reportCubit = sl<ProductReportCubit>();
     }
     _loadRemoteReport();
+  }
+
+  @override
+  void dispose() {
+    _reportCubit?.close();
+    super.dispose();
   }
 
   Future<_LiveStats> _loadLiveStats() async {

@@ -19,11 +19,16 @@ class ProductReviewDetailsScreen extends StatefulWidget {
     ProductReviewStatus status,
   ) onSubmit;
 
+  /// يجلب التفاصيل الكاملة (المواصفات والكمية والبائع) لتحل محل بيانات
+  /// القائمة بمجرد وصولها.
+  final Future<ProductReview?> Function()? loadFullDetails;
+
   const ProductReviewDetailsScreen({
     super.key,
     required this.product,
     required this.isArabic,
     required this.onSubmit,
+    this.loadFullDetails,
   });
 
   @override
@@ -33,10 +38,25 @@ class ProductReviewDetailsScreen extends StatefulWidget {
 
 class _ProductReviewDetailsScreenState
     extends State<ProductReviewDetailsScreen> {
+  ProductReview? _fullProduct;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFullDetails();
+  }
+
+  Future<void> _loadFullDetails() async {
+    final load = widget.loadFullDetails;
+    if (load == null) return;
+    final full = await load();
+    if (full != null && mounted) setState(() => _fullProduct = full);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final product = widget.product;
+    final product = _fullProduct ?? widget.product;
     final title = widget.isArabic ? product.titleAr : product.titleEn;
     final merchant =
         widget.isArabic ? product.merchantNameAr : product.merchantNameEn;

@@ -4,7 +4,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/auth/auth_session.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
-import 'package:barwah_app/features/products/data/datasources/product_report_api_data_source.dart';
+import 'package:barwah_app/features/products/domain/entities/product_report.dart';
+import 'package:barwah_app/features/products/presentation/controllers/product_report_cubit.dart';
+import 'package:barwah_app/features/products/presentation/controllers/product_report_state.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/features/products/domain/entities/product_supervisor_audit_entry.dart';
 import 'package:barwah_app/features/products/domain/repositories/product_supervisor_audit_repository.dart';
@@ -49,7 +51,8 @@ class _ProductSupervisorProfileScreenState
 
   // بيانات حقيقية من السيرفر (تقرير آخر 30 يوم).
   bool get _remote => AuthSession.isSignedIn;
-  ProductReportData? _report;
+  ProductReport? _report;
+  ProductReportCubit? _reportCubit;
   bool _reportLoading = false;
   bool _reportFailed = false;
 
@@ -57,29 +60,36 @@ class _ProductSupervisorProfileScreenState
   void initState() {
     super.initState();
     _loadPreferences();
-    if (_remote) _loadReport();
+    if (_remote) {
+      _reportCubit = sl<ProductReportCubit>();
+      _loadReport();
+    }
+  }
+
+  @override
+  void dispose() {
+    _reportCubit?.close();
+    super.dispose();
   }
 
   Future<void> _loadReport() async {
+    final cubit = _reportCubit;
+    if (cubit == null) return;
     setState(() {
       _reportLoading = true;
       _reportFailed = false;
     });
-    try {
-      final data = await sl<ProductReportApiDataSource>().load('month');
-      if (!mounted) return;
-      setState(() {
-        _report = data;
-        _reportLoading = false;
-      });
-    } catch (error) {
-      debugPrint('Profile report load failed: $error');
-      if (!mounted) return;
-      setState(() {
-        _reportLoading = false;
+    await cubit.load('month');
+    if (!mounted) return;
+    final state = cubit.state;
+    setState(() {
+      _reportLoading = false;
+      if (state is ProductReportLoaded) {
+        _report = state.report;
+      } else {
         _reportFailed = true;
-      });
-    }
+      }
+    });
   }
 
   String get _roleLabel => switch (AuthSession.backendRole) {

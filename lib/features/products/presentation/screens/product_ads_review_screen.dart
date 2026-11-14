@@ -24,6 +24,9 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
   final TextEditingController _searchController = TextEditingController();
   bool _showArchive = false;
 
+  /// فلتر الحالة داخل الأرشيف (null = كل الحالات).
+  ProductReviewStatus? _archiveStatus;
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -97,6 +100,10 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
               onSelectionChanged: (selection) =>
                   setState(() => _showArchive = selection.first),
             ),
+            if (_showArchive) ...[
+              const SizedBox(height: 10),
+              ScrollFx(child: _buildArchiveStatusFilters(state, l10n)),
+            ],
             const SizedBox(height: 14),
             ScrollFx(child: Row(
               children: [
@@ -127,11 +134,7 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
               ],
             )),
             const SizedBox(height: 10),
-            if (state.visibleReviews
-                .where((review) =>
-                    (review.status != ProductReviewStatus.pending) ==
-                    _showArchive)
-                .isEmpty)
+            if (!state.visibleReviews.any(_isShown))
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 42),
                 child: Text(
@@ -144,8 +147,7 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
                   style: TextStyle(color: AppColors.textSecondary),
                 ),
               ),
-            for (final product in state.visibleReviews.where((review) =>
-                (review.status != ProductReviewStatus.pending) == _showArchive))
+            for (final product in state.visibleReviews.where(_isShown))
               _buildProductCard(
                 context,
                 product,
@@ -324,6 +326,69 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
           border: InputBorder.none,
           contentPadding: const EdgeInsetsDirectional.fromSTEB(12, 13, 12, 12),
         ),
+      ),
+    );
+  }
+
+  /// تبويب المراجعة يعرض المعلّق فقط، والأرشيف يعرض الباقي حسب فلتر الحالة.
+  bool _isShown(ProductReview review) {
+    final archived = review.status != ProductReviewStatus.pending;
+    if (archived != _showArchive) return false;
+    return !_showArchive ||
+        _archiveStatus == null ||
+        review.status == _archiveStatus;
+  }
+
+  Widget _buildArchiveStatusFilters(
+    ProductReviewLoaded state,
+    AppLocalizations l10n,
+  ) {
+    final options = <({String label, ProductReviewStatus? status})>[
+      (label: l10n.productCategoryAll, status: null),
+      (label: l10n.productStatusApproved, status: ProductReviewStatus.approved),
+      (label: l10n.productStatusRejected, status: ProductReviewStatus.rejected),
+      (
+        label: l10n.productStatusSuspended,
+        status: ProductReviewStatus.suspended,
+      ),
+      (label: l10n.productStatusHidden, status: ProductReviewStatus.hidden),
+    ];
+    int count(ProductReviewStatus? status) => state.visibleReviews
+        .where((review) =>
+            review.status != ProductReviewStatus.pending &&
+            (status == null || review.status == status))
+        .length;
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (var index = 0; index < options.length; index++) ...[
+            if (index > 0) const SizedBox(width: 7),
+            ChoiceChip(
+              label: Text(
+                '${options[index].label} (${count(options[index].status)})',
+              ),
+              selected: _archiveStatus == options[index].status,
+              onSelected: (_) =>
+                  setState(() => _archiveStatus = options[index].status),
+              showCheckmark: false,
+              selectedColor: AppColors.primaryDark,
+              backgroundColor: AppColors.surface,
+              labelStyle: TextStyle(
+                color: _archiveStatus == options[index].status
+                    ? Colors.white
+                    : AppColors.textSecondary,
+                fontSize: 10,
+              ),
+              side: BorderSide(
+                color: _archiveStatus == options[index].status
+                    ? AppColors.ink
+                    : AppColors.cardBorder,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -990,6 +1055,7 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
   ) {
     final navigator = Navigator.of(context);
     final parentRoute = ModalRoute.of(context);
+    final cubit = context.read<ProductReviewCubit>();
     Future<void> submitDecision(
       ProductReview editedProduct,
       ProductReviewStatus status, {
@@ -1013,6 +1079,7 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
         builder: (_) => ProductReviewDetailsScreen(
           product: product,
           isArabic: isArabic,
+          loadFullDetails: () => cubit.loadDetails(product.id),
           onSubmit: (editedProduct, status) => submitDecision(
             editedProduct,
             status,

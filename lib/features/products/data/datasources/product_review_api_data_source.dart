@@ -10,6 +10,7 @@ import 'package:barwah_app/features/products/domain/entities/product_review.dart
 /// مصدر بيانات مراجعة الإعلانات من واجهة Berwah (قسم SupervisorForAd).
 ///
 /// - GET  api/SupervisorForAd/ads?status=Pending|Approved|Rejected|Suspended
+/// - GET  api/SupervisorForAd/ad/{id} (التفاصيل الكاملة: المواصفات والكمية)
 /// - POST api/SupervisorForAd/reject/{id} و hide/{id} (السبب يصل لصاحب الإعلان)
 /// - POST api/SupervisorForAd/update-ad-status/{id} بجسم { "status": n }
 ///
@@ -60,6 +61,30 @@ class ProductReviewApiDataSource implements ProductReviewDataSource {
       ..clear()
       ..addEntries(reviews.map((r) => MapEntry(r.id, r)));
     return List.unmodifiable(reviews);
+  }
+
+  @override
+  Future<ProductReviewModel> getProductReview(String id) async {
+    final adId = int.tryParse(id);
+    if (adId == null) {
+      throw ArgumentError.value(id, 'id', 'Must be a numeric ad id.');
+    }
+    final response = await apiConsumer.get<Object>(ApiEndpoints.ad(adId));
+    final body = response.data;
+    final data = body is Map<String, dynamic> ? body['data'] : null;
+    if (data is! Map<String, dynamic>) {
+      throw const FormatException('ad/{id}: data must be an object.');
+    }
+    // ما لا يرجع في رد التفاصيل (التصنيف ووقت الإرسال) يُؤخذ من نسخة القائمة.
+    final review = _fromJson(data, fallback: _cache[id]);
+    _cache[review.id] = review;
+    if (data['categoryId'] is num) {
+      _categoryIds[review.id] = (
+        category: (data['categoryId'] as num).toInt(),
+        sub: (data['subCategoryId'] as num?)?.toInt() ?? 0,
+      );
+    }
+    return review;
   }
 
   @override
@@ -211,7 +236,10 @@ class ProductReviewApiDataSource implements ProductReviewDataSource {
         _ => ProductReviewStatus.pending,
       };
 
-  static ProductReviewModel _fromJson(Map<String, dynamic> json) {
+  static ProductReviewModel _fromJson(
+    Map<String, dynamic> json, {
+    ProductReviewModel? fallback,
+  }) {
     final id = '${json['id']}';
     final title = '${json['title'] ?? ''}'.trim();
     final seller = '${json['sellerName'] ?? ''}'.trim();
@@ -220,7 +248,8 @@ class ProductReviewApiDataSource implements ProductReviewDataSource {
       for (final url in (json['imageUrls'] as List<dynamic>? ?? const []))
         if (url is String && url.isNotEmpty) url,
     ];
-    final description = '${json['description'] ?? ''}'.trim();
+    var description = '${json['description'] ?? ''}'.trim();
+    if (description.isEmpty) description = fallback?.descriptionAr ?? '';
     final details = _details(json, images.length);
     return ProductReviewModel(
       id: id,
@@ -232,7 +261,9 @@ class ProductReviewApiDataSource implements ProductReviewDataSource {
       category: ProductCategory.electronics,
       imageKind: ProductImageKind.phone,
       photoCount: images.length,
-      receivedMinutesAgo: _minutesAgo(json['createdAt']),
+      receivedMinutesAgo: json['createdAt'] == null && fallback != null
+          ? fallback.receivedMinutesAgo
+          : _minutesAgo(json['createdAt']),
       priceAr: '$amount ج.م',
       priceEn: 'EGP $amount',
       descriptionAr: description,
@@ -242,8 +273,9 @@ class ProductReviewApiDataSource implements ProductReviewDataSource {
       decisionNote: (json['reviewNote'] as String?)?.trim().isEmpty ?? true
           ? null
           : (json['reviewNote'] as String).trim(),
-      categoryId: (json['categoryId'] as num?)?.toInt(),
-      subCategoryId: (json['subCategoryId'] as num?)?.toInt(),
+      categoryId: (json['categoryId'] as num?)?.toInt() ?? fallback?.categoryId,
+      subCategoryId:
+          (json['subCategoryId'] as num?)?.toInt() ?? fallback?.subCategoryId,
       condition: '${json['condition']}'.toLowerCase() == 'used'
           ? ProductCondition.used
           : ProductCondition.newInBox,
@@ -275,6 +307,7 @@ class ProductReviewApiDataSource implements ProductReviewDataSource {
       '${json['city'] ?? ''}'.trim(),
     ].where((e) => e.isNotEmpty).join(' - ');
     add('الموقع', place);
+    add('الكمية', json['quantity']);
     if (json['isNegotiable'] != null) {
       add('قابل للتفاوض', json['isNegotiable'] == true ? 'نعم' : 'لا');
     }

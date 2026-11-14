@@ -60,13 +60,19 @@ import 'package:barwah_app/features/products/data/datasources/product_review_api
 import 'package:barwah_app/features/products/data/datasources/product_review_mock_data_source.dart';
 import 'package:barwah_app/features/products/data/datasources/product_supervisor_audit_data_source.dart';
 import 'package:barwah_app/features/products/data/datasources/product_supervisor_audit_shared_preferences_data_source.dart';
+import 'package:barwah_app/features/products/data/repositories/product_report_repository_impl.dart';
 import 'package:barwah_app/features/products/data/repositories/product_review_repository_impl.dart';
 import 'package:barwah_app/features/products/data/repositories/product_supervisor_audit_repository_impl.dart';
+import 'package:barwah_app/features/products/domain/repositories/product_report_repository.dart';
 import 'package:barwah_app/features/products/domain/repositories/product_review_repository.dart';
 import 'package:barwah_app/features/products/domain/repositories/product_supervisor_audit_repository.dart';
 import 'package:barwah_app/features/products/domain/usecases/change_product_review_status_usecase.dart';
+import 'package:barwah_app/features/products/domain/usecases/get_product_report_usecase.dart';
+import 'package:barwah_app/features/products/domain/usecases/get_product_review_usecase.dart';
 import 'package:barwah_app/features/products/domain/usecases/get_product_reviews_usecase.dart';
 import 'package:barwah_app/features/products/domain/usecases/update_product_review_usecase.dart';
+import 'package:barwah_app/features/products/presentation/controllers/ad_quick_review_cubit.dart';
+import 'package:barwah_app/features/products/presentation/controllers/product_report_cubit.dart';
 import 'package:barwah_app/features/products/presentation/controllers/product_review_cubit.dart';
 import 'package:barwah_app/features/wasalny_supervisor/data/datasources/wasalny_case_store.dart';
 import 'package:barwah_app/features/wasalny_supervisor/data/datasources/wasalny_complaints_api_data_source.dart';
@@ -241,16 +247,31 @@ Future<void> initDependencies() async {
   sl.registerLazySingleton(
     () => UpdateProductReviewUseCase(repository: sl()),
   );
+  sl.registerLazySingleton(() => GetProductReviewUseCase(repository: sl()));
   sl.registerFactory(
     () => ProductReviewCubit(
       getProductReviews: sl(),
       changeProductReviewStatus: sl(),
       updateProductReview: sl(),
+      getProductReview: sl(),
       auditRepository: sl(),
       categoryLoader:
           useMockProducts ? null : sl<ProductCategoryApiDataSource>().load,
     ),
   );
+  // مراجعة سريعة لإعلان مفتوح من إشعار "إعلان جديد".
+  sl.registerFactory(
+    () => AdQuickReviewCubit(
+      getProductReview: sl(),
+      changeProductReviewStatus: sl(),
+    ),
+  );
+  // تقرير أداء مشرف الإعلانات (api/SupervisorForAd/reports).
+  sl.registerLazySingleton<ProductReportRepository>(
+    () => ProductReportRepositoryImpl(dataSource: sl()),
+  );
+  sl.registerLazySingleton(() => GetProductReportUseCase(repository: sl()));
+  sl.registerFactory(() => ProductReportCubit(getProductReport: sl()));
 
   // Wasalny complaints
   if (apiConfiguration.useMockData) {

@@ -215,6 +215,14 @@ class ProductReviewMockDataSource implements ProductReviewDataSource {
   }
 
   @override
+  Future<ProductReviewModel> getProductReview(String id) async {
+    for (final review in _reviews) {
+      if (review.id == id) return review;
+    }
+    throw StateError('Product review $id was not found.');
+  }
+
+  @override
   Future<ProductReviewModel> updateProductReview(
     ProductReviewModel review,
   ) async {

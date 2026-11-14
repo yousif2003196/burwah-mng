@@ -10,6 +10,7 @@ import 'package:barwah_app/features/products/domain/entities/product_review.dart
 import 'package:barwah_app/features/products/domain/entities/product_supervisor_audit_entry.dart';
 import 'package:barwah_app/features/products/domain/repositories/product_supervisor_audit_repository.dart';
 import 'package:barwah_app/features/products/domain/usecases/change_product_review_status_usecase.dart';
+import 'package:barwah_app/features/products/domain/usecases/get_product_review_usecase.dart';
 import 'package:barwah_app/features/products/domain/usecases/get_product_reviews_usecase.dart';
 import 'package:barwah_app/features/products/domain/usecases/update_product_review_usecase.dart';
 import 'package:barwah_app/features/products/presentation/controllers/product_review_state.dart';
@@ -18,6 +19,9 @@ class ProductReviewCubit extends Cubit<ProductReviewState> {
   final GetProductReviewsUseCase getProductReviews;
   final ChangeProductReviewStatusUseCase changeProductReviewStatus;
   final UpdateProductReviewUseCase updateProductReview;
+
+  /// التفاصيل الكاملة لإعلان (`GET ad/{id}`)؛ null في الوضع التجريبي.
+  final GetProductReviewUseCase? getProductReview;
   final ProductSupervisorAuditRepository? auditRepository;
 
   /// يحمّل تصنيفات الباك إند (null في الوضع التجريبي).
@@ -27,6 +31,7 @@ class ProductReviewCubit extends Cubit<ProductReviewState> {
     required this.getProductReviews,
     required this.changeProductReviewStatus,
     required this.updateProductReview,
+    this.getProductReview,
     this.auditRepository,
     this.categoryLoader,
   }) : super(const ProductReviewInitial()) {
@@ -116,6 +121,31 @@ class ProductReviewCubit extends Cubit<ProductReviewState> {
     } catch (error) {
       debugPrint('ProductReview load failed: $error');
       emit(const ProductReviewError(ProductReviewFailure.loading));
+    }
+  }
+
+  /// يجلب التفاصيل الكاملة للإعلان (المواصفات والكمية والبائع) ويحدّث نسخته في
+  /// القائمة. يرجع null لو تعذّر ذلك، فتبقى بيانات القائمة معروضة.
+  Future<ProductReview?> loadDetails(String id) async {
+    final loader = getProductReview;
+    if (loader == null) return null;
+    try {
+      var review = await loader(id);
+      final current = state;
+      if (current is ProductReviewLoaded && !isClosed) {
+        final names = {for (final c in current.categories) c.id: c.name};
+        final categoryName = names[review.categoryId];
+        if (categoryName != null) {
+          review = review.copyWith(categoryName: categoryName);
+        }
+        emit(current.copyWith(reviews: [
+          for (final item in current.reviews) item.id == id ? review : item,
+        ]));
+      }
+      return review;
+    } catch (error) {
+      debugPrint('ProductReview details load failed: $error');
+      return null;
     }
   }
 
