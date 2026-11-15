@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart' show DateFormat;
+import 'package:barwah_app/core/network/api_consumer.dart';
+import 'package:barwah_app/core/network/api_endpoints.dart';
+import 'package:dio/dio.dart' show DioException;
+import 'package:barwah_app/features/products/data/datasources/product_supervisor_audit_api_data_source.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:barwah_app/core/widgets/motion.dart';
@@ -54,6 +59,15 @@ class _ProductSupervisorProfileScreenState
   ProductReport? _report;
   ProductReportCubit? _reportCubit;
   bool _reportLoading = false;
+
+  // آخر إجراءات المشرف نفسه من السجل الرقابي (مشرف المنتجات فقط).
+  List<ProductSupervisorAuditEntry> _myActivity = const [];
+  bool _activityLoading = false;
+  bool _activityFailed = false;
+  bool get _showActivity => _remote && widget.auditActionKeyPrefix.isEmpty;
+
+  // آخر تغيير لكلمة المرور (من إعدادات الحساب).
+  String? _passwordChangedText;
   bool _reportFailed = false;
 
   @override
@@ -63,6 +77,8 @@ class _ProductSupervisorProfileScreenState
     if (_remote) {
       _reportCubit = sl<ProductReportCubit>();
       _loadReport();
+      if (_showActivity) _loadMyActivity();
+      _loadPasswordInfo();
     }
   }
 
@@ -70,6 +86,223 @@ class _ProductSupervisorProfileScreenState
   void dispose() {
     _reportCubit?.close();
     super.dispose();
+  }
+
+  Future<void> _loadPasswordInfo() async {
+    try {
+      final response = await sl<ApiConsumer>(instanceName: 'berwah')
+          .get<Object>(ApiEndpoints.accountSettings);
+      final body = response.data;
+      final data = body is Map ? body['data'] : null;
+      final text = data is Map ? data['lastPasswordChangeText'] : null;
+      if (text is String && mounted) setState(() => _passwordChangedText = text);
+    } on Object {
+      // معلومة ثانوية: لو فشلت منعرضهاش.
+    }
+  }
+
+  Future<void> _changePassword() async {
+    final ar = AppLocalizations.of(context)!.localeName.startsWith('ar');
+    final current = TextEditingController();
+    final next = TextEditingController();
+    final confirm = TextEditingController();
+    String? error;
+    var saving = false;
+    final changed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          Future<void> submit() async {
+            if (current.text.isEmpty || next.text.isEmpty) {
+              setDialogState(() => error = ar ? 'املأ كل الحقول' : 'Fill all fields');
+              return;
+            }
+            if (next.text != confirm.text) {
+              setDialogState(() => error = ar ? 'كلمتا المرور غير متطابقتين' : 'Passwords do not match');
+              return;
+            }
+            if (next.text == current.text) {
+              setDialogState(() => error = ar
+                  ? 'كلمة المرور الجديدة يجب أن تختلف عن الحالية'
+                  : 'New password must differ from the current one');
+              return;
+            }
+            setDialogState(() {
+              saving = true;
+              error = null;
+            });
+            try {
+              await sl<ApiConsumer>(instanceName: 'berwah').post<Object>(
+                ApiEndpoints.accountChangePassword,
+                data: {
+                  'currentPassword': current.text,
+                  'newPassword': next.text,
+                  'confirmPassword': confirm.text,
+                },
+              );
+              if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+            } on DioException catch (e) {
+              final data = e.response?.data;
+              final message = data is Map ? '${data['message'] ?? ''}' : '';
+              setDialogState(() {
+                saving = false;
+                error = message.isEmpty
+                    ? (ar ? 'تعذر تغيير كلمة المرور' : 'Could not change the password')
+                    : message;
+              });
+            }
+          }
+
+          return AlertDialog(
+            title: Text(ar ? 'تغيير كلمة المرور' : 'Change password'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: current,
+                    obscureText: true,
+                    decoration: InputDecoration(
+                      labelText: ar ? 'كلمة المرور الحالية' : 'Current password',
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: next,
+                    obscureText: true,
+                    decoration: InputDecoration(
+                      labelText: ar ? 'كلمة المرور الجديدة' : 'New password',
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: confirm,
+                    obscureText: true,
+                    decoration: InputDecoration(
+                      labelText: ar ? 'تأكيد كلمة المرور' : 'Confirm password',
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
+                  if (error != null) ...[
+                    const SizedBox(height: 10),
+                    Text(error!,
+                        style: TextStyle(color: AppColors.danger, fontSize: 12)),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: saving ? null : () => Navigator.pop(dialogContext, false),
+                child: Text(ar ? 'إلغاء' : 'Cancel'),
+              ),
+              FilledButton(
+                onPressed: saving ? null : submit,
+                child: saving
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(ar ? 'حفظ' : 'Save'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    current.dispose();
+    next.dispose();
+    confirm.dispose();
+    if (changed == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ar ? 'تم تغيير كلمة المرور' : 'Password changed')),
+      );
+      _loadPasswordInfo();
+    }
+  }
+
+  Widget _buildSecurityCard(AppLocalizations l10n) {
+    final ar = l10n.localeName.startsWith('ar');
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: _changePassword,
+        child: Container(
+          padding: const EdgeInsets.all(15),
+          decoration: _cardDecoration(),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: AppColors.infoLight,
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: MotionIcon(Icons.lock_reset, color: AppColors.info),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      ar ? 'تغيير كلمة المرور' : 'Change password',
+                      style: TextStyle(
+                        color: AppColors.ink,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    if (_passwordChangedText != null) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        _passwordChangedText!,
+                        style: TextStyle(
+                            color: AppColors.textSecondary, fontSize: 10),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              MotionIcon(Icons.arrow_forward_ios,
+                  size: 15, color: AppColors.textSecondary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _loadMyActivity() async {
+    setState(() {
+      _activityLoading = true;
+      _activityFailed = false;
+    });
+    try {
+      final entries = await ProductSupervisorAuditApiDataSource.fetch(
+        sl<ApiConsumer>(instanceName: 'berwah'),
+        mine: true,
+        pageSize: 5,
+      );
+      if (!mounted) return;
+      setState(() {
+        _myActivity = entries;
+        _activityLoading = false;
+      });
+    } on Object {
+      if (!mounted) return;
+      setState(() {
+        _activityLoading = false;
+        _activityFailed = true;
+      });
+    }
   }
 
   Future<void> _loadReport() async {
@@ -230,11 +463,21 @@ class _ProductSupervisorProfileScreenState
             ScrollFx(child: _buildSectionHeading(
               l10n.productProfileMetricsTitle,
               Icons.analytics_outlined,
-              trailing: l10n.productProfileLastUpdated,
+              trailing:
+                  _remote ? 'آخر 30 يومًا' : l10n.productProfileLastUpdated,
             )),
             const SizedBox(height: 8),
             ScrollFx(child: _buildMetrics(l10n)),
             const SizedBox(height: 18),
+            if (_showActivity) ...[
+              ScrollFx(child: _buildSectionHeading(
+                'نشاطي الأخير',
+                Icons.history,
+              )),
+              const SizedBox(height: 8),
+              ScrollFx(child: _buildMyActivity(l10n)),
+              const SizedBox(height: 18),
+            ],
             ScrollFx(child: _buildSectionHeading(
               l10n.productProfileDocumentsTitle,
               Icons.folder_open_outlined,
@@ -272,6 +515,15 @@ class _ProductSupervisorProfileScreenState
                 icon: const MotionIcon(Icons.refresh),
                 label: Text(l10n.productProfilePreferenceLoadError),
               ),
+            if (_remote) ...[
+              const SizedBox(height: 18),
+              ScrollFx(child: _buildSectionHeading(
+                l10n.localeName.startsWith('ar') ? 'الأمان' : 'Security',
+                Icons.shield_outlined,
+              )),
+              const SizedBox(height: 8),
+              ScrollFx(child: _buildSecurityCard(l10n)),
+            ],
             const SizedBox(height: 18),
             SizedBox(
               height: 50,
@@ -553,6 +805,23 @@ class _ProductSupervisorProfileScreenState
           icon: Icons.block_outlined,
           color: AppColors.infoDark,
         ),
+        _ProfileMetric(
+          title: 'متوسط وقت المراجعة',
+          value: _averageValue(r.averageMinutes),
+          unit: _averageUnit(r.averageMinutes),
+          detail: r.averageMinutes == null
+              ? 'لا توجد قرارات بعد'
+              : 'من الإرسال حتى القرار',
+          icon: Icons.bolt,
+          color: AppColors.info,
+        ),
+        _ProfileMetric(
+          title: 'بانتظار المراجعة الآن',
+          value: '${r.pending}',
+          detail: 'إعلانات جديدة في الطابور',
+          icon: Icons.hourglass_bottom_outlined,
+          color: AppColors.infoDark,
+        ),
       ];
       return LayoutBuilder(
         builder: (context, constraints) {
@@ -687,6 +956,132 @@ class _ProductSupervisorProfileScreenState
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(color: metric.color, fontSize: 9),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _averageValue(double? minutes) {
+    if (minutes == null) return '—';
+    if (minutes >= 1440) return (minutes / 1440).toStringAsFixed(1);
+    if (minutes >= 60) return (minutes / 60).toStringAsFixed(1);
+    return minutes.round().toString();
+  }
+
+  String? _averageUnit(double? minutes) {
+    if (minutes == null) return null;
+    if (minutes >= 1440) return 'يوم';
+    if (minutes >= 60) return 'ساعة';
+    return 'دقيقة';
+  }
+
+  String _activityLabel(String key, AppLocalizations l10n) {
+    final ar = l10n.localeName.startsWith('ar');
+    String t(String a, String e) => ar ? a : e;
+    return switch (key) {
+      'product_approved' => t('اعتماد إعلان', 'Ad approved'),
+      'product_rejected' => t('رفض إعلان', 'Ad rejected'),
+      'product_suspended' => t('تعليق إعلان', 'Ad suspended'),
+      'product_returned' => t('إعادة إعلان للمراجعة', 'Ad returned to review'),
+      'promotion_approved' => t('قبول باقة ترويج', 'Promotion approved'),
+      'promotion_rejected' => t('رفض باقة ترويج', 'Promotion rejected'),
+      'promotion_suspended' => t('تعليق باقة ترويج', 'Promotion suspended'),
+      'complaint_closed' => t('إغلاق شكوى', 'Complaint closed'),
+      'wallet_withdrawal_requested' =>
+        t('طلب سحب من المحفظة', 'Withdrawal requested'),
+      'profile_field_availability_changed' =>
+        t('تغيير إتاحة الحقول', 'Field availability changed'),
+      'profile_urgent_notifications_changed' =>
+        t('تغيير إشعارات الطوارئ', 'Urgent notifications changed'),
+      _ => t('إجراء', 'Action'),
+    };
+  }
+
+  Widget _buildMyActivity(AppLocalizations l10n) {
+    final ar = l10n.localeName.startsWith('ar');
+    Widget body;
+    if (_activityLoading && _myActivity.isEmpty) {
+      body = const Padding(
+        padding: EdgeInsets.all(16),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    } else if (_activityFailed && _myActivity.isEmpty) {
+      body = TextButton.icon(
+        onPressed: _loadMyActivity,
+        icon: const MotionIcon(Icons.refresh),
+        label: Text(ar ? 'تعذر تحميل النشاط، اضغط للمحاولة' : 'Could not load activity, tap to retry'),
+      );
+    } else if (_myActivity.isEmpty) {
+      body = Padding(
+        padding: const EdgeInsets.all(8),
+        child: Text(
+          ar ? 'لا توجد إجراءات مسجلة لك بعد.' : 'No recorded actions yet.',
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+        ),
+      );
+    } else {
+      body = Column(
+        children: [
+          for (final e in _myActivity)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 5),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  MotionIcon(Icons.circle, size: 7, color: AppColors.info),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _activityLabel(e.actionKey, l10n),
+                          style: TextStyle(
+                            color: AppColors.ink,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (e.subject.isNotEmpty)
+                          Text(
+                            e.subject,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                color: AppColors.textSecondary, fontSize: 10),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    DateFormat('MM/dd HH:mm').format(e.occurredAt.toLocal()),
+                    textDirection: TextDirection.ltr,
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 9),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      );
+    }
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: _cardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          body,
+          Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: TextButton(
+              onPressed: () => _openPage(const ProductSupervisorAuditScreen()),
+              child: Text(
+                ar ? 'عرض السجل كامل' : 'View full log',
+                style: const TextStyle(fontSize: 11),
+              ),
+            ),
           ),
         ],
       ),

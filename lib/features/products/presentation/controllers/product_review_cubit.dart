@@ -78,7 +78,9 @@ class ProductReviewCubit extends Cubit<ProductReviewState> {
         reviews: reviews,
         approvedCount: categoryLoader != null
             ? reviews
-                .where((r) => r.status == ProductReviewStatus.approved)
+                .where((r) =>
+                    !r.isPromoted &&
+                    r.status == ProductReviewStatus.approved)
                 .length
             : current.approvedCount,
       ));
@@ -113,7 +115,9 @@ class ProductReviewCubit extends Cubit<ProductReviewState> {
         reviews: reviews,
         approvedCount: categoryLoader != null
             ? reviews
-                .where((r) => r.status == ProductReviewStatus.approved)
+                .where((r) =>
+                    !r.isPromoted &&
+                    r.status == ProductReviewStatus.approved)
                 .length
             : 28,
         categories: categories,

@@ -124,6 +124,7 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
                 _countBadge(
                   state.reviews
                       .where((review) =>
+                          !review.isPromoted &&
                           (review.status != ProductReviewStatus.pending) ==
                           _showArchive)
                       .length
@@ -332,6 +333,8 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
 
   /// تبويب المراجعة يعرض المعلّق فقط، والأرشيف يعرض الباقي حسب فلتر الحالة.
   bool _isShown(ProductReview review) {
+    // الإعلانات المميزة وVIP تُدار من تبويب ترويج المنتجات فقط.
+    if (review.isPromoted) return false;
     final archived = review.status != ProductReviewStatus.pending;
     if (archived != _showArchive) return false;
     return !_showArchive ||
@@ -355,6 +358,7 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
     ];
     int count(ProductReviewStatus? status) => state.visibleReviews
         .where((review) =>
+            !review.isPromoted &&
             review.status != ProductReviewStatus.pending &&
             (status == null || review.status == status))
         .length;
@@ -874,6 +878,7 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
     return state.reviews
         .where(
           (review) =>
+              !review.isPromoted &&
               review.status == ProductReviewStatus.pending &&
               (categoryId == null || review.categoryId == categoryId),
         )
@@ -887,6 +892,7 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
     return state.reviews
         .where(
           (review) =>
+              !review.isPromoted &&
               review.status == ProductReviewStatus.pending &&
               (category == null || review.category == category),
         )

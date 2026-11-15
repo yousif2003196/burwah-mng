@@ -2,6 +2,32 @@ import 'package:flutter/foundation.dart';
 
 enum ProductPromotionStatus { pending, active, rejected, expired, suspended }
 
+/// عرض مدة/سعر على باقة (من المشرف أو مضاد من العميل).
+@immutable
+class ProductPromotionOffer {
+  final String id;
+  final bool fromUser;
+  final String status; // Pending / Accepted / Rejected / Superseded / Expired
+  final int days;
+  final double price;
+  final String? note;
+  final int round;
+  final DateTime? expiresAt;
+
+  const ProductPromotionOffer({
+    required this.id,
+    required this.fromUser,
+    required this.status,
+    required this.days,
+    required this.price,
+    this.note,
+    this.round = 0,
+    this.expiresAt,
+  });
+
+  bool get isPending => status == 'Pending';
+}
+
 @immutable
 class ProductPromotionRequest {
   final String id;
@@ -22,6 +48,12 @@ class ProductPromotionRequest {
   /// طريقة الدفع ومرجعه كما كتبهما العميل (من الباك إند).
   final String? paymentNote;
 
+  /// إعلان VIP منشور ينتظر مكانًا فاضيًا في بنر VIP (مدته لم تبدأ بعد).
+  final bool adWaiting;
+
+  /// آخر عرض مدة/سعر على هذا الطلب (إن وُجد).
+  final ProductPromotionOffer? offer;
+
   const ProductPromotionRequest({
     required this.id,
     required this.adReference,
@@ -38,6 +70,8 @@ class ProductPromotionRequest {
     this.status = ProductPromotionStatus.pending,
     this.decisionNote,
     this.paymentNote,
+    this.adWaiting = false,
+    this.offer,
   });
 
   ProductPromotionRequest copyWith({
@@ -63,6 +97,8 @@ class ProductPromotionRequest {
       status: status ?? this.status,
       decisionNote: decisionNote ?? this.decisionNote,
       paymentNote: paymentNote,
+      adWaiting: adWaiting,
+      offer: offer,
     );
   }
 

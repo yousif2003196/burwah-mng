@@ -330,6 +330,37 @@ class _ProductReviewDetailsScreenState
               ),
             ],
           ),
+          if ((product.sellerEmail ?? '').isNotEmpty) ...[
+            const SizedBox(height: 5),
+            Row(
+              children: [
+                MotionIcon(
+                  Icons.alternate_email,
+                  color: AppColors.textSecondary,
+                  size: 16,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  widget.isArabic ? 'بريد المعلن: ' : 'Advertiser email: ',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 10,
+                  ),
+                ),
+                Expanded(
+                  child: SelectableText(
+                    product.sellerEmail!,
+                    maxLines: 1,
+                    style: TextStyle(
+                      color: AppColors.ink,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -461,6 +492,14 @@ class _ProductReviewDetailsScreenState
               ),
             ),
           ),
+          if (product.imageUrls.isNotEmpty)
+            Positioned.fill(
+              child: Image.network(
+                product.imageUrls.first,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+              ),
+            ),
           PositionedDirectional(
             top: 10,
             start: 10,

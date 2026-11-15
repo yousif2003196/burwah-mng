@@ -58,6 +58,7 @@ import 'package:barwah_app/features/merchants/presentation/controllers/merchants
 import 'package:barwah_app/features/products/data/datasources/product_review_data_source.dart';
 import 'package:barwah_app/features/products/data/datasources/product_review_api_data_source.dart';
 import 'package:barwah_app/features/products/data/datasources/product_review_mock_data_source.dart';
+import 'package:barwah_app/features/products/data/datasources/product_supervisor_audit_api_data_source.dart';
 import 'package:barwah_app/features/products/data/datasources/product_supervisor_audit_data_source.dart';
 import 'package:barwah_app/features/products/data/datasources/product_supervisor_audit_shared_preferences_data_source.dart';
 import 'package:barwah_app/features/products/data/repositories/product_report_repository_impl.dart';
@@ -221,7 +222,10 @@ Future<void> initDependencies() async {
 
   // Product supervisor
   sl.registerLazySingleton<ProductSupervisorAuditDataSource>(
-    () => ProductSupervisorAuditSharedPreferencesDataSource(),
+    () => ProductSupervisorAuditApiDataSource(
+      apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'),
+      local: ProductSupervisorAuditSharedPreferencesDataSource(),
+    ),
   );
   sl.registerLazySingleton<ProductSupervisorAuditRepository>(
     () => ProductSupervisorAuditRepositoryImpl(dataSource: sl()),

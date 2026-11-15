@@ -33,7 +33,8 @@ class ProductReviewLoaded extends ProductReviewState {
   });
 
   int get pendingCount => reviews
-      .where((review) => review.status == ProductReviewStatus.pending)
+      .where((review) =>
+          !review.isPromoted && review.status == ProductReviewStatus.pending)
       .length;
 
   List<ProductReview> get visibleReviews {

@@ -4,6 +4,10 @@ import 'package:barwah_app/core/errors/failures.dart';
 import 'package:barwah_app/features/products/domain/entities/product_report.dart';
 
 abstract class ProductReportRepository {
-  /// [period]: today | week | month
-  Future<Either<Failure, ProductReport>> getReport(String period);
+  /// [period]: today | week | month | all | custom (مع [from]/[to]).
+  Future<Either<Failure, ProductReport>> getReport(
+    String period, {
+    DateTime? from,
+    DateTime? to,
+  });
 }

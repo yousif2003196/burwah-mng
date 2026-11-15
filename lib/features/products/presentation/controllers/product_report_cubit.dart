@@ -9,14 +9,14 @@ class ProductReportCubit extends Cubit<ProductReportState> {
       : super(const ProductReportInitial());
 
   final GetProductReportUseCase getProductReport;
-  String? _requestedPeriod;
+  int _requestId = 0;
 
-  /// يحمّل تقرير [period]. نتيجة طلب أقدم لفترة لم تعد مختارة تُهمل.
-  Future<void> load(String period) async {
-    _requestedPeriod = period;
+  /// يحمّل تقرير [period] (ولو `custom` يبعت [from]/[to]). نتيجة طلب أقدم تُهمل.
+  Future<void> load(String period, {DateTime? from, DateTime? to}) async {
+    final id = ++_requestId;
     emit(ProductReportLoading(period));
-    final result = await getProductReport(period);
-    if (isClosed || _requestedPeriod != period) return;
+    final result = await getProductReport(period, from: from, to: to);
+    if (isClosed || id != _requestId) return;
     emit(result.fold(
       (failure) => ProductReportLoadFailure(period, failure.message),
       (report) => ProductReportLoaded(period, report),

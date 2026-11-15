@@ -13,9 +13,13 @@ class ProductReportRepositoryImpl implements ProductReportRepository {
   const ProductReportRepositoryImpl({required this.dataSource});
 
   @override
-  Future<Either<Failure, ProductReport>> getReport(String period) async {
+  Future<Either<Failure, ProductReport>> getReport(
+    String period, {
+    DateTime? from,
+    DateTime? to,
+  }) async {
     try {
-      return Right(await dataSource.load(period));
+      return Right(await dataSource.load(period, from: from, to: to));
     } on Object catch (error) {
       debugPrint('Product report ($period) failed: $error');
       return Left(failureFrom(error));

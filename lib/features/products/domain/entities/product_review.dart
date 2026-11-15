@@ -36,6 +36,16 @@ class ProductReview {
   /// بيانات إضافية من الباك إند (حالة، موقع، بائع، خصائص…) بترتيب العرض.
   final List<MapEntry<String, String>> details;
 
+  /// بريد المعلن وخطة الترويج (Free / Featured / VIP) من الباك إند.
+  final String? sellerEmail;
+  final String promotionPlan;
+
+  /// إعلان مميز أو VIP: يُدار من تبويب ترويج المنتجات فقط.
+  bool get isPromoted {
+    final plan = promotionPlan.toLowerCase();
+    return plan == 'featured' || plan == 'vip';
+  }
+
   const ProductReview({
     required this.id,
     required this.reference,
@@ -61,6 +71,8 @@ class ProductReview {
     this.subCategoryId,
     this.categoryName,
     this.details = const [],
+    this.sellerEmail,
+    this.promotionPlan = 'Free',
   });
 
   ProductReview copyWith({
@@ -104,6 +116,8 @@ class ProductReview {
       subCategoryId: subCategoryId ?? this.subCategoryId,
       categoryName: categoryName ?? this.categoryName,
       details: details,
+      sellerEmail: sellerEmail,
+      promotionPlan: promotionPlan,
     );
   }
 }

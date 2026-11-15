@@ -177,6 +177,20 @@ class _ProductSupervisorAuditScreenState
         'wasalny_promotion_rejected' => l10n.productPromotionAuditRejected,
         'wasalny_request_contact_revealed' => l10n.wasalnyAuditContactRevealed,
         'wasalny_request_contact_hidden' => l10n.wasalnyAuditContactHidden,
+        'product_returned' =>
+          _bilingual(l10n, 'إعادة إعلان للمراجعة', 'Ad returned to review'),
+        'promotion_suspended' =>
+          _bilingual(l10n, 'تعليق باقة ترويج', 'Promotion suspended'),
+        'promotion_offer_sent' =>
+          _bilingual(l10n, 'إرسال عرض مدة وسعر', 'Duration/price offer sent'),
+        'promotion_offer_accepted' =>
+          _bilingual(l10n, 'قبول عرض مدة وسعر', 'Offer accepted'),
+        'promotion_offer_rejected' =>
+          _bilingual(l10n, 'رفض عرض مدة وسعر', 'Offer rejected'),
+        'promotion_offer_countered' =>
+          _bilingual(l10n, 'عرض مضاد من العميل', 'Customer counter-offer'),
+        'complaint_closed' =>
+          _bilingual(l10n, 'إغلاق شكوى', 'Complaint closed'),
         'product_escalated_to_head' =>
           _bilingual(l10n, 'رفع لرئيس المشرفين', 'Sent to the head'),
         'complaint_newCase' => _bilingual(l10n, 'استعادة شكوى', 'Complaint restored'),

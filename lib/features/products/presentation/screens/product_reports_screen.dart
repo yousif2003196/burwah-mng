@@ -1,105 +1,36 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:barwah_app/core/auth/auth_session.dart';
-import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/network/api_consumer.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/core/utils/csv_exporter.dart';
-import 'package:barwah_app/features/products/data/datasources/product_escalation_store.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/widgets/motion_icon.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/features/products/domain/entities/product_report.dart';
 import 'package:barwah_app/features/products/domain/entities/product_supervisor_audit_entry.dart';
 import 'package:barwah_app/features/products/domain/repositories/product_supervisor_audit_repository.dart';
 import 'package:barwah_app/features/products/presentation/controllers/product_report_cubit.dart';
 import 'package:barwah_app/features/products/presentation/controllers/product_report_state.dart';
+import 'package:barwah_app/features/products/presentation/screens/product_supervisor_audit_screen.dart';
+import 'package:barwah_app/features/support/data/datasources/support_inbox_api_data_source.dart';
 import 'package:barwah_app/l10n/app_localizations.dart';
-import 'package:barwah_app/core/widgets/scroll_fx.dart';
-import 'package:barwah_app/core/widgets/motion_icon.dart';
 
-enum _ReportPeriod { today, week, month, custom }
+enum _ReportPeriod { today, week, month, all, custom }
 
-/// Live numbers from the complaints list and the head escalations.
-class _LiveStats {
-  final int openComplaints;
-  final int overdueComplaints;
-  final int resolvedComplaints;
-  final int withHead;
-  final int returnedByHead;
-  final int atAdmin;
-  final int overdueEscalations;
+/// شكاوى المنتجات الجديدة من التذاكر اللي المستخدمين بيرفعوها.
+class _ComplaintStats {
+  final int open;
+  final int overdue;
+  final int closed;
 
-  const _LiveStats({
-    required this.openComplaints,
-    required this.overdueComplaints,
-    required this.resolvedComplaints,
-    required this.withHead,
-    required this.returnedByHead,
-    required this.atAdmin,
-    required this.overdueEscalations,
+  const _ComplaintStats({
+    required this.open,
+    required this.overdue,
+    required this.closed,
   });
-}
-
-enum _ReportActionStatus { hidden, approved, rejected }
-
-class _ReportMetrics {
-  final int reviewed;
-  final int approved;
-  final int declined;
-  final String approvalRate;
-  final String averageMinutes;
-  final String change;
-
-  const _ReportMetrics({
-    required this.reviewed,
-    required this.approved,
-    required this.declined,
-    required this.approvalRate,
-    required this.averageMinutes,
-  }) : change = '—';
-
-  String get declinedRate =>
-      reviewed == 0 ? '0%' : '${(declined * 100 / reviewed).round()}%';
-}
-
-class _AuditAction {
-  final String adNumber;
-  final String titleAr;
-  final String titleEn;
-  final String ageAr;
-  final String ageEn;
-  final _ReportActionStatus status;
-  final String reasonAr;
-  final String reasonEn;
-
-  const _AuditAction({
-    required this.adNumber,
-    required this.titleAr,
-    required this.titleEn,
-    required this.ageAr,
-    required this.ageEn,
-    required this.status,
-    required this.reasonAr,
-    required this.reasonEn,
-  });
-
-  _AuditAction copyWith({
-    _ReportActionStatus? status,
-    String? reasonAr,
-    String? reasonEn,
-  }) {
-    return _AuditAction(
-      adNumber: adNumber,
-      titleAr: titleAr,
-      titleEn: titleEn,
-      ageAr: ageAr,
-      ageEn: ageEn,
-      status: status ?? this.status,
-      reasonAr: reasonAr ?? this.reasonAr,
-      reasonEn: reasonEn ?? this.reasonEn,
-    );
-  }
 }
 
 class ProductReportsScreen extends StatefulWidget {
@@ -110,119 +41,39 @@ class ProductReportsScreen extends StatefulWidget {
 }
 
 class _ProductReportsScreenState extends State<ProductReportsScreen> {
-  static const _initialActions = [
-    _AuditAction(
-      adNumber: 'AD-98204',
-      titleAr: 'ساعة آبل الجيل 2 الأصلية - الإصدار الثاني',
-      titleEn: 'Apple Watch Series 2 Original - Second Edition',
-      ageAr: 'منذ 10 دقائق',
-      ageEn: '10 minutes ago',
-      status: _ReportActionStatus.hidden,
-      reasonAr: 'تحقيق التغليف الأمني',
-      reasonEn: 'Security packaging verification',
-    ),
-    _AuditAction(
-      adNumber: 'AD-98201',
-      titleAr: 'سوني بلايستيشن 5 - مع الضمان الوكيل',
-      titleEn: 'Sony PlayStation 5 - With Official Warranty',
-      ageAr: 'منذ 35 دقيقة',
-      ageEn: '35 minutes ago',
-      status: _ReportActionStatus.approved,
-      reasonAr: 'المطابقة: كافة شروط المنتج الجديد',
-      reasonEn: 'Verified: all new-product requirements met',
-    ),
-    _AuditAction(
-      adNumber: 'AD-98195',
-      titleAr: 'سماعات آبل ايربودز ماكس (فضي)',
-      titleEn: 'Apple AirPods Max Headphones (Silver)',
-      ageAr: 'منذ ساعتين',
-      ageEn: '2 hours ago',
-      status: _ReportActionStatus.rejected,
-      reasonAr: 'خزان مفتوح ومستعمل مسبقاً',
-      reasonEn: 'Package opened and previously used',
-    ),
-  ];
-
   _ReportPeriod _period = _ReportPeriod.week;
-  List<_AuditAction> _savedActions = List.of(_initialActions);
-  List<_AuditAction> _draftActions = List.of(_initialActions);
   DateTimeRange? _customRange;
-  bool _hasUnsavedChanges = false;
-  List<ProductSupervisorAuditEntry> _auditEntries = [];
-  late Future<_LiveStats> _liveFuture;
-  _ReportMetrics? _remoteMetrics;
 
-  /// تقرير الباك إند للفترة المختارة (للحسابات الحقيقية فقط).
+  ProductReport? _report;
+  bool _loading = false;
+  bool _failed = false;
   ProductReportCubit? _reportCubit;
+
+  /// للوضع التجريبي فقط (بدون تسجيل دخول حقيقي).
+  List<ProductSupervisorAuditEntry> _auditEntries = [];
+
+  Future<_ComplaintStats>? _complaintsFuture;
 
   bool get _remote => AuthSession.isSignedIn;
 
-  String? get _apiPeriod => switch (_period) {
+  String get _apiPeriod => switch (_period) {
         _ReportPeriod.today => 'today',
         _ReportPeriod.week => 'week',
         _ReportPeriod.month => 'month',
-        _ReportPeriod.custom => null,
+        _ReportPeriod.all => 'all',
+        _ReportPeriod.custom => 'custom',
       };
-
-  /// أرقام وسجل المراجعات الحقيقيان من الباك إند (بدل السجل المحلي).
-  Future<void> _loadRemoteReport() async {
-    final cubit = _reportCubit;
-    final period = _apiPeriod;
-    if (cubit == null || period == null) {
-      if (mounted) setState(() => _remoteMetrics = null);
-      return;
-    }
-    await cubit.load(period);
-    final state = cubit.state;
-    // الفشل يُسجَّل في المستودع وتبقى الأرقام المعروضة كما هي.
-    if (!mounted ||
-        state is! ProductReportLoaded ||
-        state.period != _apiPeriod) {
-      return;
-    }
-    final report = state.report;
-    final actions = [
-      for (final log in report.logs)
-        _AuditAction(
-          adNumber: log.adNumber,
-          titleAr: log.title,
-          titleEn: log.title,
-          ageAr: log.timeAgo,
-          ageEn: log.timeAgo,
-          status: log.actionType.contains('اعتماد')
-              ? _ReportActionStatus.approved
-              : log.actionType.contains('رفض')
-                  ? _ReportActionStatus.rejected
-                  : _ReportActionStatus.hidden,
-          reasonAr: log.reason,
-          reasonEn: log.reason,
-        ),
-    ];
-    setState(() {
-      _remoteMetrics = _ReportMetrics(
-        reviewed: report.reviewed,
-        approved: report.approved,
-        declined: report.declined,
-        approvalRate: '${report.approvalRate.round()}%',
-        averageMinutes: '—',
-      );
-      _savedActions = List.of(actions);
-      _draftActions = List.of(actions);
-      _hasUnsavedChanges = false;
-    });
-  }
 
   @override
   void initState() {
     super.initState();
-    _liveFuture = _loadLiveStats();
-    _loadAuditEntries();
     if (_remote) {
-      _savedActions = [];
-      _draftActions = [];
       _reportCubit = sl<ProductReportCubit>();
+      _complaintsFuture = _loadComplaints();
+    } else {
+      _loadLocalEntries();
     }
-    _loadRemoteReport();
+    _loadReport();
   }
 
   @override
@@ -231,104 +82,40 @@ class _ProductReportsScreenState extends State<ProductReportsScreen> {
     super.dispose();
   }
 
-  Future<_LiveStats> _loadLiveStats() async {
-    final prefs = await SharedPreferences.getInstance();
-    var open = 0;
-    var overdue = 0;
-    var resolved = 0;
-    final saved = prefs.getString('product_supervisor_complaints_v1');
-    final now = DateTime.now();
-    if (saved != null) {
-      final decoded = jsonDecode(saved);
-      if (decoded is List) {
-        for (final item in decoded.whereType<Map<String, dynamic>>()) {
-          final status = item['status'] as String? ?? 'newCase';
-          final updated = DateTime.tryParse(item['updatedAt'] as String? ?? '');
-          if (status == 'resolved' || status == 'archived') {
-            resolved++;
-          } else if (status == 'newCase' || status == 'inProgress') {
-            open++;
-            if (updated != null &&
-                now.difference(updated) > const Duration(hours: 24)) {
-              overdue++;
-            }
-          }
-        }
+  // ---------------------------------------------------------------- data
+
+  Future<void> _loadReport() async {
+    final cubit = _reportCubit;
+    if (cubit == null) return;
+    if (_period == _ReportPeriod.custom && _customRange == null) return;
+    setState(() {
+      _loading = true;
+      _failed = false;
+    });
+    await cubit.load(
+      _apiPeriod,
+      from: _customRange?.start,
+      to: _customRange?.end,
+    );
+    if (!mounted) return;
+    final state = cubit.state;
+    // طلب أحدث لسه شغال → نسيب النتيجة له.
+    if (state is ProductReportLoading) return;
+    setState(() {
+      _loading = false;
+      if (state is ProductReportLoaded && state.period == _apiPeriod) {
+        _report = state.report;
+      } else if (state is ProductReportLoadFailure) {
+        _failed = true;
       }
-    }
-    final escalations = (await ProductEscalationStore().refresh()).values;
-    return _LiveStats(
-      openComplaints: open,
-      overdueComplaints: overdue,
-      resolvedComplaints: resolved,
-      withHead: escalations
-          .where((e) => e.status == ProductEscalationStatus.pendingHead)
-          .length,
-      returnedByHead: escalations
-          .where((e) => e.status == ProductEscalationStatus.returned)
-          .length,
-      atAdmin: escalations
-          .where((e) => e.status == ProductEscalationStatus.escalatedToAdmin)
-          .length,
-      overdueEscalations: escalations.where((e) => e.isOverdue(now)).length,
-    );
+    });
   }
 
-  Widget _buildLiveSection(bool isArabic) {
-    return FutureBuilder<_LiveStats>(
-      future: _liveFuture,
-      builder: (context, snapshot) {
-        final stats = snapshot.data;
-        if (stats == null) return const SizedBox.shrink();
-        Widget row(String label, int value, {bool alert = false}) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(label, style: const TextStyle(fontSize: 12)),
-                  ),
-                  CountText(
-                    '$value',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      color: alert && value > 0
-                          ? AppColors.dangerDark
-                          : AppColors.ink,
-                    ),
-                  ),
-                ],
-              ),
-            );
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 22),
-          child: _sectionCard(
-            title: isArabic ? 'الشكاوى والتصعيدات (حية)' : 'Complaints & escalations (live)',
-            icon: Icons.account_tree_outlined,
-            child: Column(
-              children: [
-                row(isArabic ? 'شكاوى مفتوحة' : 'Open complaints', stats.openComplaints),
-                row(isArabic ? 'شكاوى متأخرة (+24 ساعة)' : 'Overdue complaints (24h+)', stats.overdueComplaints, alert: true),
-                row(isArabic ? 'شكاوى منتهية' : 'Closed complaints', stats.resolvedComplaints),
-                const Divider(),
-                row(isArabic ? 'عند رئيس المشرفين' : 'With the head', stats.withHead),
-                row(isArabic ? 'أعادها الرئيس للمراجعة' : 'Returned by the head', stats.returnedByHead),
-                row(isArabic ? 'عند الأدمن عبر الرئيس' : 'With admin via head', stats.atAdmin),
-                row(isArabic ? 'تصعيدات متأخرة (+48 ساعة)' : 'Overdue escalations (48h+)', stats.overdueEscalations, alert: true),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _loadAuditEntries() async {
+  Future<void> _loadLocalEntries() async {
     try {
       final entries = await sl<ProductSupervisorAuditRepository>().getEntries();
       if (!mounted) return;
-      setState(() {
-        _auditEntries = entries;
-      });
+      setState(() => _auditEntries = entries);
     } catch (error, stackTrace) {
       FlutterError.reportError(FlutterErrorDetails(
         exception: error,
@@ -338,102 +125,178 @@ class _ProductReportsScreenState extends State<ProductReportsScreen> {
     }
   }
 
-  _ReportMetrics _metricsForSelectedPeriod() {
-    final remote = _remoteMetrics;
-    if (_remote && remote != null && _period != _ReportPeriod.custom) {
-      return remote;
-    }
+  /// الشكاوى = التذاكر الواصلة لمشرف المنتجات الجديدة من `api/Supporter/Inbox`.
+  Future<_ComplaintStats> _loadComplaints() async {
+    final inbox = SupportInboxApiDataSource(
+      apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'),
+    );
+    final open = await inbox.load(status: 'open');
+    final closed = await inbox.load(status: 'closed');
     final now = DateTime.now();
-    late final DateTime start;
-    late final DateTime end;
+    return _ComplaintStats(
+      open: open.length,
+      overdue: open
+          .where((t) => now.difference(t.createdAt) > const Duration(hours: 24))
+          .length,
+      closed: closed.length,
+    );
+  }
+
+  /// بديل محلي للوضع التجريبي: تقرير من سجل القرارات المحفوظ على الجهاز.
+  ProductReport _localReport() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    DateTime? start;
+    DateTime end = now;
     switch (_period) {
       case _ReportPeriod.today:
-        start = DateTime(now.year, now.month, now.day);
-        end = now;
-        break;
+        start = today;
       case _ReportPeriod.week:
-        final today = DateTime(now.year, now.month, now.day);
         start = today.subtract(Duration(days: today.weekday - 1));
-        end = now;
-        break;
       case _ReportPeriod.month:
         start = DateTime(now.year, now.month);
-        end = now;
-        break;
+      case _ReportPeriod.all:
+        start = null;
       case _ReportPeriod.custom:
-        final range = _customRange;
-        start = range == null
-            ? DateTime(now.year, now.month, now.day)
-            : DateTime(range.start.year, range.start.month, range.start.day);
-        end = range == null
-            ? now
-            : DateTime(range.end.year, range.end.month, range.end.day, 23, 59, 59);
-        break;
+        final r = _customRange;
+        if (r != null) {
+          start = DateTime(r.start.year, r.start.month, r.start.day);
+          end = DateTime(r.end.year, r.end.month, r.end.day, 23, 59, 59);
+        } else {
+          start = today;
+        }
     }
-    const reviewActions = {
+    const keys = {
       'product_approved',
       'product_hidden',
       'product_rejected',
       'product_suspended',
     };
-    final actions = _auditEntries.where((entry) =>
-        reviewActions.contains(entry.actionKey) &&
-        !entry.occurredAt.isBefore(start) &&
-        !entry.occurredAt.isAfter(end));
-    final approved =
-        actions.where((entry) => entry.actionKey == 'product_approved').length;
-    final declined = actions
-        .where((entry) =>
-            entry.actionKey == 'product_rejected' ||
-            entry.actionKey == 'product_suspended')
-        .length;
-    final reviewed = actions.length;
-    final rate = reviewed == 0 ? 0 : (approved * 100 / reviewed).round();
-    return _ReportMetrics(
-      reviewed: reviewed,
+    final rows = _auditEntries.where((e) =>
+        keys.contains(e.actionKey) &&
+        (start == null || !e.occurredAt.isBefore(start)) &&
+        !e.occurredAt.isAfter(end));
+    final approved = rows.where((e) => e.actionKey == 'product_approved').length;
+    final suspended =
+        rows.where((e) => e.actionKey == 'product_suspended').length;
+    final rejected = rows.length - approved - suspended;
+    final total = rows.length;
+    double rate(int n) => total == 0 ? 0 : n * 100 / total;
+    return ProductReport(
+      reviewed: total,
       approved: approved,
-      declined: declined,
-      approvalRate: '$rate%',
-      averageMinutes: '—',
+      declined: rejected,
+      suspended: suspended,
+      pending: 0,
+      approvalRate: rate(approved),
+      rejectionRate: rate(rejected),
+      logs: const [],
     );
   }
+
+  ProductReport get _current => _report ?? (_remote ? _empty : _localReport());
+
+  static const _empty = ProductReport(
+    reviewed: 0,
+    approved: 0,
+    declined: 0,
+    suspended: 0,
+    pending: 0,
+    approvalRate: 0,
+    rejectionRate: 0,
+    logs: [],
+  );
+
+  // --------------------------------------------------------------- build
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final isArabic = l10n.localeName.startsWith('ar');
-    final metrics = _metricsForSelectedPeriod();
+    final report = _current;
 
     return Scaffold(
       backgroundColor: AppColors.scaffold,
-      body: Column(
+      body: RefreshIndicator(
+        onRefresh: () async {
+          if (_remote) {
+            setState(() => _complaintsFuture = _loadComplaints());
+          }
+          await _loadReport();
+        },
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          children: [
+            ScrollFx(child: _buildReportHeading(l10n, report, isArabic)),
+            const SizedBox(height: 14),
+            ScrollFx(child: _buildPeriodSelector(l10n, isArabic)),
+            if (_loading) ...[
+              const SizedBox(height: 10),
+              const LinearProgressIndicator(minHeight: 2),
+            ],
+            if (_failed) ...[
+              const SizedBox(height: 10),
+              _buildErrorBanner(isArabic),
+            ],
+            const SizedBox(height: 18),
+            ScrollFx(child: _buildMetrics(report, l10n, isArabic)),
+            const SizedBox(height: 18),
+            ScrollFx(child: _buildDecisionsSection(report, isArabic)),
+            if (_remote) ...[
+              const SizedBox(height: 18),
+              ScrollFx(child: _buildComplaintsSection(isArabic)),
+            ],
+            const SizedBox(height: 18),
+            ScrollFx(child: _buildCategoriesSection(report, isArabic)),
+            if (_remote) ...[
+              const SizedBox(height: 18),
+              ScrollFx(child: _buildPromotionsSection(report, isArabic)),
+            ],
+            const SizedBox(height: 18),
+            ScrollFx(child: _buildAuditSection(report, l10n, isArabic)),
+            const SizedBox(height: 16),
+            ScrollFx(child: _buildDataNote(l10n)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorBanner(bool isArabic) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.dangerLight,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
         children: [
+          MotionIcon(Icons.error_outline, size: 17, color: AppColors.danger),
+          const SizedBox(width: 7),
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
-              children: [
-                ScrollFx(child: _buildReportHeading(l10n)),
-                const SizedBox(height: 14),
-                ScrollFx(child: _buildPeriodSelector(l10n)),
-                const SizedBox(height: 22),
-                ScrollFx(child: _buildMetrics(metrics, l10n)),
-                const SizedBox(height: 22),
-                ScrollFx(child: _buildLiveSection(isArabic)),
-                ScrollFx(child: _buildStandardsSection(l10n)),
-                const SizedBox(height: 22),
-                ScrollFx(child: _buildAuditSection(l10n, isArabic)),
-                const SizedBox(height: 16),
-                ScrollFx(child: _buildDataNote(l10n)),
-              ],
+            child: Text(
+              isArabic
+                  ? 'تعذر تحميل التقرير. الأرقام المعروضة قد تكون قديمة.'
+                  : 'Could not load the report. Figures shown may be stale.',
+              style: TextStyle(color: AppColors.dangerDark, fontSize: 11),
             ),
           ),
-          _buildSaveActions(l10n),
+          TextButton(
+            onPressed: _loadReport,
+            child: Text(isArabic ? 'إعادة المحاولة' : 'Retry',
+                style: const TextStyle(fontSize: 11)),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildReportHeading(AppLocalizations l10n) {
+  Widget _buildReportHeading(
+    AppLocalizations l10n,
+    ProductReport report,
+    bool isArabic,
+  ) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -474,7 +337,7 @@ class _ProductReportsScreenState extends State<ProductReportsScreen> {
         ),
         const SizedBox(width: 8),
         OutlinedButton.icon(
-          onPressed: () => _showExportDialog(l10n),
+          onPressed: () => _showExportDialog(l10n, report, isArabic),
           icon: const MotionIcon(Icons.file_download_outlined, size: 17),
           label: Text(l10n.productReportExport),
           style: OutlinedButton.styleFrom(
@@ -493,11 +356,12 @@ class _ProductReportsScreenState extends State<ProductReportsScreen> {
     );
   }
 
-  Widget _buildPeriodSelector(AppLocalizations l10n) {
+  Widget _buildPeriodSelector(AppLocalizations l10n, bool isArabic) {
     final periods = [
       (_ReportPeriod.today, l10n.productReportToday),
       (_ReportPeriod.week, l10n.productReportThisWeek),
       (_ReportPeriod.month, l10n.productReportThisMonth),
+      (_ReportPeriod.all, isArabic ? 'الكل' : 'All time'),
       (_ReportPeriod.custom, l10n.productReportCustom),
     ];
 
@@ -517,7 +381,8 @@ class _ProductReportsScreenState extends State<ProductReportsScreen> {
               avatar: selected
                   ? MotionIcon(Icons.circle, size: 7, color: AppColors.info)
                   : entry.$1 == _ReportPeriod.custom
-                      ? const MotionIcon(Icons.calendar_month_outlined, size: 15)
+                      ? const MotionIcon(Icons.calendar_month_outlined,
+                          size: 15)
                       : null,
               label: Text(label),
               onSelected: (_) => _selectPeriod(entry.$1),
@@ -557,11 +422,16 @@ class _ProductReportsScreenState extends State<ProductReportsScreen> {
       setState(() {
         _customRange = range;
         _period = period;
+        _report = null;
       });
+      _loadReport();
       return;
     }
-    setState(() => _period = period);
-    _loadRemoteReport();
+    setState(() {
+      _period = period;
+      _report = null;
+    });
+    _loadReport();
   }
 
   String _formatDateRange(DateTimeRange range) {
@@ -570,39 +440,65 @@ class _ProductReportsScreenState extends State<ProductReportsScreen> {
     return '${format(range.start)} - ${format(range.end)}';
   }
 
-  Widget _buildMetrics(_ReportMetrics metrics, AppLocalizations l10n) {
+  // ------------------------------------------------------------- metrics
+
+  /// متوسط وقت المراجعة بوحدة مناسبة (دقيقة / ساعة / يوم).
+  (String, String?) _averageText(double? minutes, AppLocalizations l10n) {
+    if (minutes == null) return ('—', null);
+    final isArabic = l10n.localeName.startsWith('ar');
+    if (minutes >= 1440) {
+      return ((minutes / 1440).toStringAsFixed(1), isArabic ? 'يوم' : 'd');
+    }
+    if (minutes >= 60) {
+      return ((minutes / 60).toStringAsFixed(1), isArabic ? 'ساعة' : 'h');
+    }
+    return (minutes.round().toString(), l10n.productReportMinuteUnit);
+  }
+
+  Widget _buildMetrics(
+    ProductReport report,
+    AppLocalizations l10n,
+    bool isArabic,
+  ) {
+    final change = report.changePercent;
+    final changeText = change == null
+        ? '—'
+        : '${change > 0 ? '+' : ''}${change.round()}%';
+    final avg = _averageText(report.averageMinutes, l10n);
     final cards = [
       _MetricCardData(
         title: l10n.productReportReviewedAds,
-        value: metrics.reviewed.toString(),
-        detail: '${metrics.change} ${l10n.productReportComparedToPrevious}',
+        value: report.reviewed.toString(),
+        detail: '$changeText ${l10n.productReportComparedToPrevious}',
         icon: Icons.shield_outlined,
         iconColor: AppColors.info,
       ),
       _MetricCardData(
         title: l10n.productReportApprovalRate,
-        value: metrics.approvalRate,
-        detail: l10n.productReportApprovedCount(metrics.approved),
+        value: '${report.approvalRate.round()}%',
+        detail: l10n.productReportApprovedCount(report.approved),
         icon: Icons.check_circle,
         iconColor: AppColors.infoDark,
       ),
       _MetricCardData(
         title: l10n.productReportDeclinedRate,
-        value: metrics.declinedRate,
-        detail: l10n.productReportDeclinedCount(metrics.declined),
+        value: '${report.rejectionRate.round()}%',
+        detail: l10n.productReportDeclinedCount(report.declined),
         icon: Icons.block_outlined,
         iconColor: AppColors.danger,
         isDanger: true,
       ),
       _MetricCardData(
         title: l10n.productReportAverageReview,
-        value: metrics.averageMinutes,
-        detail: l10n.productReportMinutesAndFaster,
+        value: avg.$1,
+        detail: report.averageMinutes == null
+            ? (isArabic ? 'لا توجد قرارات بعد' : 'No decisions yet')
+            : (isArabic
+                ? 'من الإرسال حتى القرار'
+                : 'From submission to decision'),
         icon: Icons.timer_outlined,
         iconColor: AppColors.ink,
-        unit: metrics.averageMinutes == '—'
-            ? null
-            : l10n.productReportMinuteUnit,
+        unit: avg.$2,
       ),
     ];
 
@@ -666,8 +562,7 @@ class _ProductReportsScreenState extends State<ProductReportsScreen> {
             child: RichText(
               text: TextSpan(
                 style: TextStyle(
-                  color:
-                      data.isDanger ? AppColors.danger : AppColors.ink,
+                  color: data.isDanger ? AppColors.danger : AppColors.ink,
                   fontSize: 21,
                   fontWeight: FontWeight.w800,
                 ),
@@ -701,116 +596,148 @@ class _ProductReportsScreenState extends State<ProductReportsScreen> {
     );
   }
 
-  Widget _buildStandardsSection(AppLocalizations l10n) {
+  // ----------------------------------------------------------- sections
+
+  Widget _countRow(String label, int value, {bool alert = false}) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            Expanded(child: Text(label, style: const TextStyle(fontSize: 12))),
+            CountText(
+              '$value',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color:
+                    alert && value > 0 ? AppColors.dangerDark : AppColors.ink,
+              ),
+            ),
+          ],
+        ),
+      );
+
+  Widget _buildDecisionsSection(ProductReport report, bool isArabic) {
     return _sectionCard(
-      title: l10n.productReportStandardsTitle,
+      title: isArabic ? 'القرارات في الفترة' : 'Decisions in period',
       icon: Icons.fact_check_outlined,
-      trailing: _smallTag(l10n.productReportStandardsVersion),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: _buildStandardCard(
-              title: l10n.productReportPackagingTitle,
-              subtitle: l10n.productReportPackagingHint,
-              icon: Icons.inventory_2_outlined,
-              color: AppColors.textMuted,
-              isLocked: true,
-            ),
-          ),
-          const SizedBox(width: 9),
-          Expanded(
-            child: _buildStandardCard(
-              title: l10n.productReportSerialTitle,
-              subtitle: l10n.productReportSerialHint,
-              icon: Icons.qr_code_2,
-              color: AppColors.textSecondary,
-              isLocked: false,
-            ),
+          _countRow(isArabic ? 'معتمدة' : 'Approved', report.approved),
+          _countRow(isArabic ? 'مرفوضة' : 'Rejected', report.declined),
+          _countRow(isArabic ? 'موقوفة / معلّقة' : 'Suspended', report.suspended),
+          const Divider(),
+          _countRow(
+            isArabic ? 'في انتظار المراجعة الآن' : 'Waiting for review now',
+            report.pending,
+            alert: report.pending > 10,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildStandardCard({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required Color color,
-    required bool isLocked,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceLight,
-        borderRadius: BorderRadius.circular(13),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: Container(
-              height: 92,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [color.withValues(alpha: 0.24), color],
-                ),
-              ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  MotionIcon(icon,
-                      size: 52, color: Colors.white.withValues(alpha: .9)),
-                  PositionedDirectional(
-                    end: 6,
-                    top: 6,
-                    child: MotionIcon(
-                      isLocked ? Icons.lock_outline : Icons.verified_outlined,
-                      size: 15,
-                      color: Colors.white,
+  Widget _buildComplaintsSection(bool isArabic) {
+    return FutureBuilder<_ComplaintStats>(
+      future: _complaintsFuture,
+      builder: (context, snapshot) {
+        final stats = snapshot.data;
+        return _sectionCard(
+          title: isArabic
+              ? 'شكاوى المنتجات الجديدة'
+              : 'New-product complaints',
+          icon: Icons.support_agent_outlined,
+          child: snapshot.hasError
+              ? Text(
+                  isArabic
+                      ? 'تعذر تحميل الشكاوى.'
+                      : 'Could not load complaints.',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                )
+              : stats == null
+                  ? const Padding(
+                      padding: EdgeInsets.all(8),
+                      child: Center(
+                        child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    )
+                  : Column(
+                      children: [
+                        _countRow(
+                            isArabic ? 'شكاوى مفتوحة' : 'Open complaints',
+                            stats.open),
+                        _countRow(
+                            isArabic
+                                ? 'شكاوى متأخرة (+24 ساعة)'
+                                : 'Overdue complaints (24h+)',
+                            stats.overdue,
+                            alert: true),
+                        _countRow(
+                            isArabic ? 'شكاوى منتهية' : 'Closed complaints',
+                            stats.closed),
+                      ],
+                    ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCategoriesSection(ProductReport report, bool isArabic) {
+    const colors = [
+      Color(0xFF2E7D6B),
+      Color(0xFF3F6FB5),
+      Color(0xFFB5833F),
+      Color(0xFF8A4FB0),
+      Color(0xFFB5463F),
+      Color(0xFF4F8AB0),
+    ];
+    return _sectionCard(
+      title: isArabic ? 'توزيع الإعلانات حسب القسم' : 'Ads by category',
+      icon: Icons.category_outlined,
+      child: report.categories.isEmpty
+          ? Text(
+              isArabic
+                  ? 'لا توجد إعلانات في هذه الفترة.'
+                  : 'No ads in this period.',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            )
+          : Column(
+              children: [
+                for (var i = 0; i < report.categories.length; i++)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _buildCategoryRow(
+                      report.categories[i],
+                      colors[i % colors.length],
+                      isArabic,
                     ),
                   ),
-                ],
-              ),
+              ],
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: AppColors.ink,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            subtitle,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 9,
-              height: 1.35,
-            ),
-          ),
-        ],
-      ),
     );
   }
 
-  Widget _buildCategoryRow(_ReportCategoryData data) {
+  Widget _buildCategoryRow(
+    ProductReportCategory data,
+    Color color,
+    bool isArabic,
+  ) {
+    final parts = [
+      if (data.approved > 0) '${isArabic ? 'معتمد' : 'Approved'} ${data.approved}',
+      if (data.rejected > 0) '${isArabic ? 'مرفوض' : 'Rejected'} ${data.rejected}',
+      if (data.suspended > 0)
+        '${isArabic ? 'موقوف' : 'Suspended'} ${data.suspended}',
+      if (data.pending > 0)
+        '${isArabic ? 'قيد المراجعة' : 'Pending'} ${data.pending}',
+    ];
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            MotionIcon(data.icon, size: 15, color: AppColors.info),
+            MotionIcon(Icons.folder_outlined, size: 15, color: color),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
@@ -826,7 +753,7 @@ class _ProductReportsScreenState extends State<ProductReportsScreen> {
             ),
             const SizedBox(width: 5),
             CountText(
-              '${(data.percent * 100).round()}%',
+              '${data.percent.round()}%',
               style: TextStyle(
                 color: AppColors.ink,
                 fontSize: 11,
@@ -836,10 +763,7 @@ class _ProductReportsScreenState extends State<ProductReportsScreen> {
             const SizedBox(width: 4),
             Text(
               '(${data.count})',
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 9,
-              ),
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 9),
             ),
           ],
         ),
@@ -847,248 +771,174 @@ class _ProductReportsScreenState extends State<ProductReportsScreen> {
         ClipRRect(
           borderRadius: BorderRadius.circular(8),
           child: LinearProgressIndicator(
-            value: data.percent,
+            value: (data.percent / 100).clamp(0.0, 1.0),
             minHeight: 8,
             backgroundColor: AppColors.surfaceHighlight,
-            valueColor: AlwaysStoppedAnimation(data.color),
+            valueColor: AlwaysStoppedAnimation(color),
           ),
         ),
+        if (parts.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            parts.join(' • '),
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 9),
+          ),
+        ],
       ],
     );
   }
 
-  Widget _buildAuditSection(AppLocalizations l10n, bool isArabic) {
+  Widget _buildPromotionsSection(ProductReport report, bool isArabic) {
+    final p = report.promotions;
+    return _sectionCard(
+      title: isArabic ? 'الترويج' : 'Promotions',
+      icon: Icons.campaign_outlined,
+      child: Column(
+        children: [
+          _countRow(isArabic ? 'طلبات إعلان مميز' : 'Featured requests',
+              p.featuredRequests),
+          _countRow(isArabic ? 'طلبات VIP' : 'VIP requests', p.vipRequests),
+          _countRow(
+            isArabic ? 'الإيراد (طلبات مقبولة)' : 'Revenue (approved)',
+            p.revenue.round(),
+          ),
+          const Divider(),
+          _countRow(isArabic ? 'طلبات ترويج منتظرة قرارك' : 'Requests awaiting you',
+              p.pendingRequests,
+              alert: true),
+          _countRow(isArabic ? 'مميز شغّال الآن' : 'Featured running',
+              p.runningFeatured),
+          _countRow(
+              isArabic
+                  ? 'VIP شغّال الآن (الحد ${p.vipLimit})'
+                  : 'VIP running (limit ${p.vipLimit})',
+              p.runningVip),
+          _countRow(isArabic ? 'VIP في الانتظار' : 'VIP waiting', p.waitingVip),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAuditSection(
+    ProductReport report,
+    AppLocalizations l10n,
+    bool isArabic,
+  ) {
     return _sectionCard(
       title: l10n.productReportAuditTitle,
       icon: Icons.history,
       trailing: TextButton(
-        onPressed: () => _showAllActions(l10n),
+        onPressed: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => const ProductSupervisorAuditScreen(),
+          ),
+        ),
         style: TextButton.styleFrom(
           padding: const EdgeInsets.symmetric(horizontal: 4),
           minimumSize: Size.zero,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
         child: Text(
-          l10n.productReportLive,
+          isArabic ? 'عرض السجل كامل' : 'View full log',
           style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700),
         ),
       ),
-      child: Column(
-        children: _draftActions
-            .map((action) => Padding(
-                  padding: const EdgeInsets.only(bottom: 9),
-                  child: _buildAuditAction(action, l10n, isArabic),
-                ))
-            .toList(),
-      ),
+      child: report.logs.isEmpty
+          ? Text(
+              isArabic
+                  ? 'لا توجد إجراءات مسجلة بعد.'
+                  : 'No recorded actions yet.',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            )
+          : Column(
+              children: [
+                for (final log in report.logs)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 9),
+                    child: _buildLogItem(log, l10n),
+                  ),
+              ],
+            ),
     );
   }
 
-  Widget _buildAuditAction(
-    _AuditAction action,
-    AppLocalizations l10n,
-    bool isArabic,
-  ) {
-    final statusColor = switch (action.status) {
-      _ReportActionStatus.hidden => AppColors.textSecondary,
-      _ReportActionStatus.approved => AppColors.infoDark,
-      _ReportActionStatus.rejected => AppColors.danger,
-    };
-    final statusIcon = switch (action.status) {
-      _ReportActionStatus.hidden => Icons.visibility_off_outlined,
-      _ReportActionStatus.approved => Icons.check,
-      _ReportActionStatus.rejected => Icons.close,
-    };
-    final statusLabel = switch (action.status) {
-      _ReportActionStatus.hidden => l10n.productReportHidden,
-      _ReportActionStatus.approved => l10n.productReportApproved,
-      _ReportActionStatus.rejected => l10n.productReportRejected,
-    };
-    final reason = isArabic ? action.reasonAr : action.reasonEn;
-
+  Widget _buildLogItem(ProductReportLog log, AppLocalizations l10n) {
+    final type = log.actionType;
+    final isApproved = type.contains('اعتماد');
+    final isRejected = type.contains('رفض');
+    final color = isApproved
+        ? AppColors.infoDark
+        : isRejected
+            ? AppColors.danger
+            : AppColors.textSecondary;
+    final icon = isApproved
+        ? Icons.check
+        : isRejected
+            ? Icons.close
+            : Icons.pause_circle_outline;
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: AppColors.surfaceLight,
         borderRadius: BorderRadius.circular(13),
       ),
-      child: Column(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              MotionIcon(statusIcon, size: 18, color: statusColor),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      l10n.productReportActionHeadline(action.adNumber),
-                      style: TextStyle(
-                        color: AppColors.ink,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      isArabic ? action.titleAr : action.titleEn,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 9,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      reason,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: statusColor, fontSize: 9),
-                    ),
-                  ],
+          MotionIcon(icon, size: 18, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.productReportActionHeadline(log.adNumber),
+                  style: TextStyle(
+                    color: AppColors.ink,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 7),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  _smallTag(statusLabel),
-                  const SizedBox(height: 5),
+                const SizedBox(height: 3),
+                Text(
+                  log.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 9),
+                ),
+                if (log.reason.trim().isNotEmpty) ...[
+                  const SizedBox(height: 4),
                   Text(
-                    isArabic ? action.ageAr : action.ageEn,
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 8,
-                    ),
+                    log.reason,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: color, fontSize: 9),
                   ),
                 ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: TextButton.icon(
-              onPressed: () => _editAction(action, l10n, isArabic),
-              icon: const MotionIcon(Icons.edit_note, size: 16),
-              label: Text(l10n.productReportEditAction),
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                textStyle: const TextStyle(fontSize: 9),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _editAction(
-    _AuditAction action,
-    AppLocalizations l10n,
-    bool isArabic,
-  ) async {
-    var status = action.status;
-    final reasonController = TextEditingController(
-      text: isArabic ? action.reasonAr : action.reasonEn,
-    );
-    try {
-      final edited = await showDialog<_AuditAction>(
-        context: context,
-        builder: (dialogContext) => StatefulBuilder(
-          builder: (context, setDialogState) => AlertDialog(
-            title: Text(l10n.productReportEditDialogTitle),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DropdownButtonFormField<_ReportActionStatus>(
-                  initialValue: status,
-                  decoration: InputDecoration(
-                    labelText: l10n.productReportActionStatus,
-                    border: const OutlineInputBorder(),
+                if (log.supervisorName.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    log.supervisorName,
+                    style: TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 8.5,
+                        fontWeight: FontWeight.w600),
                   ),
-                  items: [
-                    DropdownMenuItem(
-                      value: _ReportActionStatus.hidden,
-                      child: Text(l10n.productReportHidden),
-                    ),
-                    DropdownMenuItem(
-                      value: _ReportActionStatus.approved,
-                      child: Text(l10n.productReportApproved),
-                    ),
-                    DropdownMenuItem(
-                      value: _ReportActionStatus.rejected,
-                      child: Text(l10n.productReportRejected),
-                    ),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      setDialogState(() => status = value);
-                    }
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: reasonController,
-                  minLines: 2,
-                  maxLines: 3,
-                  decoration: InputDecoration(
-                    labelText: l10n.productReportActionReason,
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
+                ],
               ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: Text(l10n.productCancelAction),
-              ),
-              FilledButton(
-                onPressed: () {
-                  final reason = reasonController.text.trim();
-                  Navigator.pop(
-                    dialogContext,
-                    action.copyWith(
-                      status: status,
-                      reasonAr: isArabic ? reason : action.reasonAr,
-                      reasonEn: isArabic ? action.reasonEn : reason,
-                    ),
-                  );
-                },
-                child: Text(l10n.productReportApplyEdit),
+          ),
+          const SizedBox(width: 7),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              _smallTag(type),
+              const SizedBox(height: 5),
+              Text(
+                log.timeAgo,
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 8),
               ),
             ],
-          ),
-        ),
-      );
-      if (edited == null || !mounted) return;
-      setState(() {
-        _draftActions = _draftActions
-            .map((item) => item.adNumber == edited.adNumber ? edited : item)
-            .toList();
-        _hasUnsavedChanges = true;
-      });
-    } finally {
-      reasonController.dispose();
-    }
-  }
-
-  void _showAllActions(AppLocalizations l10n) {
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(l10n.productReportAuditTitle),
-        content: Text(l10n.productReportRecentActionsNote),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text(l10n.productCancelAction),
           ),
         ],
       ),
@@ -1109,10 +959,7 @@ class _ProductReportsScreenState extends State<ProductReportsScreen> {
           Expanded(
             child: Text(
               l10n.productReportDataNote,
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 9,
-              ),
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 9),
             ),
           ),
           MotionIcon(Icons.circle, size: 6, color: AppColors.info),
@@ -1121,136 +968,82 @@ class _ProductReportsScreenState extends State<ProductReportsScreen> {
     );
   }
 
-  Widget _buildSaveActions(AppLocalizations l10n) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-      color: AppColors.surface,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: FilledButton.icon(
-              onPressed: _saveChanges,
-              icon: const MotionIcon(Icons.check_circle_outline, size: 18),
-              label: Text(l10n.productReportSaveAndUpdate),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.primaryDark,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(13),
-                ),
-                textStyle:
-                    const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-                elevation: 2,
-              ),
-            ),
-          ),
-          const SizedBox(height: 7),
-          SizedBox(
-            width: double.infinity,
-            height: 40,
-            child: TextButton(
-              onPressed: _hasUnsavedChanges ? _discardChanges : null,
-              style: TextButton.styleFrom(
-                backgroundColor: AppColors.surfaceLight,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(13),
-                ),
-              ),
-              child: Text(
-                l10n.productReportDiscardChanges,
-                style: TextStyle(
-                  color: _hasUnsavedChanges
-                      ? AppColors.textSecondary
-                      : AppColors.textMuted,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
+  // -------------------------------------------------------------- export
+
+  Future<void> _showExportDialog(
+    AppLocalizations l10n,
+    ProductReport report,
+    bool isArabic,
+  ) async {
+    final avg = _averageText(report.averageMinutes, l10n);
+    final avgText = avg.$2 == null ? avg.$1 : '${avg.$1} ${avg.$2}';
+    final p = report.promotions;
+
+    _ComplaintStats? complaints;
+    if (_complaintsFuture != null) {
+      try {
+        complaints = await _complaintsFuture!;
+      } on Object {
+        complaints = null;
+      }
+    }
+    if (!mounted) return;
+
+    final rows = <List<String>>[
+      [l10n.productReportReviewedAds, '${report.reviewed}'],
+      [l10n.productReportApprovalRate, '${report.approvalRate.round()}%'],
+      [isArabic ? 'معتمدة' : 'Approved', '${report.approved}'],
+      [isArabic ? 'مرفوضة' : 'Rejected', '${report.declined}'],
+      [isArabic ? 'موقوفة' : 'Suspended', '${report.suspended}'],
+      [isArabic ? 'في الانتظار' : 'Pending', '${report.pending}'],
+      [l10n.productReportAverageReview, avgText],
+      if (complaints != null) ...[
+        [isArabic ? 'شكاوى مفتوحة' : 'Open complaints', '${complaints.open}'],
+        [
+          isArabic ? 'شكاوى متأخرة' : 'Overdue complaints',
+          '${complaints.overdue}'
         ],
-      ),
-    );
-  }
-
-  void _saveChanges() {
-    final l10n = AppLocalizations.of(context)!;
-    setState(() {
-      _savedActions = List.of(_draftActions);
-      _hasUnsavedChanges = false;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(l10n.productReportSaved)),
-    );
-  }
-
-  void _discardChanges() {
-    setState(() {
-      _draftActions = List.of(_savedActions);
-      _hasUnsavedChanges = false;
-    });
-  }
-
-  Future<void> _showExportDialog(AppLocalizations l10n) async {
-    final metrics = _metricsForSelectedPeriod();
-    final report = [
+        [isArabic ? 'شكاوى منتهية' : 'Closed complaints', '${complaints.closed}'],
+      ],
+      for (final c in report.categories)
+        [
+          '${isArabic ? 'قسم' : 'Category'}: ${c.name}',
+          '${c.count} (${c.percent.round()}%)'
+        ],
+      if (_remote) ...[
+        [isArabic ? 'طلبات مميز' : 'Featured requests', '${p.featuredRequests}'],
+        [isArabic ? 'طلبات VIP' : 'VIP requests', '${p.vipRequests}'],
+        [isArabic ? 'إيراد الترويج' : 'Promotion revenue', '${p.revenue.round()}'],
+      ],
+    ];
+    final text = [
       l10n.productReportTitle,
-      '${l10n.productReportReviewedAds},${metrics.reviewed}',
-      '${l10n.productReportApprovalRate},${metrics.approvalRate}',
-      l10n.productReportApprovedCount(metrics.approved),
-      l10n.productReportDeclinedCount(metrics.declined),
-      '${l10n.productReportAverageReview},${metrics.averageMinutes}',
+      for (final r in rows) '${r[0]},${r[1]}',
     ].map(_escapeCsv).join('\n');
+
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(l10n.productReportExportTitle),
-        content: SelectableText(report),
+        content: SingleChildScrollView(child: SelectableText(text)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
             child: Text(l10n.productCancelAction),
           ),
           OutlinedButton.icon(
-            onPressed: () async {
-              final live = await _liveFuture.catchError(
-                (_) => const _LiveStats(
-                  openComplaints: 0,
-                  overdueComplaints: 0,
-                  resolvedComplaints: 0,
-                  withHead: 0,
-                  returnedByHead: 0,
-                  atAdmin: 0,
-                  overdueEscalations: 0,
-                ),
-              );
-              await CsvExporter.share(
-                fileName: 'products_report_${CsvExporter.stamp()}.csv',
-                title: l10n.productReportTitle,
-                headers: const ['المؤشر', 'القيمة'],
-                rows: [
-                  [l10n.productReportReviewedAds, '${metrics.reviewed}'],
-                  [l10n.productReportApprovalRate, metrics.approvalRate],
-                  ['معتمدة', '${metrics.approved}'],
-                  ['مرفوضة/موقوفة', '${metrics.declined}'],
-                  ['شكاوى مفتوحة', '${live.openComplaints}'],
-                  ['شكاوى متأخرة', '${live.overdueComplaints}'],
-                  ['شكاوى منتهية', '${live.resolvedComplaints}'],
-                  ['عند رئيس المشرفين', '${live.withHead}'],
-                  ['أعادها الرئيس', '${live.returnedByHead}'],
-                  ['عند الأدمن عبر الرئيس', '${live.atAdmin}'],
-                  ['تصعيدات متأخرة', '${live.overdueEscalations}'],
-                ],
-              );
-            },
+            onPressed: () => CsvExporter.share(
+              fileName: 'products_report_${CsvExporter.stamp()}.csv',
+              title: l10n.productReportTitle,
+              headers: [isArabic ? 'المؤشر' : 'Metric', isArabic ? 'القيمة' : 'Value'],
+              rows: rows,
+            ),
             icon: const MotionIcon(Icons.share_outlined, size: 16),
-            label: Text(isArabicDialog(l10n) ? 'مشاركة CSV' : 'Share CSV'),
+            label: Text(isArabic ? 'مشاركة CSV' : 'Share CSV'),
           ),
           FilledButton.icon(
             onPressed: () async {
-              await Clipboard.setData(ClipboardData(text: report));
+              await Clipboard.setData(ClipboardData(text: text));
               if (!dialogContext.mounted || !mounted) return;
               Navigator.pop(dialogContext);
               ScaffoldMessenger.of(context).showSnackBar(
@@ -1265,9 +1058,9 @@ class _ProductReportsScreenState extends State<ProductReportsScreen> {
     );
   }
 
-  bool isArabicDialog(AppLocalizations l10n) => l10n.localeName.startsWith('ar');
-
   String _escapeCsv(String value) => '"${value.replaceAll('"', '""')}"';
+
+  // --------------------------------------------------------------- shell
 
   Widget _sectionCard({
     required String title,
@@ -1314,19 +1107,19 @@ class _ProductReportsScreenState extends State<ProductReportsScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.surfaceLight,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(10),
       ),
-      child: FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart, child: CountText(
+      child: Text(
         value,
         maxLines: 1,
- softWrap: false,
+        softWrap: false,
         style: TextStyle(
           color: AppColors.textSecondary,
           fontSize: 8,
           fontWeight: FontWeight.w600,
         ),
-      )),
+      ),
     );
   }
 
@@ -1361,21 +1154,5 @@ class _MetricCardData {
     required this.iconColor,
     this.isDanger = false,
     this.unit,
-  });
-}
-
-class _ReportCategoryData {
-  final String name;
-  final int count;
-  final double percent;
-  final IconData icon;
-  final Color color;
-
-  const _ReportCategoryData({
-    required this.name,
-    required this.count,
-    required this.percent,
-    required this.icon,
-    required this.color,
   });
 }

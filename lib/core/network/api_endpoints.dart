@@ -32,6 +32,9 @@ class ApiEndpoints {
   static String adReject(int id) => '$_supervisorForAd/reject/$id';
   static String adHide(int id) => '$_supervisorForAd/hide/$id';
   static const adReports = '$_supervisorForAd/reports';
+  static const accountChangePassword = 'api/Account/ChangePassword';
+  static const accountSettings = 'api/Account/Settings';
+  static const adAuditLog = '$_supervisorForAd/audit-log';
 
   // التجار — SupervisorForMerchant
 

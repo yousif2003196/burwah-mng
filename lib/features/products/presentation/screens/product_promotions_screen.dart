@@ -1,6 +1,7 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:barwah_app/features/products/presentation/screens/promoted_ad_review_screen.dart';
 import 'package:intl/intl.dart';
 
 import 'package:barwah_app/core/auth/auth_session.dart';
@@ -42,6 +43,13 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
   _PromotionFilter _filter = _PromotionFilter.pending;
   bool _isSaving = false;
   bool _isLoading = true;
+
+  // حد إعلانات VIP في بنر الرئيسية (يحدده المشرف) وعدد الجاري والمنتظر.
+  int? _vipLimit;
+  int _vipDraft = 5;
+  int _vipRunning = 0;
+  int _vipWaiting = 0;
+  bool _savingVip = false;
 
   /// الباك إند الحقيقي لمشرف المنتجات بعد تسجيل دخول ناجح؛ وصلني تجريبي.
   bool get _remote => AuthSession.isSignedIn && !widget.isWasalny;
@@ -89,6 +97,7 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
         _requests = requests;
         _isLoading = false;
       });
+      if (_remote) await _loadVipSettings();
       if (!_remote) await _refreshFinanceDecisions();
       if (widget.isWasalny) await _publishNewProductEvents();
     } catch (error, stackTrace) {
@@ -102,6 +111,116 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
       );
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _loadVipSettings() async {
+    try {
+      final settings = await sl<ProductPromotionApiDataSource>().loadVipSettings();
+      if (!mounted) return;
+      setState(() {
+        _vipLimit = settings.limit;
+        _vipDraft = settings.limit;
+        _vipRunning = settings.running;
+        _vipWaiting = settings.waiting;
+      });
+    } catch (_) {
+      // الكارت يبقى مخفيًا لو تعذر تحميل الإعداد.
+    }
+  }
+
+  Future<void> _saveVipLimit() async {
+    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
+    setState(() => _savingVip = true);
+    try {
+      await sl<ProductPromotionApiDataSource>().saveVipLimit(_vipDraft);
+      await _loadVipSettings();
+      await _loadRequests();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(isArabic ? 'تم حفظ حد إعلانات VIP' : 'VIP limit saved'),
+      ));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(isArabic ? 'تعذر حفظ الحد' : 'Could not save the limit'),
+      ));
+    } finally {
+      if (mounted) setState(() => _savingVip = false);
+    }
+  }
+
+  Widget _buildVipLimitCard(bool isArabic) {
+    final limit = _vipLimit;
+    if (!_remote || limit == null) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            isArabic
+                ? 'الحد الأقصى لإعلانات VIP في البنر'
+                : 'Maximum VIP ads in the banner',
+            style: TextStyle(
+              color: AppColors.ink,
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            isArabic
+                ? '$_vipRunning معروض + $_vipWaiting منتظر. الإعلان المنتظر تبدأ مدته عند دخول البنر.'
+                : '$_vipRunning shown + $_vipWaiting waiting. A waiting ad\'s days start when it enters the banner.',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              IconButton.outlined(
+                onPressed: _savingVip || _vipDraft <= 0
+                    ? null
+                    : () => setState(() => _vipDraft--),
+                icon: const Icon(Icons.remove),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                child: Text(
+                  '$_vipDraft',
+                  style: TextStyle(
+                    color: AppColors.ink,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              IconButton.outlined(
+                onPressed: _savingVip || _vipDraft >= 100
+                    ? null
+                    : () => setState(() => _vipDraft++),
+                icon: const Icon(Icons.add),
+              ),
+              const Spacer(),
+              FilledButton(
+                onPressed: _savingVip || _vipDraft == limit ? null : _saveVipLimit,
+                child: _savingVip
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(isArabic ? 'حفظ' : 'Save'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _saveRequests(List<ProductPromotionRequest> requests) =>
@@ -402,6 +521,10 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
                 )),
                 const SizedBox(height: 16),
                 ScrollFx(child: _buildPlanInfo(l10n)),
+                if (_remote && _vipLimit != null) ...[
+                  const SizedBox(height: 12),
+                  _buildVipLimitCard(isArabic),
+                ],
                 const SizedBox(height: 18),
                 Text(
                   l10n.productPromotionRequests,
@@ -464,17 +587,26 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
                       allowApproval: false,
                     ),
                     onReject: () => _reject(request, l10n),
-                    onSuspend: () => _decide(
-                      request,
-                      ProductPromotionStatus.suspended,
-                      l10n,
-                    ),
+                    onSuspend: () => _remote
+                        ? _suspendRemote(request, l10n)
+                        : _decide(
+                            request,
+                            ProductPromotionStatus.suspended,
+                            l10n,
+                          ),
                     onReactivate: () => _decide(
                       request,
                       ProductPromotionStatus.active,
                       l10n,
                     ),
                     onTap: () => _showPromotionDetails(request, l10n),
+                    onOffer: _remote &&
+                            (request.status == ProductPromotionStatus.pending ||
+                                request.status == ProductPromotionStatus.active)
+                        ? () => _offerRemote(request, l10n)
+                        : null,
+                    onAnswerCounter: (accept) =>
+                        _answerCounter(request, accept, l10n),
                   ),
                   const SizedBox(height: 9),
                 ],
@@ -638,6 +770,25 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
                     '${l10n.productDetailsPrice}: ${request.price} ${l10n.productWalletCurrency}'),
                 CountText('${request.durationDays} ${l10n.productPromotionDays}'),
                 const SizedBox(height: 12),
+                if (_remote) ...[
+                  FilledButton.icon(
+                    onPressed: () {
+                      Navigator.pop(sheetContext);
+                      Navigator.of(context).push<void>(
+                        MaterialPageRoute<void>(
+                          builder: (_) => PromotedAdReviewScreen(
+                            adId: request.adReference.replaceFirst('AD-', ''),
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.fact_check_outlined, size: 18),
+                    label: Text(isArabic
+                        ? 'عرض الإعلان ومراجعته'
+                        : 'View and review the ad'),
+                  ),
+                  const SizedBox(height: 8),
+                ],
                 OutlinedButton(
                   onPressed: () => Navigator.pop(sheetContext),
                   child: Text(l10n.productBackToReview),
@@ -813,6 +964,278 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
     }
   }
 
+  /// تعليق باقة سارية: السبب إجباري، والاسترداد للمحفظة اختياري (يُخصم 20% من
+  /// السعر لكل يوم VIP و10% لكل يوم مميز).
+  Future<void> _suspendRemote(
+    ProductPromotionRequest request,
+    AppLocalizations l10n,
+  ) async {
+    final isArabic = l10n.localeName.startsWith('ar');
+    final reasonController = TextEditingController();
+    var refund = true;
+    final result = await showDialog<({String reason, bool refund})>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(isArabic ? 'تعليق الترويج' : 'Suspend promotion'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: reasonController,
+                minLines: 2,
+                maxLines: 3,
+                onChanged: (_) => setDialogState(() {}),
+                decoration: InputDecoration(
+                  labelText: isArabic ? 'سبب التعليق (إجباري)' : 'Reason (required)',
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                value: refund,
+                onChanged: (v) => setDialogState(() => refund = v ?? true),
+                title: Text(
+                  isArabic ? 'رد المتبقي لمحفظة العميل' : 'Refund the rest to the wallet',
+                  style: const TextStyle(fontSize: 13),
+                ),
+                subtitle: Text(
+                  isArabic
+                      ? 'يُخصم عن كل يوم مضى: 20% من السعر لـ VIP، و10% للمميز.'
+                      : 'Each elapsed day costs 20% of the price for VIP, 10% for Featured.',
+                  style: const TextStyle(fontSize: 11),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(l10n.productCancelAction),
+            ),
+            FilledButton(
+              onPressed: reasonController.text.trim().isEmpty
+                  ? null
+                  : () => Navigator.pop(dialogContext, (
+                        reason: reasonController.text.trim(),
+                        refund: refund,
+                      )),
+              child: Text(isArabic ? 'تعليق' : 'Suspend'),
+            ),
+          ],
+        ),
+      ),
+    );
+    reasonController.dispose();
+    if (result == null || !mounted) return;
+
+    setState(() => _isSaving = true);
+    try {
+      final refunded = await sl<ProductPromotionApiDataSource>()
+          .suspend(request.id, reason: result.reason, refund: result.refund);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isArabic
+              ? (refunded > 0
+                  ? 'تم تعليق الترويج وأُعيد ${refunded.toStringAsFixed(refunded.truncateToDouble() == refunded ? 0 : 2)} ج.م للمحفظة'
+                  : 'تم تعليق الترويج')
+              : (refunded > 0
+                  ? 'Promotion suspended, $refunded EGP refunded'
+                  : 'Promotion suspended')),
+        ),
+      );
+      await _loadRequests();
+    } catch (error) {
+      if (!mounted) return;
+      final text = '$error'.replaceFirst('Bad state: ', '');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+      _loadRequests();
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  /// عرض مدة وسعر جديدين على العميل (طلب معلّق أو باقة سارية). يرد العميل بالقبول/الرفض/التفاوض خلال 48 ساعة.
+  Future<void> _offerRemote(
+    ProductPromotionRequest request,
+    AppLocalizations l10n,
+  ) async {
+    final isArabic = l10n.localeName.startsWith('ar');
+    final daysController = TextEditingController(text: '${request.durationDays}');
+    final priceController = TextEditingController(text: '${request.price}');
+    final noteController = TextEditingController();
+    final result = await showDialog<({int days, double price, String note})>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final days = int.tryParse(daysController.text.trim());
+          final price =
+              double.tryParse(priceController.text.trim().replaceAll(',', '.'));
+          final valid = days != null &&
+              days >= 1 &&
+              days <= 365 &&
+              price != null &&
+              price >= 0;
+          final diff = price == null ? null : price - request.price;
+          return AlertDialog(
+            title: Text(isArabic ? 'تعديل المدة والسعر' : 'Edit duration & price'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: daysController,
+                    keyboardType: TextInputType.number,
+                    onChanged: (_) => setDialogState(() {}),
+                    decoration: InputDecoration(
+                      labelText: isArabic ? 'المدة بالأيام (1 - 365)' : 'Days (1 - 365)',
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: priceController,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    onChanged: (_) => setDialogState(() {}),
+                    decoration: InputDecoration(
+                      labelText: isArabic ? 'السعر الإجمالي الجديد (ج.م)' : 'New total price (EGP)',
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: noteController,
+                    minLines: 1,
+                    maxLines: 3,
+                    maxLength: 500,
+                    decoration: InputDecoration(
+                      labelText: isArabic ? 'ملاحظة للعميل (اختياري)' : 'Note to the customer (optional)',
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
+                  if (diff != null)
+                    Text(
+                      diff > 0
+                          ? (isArabic
+                              ? 'عند الموافقة يُخصم الفرق ${diff.toStringAsFixed(2)} ج.م من محفظة العميل.'
+                              : 'On acceptance ${diff.toStringAsFixed(2)} EGP is charged from the wallet.')
+                          : diff < 0
+                              ? (isArabic
+                                  ? 'عند الموافقة يُرد الفرق ${(-diff).toStringAsFixed(2)} ج.م لمحفظة العميل.'
+                                  : 'On acceptance ${(-diff).toStringAsFixed(2)} EGP is refunded to the wallet.')
+                              : (isArabic ? 'نفس السعر الحالي.' : 'Same as the current price.'),
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                    ),
+                  const SizedBox(height: 4),
+                  Text(
+                    isArabic
+                        ? 'يصل العميل إشعار، وله 3 جولات تفاوض، والعرض ينتهي بعد 48 ساعة.'
+                        : 'The customer is notified, can negotiate up to 3 rounds, and the offer expires after 48 hours.',
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 10.5),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: Text(l10n.productCancelAction),
+              ),
+              FilledButton(
+                onPressed: !valid
+                    ? null
+                    : () => Navigator.pop(dialogContext, (
+                          days: days,
+                          price: price,
+                          note: noteController.text.trim(),
+                        )),
+                child: Text(isArabic ? 'إرسال العرض' : 'Send offer'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    daysController.dispose();
+    priceController.dispose();
+    noteController.dispose();
+    if (result == null || !mounted) return;
+
+    setState(() => _isSaving = true);
+    try {
+      await sl<ProductPromotionApiDataSource>().sendOffer(request.id,
+          days: result.days, price: result.price, note: result.note);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(isArabic ? 'تم إرسال العرض للعميل' : 'Offer sent to the customer')));
+      await _loadRequests();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$error'.replaceFirst('Bad state: ', ''))));
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  /// قبول/رفض العرض المضاد من العميل. القبول يطبّق المدة والسعر ويُسوّى الفرق من المحفظة.
+  Future<void> _answerCounter(
+    ProductPromotionRequest request,
+    bool accept,
+    AppLocalizations l10n,
+  ) async {
+    final offer = request.offer;
+    if (offer == null) return;
+    final isArabic = l10n.localeName.startsWith('ar');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(accept
+            ? (isArabic ? 'قبول العرض المضاد' : 'Accept the counter-offer')
+            : (isArabic ? 'رفض العرض المضاد' : 'Reject the counter-offer')),
+        content: Text(accept
+            ? (isArabic
+                ? 'ستصبح الباقة ${offer.days} يوم بسعر ${offer.price} ج.م، ويُسوّى الفرق من محفظة العميل.'
+                : 'The plan becomes ${offer.days} days at ${offer.price} EGP; the difference is settled via the wallet.')
+            : (isArabic ? 'سيُبلَّغ العميل برفض عرضه.' : 'The customer will be told the offer was rejected.')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(l10n.productCancelAction),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(accept ? (isArabic ? 'قبول' : 'Accept') : (isArabic ? 'رفض' : 'Reject')),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    setState(() => _isSaving = true);
+    try {
+      await sl<ProductPromotionApiDataSource>().answerCounter(offer.id, accept: accept);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(accept
+              ? (isArabic ? 'تم قبول العرض وتطبيق المدة والسعر' : 'Offer accepted and applied')
+              : (isArabic ? 'تم رفض العرض' : 'Offer rejected'))));
+      await _loadRequests();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$error'.replaceFirst('Bad state: ', ''))));
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
   /// قرار حقيقي على الباك إند: قبول (يبدأ الترويج ويصل إشعار للعميل) أو رفض بسبب.
   Future<void> _decideRemote(
     ProductPromotionRequest request,
@@ -826,7 +1249,7 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(isArabic
-              ? 'الباك إند لا يدعم هذا الإجراء بعد'
+              ? 'الباك اند لا يدعم هذا الاجراء بعد'
               : 'This action is not supported by the server yet'),
         ),
       );
@@ -1081,6 +1504,8 @@ class _PromotionRequestCard extends StatelessWidget {
   final VoidCallback onSuspend;
   final VoidCallback onReactivate;
   final VoidCallback onTap;
+  final VoidCallback? onOffer;
+  final void Function(bool accept)? onAnswerCounter;
 
   const _PromotionRequestCard({
     required this.request,
@@ -1094,6 +1519,8 @@ class _PromotionRequestCard extends StatelessWidget {
     required this.onSuspend,
     required this.onReactivate,
     required this.onTap,
+    this.onOffer,
+    this.onAnswerCounter,
   });
 
   @override
@@ -1136,6 +1563,19 @@ class _PromotionRequestCard extends StatelessWidget {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+                      if (request.adWaiting) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          isArabic
+                              ? 'منتظر دخول بنر VIP'
+                              : 'Waiting for the VIP banner',
+                          style: TextStyle(
+                            color: AppColors.warningBorder,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 3),
                       FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart, child: CountText(
                         '${l10n.productSellerLabel} ${isArabic ? request.merchantNameAr : request.merchantNameEn}',
@@ -1194,6 +1634,16 @@ class _PromotionRequestCard extends StatelessWidget {
                 '${l10n.productPromotionDecisionNote}: ${request.decisionNote}',
                 style:
                     TextStyle(color: AppColors.dangerDark, fontSize: 10),
+              ),
+            ],
+            if (onOffer != null) ...[
+              const SizedBox(height: 10),
+              _OfferStrip(
+                request: request,
+                isArabic: isArabic,
+                isSaving: isSaving,
+                onOffer: onOffer!,
+                onAnswer: onAnswerCounter,
               ),
             ],
             if (isPending && request.financeReviewPending) ...[
@@ -1261,6 +1711,100 @@ class _PromotionRequestCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// حالة آخر عرض مدة/سعر + زر إرسال عرض جديد، وقبول/رفض العرض المضاد.
+class _OfferStrip extends StatelessWidget {
+  final ProductPromotionRequest request;
+  final bool isArabic;
+  final bool isSaving;
+  final VoidCallback onOffer;
+  final void Function(bool accept)? onAnswer;
+
+  const _OfferStrip({
+    required this.request,
+    required this.isArabic,
+    required this.isSaving,
+    required this.onOffer,
+    required this.onAnswer,
+  });
+
+  String _price(double v) =>
+      v.truncateToDouble() == v ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
+
+  @override
+  Widget build(BuildContext context) {
+    final offer = request.offer;
+    final expired = offer != null &&
+        offer.isPending &&
+        offer.expiresAt != null &&
+        offer.expiresAt!.isBefore(DateTime.now());
+    final status = expired ? 'Expired' : offer?.status;
+    final counterWaiting =
+        offer != null && offer.fromUser && status == 'Pending';
+
+    String? line;
+    if (offer != null && status != 'Superseded') {
+      final terms =
+          '${offer.days} ${isArabic ? 'يوم' : 'days'} • ${_price(offer.price)} ${isArabic ? 'ج.م' : 'EGP'}';
+      line = switch (status) {
+        'Pending' when offer.fromUser =>
+          isArabic ? 'عرض مضاد من العميل: $terms (الجولة ${offer.round}/3)' : 'Customer counter-offer: $terms (round ${offer.round}/3)',
+        'Pending' => isArabic ? 'عرضك بانتظار رد العميل: $terms' : 'Your offer awaits the customer: $terms',
+        'Accepted' => isArabic ? 'تم الاتفاق: $terms' : 'Agreed: $terms',
+        'Rejected' => isArabic ? 'العرض مرفوض: $terms' : 'Offer rejected: $terms',
+        'Expired' => isArabic ? 'انتهت مهلة العرض (48 ساعة): $terms' : 'Offer expired (48h): $terms',
+        _ => null,
+      };
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (line != null)
+          Container(
+            padding: const EdgeInsets.all(9),
+            margin: const EdgeInsets.only(bottom: 8),
+            decoration: BoxDecoration(
+              color: AppColors.infoLight,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              line + ((offer?.note ?? '').isEmpty ? '' : '\n${offer!.note}'),
+              style: TextStyle(color: AppColors.ink, fontSize: 11.5),
+            ),
+          ),
+        if (counterWaiting && onAnswer != null)
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: isSaving ? null : () => onAnswer!(false),
+                  child: Text(isArabic ? 'رفض العرض المضاد' : 'Reject counter'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton(
+                  onPressed: isSaving ? null : () => onAnswer!(true),
+                  child: Text(isArabic ? 'قبول العرض المضاد' : 'Accept counter'),
+                ),
+              ),
+            ],
+          ),
+        if (counterWaiting) const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: isSaving ? null : onOffer,
+          icon: const Icon(Icons.edit_calendar_outlined, size: 17),
+          label: Text(
+            offer != null && status == 'Pending' && !offer.fromUser
+                ? (isArabic ? 'تعديل العرض' : 'Change offer')
+                : (isArabic ? 'تعديل المدة والسعر' : 'Edit duration & price'),
+          ),
+        ),
+      ],
     );
   }
 }

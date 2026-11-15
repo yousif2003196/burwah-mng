@@ -280,7 +280,15 @@ class ProductReviewApiDataSource implements ProductReviewDataSource {
           ? ProductCondition.used
           : ProductCondition.newInBox,
       details: details,
+      sellerEmail: _text(json['sellerEmail']) ?? fallback?.sellerEmail,
+      promotionPlan:
+          _text(json['promotionPlan']) ?? fallback?.promotionPlan ?? 'Free',
     );
+  }
+
+  static String? _text(Object? value) {
+    final text = '${value ?? ''}'.trim();
+    return text.isEmpty || text == 'null' ? null : text;
   }
 
   static List<MapEntry<String, String>> _details(
@@ -312,6 +320,7 @@ class ProductReviewApiDataSource implements ProductReviewDataSource {
       add('قابل للتفاوض', json['isNegotiable'] == true ? 'نعم' : 'لا');
     }
     add('اسم البائع', json['sellerName']);
+    add('بريد البائع', json['sellerEmail']);
     add('رقم البائع', json['sellerPhone']);
     add('عدد الصور', photos);
     final created = DateTime.tryParse('${json['createdAt']}');

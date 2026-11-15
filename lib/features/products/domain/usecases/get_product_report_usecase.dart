@@ -9,6 +9,10 @@ class GetProductReportUseCase {
 
   const GetProductReportUseCase({required this.repository});
 
-  Future<Either<Failure, ProductReport>> call(String period) =>
-      repository.getReport(period);
+  Future<Either<Failure, ProductReport>> call(
+    String period, {
+    DateTime? from,
+    DateTime? to,
+  }) =>
+      repository.getReport(period, from: from, to: to);
 }
