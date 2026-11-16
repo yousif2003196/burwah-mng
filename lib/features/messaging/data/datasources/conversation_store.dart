@@ -18,8 +18,13 @@ class ConversationStore {
     final conversations = await forAccount(accountId);
     return conversations.fold<int>(
       0,
-      (total, conversation) => total + conversation.messages.where((message) =>
-          message.senderId != accountId && !message.readBy.contains(accountId)).length,
+      (total, conversation) =>
+          total +
+          conversation.messages
+              .where((message) =>
+                  message.senderId != accountId &&
+                  !message.readBy.contains(accountId))
+              .length,
     );
   }
 
@@ -105,14 +110,14 @@ class ConversationStore {
     try {
       await LocalEventStore().publish(
         LocalEvent(
-        id: 'conversation-${message.id}',
-        recipient: recipient,
-        source: senderId,
-        titleAr: 'رسالة جديدة من ${chatAccountName(senderId, true)}',
-        titleEn: 'New message from ${chatAccountName(senderId, false)}',
-        messageAr: body,
-        messageEn: body,
-        createdAt: now,
+          id: 'conversation-${message.id}',
+          recipient: recipient,
+          source: senderId,
+          titleAr: 'رسالة جديدة من ${chatAccountName(senderId, true)}',
+          titleEn: 'New message from ${chatAccountName(senderId, false)}',
+          messageAr: body,
+          messageEn: body,
+          createdAt: now,
         ),
       );
     } on Object catch (error, stackTrace) {

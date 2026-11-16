@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:barwah_app/core/widgets/full_data_view.dart';
 import 'package:intl/intl.dart';
 
 import 'package:barwah_app/core/widgets/motion.dart';
@@ -72,6 +73,14 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
         body: ListView(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
           children: [
+            if (int.tryParse(ad.id) != null) ...[
+              FullDataScreen.button(
+                context,
+                kind: FullDataKind.usedAd,
+                path: 'api/SupervisorUsed/${ad.id}',
+              ),
+              const SizedBox(height: 12),
+            ],
             ScrollFx(child: _PermissionBanner(
               text:
                   canTakeAction ? l10n.wasalnyAdDetailsPermission : statusLabel,

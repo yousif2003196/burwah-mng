@@ -1,8 +1,9 @@
-import 'dart:ui' as ui;
+﻿import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
 import 'package:barwah_app/features/products/presentation/screens/promoted_ad_review_screen.dart';
+import 'package:barwah_app/features/products/presentation/screens/vip_banners_screen.dart';
 import 'package:barwah_app/features/wasalny_supervisor/presentation/screens/wasalny_promoted_ad_review_screen.dart';
 import 'package:intl/intl.dart';
 
@@ -116,6 +117,51 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
     }
   }
 
+  Widget _buildVipBannersEntry(bool isArabic) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(15),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => const VipBannersScreen()),
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: AppColors.cardBorder),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.view_carousel_outlined),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isArabic ? 'بنرات VIP' : 'VIP banners',
+                    style: TextStyle(
+                      color: AppColors.ink,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    isArabic
+                        ? 'أضف صورة بنر بتفاصيل وعروض تظهر في قسم VIP'
+                        : 'Add a banner image with details and offers for the VIP section',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right),
+          ],
+        ),
+      ),
+    );
+  }
   Widget _buildVipLimitCard(bool isArabic) {
     final limit = _vipLimit;
     if (!_remote || limit == null) return const SizedBox.shrink();
@@ -288,6 +334,10 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
                 if (_remote && _vipLimit != null) ...[
                   const SizedBox(height: 12),
                   _buildVipLimitCard(isArabic),
+                ],
+                if (!widget.isWasalny) ...[
+                  const SizedBox(height: 12),
+                  _buildVipBannersEntry(isArabic),
                 ],
                 const SizedBox(height: 18),
                 Text(

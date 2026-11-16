@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:barwah_app/core/widgets/full_data_view.dart';
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/features/services_supervisor/data/datasources/services_request_api_data_source.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
@@ -38,7 +39,11 @@ class ServicesRequestDetailsScreen extends StatefulWidget {
   final Future<List<ServicesCategoryOption>> Function()? loadCategoryOptions;
   final Future<bool> Function(int subCategoryId)? onSaveCategory;
 
+  /// عند الربط بالسيرفر: مسار "كل البيانات" (الطلب + العميل + مقدّم الخدمة).
+  final String? fullDataPath;
+
   const ServicesRequestDetailsScreen({
+    this.fullDataPath,
     super.key,
     required this.reference,
     required this.service,
@@ -151,6 +156,15 @@ class _ServicesRequestDetailsScreenState
         body: ListView(
           padding: const EdgeInsets.fromLTRB(18, 4, 18, 92),
           children: [
+            if (widget.fullDataPath != null) ...[
+              FullDataScreen.button(
+                context,
+                kind: FullDataKind.service,
+                path: widget.fullDataPath!,
+                label: 'عرض كل البيانات (الخدمة والعميل ومقدّم الخدمة)',
+              ),
+              const SizedBox(height: 14),
+            ],
             ScrollFx(child: _requestHeader(l10n, isArabic)),
             const SizedBox(height: 14),
             ScrollFx(child: _costCard(l10n)),

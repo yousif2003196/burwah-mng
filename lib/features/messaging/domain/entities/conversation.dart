@@ -60,8 +60,7 @@ class ConversationMessage {
     required this.readBy,
   });
 
-  ConversationMessage copyWith({Set<String>? readBy}) =>
-      ConversationMessage(
+  ConversationMessage copyWith({Set<String>? readBy}) => ConversationMessage(
         id: id,
         senderId: senderId,
         body: body,

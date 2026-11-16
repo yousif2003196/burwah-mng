@@ -1,4 +1,4 @@
-import 'package:get_it/get_it.dart';
+﻿import 'package:get_it/get_it.dart';
 
 import 'package:barwah_app/core/network/api_configuration.dart';
 import 'package:barwah_app/core/auth/auth_refresh_interceptor.dart';
@@ -12,6 +12,7 @@ import 'package:barwah_app/features/auth/data/datasources/auth_api_data_source.d
 import 'package:barwah_app/features/auth/data/datasources/session_user_store.dart';
 import 'package:barwah_app/features/products/data/datasources/product_category_api_data_source.dart';
 import 'package:barwah_app/features/products/data/datasources/product_promotion_api_data_source.dart';
+import 'package:barwah_app/features/products/data/datasources/vip_banner_api_data_source.dart';
 import 'package:barwah_app/features/admin/data/datasources/admin_security_store.dart';
 import 'package:barwah_app/features/admin/data/datasources/head_account_store.dart';
 import 'package:barwah_app/features/auth/data/repositories/auth_repository_impl.dart';
@@ -129,6 +130,11 @@ Future<void> initDependencies() async {
   );
   sl.registerLazySingleton<ProductCategoryApiDataSource>(
     () => ProductCategoryApiDataSource(
+      apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'),
+    ),
+  );
+  sl.registerLazySingleton<VipBannerApiDataSource>(
+    () => VipBannerApiDataSource(
       apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'),
     ),
   );

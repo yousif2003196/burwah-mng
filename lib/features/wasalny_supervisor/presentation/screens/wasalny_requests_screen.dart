@@ -11,6 +11,7 @@ import 'package:barwah_app/core/network/api_endpoints.dart';
 import 'package:barwah_app/core/realtime/realtime_hub.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/core/widgets/app_snack_bar.dart';
+import 'package:barwah_app/core/widgets/full_data_view.dart';
 import 'package:barwah_app/features/messaging/presentation/screens/ad_owner_chat_screen.dart';
 
 bool _isArabic(BuildContext context) =>
@@ -696,6 +697,19 @@ class _WasalnyRequestDetailsScreenState extends State<WasalnyRequestDetailsScree
                   ),
                 ],
               ),
+              if (d['adFull'] is Map) ...[
+                const SizedBox(height: 12),
+                FullAdSection(
+                  head: {
+                    'title': ad['title'],
+                    'description': ad['description'],
+                    'price': ad['price'],
+                    'status': ad['status'],
+                  },
+                  full: Map<String, dynamic>.from(d['adFull'] as Map),
+                  images: const [],
+                ),
+              ],
               if (note.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 _Section(

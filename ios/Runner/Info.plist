@@ -66,5 +66,11 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>نستخدم الميكروفون لتسجيل الرسائل الصوتية في المحادثات</string>
+	<key>NSCameraUsageDescription</key>
+	<string>نستخدم الكاميرا لإرسال صور وفيديوهات في المحادثات</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>نستخدم المعرض لإرسال صور وفيديوهات في المحادثات</string>
 </dict>
 </plist>

@@ -948,6 +948,8 @@ class _ServicesRequestsReviewScreenState
     return Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => ServicesRequestDetailsScreen(
+          fullDataPath:
+              _remote ? 'api/SupervisorForSR/details/${_remoteId(request)}' : null,
           reference: request.id,
           service: title,
           provider: provider,

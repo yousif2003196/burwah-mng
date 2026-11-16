@@ -2,6 +2,7 @@ import 'package:barwah_app/core/auth/auth_session.dart';
 import 'package:barwah_app/features/messaging/presentation/screens/ad_owner_chat_screen.dart';
 import 'package:flutter/material.dart';
 
+import 'package:barwah_app/core/widgets/full_data_view.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/features/products/data/datasources/product_category_api_data_source.dart';
@@ -114,6 +115,14 @@ class _ProductAdFullDetailsScreenState
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
         children: [
+          if (int.tryParse(product.id) != null) ...[
+            FullDataScreen.button(
+              context,
+              kind: FullDataKind.newAd,
+              path: 'api/SupervisorForAd/ad/${product.id}',
+            ),
+            const SizedBox(height: 12),
+          ],
           ScrollFx(child: _sectionTitle(l10n.productPhotoDocumentationTitle,
               Icons.photo_library_outlined)),
           if (product.isFeatured) ...[

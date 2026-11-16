@@ -1,4 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+
+import 'package:barwah_app/core/auth/auth_session.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/network/api_consumer.dart';
+import 'package:barwah_app/core/realtime/realtime_hub.dart';
+import 'package:barwah_app/features/messaging/presentation/screens/ad_owner_chat_screen.dart';
 
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
@@ -8,7 +16,8 @@ import 'package:barwah_app/features/messaging/domain/entities/conversation.dart'
 import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class AccountConversationsScreen extends StatefulWidget {
-  static ValueNotifier<int> get unreadRevision => ConversationStore.unreadRevision;
+  static ValueNotifier<int> get unreadRevision =>
+      ConversationStore.unreadRevision;
 
   final String accountId;
 
@@ -17,8 +26,28 @@ class AccountConversationsScreen extends StatefulWidget {
     required this.accountId,
   });
 
-  static Future<int> unreadCountFor(String accountId) =>
-      ConversationStore.instance.unreadCountFor(accountId);
+  static Future<int> unreadCountFor(String accountId) async =>
+      await ConversationStore.instance.unreadCountFor(accountId) +
+      (await _serverChats()).fold<int>(0, (sum, chat) => sum + chat.unread);
+
+  /// The customers' chats of the signed-in account, from the server (empty when signed out or on any failure).
+  static Future<List<_ServerChat>> _serverChats() async {
+    if (!AuthSession.isSignedIn) return const [];
+    try {
+      final response = await sl<ApiConsumer>(instanceName: 'berwah')
+          .get<Object>('api/Chat/conversations');
+      final body = response.data;
+      final data = body is Map ? body['data'] : null;
+      if (data is! List) return const [];
+      return [
+        for (final item in data)
+          if (item is Map && item['id'] is num)
+            _ServerChat.fromJson(Map<String, dynamic>.from(item)),
+      ];
+    } catch (_) {
+      return const [];
+    }
+  }
 
   static Future<void> openDirectConversation({
     required BuildContext context,
@@ -57,6 +86,51 @@ class AccountConversationsScreen extends StatefulWidget {
       _AccountConversationsScreenState();
 }
 
+/// A chat with a customer, as the server lists it.
+class _ServerChat {
+  _ServerChat({
+    required this.id,
+    required this.kind,
+    required this.refId,
+    required this.name,
+    required this.lastMessage,
+    required this.at,
+    required this.unread,
+    required this.closed,
+  });
+
+  final int id;
+  final int kind;
+  final int refId;
+  final String name;
+  final String lastMessage;
+  final DateTime? at;
+  final int unread;
+  final bool closed;
+
+  factory _ServerChat.fromJson(Map<String, dynamic> j) => _ServerChat(
+        id: (j['id'] as num).toInt(),
+        kind: (j['kind'] as num?)?.toInt() ?? 0,
+        refId: (j['refId'] as num?)?.toInt() ?? 0,
+        name: '${j['otherName'] ?? ''}'.trim(),
+        lastMessage: '${j['lastMessage'] ?? ''}',
+        at: DateTime.tryParse('${j['lastMessageAt']}')?.toLocal(),
+        unread: (j['unread'] as num?)?.toInt() ?? 0,
+        closed: j['closed'] == true,
+      );
+
+  String kindLabel(bool arabic) => switch (kind) {
+        1 => arabic ? 'طلب خدمة' : 'Service',
+        2 => arabic ? 'طلب' : 'Order',
+        3 => arabic ? 'توصيل' : 'Delivery',
+        4 => arabic ? 'مراجعة إعلان' : 'Ad review',
+        5 => arabic ? 'مزاد' : 'Auction',
+        6 => arabic ? 'صفقة' : 'Deal',
+        7 => arabic ? 'طلب وصلني' : 'Wasalny request',
+        _ => arabic ? 'محادثة' : 'Chat',
+      };
+}
+
 class AccountChatUnreadBadge extends StatelessWidget {
   final String accountId;
   final Widget child;
@@ -83,13 +157,18 @@ class AccountChatUnreadBadge extends StatelessWidget {
                     top: -7,
                     end: -9,
                     child: Container(
-                      constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
+                      constraints:
+                          const BoxConstraints(minWidth: 17, minHeight: 17),
                       padding: const EdgeInsets.symmetric(horizontal: 4),
                       alignment: Alignment.center,
-                      decoration: BoxDecoration(color: AppColors.danger, shape: BoxShape.circle),
+                      decoration: BoxDecoration(
+                          color: AppColors.danger, shape: BoxShape.circle),
                       child: Text(
                         unread > 99 ? '99+' : '$unread',
-                        style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold),
                       ),
                     ),
                   ),
@@ -103,18 +182,282 @@ class AccountChatUnreadBadge extends StatelessWidget {
 class _AccountConversationsScreenState
     extends State<AccountConversationsScreen> {
   late Future<List<Conversation>> _conversations;
+  List<_ServerChat> _server = const [];
+  StreamSubscription<RealtimeChatMessage>? _chatSub;
+  String _query = '';
+  int _filter = 0; // 0 all · 1 customers · 2 supervisors · 3 unread
+  static const _navy = Color(0xFF14284B);
   bool get _isArabic => Localizations.localeOf(context).languageCode == 'ar';
 
   @override
   void initState() {
     super.initState();
     _conversations = ConversationStore.instance.forAccount(widget.accountId);
+    _loadServer();
+    // A new message from a customer puts its chat on top at once.
+    _chatSub = RealtimeHub.instance.chats.listen((_) => _loadServer());
+  }
+
+  @override
+  void dispose() {
+    _chatSub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadServer() async {
+    final chats = await AccountConversationsScreen._serverChats();
+    if (!mounted) return;
+    setState(() => _server = chats);
   }
 
   void _reload() {
     setState(() {
       _conversations = ConversationStore.instance.forAccount(widget.accountId);
     });
+    _loadServer();
+  }
+
+  Widget _serverTile(_ServerChat chat) {
+    final name =
+        chat.name.isEmpty ? (_isArabic ? 'عميل' : 'Customer') : chat.name;
+    final last = chat.lastMessage.isEmpty
+        ? (_isArabic ? 'ابدأ المحادثة' : 'Start the conversation')
+        : chat.lastMessage;
+    final kind = chat.kindLabel(_isArabic);
+    final preview = _previewIcon(chat.lastMessage);
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () async {
+          await Navigator.of(context).push<void>(
+            MaterialPageRoute(
+              builder: (_) => AdOwnerChatScreen(
+                adId: chat.refId,
+                conversationId: chat.id,
+                title: name,
+                subtitle: kind,
+              ),
+            ),
+          );
+          _reload();
+        },
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.cardBorder),
+          ),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 24,
+                backgroundColor: const Color(0xFFDDE7FF),
+                child: Text(
+                  name.characters.first,
+                  style: const TextStyle(
+                      color: Color(0xFF2A4A9B),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 17),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontWeight: chat.unread > 0
+                                  ? FontWeight.w800
+                                  : FontWeight.w700,
+                              fontSize: 14.5,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: _navy.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                          child: Text(kind,
+                              style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: _navy)),
+                        ),
+                        if (chat.closed) ...[
+                          const SizedBox(width: 6),
+                          Text(_isArabic ? 'مقفولة' : 'Closed',
+                              style: TextStyle(
+                                  color: AppColors.textMuted, fontSize: 10)),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        if (preview != null) ...[
+                          Icon(preview,
+                              size: 14, color: AppColors.textSecondary),
+                          const SizedBox(width: 4),
+                        ],
+                        Expanded(
+                          child: Text(
+                            last,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: chat.unread > 0
+                                  ? AppColors.textPrimary
+                                  : AppColors.textSecondary,
+                              fontWeight: chat.unread > 0
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(_timeLabel(chat.at),
+                      style: TextStyle(
+                          fontSize: 10.5, color: AppColors.textMuted)),
+                  const SizedBox(height: 6),
+                  if (chat.unread > 0)
+                    Container(
+                      constraints:
+                          const BoxConstraints(minWidth: 20, minHeight: 20),
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      alignment: Alignment.center,
+                      decoration: const BoxDecoration(
+                          color: _navy,
+                          borderRadius: BorderRadius.all(Radius.circular(99))),
+                      child: CountText('${chat.unread}',
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800)),
+                    )
+                  else
+                    const SizedBox(height: 20),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  IconData? _previewIcon(String last) {
+    if (last.startsWith('🎤')) return Icons.mic_rounded;
+    if (last.startsWith('📷')) return Icons.photo_camera_outlined;
+    if (last.startsWith('🎥')) return Icons.videocam_outlined;
+    return null;
+  }
+
+  String _timeLabel(DateTime? at) {
+    if (at == null) return '';
+    final now = DateTime.now();
+    final sameDay =
+        at.year == now.year && at.month == now.month && at.day == now.day;
+    if (sameDay) {
+      return '${at.hour.toString().padLeft(2, '0')}:${at.minute.toString().padLeft(2, '0')}';
+    }
+    if (now.difference(at).inDays < 2) return _isArabic ? 'أمس' : 'Yesterday';
+    return '${at.day}/${at.month}';
+  }
+
+  Widget _filterBar() {
+    final labels = _isArabic
+        ? const ['الكل', 'العملاء', 'المشرفون', 'غير المقروء']
+        : const ['All', 'Customers', 'Supervisors', 'Unread'];
+    return Container(
+      color: _navy,
+      padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+      child: Column(
+        children: [
+          Container(
+            height: 44,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.search_rounded,
+                    color: Colors.white70, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    onChanged: (v) => setState(() => _query = v),
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: _isArabic
+                          ? 'ابحث في المحادثات'
+                          : 'Search conversations',
+                      hintStyle: const TextStyle(color: Colors.white54),
+                      border: InputBorder.none,
+                      isDense: true,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 34,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: labels.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (_, i) {
+                final on = _filter == i;
+                return GestureDetector(
+                  onTap: () => setState(() => _filter = i),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: on
+                          ? Colors.white
+                          : Colors.white.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: Text(labels[i],
+                        style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: on ? _navy : Colors.white)),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _startConversation() async {
@@ -141,8 +484,8 @@ class _AccountConversationsScreenState
                 ListTile(
                   leading: CircleAvatar(
                     backgroundColor: AppColors.surfaceLight,
-                    child: MotionIcon(Icons.person_outline,
-                        color: AppColors.ink),
+                    child:
+                        MotionIcon(Icons.person_outline, color: AppColors.ink),
                   ),
                   title: Text(_isArabic ? account.value.$1 : account.value.$2),
                   onTap: () => Navigator.pop(context, account.key),
@@ -174,7 +517,8 @@ class _AccountConversationsScreenState
               child: Text(_isArabic ? 'إلغاء' : 'Cancel'),
             ),
             FilledButton(
-              onPressed: () => Navigator.pop(context, requestController.text.trim()),
+              onPressed: () =>
+                  Navigator.pop(context, requestController.text.trim()),
               child: Text(_isArabic ? 'إنشاء' : 'Create'),
             ),
           ],
@@ -200,9 +544,10 @@ class _AccountConversationsScreenState
       child: Scaffold(
         backgroundColor: AppColors.scaffold,
         appBar: AppBar(
-          backgroundColor: AppColors.surface,
-          foregroundColor: AppColors.ink,
-          title: Text(title),
+          backgroundColor: _navy,
+          foregroundColor: Colors.white,
+          title:
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
           actions: [
             IconButton(
               tooltip: _isArabic ? 'محادثة جديدة' : 'New conversation',
@@ -211,111 +556,153 @@ class _AccountConversationsScreenState
             ),
           ],
         ),
-        body: FutureBuilder<List<Conversation>>(
-          future: _conversations,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return Center(
-                child: Text(_isArabic
-                    ? 'تعذر تحميل المحادثات.'
-                    : 'Could not load conversations.'),
-              );
-            }
-            final items = snapshot.data ?? const <Conversation>[];
-            if (items.isEmpty) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(28),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      MotionIcon(Icons.forum_outlined,
-                          size: 48, color: AppColors.textMuted),
-                      const SizedBox(height: 12),
-                      Text(
-                        _isArabic
-                            ? 'لا توجد محادثات بعد. ابدأ محادثة مع حساب آخر.'
-                            : 'No conversations yet. Start one with another account.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: AppColors.textSecondary),
+        body: Column(
+          children: [
+            _filterBar(),
+            Expanded(
+                child: FutureBuilder<List<Conversation>>(
+              future: _conversations,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState != ConnectionState.done) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text(_isArabic
+                        ? 'تعذر تحميل المحادثات.'
+                        : 'Could not load conversations.'),
+                  );
+                }
+                final items = snapshot.data ?? const <Conversation>[];
+                if (items.isEmpty && _server.isEmpty) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(28),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          MotionIcon(Icons.forum_outlined,
+                              size: 48, color: AppColors.textMuted),
+                          const SizedBox(height: 12),
+                          Text(
+                            _isArabic
+                                ? 'لا توجد محادثات بعد. ابدأ محادثة مع حساب آخر.'
+                                : 'No conversations yet. Start one with another account.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: AppColors.textSecondary),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
-              );
-            }
-            return ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: items.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 9),
-              itemBuilder: (context, index) {
-                final conversation = items[index];
-                final other = conversation.participants.firstWhere(
-                  (id) => id != widget.accountId,
-                  orElse: () => widget.accountId,
-                );
-                final name = chatAccountName(other, _isArabic);
-                final latest = conversation.messages.isEmpty
-                    ? (_isArabic ? 'ابدأ المحادثة' : 'Start the conversation')
-                    : conversation.messages.last.body;
-                final unread = conversation.messages
-                    .where((message) =>
-                        message.senderId != widget.accountId &&
-                        !message.readBy.contains(widget.accountId))
+                    ),
+                  );
+                }
+                final q = _query.trim();
+                final srv = _server
+                    .where((c) =>
+                        (_filter == 0 ||
+                            _filter == 1 ||
+                            (_filter == 3 && c.unread > 0)) &&
+                        (_filter != 3 || c.unread > 0) &&
+                        (q.isEmpty ||
+                            c.name.contains(q) ||
+                            c.lastMessage.contains(q)))
+                    .toList();
+                int localUnread(Conversation c) => c.messages
+                    .where((m) =>
+                        m.senderId != widget.accountId &&
+                        !m.readBy.contains(widget.accountId))
                     .length;
-                return Material(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(14),
-                  child: ListTile(
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14)),
-                    leading: CircleAvatar(
-                      backgroundColor: AppColors.surfaceLight,
-                      child: MotionIcon(_accountIcon(other),
-                          color: AppColors.ink),
-                    ),
-                    title: Row(
-                      children: [
-                        Expanded(
-                          child: Text(name,
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.bold)),
+                final loc = items.where((c) {
+                  if (_filter == 1) return false;
+                  if (_filter == 3 && localUnread(c) == 0) return false;
+                  if (q.isEmpty) return true;
+                  final other = c.participants.firstWhere(
+                      (id) => id != widget.accountId,
+                      orElse: () => widget.accountId);
+                  return chatAccountName(other, _isArabic).contains(q) ||
+                      (c.messages.isNotEmpty &&
+                          c.messages.last.body.contains(q));
+                }).toList();
+                if (srv.isEmpty && loc.isEmpty) {
+                  return Center(
+                    child: Text(_isArabic ? 'لا توجد نتائج' : 'No results',
+                        style: TextStyle(color: AppColors.textSecondary)),
+                  );
+                }
+                return ListView.separated(
+                  padding: const EdgeInsets.all(14),
+                  itemCount: srv.length + loc.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 9),
+                  itemBuilder: (context, index) {
+                    if (index < srv.length) return _serverTile(srv[index]);
+                    final conversation = loc[index - srv.length];
+                    final other = conversation.participants.firstWhere(
+                      (id) => id != widget.accountId,
+                      orElse: () => widget.accountId,
+                    );
+                    final name = chatAccountName(other, _isArabic);
+                    final latest = conversation.messages.isEmpty
+                        ? (_isArabic
+                            ? 'ابدأ المحادثة'
+                            : 'Start the conversation')
+                        : conversation.messages.last.body;
+                    final unread = conversation.messages
+                        .where((message) =>
+                            message.senderId != widget.accountId &&
+                            !message.readBy.contains(widget.accountId))
+                        .length;
+                    return Material(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(14),
+                      child: ListTile(
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                        leading: CircleAvatar(
+                          backgroundColor: AppColors.surfaceLight,
+                          child: MotionIcon(_accountIcon(other),
+                              color: AppColors.ink),
                         ),
-                        if (unread > 0)
-                          CircleAvatar(
-                            radius: 11,
-                            backgroundColor: AppColors.primaryDark,
-                            child: CountText('$unread',
-                                style: const TextStyle(
-                                    color: Colors.white, fontSize: 10)),
-                          ),
-                      ],
-                    ),
-                    subtitle: Text(
-                      '${conversation.requestId.isEmpty ? '' : '${conversation.requestId} · '}$latest',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    onTap: () async {
-                      await Navigator.of(context).push<void>(
-                        MaterialPageRoute(
-                          builder: (_) => _ConversationThreadScreen(
-                            conversationId: conversation.id,
-                            accountId: widget.accountId,
-                            title: name,
-                          ),
+                        title: Row(
+                          children: [
+                            Expanded(
+                              child: Text(name,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold)),
+                            ),
+                            if (unread > 0)
+                              CircleAvatar(
+                                radius: 11,
+                                backgroundColor: AppColors.primaryDark,
+                                child: CountText('$unread',
+                                    style: const TextStyle(
+                                        color: Colors.white, fontSize: 10)),
+                              ),
+                          ],
                         ),
-                      );
-                      _reload();
-                    },
-                  ),
+                        subtitle: Text(
+                          '${conversation.requestId.isEmpty ? '' : '${conversation.requestId} · '}$latest',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        onTap: () async {
+                          await Navigator.of(context).push<void>(
+                            MaterialPageRoute(
+                              builder: (_) => _ConversationThreadScreen(
+                                conversationId: conversation.id,
+                                accountId: widget.accountId,
+                                title: name,
+                              ),
+                            ),
+                          );
+                          _reload();
+                        },
+                      ),
+                    );
+                  },
                 );
               },
-            );
-          },
+            )),
+          ],
         ),
       ),
     );

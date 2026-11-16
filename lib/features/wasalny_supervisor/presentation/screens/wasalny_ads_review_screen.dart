@@ -1,4 +1,4 @@
-import 'dart:ui' as ui;
+﻿import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -29,6 +29,7 @@ class WasalnyAdsReviewScreen extends StatefulWidget {
 
 class _WasalnyAdsReviewScreenState extends State<WasalnyAdsReviewScreen> {
   _WasalnyAdsFilter _filter = _WasalnyAdsFilter.all;
+  bool _showArchive = false;
   bool _openedFocus = false;
 
   @override
@@ -110,31 +111,57 @@ class _WasalnyAdsReviewScreenState extends State<WasalnyAdsReviewScreen> {
                 ],
               )),
               const SizedBox(height: 14),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: _WasalnyAdsFilter.values
-                      .map(
-                        (filter) => Padding(
-                          padding: const EdgeInsetsDirectional.only(end: 7),
-                          child: ChoiceChip(
-                            label: Text(_filterLabel(filter, l10n)),
-                            selected: _filter == filter,
-                            onSelected: (_) => setState(() => _filter = filter),
-                            selectedColor: AppColors.primaryDark,
-                            labelStyle: TextStyle(
-                              color: _filter == filter
-                                  ? Colors.white
-                                  : AppColors.textSecondary,
-                              fontSize: 11,
-                            ),
-                            side: BorderSide.none,
-                          ),
-                        ),
-                      )
-                      .toList(),
+              SizedBox(
+                width: double.infinity,
+                child: SegmentedButton<bool>(
+                  showSelectedIcon: false,
+                  segments: [
+                    ButtonSegment(
+                      value: false,
+                      label: Text(isArabic ? 'قيد المراجعة' : 'Pending review'),
+                    ),
+                    ButtonSegment(
+                      value: true,
+                      label: Text(isArabic ? 'الأرشيف' : 'Archive'),
+                    ),
+                  ],
+                  selected: {_showArchive},
+                  onSelectionChanged: (v) => setState(() {
+                    _showArchive = v.first;
+                    _filter = _WasalnyAdsFilter.all;
+                  }),
                 ),
               ),
+              if (_showArchive) ...[
+                const SizedBox(height: 10),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: _WasalnyAdsFilter.values
+                        .where((f) => f != _WasalnyAdsFilter.pending)
+                        .map(
+                          (filter) => Padding(
+                            padding: const EdgeInsetsDirectional.only(end: 7),
+                            child: ChoiceChip(
+                              label: Text(_filterLabel(filter, l10n)),
+                              selected: _filter == filter,
+                              onSelected: (_) =>
+                                  setState(() => _filter = filter),
+                              selectedColor: AppColors.primaryDark,
+                              labelStyle: TextStyle(
+                                color: _filter == filter
+                                    ? Colors.white
+                                    : AppColors.textSecondary,
+                                fontSize: 11,
+                              ),
+                              side: BorderSide.none,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
+              ],
               const SizedBox(height: 10),
               if (visibleAds.isEmpty)
                 Padding(
@@ -189,18 +216,18 @@ class _WasalnyAdsReviewScreenState extends State<WasalnyAdsReviewScreen> {
 
   List<WasalnyAd> _filteredAds(List<WasalnyAd> ads) {
     final result = ads.where((ad) {
-      return switch (_filter) {
-        _WasalnyAdsFilter.all => true,
-        _WasalnyAdsFilter.pending => ad.status == WasalnyAdStatus.pending ||
-            ad.status == WasalnyAdStatus.awaitingApproval,
-        _WasalnyAdsFilter.edit => ad.status == WasalnyAdStatus.rejected ||
-            ad.status == WasalnyAdStatus.editRequested,
-        _WasalnyAdsFilter.approved => ad.status == WasalnyAdStatus.approved,
-        _WasalnyAdsFilter.archived => ad.status == WasalnyAdStatus.hidden ||
-            ad.status == WasalnyAdStatus.rejected ||
-            ad.status == WasalnyAdStatus.suspended ||
-            ad.status == WasalnyAdStatus.editRequested,
-      };
+        final isPending = ad.status == WasalnyAdStatus.pending ||
+            ad.status == WasalnyAdStatus.awaitingApproval;
+        if (!_showArchive) return isPending;
+        if (isPending) return false;
+        return switch (_filter) {
+          _WasalnyAdsFilter.all || _WasalnyAdsFilter.pending => true,
+          _WasalnyAdsFilter.edit => ad.status == WasalnyAdStatus.rejected ||
+              ad.status == WasalnyAdStatus.editRequested,
+          _WasalnyAdsFilter.approved => ad.status == WasalnyAdStatus.approved,
+          _WasalnyAdsFilter.archived => ad.status == WasalnyAdStatus.hidden ||
+              ad.status == WasalnyAdStatus.suspended,
+        };
     }).toList()
       ..sort((a, b) {
         final aPending = a.status == WasalnyAdStatus.pending ||
@@ -624,7 +651,7 @@ class _WasalnyAdCard extends StatelessWidget {
                   ),
                 ],
               ),
-            ] else if (ad.status != WasalnyAdStatus.approved) ...[
+            ] else ...[
               const SizedBox(height: 12),
               OutlinedButton.icon(
                 onPressed: onRestore,
