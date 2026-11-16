@@ -1,7 +1,9 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
 import 'package:barwah_app/features/products/presentation/screens/promoted_ad_review_screen.dart';
+import 'package:barwah_app/features/wasalny_supervisor/presentation/screens/wasalny_promoted_ad_review_screen.dart';
 import 'package:intl/intl.dart';
 
 import 'package:barwah_app/core/auth/auth_session.dart';
@@ -9,12 +11,7 @@ import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/core/theme/app_palette.dart';
-import 'package:barwah_app/features/finance/domain/entities/withdrawal_request_entity.dart';
-import 'package:barwah_app/features/finance/domain/repositories/finance_repository.dart';
-import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
-import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
 import 'package:barwah_app/features/products/data/datasources/product_promotion_api_data_source.dart';
-import 'package:barwah_app/features/products/data/datasources/product_promotion_local_store.dart';
 import 'package:barwah_app/features/products/domain/entities/product_promotion_request.dart';
 import 'package:barwah_app/features/products/domain/entities/product_supervisor_audit_entry.dart';
 import 'package:barwah_app/features/products/domain/repositories/product_supervisor_audit_repository.dart';
@@ -38,7 +35,6 @@ class ProductPromotionsScreen extends StatefulWidget {
 }
 
 class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
-  final ProductPromotionLocalStore _localStore = ProductPromotionLocalStore();
   late List<ProductPromotionRequest> _requests;
   _PromotionFilter _filter = _PromotionFilter.pending;
   bool _isSaving = false;
@@ -51,55 +47,26 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
   int _vipWaiting = 0;
   bool _savingVip = false;
 
-  /// الباك إند الحقيقي لمشرف المنتجات بعد تسجيل دخول ناجح؛ وصلني تجريبي.
-  bool get _remote => AuthSession.isSignedIn && !widget.isWasalny;
+  /// الباك إند الحقيقي بعد تسجيل دخول ناجح (مشرف المنتجات الجديدة أو مشرف وصلني؛
+  /// السيرفر يفلتر الطلبات حسب نوع الإعلان: مستعمل / غير مستعمل).
+  bool get _remote => AuthSession.isSignedIn;
 
   @override
   void initState() {
     super.initState();
-    _requests = _sampleRequests();
+    _requests = const [];
     _loadRequests();
-    LocalEventStore.revision.addListener(_onEventsChanged);
   }
-
-  @override
-  void dispose() {
-    LocalEventStore.revision.removeListener(_onEventsChanged);
-    super.dispose();
-  }
-
-  bool _refreshingFinance = false;
-
-  /// Picks up finance decisions as soon as they are published, instead of
-  /// only when the screen is opened.
-  Future<void> _onEventsChanged() async {
-    if (_remote || _refreshingFinance || _isLoading || !mounted) return;
-    _refreshingFinance = true;
-    try {
-      await _refreshFinanceDecisions();
-    } finally {
-      _refreshingFinance = false;
-    }
-  }
-
-  String get _accountKey => widget.isWasalny ? 'wasalny' : 'products';
 
   Future<void> _loadRequests() async {
     try {
-      final requests = _remote
-          ? await sl<ProductPromotionApiDataSource>().load()
-          : await _localStore.load(
-              account: _accountKey,
-              initialRequests: _sampleRequests(),
-            );
+      final requests = await sl<ProductPromotionApiDataSource>().load();
       if (!mounted) return;
       setState(() {
         _requests = requests;
         _isLoading = false;
       });
-      if (_remote) await _loadVipSettings();
-      if (!_remote) await _refreshFinanceDecisions();
-      if (widget.isWasalny) await _publishNewProductEvents();
+      await _loadVipSettings();
     } catch (error, stackTrace) {
       FlutterError.reportError(
         FlutterErrorDetails(
@@ -179,6 +146,19 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
                 : '$_vipRunning shown + $_vipWaiting waiting. A waiting ad\'s days start when it enters the banner.',
             style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
           ),
+          if (widget.isWasalny) ...[
+            const SizedBox(height: 8),
+            Text(
+              isArabic
+                  ? 'الحد الحالي: $limit (للعرض فقط، يعدّله مشرف المنتجات)'
+                  : 'Current limit: $limit (view only, set by the products supervisor)',
+              style: TextStyle(
+                color: AppColors.ink,
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ] else ...[
           const SizedBox(height: 10),
           Row(
             children: [
@@ -218,232 +198,10 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
               ),
             ],
           ),
+          ],
         ],
       ),
     );
-  }
-
-  Future<void> _saveRequests(List<ProductPromotionRequest> requests) =>
-      _localStore.save(account: _accountKey, requests: requests);
-
-  Future<void> _publishNewProductEvents() async {
-    for (final request in _requests.where(
-      (item) => item.status == ProductPromotionStatus.pending,
-    )) {
-      try {
-        await LocalEventStore().publish(
-          LocalEvent(
-            id: 'wasalny-new-product-${request.id}',
-            recipient: 'wasalny',
-            source: 'wasalny',
-            titleAr: 'طلب ترويج منتج جديد',
-            titleEn: 'New product promotion request',
-            messageAr: '${request.productNameAr} من ${request.merchantNameAr}',
-            messageEn: '${request.productNameEn} by ${request.merchantNameEn}',
-            createdAt: request.requestedAt,
-          ),
-        );
-      } catch (error, stackTrace) {
-        FlutterError.reportError(
-          FlutterErrorDetails(
-            exception: error,
-            stack: stackTrace,
-            library: 'Wasalny promotions',
-            context: ErrorDescription('while publishing a new-product notice'),
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _refreshFinanceDecisions() async {
-    try {
-      final result = await sl<FinanceRepository>().getMerchantWithdrawals();
-      final financialRequests = result.fold(
-        (failure) => throw StateError(failure.message),
-        (items) => items,
-      );
-      if (!mounted) return;
-      final financeBySource = {
-        for (final item in financialRequests)
-          if (item.operationType == FinancialOperationType.promotion &&
-              item.sourceAccount != null)
-            item.sourceAccount!: item,
-      };
-      var changed = false;
-      final financeNotices =
-          <({ProductPromotionRequest request, RequestStatus status})>[];
-      final updatedRequests = _requests.map((request) {
-        final decision = financeBySource[request.id];
-        if (decision?.status == RequestStatus.approved &&
-            (!request.paymentConfirmedByFinance ||
-                request.financeReviewPending)) {
-          changed = true;
-          financeNotices
-              .add((request: request, status: RequestStatus.approved));
-          return request.copyWith(
-            paymentConfirmedByFinance: true,
-            financeReviewPending: false,
-          );
-        }
-        if (decision?.status == RequestStatus.rejected &&
-            request.status != ProductPromotionStatus.rejected) {
-          changed = true;
-          financeNotices
-              .add((request: request, status: RequestStatus.rejected));
-          return request.copyWith(
-            status: ProductPromotionStatus.rejected,
-            decisionNote: decision?.alertNotice,
-            financeReviewPending: false,
-          );
-        }
-        return request;
-      }).toList();
-      if (changed) await _saveRequests(updatedRequests);
-      for (final notice in financeNotices) {
-        final approved = notice.status == RequestStatus.approved;
-        await LocalEventStore().publish(
-          LocalEvent(
-            id: 'product-finance-decision-${notice.request.id}-${notice.status.name}',
-            recipient: 'products',
-            source: 'finance',
-            titleAr: approved
-                ? 'تم اعتماد الدفع لطلب الترويج'
-                : 'تم رفض دفع طلب الترويج',
-            titleEn: approved
-                ? 'Promotion payment approved'
-                : 'Promotion payment rejected',
-            messageAr:
-                '${notice.request.productNameAr} - ${notice.request.adReference}',
-            messageEn:
-                '${notice.request.productNameEn} - ${notice.request.adReference}',
-            createdAt: DateTime.now(),
-          ),
-        );
-      }
-      if (!mounted) return;
-      setState(() {
-        _requests = updatedRequests;
-      });
-    } catch (error, stackTrace) {
-      FlutterError.reportError(
-        FlutterErrorDetails(
-          exception: error,
-          stack: stackTrace,
-          library: 'Wasalny promotions',
-          context: ErrorDescription('while loading finance decisions'),
-        ),
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.of(context)!.productAuditSaveError),
-          ),
-        );
-      }
-    }
-  }
-
-  List<ProductPromotionRequest> _sampleRequests() {
-    final now = DateTime.now();
-    if (widget.isWasalny) {
-      return [
-        ProductPromotionRequest(
-          id: 'wasalny-promotion-1',
-          adReference: 'WS-4088',
-          productNameAr: 'كاميرا كانون EOS R6 مستعملة',
-          productNameEn: 'Used Canon EOS R6 Camera',
-          merchantNameAr: 'عبد الرحمن الشمري',
-          merchantNameEn: 'Abdulrahman Al-Shammari',
-          packageKey: 'featured',
-          durationDays: 7,
-          price: 120,
-          requestedAt: now.subtract(const Duration(minutes: 18)),
-          paymentConfirmedByFinance: false,
-        ),
-        ProductPromotionRequest(
-          id: 'wasalny-promotion-2',
-          adReference: 'WS-4093',
-          productNameAr: 'جهاز بلايستيشن 5 مع ذراعين',
-          productNameEn: 'PlayStation 5 with two controllers',
-          merchantNameAr: 'سلطان الحربي',
-          merchantNameEn: 'Sultan Al-Harbi',
-          packageKey: 'premium',
-          durationDays: 30,
-          price: 390,
-          requestedAt: now.subtract(const Duration(hours: 2)),
-        ),
-        ProductPromotionRequest(
-          id: 'wasalny-promotion-3',
-          adReference: 'WS-4072',
-          productNameAr: 'ماك بوك برو M2 شاشة 14 إنش',
-          productNameEn: 'MacBook Pro M2, 14-inch',
-          merchantNameAr: 'تركي العتيبي',
-          merchantNameEn: 'Turki Al-Otaibi',
-          packageKey: 'featured',
-          durationDays: 7,
-          price: 120,
-          requestedAt: now.subtract(const Duration(hours: 5)),
-          paymentConfirmedByFinance: true,
-          status: ProductPromotionStatus.active,
-        ),
-      ];
-    }
-    return [
-      ProductPromotionRequest(
-        id: 'promotion-1',
-        adReference: 'AD-98204',
-        productNameAr: 'ساعة آبل الجيل 2 الأصلية - إصدار جديد',
-        productNameEn: 'Apple Watch Series 2 Original - New Edition',
-        merchantNameAr: 'سعد المنصور',
-        merchantNameEn: 'Saad Al-Mansour',
-        packageKey: 'featured',
-        durationDays: 7,
-        price: 120,
-        requestedAt: now.subtract(const Duration(minutes: 18)),
-        paymentConfirmedByFinance: true,
-      ),
-      ProductPromotionRequest(
-        id: 'promotion-2',
-        adReference: 'AD-98209',
-        productNameAr: 'كاميرا سوني Alpha A7 IV',
-        productNameEn: 'Sony Alpha A7 IV Camera',
-        merchantNameAr: 'منى العتيبي',
-        merchantNameEn: 'Mona Al-Otaibi',
-        packageKey: 'premium',
-        durationDays: 30,
-        price: 390,
-        requestedAt: now.subtract(const Duration(hours: 2)),
-      ),
-      ProductPromotionRequest(
-        id: 'promotion-3',
-        adReference: 'AD-98172',
-        productNameAr: 'طقم عطور شرقية فاخر',
-        productNameEn: 'Luxury Oriental Perfume Set',
-        merchantNameAr: 'دار المسك للعطور',
-        merchantNameEn: 'Dar Al-Misk Perfumes',
-        packageKey: 'featured',
-        durationDays: 7,
-        price: 120,
-        requestedAt: now.subtract(const Duration(hours: 5)),
-        paymentConfirmedByFinance: true,
-        status: ProductPromotionStatus.active,
-      ),
-      ProductPromotionRequest(
-        id: 'promotion-4',
-        adReference: 'AD-98083',
-        productNameAr: 'مكنسة كهربائية لاسلكية',
-        productNameEn: 'Cordless Vacuum Cleaner',
-        merchantNameAr: 'مؤسسة الأجهزة المنزلية',
-        merchantNameEn: 'Home Appliances Est.',
-        packageKey: 'premium',
-        durationDays: 30,
-        price: 390,
-        requestedAt: now.subtract(const Duration(days: 2)),
-        status: ProductPromotionStatus.rejected,
-        decisionNote: 'بيانات العرض غير مكتملة',
-      ),
-    ];
   }
 
   List<ProductPromotionRequest> _visibleRequests() {
@@ -484,7 +242,13 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
       textDirection: isArabic ? ui.TextDirection.rtl : ui.TextDirection.ltr,
       child: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : ListView(
+          : BrandRefreshIndicator(
+            onRefresh: () async {
+    await _loadRequests();
+    await _loadVipSettings();
+  },
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               children: [
                 ScrollFx(child: _buildIntro(l10n)),
@@ -620,7 +384,7 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
                   ),
                 ),
               ],
-            ),
+            )),
     );
   }
 
@@ -776,9 +540,15 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
                       Navigator.pop(sheetContext);
                       Navigator.of(context).push<void>(
                         MaterialPageRoute<void>(
-                          builder: (_) => PromotedAdReviewScreen(
-                            adId: request.adReference.replaceFirst('AD-', ''),
-                          ),
+                          builder: (_) => widget.isWasalny
+                              ? WasalnyPromotedAdReviewScreen(
+                                  adId: request.adReference
+                                      .replaceAll(RegExp(r'[^0-9]'), ''),
+                                )
+                              : PromotedAdReviewScreen(
+                                  adId: request.adReference
+                                      .replaceFirst('AD-', ''),
+                                ),
                         ),
                       );
                     },
@@ -806,162 +576,7 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
     String? note,
   }) async {
     if (_isSaving) return;
-    if (_remote) {
-      await _decideRemote(request, status, l10n, note: note);
-      return;
-    }
-    if (status == ProductPromotionStatus.active &&
-        !request.paymentConfirmedByFinance) {
-      if (request.financeReviewPending) {
-        await _showPaymentStatus(request, l10n, allowApproval: false);
-        return;
-      }
-      setState(() => _isSaving = true);
-      try {
-        final result =
-            await sl<FinanceRepository>().submitMerchantFinancialRequest(
-          beneficiaryName: request.merchantNameAr,
-          requestTitle: 'طلب ترويج ${widget.isWasalny ? 'وصلني' : 'المنتجات'} '
-              '${request.adReference} لمدة ${request.durationDays} يوم',
-          sourceAccount: request.id,
-          amount: request.price.toDouble(),
-          beneficiaryType: BeneficiaryType.user,
-          operationType: FinancialOperationType.promotion,
-        );
-        final financialRequest = result.fold(
-          (failure) => throw StateError(failure.message),
-          (item) => item,
-        );
-        final updatedRequests = _requests
-            .map((item) => item.id == request.id
-                ? item.copyWith(financeReviewPending: true)
-                : item)
-            .toList();
-        await _saveRequests(updatedRequests);
-        if (mounted) setState(() => _requests = updatedRequests);
-        await LocalEventStore().publish(
-          LocalEvent(
-            id: 'finance-promotion-${financialRequest.id}',
-            recipient: 'finance',
-            source: _accountKey,
-            titleAr: widget.isWasalny
-                ? 'طلب ترويج وصلني جديد'
-                : 'طلب ترويج منتجات جديد',
-            titleEn: widget.isWasalny
-                ? 'New Wasalny promotion request'
-                : 'New product promotion request',
-            messageAr:
-                '${request.productNameAr} - ${request.price} ج.م. بانتظار مراجعة المشرف المالي.',
-            messageEn:
-                '${request.productNameEn} - ${request.price} EGP awaits finance review.',
-            createdAt: DateTime.now(),
-          ),
-        );
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(l10n.financeWalletRequestSubmitted),
-          ),
-        );
-        return;
-      } catch (error, stackTrace) {
-        FlutterError.reportError(
-          FlutterErrorDetails(
-            exception: error,
-            stack: stackTrace,
-            library: 'product promotions',
-            context: ErrorDescription('while sending promotion to finance'),
-          ),
-        );
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(l10n.productAuditSaveError)),
-          );
-        }
-        return;
-      } finally {
-        if (mounted) setState(() => _isSaving = false);
-      }
-    }
-    if (status == ProductPromotionStatus.active) {
-      final confirmed = await _showPaymentStatus(
-        request,
-        l10n,
-        allowApproval: true,
-      );
-      if (!mounted || !request.paymentConfirmedByFinance || confirmed != true) {
-        return;
-      }
-    }
-
-    setState(() => _isSaving = true);
-    try {
-      await sl<ProductSupervisorAuditRepository>().recordEntry(
-        ProductSupervisorAuditEntry(
-          id: DateTime.now().microsecondsSinceEpoch.toString(),
-          actionKey: [
-            if (widget.isWasalny) 'wasalny_',
-            switch (status) {
-              ProductPromotionStatus.active => 'promotion_approved',
-              ProductPromotionStatus.rejected => 'promotion_rejected',
-              ProductPromotionStatus.suspended => 'promotion_suspended',
-              ProductPromotionStatus.pending => 'promotion_restored',
-              ProductPromotionStatus.expired => 'promotion_expired',
-            },
-          ].join(),
-          subject: _title(request, l10n.localeName.startsWith('ar')),
-          details: [
-            request.adReference,
-            '${request.durationDays} ${l10n.productPromotionDays}',
-            if (note != null) note,
-          ].join(' • '),
-          occurredAt: DateTime.now(),
-        ),
-      );
-      final updatedRequests = _requests
-          .map(
-            (item) => item.id == request.id
-                ? item.copyWith(status: status, decisionNote: note)
-                : item,
-          )
-          .toList();
-      await _saveRequests(updatedRequests);
-      if (!mounted) return;
-      setState(() => _requests = updatedRequests);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            switch (status) {
-              ProductPromotionStatus.active => l10n.productPromotionApproved,
-              ProductPromotionStatus.rejected => l10n.productPromotionRejected,
-              ProductPromotionStatus.suspended =>
-                l10n.localeName.startsWith('ar')
-                    ? 'تم تعليق الترويج'
-                    : 'Promotion suspended',
-              ProductPromotionStatus.pending => l10n.localeName.startsWith('ar')
-                  ? 'أعيد طلب الترويج'
-                  : 'Promotion restored',
-              ProductPromotionStatus.expired => l10n.productPromotionExpired,
-            },
-          ),
-        ),
-      );
-    } catch (error, stackTrace) {
-      FlutterError.reportError(
-        FlutterErrorDetails(
-          exception: error,
-          stack: stackTrace,
-          library: 'product promotions',
-          context: ErrorDescription('while recording a promotion decision'),
-        ),
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.productAuditSaveError)),
-      );
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
-    }
+    await _decideRemote(request, status, l10n, note: note);
   }
 
   /// تعليق باقة سارية: السبب إجباري، والاسترداد للمحفظة اختياري (يُخصم 20% من

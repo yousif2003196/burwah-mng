@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
@@ -570,7 +571,10 @@ class _ProductSupervisorComplaintsScreenState
                       ],
                     ),
                   )
-                : ListView(
+                : BrandRefreshIndicator(
+                  onRefresh: _loadRemote,
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.all(16),
                     children: [
                       TextField(
@@ -701,7 +705,7 @@ class _ProductSupervisorComplaintsScreenState
                           const SizedBox(height: 9),
                         ],
                     ],
-                  ),
+                  )),
       ),
     );
   }

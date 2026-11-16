@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/core/widgets/app_snack_bar.dart';
@@ -73,7 +74,7 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
           return const SizedBox.shrink();
         }
 
-        return RefreshIndicator(
+        return BrandRefreshIndicator(
           onRefresh: () => context.read<ProductReviewCubit>().refresh(),
           child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),

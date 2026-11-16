@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat;
+import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
 import 'package:barwah_app/core/network/api_consumer.dart';
 import 'package:barwah_app/core/network/api_endpoints.dart';
 import 'package:dio/dio.dart' show DioException;
@@ -64,7 +65,12 @@ class _ProductSupervisorProfileScreenState
   List<ProductSupervisorAuditEntry> _myActivity = const [];
   bool _activityLoading = false;
   bool _activityFailed = false;
-  bool get _showActivity => _remote && widget.auditActionKeyPrefix.isEmpty;
+  bool get _isWasalny => widget.auditActionKeyPrefix.startsWith('wasalny_');
+  bool get _showActivity =>
+      _remote && (widget.auditActionKeyPrefix.isEmpty || _isWasalny);
+
+  // مؤشرات مشرف وصلني من السيرفر (profile-overview).
+  Map<String, dynamic>? _usedOverview;
 
   // آخر تغيير لكلمة المرور (من إعدادات الحساب).
   String? _passwordChangedText;
@@ -75,8 +81,12 @@ class _ProductSupervisorProfileScreenState
     super.initState();
     _loadPreferences();
     if (_remote) {
-      _reportCubit = sl<ProductReportCubit>();
-      _loadReport();
+      if (_isWasalny) {
+        _loadUsedOverview();
+      } else {
+        _reportCubit = sl<ProductReportCubit>();
+        _loadReport();
+      }
       if (_showActivity) _loadMyActivity();
       _loadPasswordInfo();
     }
@@ -290,6 +300,7 @@ class _ProductSupervisorProfileScreenState
         sl<ApiConsumer>(instanceName: 'berwah'),
         mine: true,
         pageSize: 5,
+        path: _isWasalny ? ApiEndpoints.usedAuditLog : ApiEndpoints.adAuditLog,
       );
       if (!mounted) return;
       setState(() {
@@ -303,6 +314,105 @@ class _ProductSupervisorProfileScreenState
         _activityFailed = true;
       });
     }
+  }
+
+  Future<void> _loadUsedOverview() async {
+    setState(() {
+      _reportLoading = true;
+      _reportFailed = false;
+    });
+    try {
+      final response = await sl<ApiConsumer>(instanceName: 'berwah')
+          .get<Object>(ApiEndpoints.usedProfileOverview);
+      final body = response.data;
+      final data = body is Map ? body['data'] : null;
+      if (data is! Map<String, dynamic>) throw const FormatException('overview');
+      if (!mounted) return;
+      setState(() {
+        _usedOverview = data;
+        _reportLoading = false;
+      });
+    } on Object {
+      if (!mounted) return;
+      setState(() {
+        _reportLoading = false;
+        _reportFailed = true;
+      });
+    }
+  }
+
+  Widget _buildUsedMetrics() {
+    final o = _usedOverview;
+    if (o == null) {
+      if (_reportLoading) {
+        return const Padding(
+          padding: EdgeInsets.all(24),
+          child: Center(child: CircularProgressIndicator()),
+        );
+      }
+      return TextButton.icon(
+        onPressed: _loadUsedOverview,
+        icon: const MotionIcon(Icons.refresh),
+        label: Text(_reportFailed
+            ? 'تعذر تحميل المؤشرات، اضغط للمحاولة'
+            : 'تحميل المؤشرات'),
+      );
+    }
+    int n(String k) => (o[k] as num?)?.toInt() ?? 0;
+    final avg = (o['averageMinutes'] as num?)?.toDouble();
+    final rate = (o['approvalRate'] as num?)?.toDouble() ?? 0;
+    final real = [
+      _ProfileMetric(
+        title: 'إعلانات تمت مراجعتها',
+        value: '${n('reviewedLast30')}',
+        detail: 'آخر 30 يومًا • الإجمالي ${n('reviewedTotal')}',
+        icon: Icons.verified_outlined,
+        color: AppColors.info,
+      ),
+      _ProfileMetric(
+        title: 'نسبة القبول',
+        value: '${rate.toStringAsFixed(1)}%',
+        detail: '${n('approved')} معتمد • ${n('rejected')} مرفوض',
+        icon: Icons.handshake_outlined,
+        color: AppColors.info,
+      ),
+      _ProfileMetric(
+        title: 'طلبات وصلني',
+        value: '${n('requestsDecided')}',
+        detail: 'قيد المراجعة الآن: ${n('pendingRequests')}',
+        icon: Icons.local_shipping_outlined,
+        color: AppColors.infoDark,
+      ),
+      _ProfileMetric(
+        title: 'متوسط وقت المراجعة',
+        value: _averageValue(avg),
+        unit: _averageUnit(avg),
+        detail: avg == null ? 'لا توجد قرارات بعد' : 'من الإرسال حتى القرار',
+        icon: Icons.bolt,
+        color: AppColors.info,
+      ),
+      _ProfileMetric(
+        title: 'بانتظار المراجعة الآن',
+        value: '${n('pending')}',
+        detail: 'إعلانات مستعملة في الطابور',
+        icon: Icons.hourglass_bottom_outlined,
+        color: AppColors.infoDark,
+      ),
+    ];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const gap = 10.0;
+        final width = (constraints.maxWidth - gap) / 2;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (final m in real)
+              SizedBox(width: width, height: 118, child: _buildMetricCard(m)),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _loadReport() async {
@@ -455,7 +565,18 @@ class _ProductSupervisorProfileScreenState
       textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
       child: Scaffold(
         backgroundColor: AppColors.scaffold,
-        body: ListView(
+        body: BrandRefreshIndicator(
+          onRefresh: () async {
+    if (!_remote) return;
+    if (_isWasalny) {
+      await _loadUsedOverview();
+    } else {
+      await _loadReport();
+    }
+    if (_showActivity) await _loadMyActivity();
+  },
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
           children: [
             ScrollFx(child: _buildProfileCard(l10n)),
@@ -564,7 +685,7 @@ class _ProductSupervisorProfileScreenState
               ),
             ),
           ],
-        ),
+        )),
       ),
     );
   }
@@ -766,6 +887,7 @@ class _ProductSupervisorProfileScreenState
   }
 
   Widget _buildMetrics(AppLocalizations l10n) {
+    if (_remote && _isWasalny) return _buildUsedMetrics();
     if (_remote) {
       if (_reportLoading && _report == null) {
         return const Padding(
@@ -1313,7 +1435,7 @@ class _ProductSupervisorProfileScreenState
               ProductSupervisorAuditScreen(
                 actionKeyPrefix: widget.auditActionKeyPrefix.isEmpty
                     ? null
-                    : widget.auditActionKeyPrefix,
+                    : (_remote && _isWasalny ? 'used_' : widget.auditActionKeyPrefix),
               ),
             ),
           ),

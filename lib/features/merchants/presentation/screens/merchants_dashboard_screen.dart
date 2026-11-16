@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/core/widgets/app_snack_bar.dart';
 import 'package:barwah_app/features/auth/presentation/controllers/auth_cubit.dart';
@@ -413,8 +414,7 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
 
           final loadedState = state as MerchantsLoaded;
 
-          return RefreshIndicator(
-            color: AppColors.primaryDark,
+          return BrandRefreshIndicator(
             onRefresh: () => context.read<MerchantsCubit>().loadMerchants(),
             child: Stack(
               children: [

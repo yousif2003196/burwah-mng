@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/core/widgets/app_snack_bar.dart';
@@ -340,7 +341,7 @@ class _MerchantUpgradeRequestsScreenState
     }).toList();
     return Directionality(
       textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
-      child: RefreshIndicator(
+      child: BrandRefreshIndicator(
         onRefresh: _refreshFinanceStatuses,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),

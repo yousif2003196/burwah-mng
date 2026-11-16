@@ -1,3 +1,4 @@
+import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/features/finance/data/services/finance_approval_policy.dart';
 import 'package:flutter/material.dart';
@@ -557,7 +558,7 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
         ),
         body: _loading
             ? const Center(child: CircularProgressIndicator())
-            : RefreshIndicator(
+            : BrandRefreshIndicator(
                 onRefresh: _loadRequests,
                 child: ListView(
                   physics: const AlwaysScrollableScrollPhysics(),

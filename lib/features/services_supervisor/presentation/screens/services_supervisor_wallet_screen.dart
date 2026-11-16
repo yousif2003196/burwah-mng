@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
 import 'package:barwah_app/core/auth/auth_session.dart';
 import 'package:barwah_app/core/network/api_consumer.dart';
 import 'package:barwah_app/core/network/api_endpoints.dart';
@@ -41,7 +42,9 @@ class _ServicesSupervisorWalletScreenState
     if (!AuthSession.isSignedIn) return;
     try {
       final response = await sl<ApiConsumer>(instanceName: 'berwah')
-          .get<Object>(ApiEndpoints.serviceAdvancedWallet);
+          .get<Object>(widget.owner == SupervisorWalletOwner.wasalny
+              ? ApiEndpoints.usedAdvancedWallet
+              : ApiEndpoints.serviceAdvancedWallet);
       final body = response.data;
       final data = body is Map ? body['data'] : null;
       final balance = data is Map ? data['balance'] : null;
@@ -166,7 +169,13 @@ class _ServicesSupervisorWalletScreenState
             style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
           ),
         ),
-        body: ListView(
+        body: BrandRefreshIndicator(
+          onRefresh: () async {
+    await _loadBalance();
+    await _loadRequests();
+  },
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(18, 10, 18, 24),
           children: [
             ScrollFx(child: _WalletSummaryCard(
@@ -179,7 +188,7 @@ class _ServicesSupervisorWalletScreenState
             const SizedBox(height: 14),
             ScrollFx(child: _buildComplianceNote(l10n)),
           ],
-        ),
+        )),
       ),
     );
   }

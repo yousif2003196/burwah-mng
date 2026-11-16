@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
@@ -292,7 +293,10 @@ class _ProductSupervisorWalletScreenState
             ),
           ],
         ),
-        body: ListView(
+        body: BrandRefreshIndicator(
+          onRefresh: _loadFinancialRequests,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
           children: [
             ScrollFx(child: _IdentityStrip(
@@ -353,7 +357,7 @@ class _ProductSupervisorWalletScreenState
               subtitle: l10n.productWalletAuditCode,
             )),
           ],
-        ),
+        )),
       ),
     );
   }

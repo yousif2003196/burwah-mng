@@ -75,10 +75,8 @@ import 'package:barwah_app/features/products/domain/usecases/update_product_revi
 import 'package:barwah_app/features/products/presentation/controllers/ad_quick_review_cubit.dart';
 import 'package:barwah_app/features/products/presentation/controllers/product_report_cubit.dart';
 import 'package:barwah_app/features/products/presentation/controllers/product_review_cubit.dart';
-import 'package:barwah_app/features/wasalny_supervisor/data/datasources/wasalny_case_store.dart';
 import 'package:barwah_app/features/wasalny_supervisor/data/datasources/wasalny_complaints_api_data_source.dart';
 import 'package:barwah_app/features/wasalny_supervisor/data/datasources/wasalny_complaints_data_source.dart';
-import 'package:barwah_app/features/wasalny_supervisor/data/datasources/wasalny_complaints_mock_data_source.dart';
 import 'package:barwah_app/features/wasalny_supervisor/data/repositories/wasalny_complaints_repository_impl.dart';
 import 'package:barwah_app/features/wasalny_supervisor/domain/repositories/wasalny_complaints_repository.dart';
 import 'package:barwah_app/features/wasalny_supervisor/domain/usecases/escalate_wasalny_complaint_usecase.dart';
@@ -278,18 +276,16 @@ Future<void> initDependencies() async {
   sl.registerFactory(() => ProductReportCubit(getProductReport: sl()));
 
   // Wasalny complaints
-  if (apiConfiguration.useMockData) {
-    sl.registerLazySingleton<WasalnyComplaintsDataSource>(
-      () => WasalnyComplaintsMockDataSource(),
-    );
-  } else {
+  if (!apiConfiguration.useMockData) {
     sl.registerLazySingleton<ApiConsumer>(
       () => ApiConsumer(baseUrl: apiConfiguration.baseUrl),
     );
-    sl.registerLazySingleton<WasalnyComplaintsDataSource>(
-      () => WasalnyComplaintsApiDataSource(apiConsumer: sl()),
-    );
   }
+  sl.registerLazySingleton<WasalnyComplaintsDataSource>(
+    () => WasalnyComplaintsApiDataSource(
+      apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'),
+    ),
+  );
   sl.registerLazySingleton<WasalnyComplaintsRepository>(
     () => WasalnyComplaintsRepositoryImpl(dataSource: sl()),
   );
@@ -301,8 +297,6 @@ Future<void> initDependencies() async {
       getComplaints: sl(),
       escalateComplaint: sl(),
       resolveComplaint: sl(),
-      auditRepository: sl(),
-      caseStore: WasalnyCaseStore(),
     ),
   );
 }

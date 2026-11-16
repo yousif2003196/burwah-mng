@@ -18,10 +18,21 @@ class _Msg {
 /// محادثة مشرف المنتجات مع صاحب الإعلان. بتتقفل تلقائيًا أول ما المشرف
 /// ياخد قرار على الإعلان (قبول / رفض / إخفاء).
 class AdOwnerChatScreen extends StatefulWidget {
-  const AdOwnerChatScreen({super.key, required this.adId, this.adTitle = ''});
+  const AdOwnerChatScreen({
+    super.key,
+    required this.adId,
+    this.adTitle = '',
+    this.requestId,
+    this.withRole = 'buyer',
+  });
 
   final int adId;
   final String adTitle;
+
+  /// When set, the chat is the used-goods supervisor's chat about this Wasalny
+  /// request with its buyer or seller ([withRole]) instead of the ad owner's.
+  final int? requestId;
+  final String withRole;
 
   @override
   State<AdOwnerChatScreen> createState() => _AdOwnerChatScreenState();
@@ -57,11 +68,17 @@ class _AdOwnerChatScreenState extends State<AdOwnerChatScreen> {
 
   Future<void> _open() async {
     try {
-      final r = await _api.post<Object>('api/Chat/open', data: {
-        'kind': 4,
-        'refId': widget.adId,
-        'otherUserId': 0,
-      });
+      final requestId = widget.requestId;
+      final r = requestId != null
+          ? await _api.post<Object>(
+              'api/WasalnyRequest/supervisor/$requestId/chat',
+              data: {'with': widget.withRole},
+            )
+          : await _api.post<Object>('api/Chat/open', data: {
+              'kind': 4,
+              'refId': widget.adId,
+              'otherUserId': 0,
+            });
       final body = r.data;
       final data = body is Map ? body['data'] : null;
       if (data is! Map) throw const FormatException('bad open');

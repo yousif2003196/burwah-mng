@@ -65,7 +65,10 @@ class ServicesProviderApiDataSource {
           await api.get<Object>(ApiEndpoints.serviceProvidersDirectory);
       final body = response.data;
       final data = body is Map ? body['data'] : null;
-      if (data is! List) return;
+      if (data is! List) {
+        serviceProviders.clear();
+        return;
+      }
       final list = [
         for (final item in data)
           if (item is Map<String, dynamic>) _fromJson(item),
@@ -75,6 +78,7 @@ class ServicesProviderApiDataSource {
         ..addAll(list);
     } catch (error) {
       debugPrint('Providers directory load failed: $error');
+      serviceProviders.clear();
     }
   }
 

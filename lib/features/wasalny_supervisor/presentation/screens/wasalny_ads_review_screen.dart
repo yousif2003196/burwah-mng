@@ -4,16 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 
+import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
 import 'package:barwah_app/core/widgets/motion.dart';
-import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/core/theme/app_palette.dart';
-import 'package:barwah_app/features/finance/domain/entities/withdrawal_request_entity.dart';
-import 'package:barwah_app/features/finance/domain/repositories/finance_repository.dart';
-import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
-import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
-import 'package:barwah_app/features/products/domain/entities/product_supervisor_audit_entry.dart';
-import 'package:barwah_app/features/products/domain/repositories/product_supervisor_audit_repository.dart';
 import 'package:barwah_app/features/wasalny_supervisor/domain/entities/wasalny_ad.dart';
 import 'package:barwah_app/features/wasalny_supervisor/presentation/controllers/wasalny_ads_cubit.dart';
 import 'package:barwah_app/features/wasalny_supervisor/presentation/screens/wasalny_ad_details_screen.dart';
@@ -24,7 +18,10 @@ import 'package:barwah_app/core/widgets/motion_icon.dart';
 enum _WasalnyAdsFilter { all, pending, edit, approved, archived }
 
 class WasalnyAdsReviewScreen extends StatefulWidget {
-  const WasalnyAdsReviewScreen({super.key});
+  /// لو اتحدد، بتفتح تفاصيل الإعلان ده تلقائيًا بعد التحميل (من تبويب الترويج).
+  final String? openAdId;
+
+  const WasalnyAdsReviewScreen({super.key, this.openAdId});
 
   @override
   State<WasalnyAdsReviewScreen> createState() => _WasalnyAdsReviewScreenState();
@@ -32,80 +29,7 @@ class WasalnyAdsReviewScreen extends StatefulWidget {
 
 class _WasalnyAdsReviewScreenState extends State<WasalnyAdsReviewScreen> {
   _WasalnyAdsFilter _filter = _WasalnyAdsFilter.all;
-  bool _syncingFinance = false;
-  bool _financeSyncQueued = false;
-
-  @override
-  void initState() {
-    super.initState();
-    LocalEventStore.revision.addListener(_syncFinanceDecisions);
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) => _syncFinanceDecisions());
-  }
-
-  @override
-  void dispose() {
-    LocalEventStore.revision.removeListener(_syncFinanceDecisions);
-    super.dispose();
-  }
-
-  Future<void> _syncFinanceDecisions() async {
-    if (!mounted) return;
-    if (_syncingFinance) {
-      _financeSyncQueued = true;
-      return;
-    }
-    final state = context.read<WasalnyAdsCubit>().state;
-    if (state is! WasalnyAdsLoaded) return;
-    final awaiting = state.ads
-        .where((ad) => ad.status == WasalnyAdStatus.awaitingApproval)
-        .toList();
-    if (awaiting.isEmpty) return;
-    _syncingFinance = true;
-    try {
-      final result = await sl<FinanceRepository>().getMerchantWithdrawals();
-      final requests = result.fold(
-        (failure) => throw StateError(failure.message),
-        (items) => items,
-      );
-      for (final ad in awaiting) {
-        final matches = requests
-            .where((item) =>
-                item.sourceAccount == ad.id &&
-                item.operationType == FinancialOperationType.promotion)
-            .toList();
-        final request = matches.isEmpty ? null : matches.first;
-        if (request?.status == RequestStatus.approved) {
-          await context.read<WasalnyAdsCubit>().decide(
-                id: ad.id,
-                status: WasalnyAdStatus.approved,
-              );
-        } else if (request?.status == RequestStatus.rejected) {
-          await context.read<WasalnyAdsCubit>().decide(
-                id: ad.id,
-                status: WasalnyAdStatus.rejected,
-                decisionNote: request?.alertNotice,
-              );
-        }
-      }
-    } catch (error, stackTrace) {
-      FlutterError.reportError(
-        FlutterErrorDetails(
-          exception: error,
-          stack: stackTrace,
-          library: 'Wasalny ad review',
-          context:
-              ErrorDescription('while syncing promotion finance decisions'),
-        ),
-      );
-    } finally {
-      _syncingFinance = false;
-      if (_financeSyncQueued && mounted) {
-        _financeSyncQueued = false;
-        _syncFinanceDecisions();
-      }
-    }
-  }
+  bool _openedFocus = false;
 
   @override
   Widget build(BuildContext context) {
@@ -132,12 +56,6 @@ class _WasalnyAdsReviewScreenState extends State<WasalnyAdsReviewScreen> {
           );
         }
         if (state is! WasalnyAdsLoaded) return const SizedBox.shrink();
-        if (state.ads
-            .any((ad) => ad.status == WasalnyAdStatus.awaitingApproval)) {
-          WidgetsBinding.instance
-              .addPostFrameCallback((_) => _syncFinanceDecisions());
-        }
-
         final pendingCount = state.ads
             .where((ad) =>
                 ad.status == WasalnyAdStatus.pending ||
@@ -147,9 +65,25 @@ class _WasalnyAdsReviewScreenState extends State<WasalnyAdsReviewScreen> {
             .where((ad) => ad.status == WasalnyAdStatus.approved)
             .length;
         final visibleAds = _filteredAds(state.ads);
+        if (widget.openAdId != null && !_openedFocus) {
+          _openedFocus = true;
+          WasalnyAd? focus;
+          for (final candidate in state.ads) {
+            if (candidate.id == widget.openAdId) focus = candidate;
+          }
+          final target = focus;
+          if (target != null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _openDetails(target, isArabic, l10n);
+            });
+          }
+        }
         return Directionality(
           textDirection: isArabic ? ui.TextDirection.rtl : ui.TextDirection.ltr,
-          child: ListView(
+          child: BrandRefreshIndicator(
+            onRefresh: context.read<WasalnyAdsCubit>().refresh,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
             children: [
               ScrollFx(child: _PageHeader(l10n: l10n)),
@@ -233,8 +167,6 @@ class _WasalnyAdsReviewScreenState extends State<WasalnyAdsReviewScreen> {
                     l10n,
                   ),
                   onRestore: () => _decide(ad, WasalnyAdStatus.pending, l10n),
-                  onAppeal: () => _appealToHead(ad, isArabic),
-                  onShowFinanceStatus: () => _showFinanceStatus(ad, l10n),
                   onOpen: () => _openDetails(ad, isArabic, l10n),
                 ),
                 const SizedBox(height: 12),
@@ -249,7 +181,7 @@ class _WasalnyAdsReviewScreenState extends State<WasalnyAdsReviewScreen> {
                 ),
               ),
             ],
-          ),
+          )),
         );
       },
     );
@@ -291,109 +223,6 @@ class _WasalnyAdsReviewScreenState extends State<WasalnyAdsReviewScreen> {
           l10n.localeName.startsWith('ar') ? 'الأرشيف' : 'Archive',
       };
 
-  /// Asks the head to review a blocked/rejected ad (never goes to the admin
-  /// directly).
-  Future<void> _appealToHead(WasalnyAd ad, bool isArabic) async {
-    final controller = TextEditingController();
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => Directionality(
-        textDirection: isArabic ? ui.TextDirection.rtl : ui.TextDirection.ltr,
-        child: AlertDialog(
-          title: Text(isArabic ? 'رفع الإعلان لرئيس المشرفين' : 'Send ad to the head'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                isArabic
-                    ? 'لطلب رفع الحجب أو مراجعة قرار الرفض/الإيقاف. يقرر الرئيس إن كان يحتاج الأدمن.'
-                    : 'To request unblocking or a review of the rejection/suspension. The head decides whether the admin is needed.',
-                style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: controller,
-                maxLines: 3,
-                decoration: InputDecoration(
-                  labelText: isArabic ? 'السبب (إلزامي)' : 'Reason (required)',
-                  border: const OutlineInputBorder(),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: Text(isArabic ? 'إلغاء' : 'Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                if (controller.text.trim().length < 5) return;
-                Navigator.of(dialogContext).pop(true);
-              },
-              child: Text(isArabic ? 'رفع' : 'Send'),
-            ),
-          ],
-        ),
-      ),
-    );
-    final reason =
-        controller.text.replaceAll(' — ', ' - ').replaceAll('\n', ' ').trim();
-    controller.dispose();
-    if (confirmed != true || !mounted) return;
-    try {
-      final store = LocalEventStore();
-      final id = 'head-wasalny-ad-appeal-${ad.id}';
-      final existing = await store.getEvents('head');
-      final round = existing.where((e) => e.id.startsWith(id)).length;
-      await store.publish(
-        LocalEvent(
-          id: round == 0 ? id : '$id-r${round + 1}',
-          recipient: 'head',
-          source: 'wasalny',
-          titleAr: 'وصلني: طلب مراجعة قرار إعلان',
-          titleEn: 'Wasalny: ad decision review request',
-          messageAr:
-              '${ad.reference}: ${ad.titleAr} — البائع: ${ad.sellerNameAr}. الحالة الحالية: ${ad.status.name}. السبب: $reason',
-          messageEn:
-              '${ad.reference}: ${ad.titleEn} — Seller: ${ad.sellerNameEn}. Current status: ${ad.status.name}. Reason: $reason',
-          createdAt: DateTime.now(),
-        ),
-      );
-      await sl<ProductSupervisorAuditRepository>().recordEntry(
-        ProductSupervisorAuditEntry(
-          id: DateTime.now().microsecondsSinceEpoch.toString(),
-          actionKey: 'wasalny_ad_appeal',
-          subject: ad.titleAr,
-          details: '${ad.reference} • $reason',
-          occurredAt: DateTime.now(),
-        ),
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            isArabic ? 'تم رفع الإعلان لرئيس المشرفين' : 'Ad sent to the head supervisor',
-          ),
-        ),
-      );
-    } catch (error, stackTrace) {
-      FlutterError.reportError(
-        FlutterErrorDetails(
-          exception: error,
-          stack: stackTrace,
-          library: 'Wasalny ad review',
-          context: ErrorDescription('while sending an ad appeal to the head'),
-        ),
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(isArabic ? 'تعذر الرفع' : 'Could not send')),
-        );
-      }
-    }
-  }
-
   Future<bool> _askReason(
     WasalnyAd ad,
     WasalnyAdStatus status,
@@ -428,164 +257,8 @@ class _WasalnyAdsReviewScreenState extends State<WasalnyAdsReviewScreen> {
     );
   }
 
-  Future<bool> _approveAd(WasalnyAd ad, AppLocalizations l10n) async {
-    if (!ad.isSellerPremium) {
-      return _decide(ad, WasalnyAdStatus.approved, l10n);
-    }
-
-    if (ad.decisionNote == 'premium-paid-promotion') {
-      final result = await sl<FinanceRepository>().getMerchantWithdrawals();
-      final approved = result.fold(
-        (failure) => throw StateError(failure.message),
-        (requests) => requests.any(
-          (request) =>
-              request.sourceAccount == ad.id &&
-              request.operationType == FinancialOperationType.promotion &&
-              request.status == RequestStatus.approved,
-        ),
-      );
-      if (!approved) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(l10n.wasalnyPromotionFinancePending)),
-          );
-        }
-        return false;
-      }
-      return _decide(ad, WasalnyAdStatus.approved, l10n);
-    }
-
-    final paidPromotion = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(l10n.wasalnyPremiumAdChoiceTitle),
-        content: Text(l10n.wasalnyPremiumAdChoiceMessage),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(l10n.wasalnyPremiumAdIncluded),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(l10n.wasalnyPremiumAdPaid),
-          ),
-        ],
-      ),
-    );
-    if (!mounted || paidPromotion == null) return false;
-    if (!paidPromotion) {
-      return await _decide(
-        ad,
-        WasalnyAdStatus.approved,
-        l10n,
-        note: l10n.wasalnyPremiumAdIncluded,
-      );
-    }
-
-    try {
-      final result =
-          await sl<FinanceRepository>().submitMerchantFinancialRequest(
-        beneficiaryName: ad.sellerNameAr,
-        requestTitle: 'ترويج مدفوع لإعلان وصلني ${ad.reference} - باقة أسبوع',
-        sourceAccount: ad.id,
-        amount: 120,
-        beneficiaryType: BeneficiaryType.user,
-        operationType: FinancialOperationType.promotion,
-      );
-      final financialRequest = result.fold(
-        (failure) => throw StateError(failure.message),
-        (request) => request,
-      );
-      await LocalEventStore().publish(
-        LocalEvent(
-          id: 'wasalny-ad-finance-${financialRequest.id}',
-          recipient: 'finance',
-          source: 'wasalny',
-          titleAr: 'طلب ترويج إعلان وصلني',
-          titleEn: 'Wasalny ad promotion request',
-          messageAr:
-              'الإعلان ${ad.reference} للعميل ${ad.sellerNameAr} - 120 ج.م. بانتظار مراجعة المالية.',
-          messageEn:
-              'Ad ${ad.reference} for ${ad.sellerNameEn} - 120 EGP awaits finance review.',
-          createdAt: DateTime.now(),
-        ),
-      );
-      return await _decide(
-        ad,
-        WasalnyAdStatus.awaitingApproval,
-        l10n,
-        note: 'premium-paid-promotion',
-      );
-    } catch (error, stackTrace) {
-      FlutterError.reportError(
-        FlutterErrorDetails(
-          exception: error,
-          stack: stackTrace,
-          library: 'Wasalny ad review',
-          context: ErrorDescription('while submitting a premium ad promotion'),
-        ),
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.productAuditSaveError)),
-        );
-      }
-      return false;
-    }
-  }
-
-  Future<void> _showFinanceStatus(
-    WasalnyAd ad,
-    AppLocalizations l10n,
-  ) async {
-    try {
-      final result = await sl<FinanceRepository>().getMerchantWithdrawals();
-      final requests = result.fold(
-        (failure) => throw StateError(failure.message),
-        (items) => items,
-      );
-      final matches = requests.where((item) =>
-          item.sourceAccount == ad.id &&
-          item.operationType == FinancialOperationType.promotion);
-      final request = matches.isEmpty ? null : matches.first;
-      final status = switch (request?.status) {
-        RequestStatus.approved => l10n.withdrawalDetailsStatusApproved,
-        RequestStatus.rejected => l10n.withdrawalDetailsStatusRejected,
-        RequestStatus.frozen => l10n.withdrawalDetailsStatusFrozen,
-        RequestStatus.underInvestigation =>
-          l10n.withdrawalDetailsStatusInvestigation,
-        _ => l10n.withdrawalDetailsStatusPending,
-      };
-      if (!mounted) return;
-      await showDialog<void>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: Text(l10n.productPromotionViewPaymentStatus),
-          content: Text(status),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: Text(l10n.cancelAction),
-            ),
-          ],
-        ),
-      );
-    } catch (error, stackTrace) {
-      FlutterError.reportError(
-        FlutterErrorDetails(
-          exception: error,
-          stack: stackTrace,
-          library: 'Wasalny ad review',
-          context: ErrorDescription('while checking promotion finance status'),
-        ),
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.productAuditSaveError)),
-        );
-      }
-    }
-  }
+  Future<bool> _approveAd(WasalnyAd ad, AppLocalizations l10n) =>
+      _decide(ad, WasalnyAdStatus.approved, l10n);
 
   Future<bool> _decide(
     WasalnyAd ad,
@@ -599,41 +272,6 @@ class _WasalnyAdsReviewScreenState extends State<WasalnyAdsReviewScreen> {
           decisionNote: note,
         );
     if (!mounted) return false;
-    if (success &&
-        (status == WasalnyAdStatus.rejected ||
-            status == WasalnyAdStatus.suspended)) {
-      final isFrozen = status == WasalnyAdStatus.suspended;
-      final reason = note?.trim().isNotEmpty == true
-          ? note!.trim()
-          : ad.decisionNote?.trim().isNotEmpty == true
-              ? ad.decisionNote!.trim()
-              : 'لم يسجل المشرف سبباً إضافياً';
-      try {
-        await LocalEventStore().publish(
-          LocalEvent(
-            id: 'head-wasalny-ad-${ad.id}-${status.name}-${DateTime.now().millisecondsSinceEpoch}',
-            recipient: 'head',
-            source: 'wasalny',
-            titleAr: isFrozen ? 'قرار المشرف: تجميد إعلان' : 'قرار المشرف: رفض إعلان',
-            titleEn: isFrozen ? 'Supervisor decision: ad frozen' : 'Supervisor decision: ad rejected',
-            messageAr:
-                '${ad.reference}: ${ad.titleAr} — القرار: ${isFrozen ? 'مجمّد' : 'مرفوض'}. السبب: $reason',
-            messageEn:
-                '${ad.reference}: ${ad.titleEn} — Decision: ${isFrozen ? 'frozen' : 'rejected'}. Reason: $reason',
-            createdAt: DateTime.now(),
-          ),
-        );
-      } catch (error, stackTrace) {
-        FlutterError.reportError(
-          FlutterErrorDetails(
-            exception: error,
-            stack: stackTrace,
-            library: 'Wasalny ad review',
-            context: ErrorDescription('while notifying the head supervisor'),
-          ),
-        );
-      }
-    }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -772,9 +410,7 @@ class _WasalnyAdCard extends StatelessWidget {
   final VoidCallback onReject;
   final VoidCallback onSuspend;
   final VoidCallback onRestore;
-  final VoidCallback onShowFinanceStatus;
   final VoidCallback onOpen;
-  final VoidCallback? onAppeal;
 
   const _WasalnyAdCard({
     required this.ad,
@@ -785,9 +421,7 @@ class _WasalnyAdCard extends StatelessWidget {
     required this.onReject,
     required this.onSuspend,
     required this.onRestore,
-    required this.onShowFinanceStatus,
     required this.onOpen,
-    this.onAppeal,
   });
 
   bool get _isPending =>
@@ -937,14 +571,7 @@ class _WasalnyAdCard extends StatelessWidget {
                 ),
               ),
             ],
-            if (ad.status == WasalnyAdStatus.awaitingApproval) ...[
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: onShowFinanceStatus,
-                icon: const MotionIcon(Icons.payments_outlined, size: 17),
-                label: Text(l10n.productPromotionViewPaymentStatus),
-              ),
-            ] else if (_isPending) ...[
+            if (_isPending) ...[
               const SizedBox(height: 12),
               Column(
                 children: [
@@ -1004,21 +631,6 @@ class _WasalnyAdCard extends StatelessWidget {
                 icon: const MotionIcon(Icons.restart_alt, size: 17),
                 label: Text(isArabic ? 'إعادة للمراجعة' : 'Return to review'),
               ),
-              if (onAppeal != null &&
-                  (ad.status == WasalnyAdStatus.rejected ||
-                      ad.status == WasalnyAdStatus.suspended ||
-                      ad.status == WasalnyAdStatus.hidden)) ...[
-                const SizedBox(height: 6),
-                OutlinedButton.icon(
-                  onPressed: onAppeal,
-                  icon: const MotionIcon(Icons.forward_to_inbox_outlined, size: 17),
-                  label: Text(
-                    isArabic
-                        ? 'رفع لرئيس المشرفين (رفع حجب/مراجعة)'
-                        : 'Send to head (unblock / review)',
-                  ),
-                ),
-              ],
             ],
           ],
         ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
@@ -404,7 +405,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                       ],
                     ),
                   )
-                : RefreshIndicator(
+                : BrandRefreshIndicator(
                     onRefresh: _loadData,
                     child: ListView(
                       physics: const AlwaysScrollableScrollPhysics(),

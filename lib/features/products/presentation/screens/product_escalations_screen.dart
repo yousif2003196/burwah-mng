@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
 import 'package:barwah_app/features/products/data/datasources/product_escalation_store.dart';
@@ -92,7 +93,10 @@ class _ProductEscalationsScreenState extends State<ProductEscalationsScreen> {
             ? const Center(child: CircularProgressIndicator())
             : _error != null
                 ? Center(child: Text('تعذر التحميل: $_error'))
-                : ListView(
+                : BrandRefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.all(16),
                     children: [
                       ScrollFx(child: Container(
@@ -191,7 +195,7 @@ class _ProductEscalationsScreenState extends State<ProductEscalationsScreen> {
                           ),
                         ),
                     ],
-                  ),
+                  )),
       ),
     );
   }

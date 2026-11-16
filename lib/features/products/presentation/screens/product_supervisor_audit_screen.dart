@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat;
 
+import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/auth/auth_session.dart';
+import 'package:barwah_app/core/network/api_consumer.dart';
+import 'package:barwah_app/core/network/api_endpoints.dart';
+import 'package:barwah_app/features/products/data/datasources/product_supervisor_audit_api_data_source.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/features/products/domain/entities/product_supervisor_audit_entry.dart';
 import 'package:barwah_app/features/products/domain/repositories/product_supervisor_audit_repository.dart';
@@ -29,7 +34,18 @@ class _ProductSupervisorAuditScreenState
   @override
   void initState() {
     super.initState();
-    _entriesFuture = sl<ProductSupervisorAuditRepository>().getEntries();
+    _entriesFuture = _fetchEntries();
+  }
+
+  /// مشرف وصلني بيقرأ سجله من السيرفر (used_)، والباقي من المستودع المعتاد.
+  Future<List<ProductSupervisorAuditEntry>> _fetchEntries() {
+    if (widget.actionKeyPrefix == 'used_' && AuthSession.isSignedIn) {
+      return ProductSupervisorAuditApiDataSource.fetch(
+        sl<ApiConsumer>(instanceName: 'berwah'),
+        path: ApiEndpoints.usedAuditLog,
+      );
+    }
+    return sl<ProductSupervisorAuditRepository>().getEntries();
   }
 
   @override
@@ -54,8 +70,7 @@ class _ProductSupervisorAuditScreenState
               message: l10n.productAuditLoadError,
               actionLabel: l10n.retryLoadMerchants,
               onPressed: () => setState(
-                () => _entriesFuture =
-                    sl<ProductSupervisorAuditRepository>().getEntries(),
+                () => _entriesFuture = _fetchEntries(),
               ),
             );
           }
@@ -81,7 +96,13 @@ class _ProductSupervisorAuditScreenState
               message: l10n.productAuditEmpty,
             );
           }
-          return ListView.separated(
+          return BrandRefreshIndicator(
+            onRefresh: () async {
+      setState(() => _entriesFuture = _fetchEntries());
+      await _entriesFuture;
+    },
+            child: ListView.separated(
+              physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(16),
             itemCount: entries.length,
             separatorBuilder: (_, __) => const SizedBox(height: 9),
@@ -141,7 +162,7 @@ class _ProductSupervisorAuditScreenState
                 ),
               );
             }),
-          );
+          ));
         },
       ),
     );

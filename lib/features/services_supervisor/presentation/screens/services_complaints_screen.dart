@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/core/auth/auth_session.dart';
@@ -326,7 +327,10 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
     }
     return Directionality(
       textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
-      child: ListView(
+      child: BrandRefreshIndicator(
+        onRefresh: _loadRemote,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 22),
         children: [
           Text(
@@ -368,7 +372,7 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
             ],
           ScrollFx(child: _buildResolutionBanner(l10n)),
         ],
-      ),
+      )),
     );
   }
 

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/features/services_supervisor/presentation/screens/services_activity_log_screen.dart';
@@ -13,6 +14,12 @@ import 'package:barwah_app/features/services_supervisor/presentation/screens/ser
 import 'package:barwah_app/l10n/app_localizations.dart';
 import 'package:barwah_app/core/widgets/scroll_fx.dart';
 import 'package:barwah_app/core/widgets/motion_icon.dart';
+import 'package:barwah_app/core/auth/auth_session.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/network/api_consumer.dart';
+import 'package:barwah_app/core/network/api_endpoints.dart';
+import 'package:barwah_app/core/widgets/change_password_dialog.dart';
+import 'package:barwah_app/features/services_supervisor/data/datasources/services_activity_log.dart';
 
 class ServicesSupervisorProfileScreen extends StatefulWidget {
   final VoidCallback onLogout;
@@ -33,10 +40,138 @@ class _ServicesSupervisorProfileScreenState
   String? _savedCoverage;
   Object? _profileLoadError;
 
+  // أرقام حقيقية من السيرفر (بعد تسجيل الدخول).
+  Map<String, dynamic>? _overview;
+  String? _remoteName;
+  String? _remoteRegion;
+  double? _balance;
+  double? _dues;
+  List<ServicesActivityEntry> _mine = const [];
+
   @override
   void initState() {
     super.initState();
     _loadSavedProfile();
+    _loadRemote();
+  }
+
+  Future<Map<String, dynamic>?> _getData(String path) async {
+    try {
+      final response = await sl<ApiConsumer>(instanceName: 'berwah').get<Object>(path);
+      final body = response.data;
+      final data = body is Map<String, dynamic> ? body['data'] : null;
+      return data is Map<String, dynamic> ? data : null;
+    } on Object catch (error) {
+      debugPrint('Services profile data unavailable ($path): $error');
+      return null;
+    }
+  }
+
+  Future<void> _loadRemote() async {
+    if (!AuthSession.isSignedIn) return;
+    final results = await Future.wait<Object?>([
+      _getData(ApiEndpoints.serviceProfileOverview),
+      _getData(ApiEndpoints.serviceAccountSettings),
+      _getData(ApiEndpoints.serviceAdvancedWallet),
+      ServicesActivityLog.fetchRemote(mine: true, pageSize: 5)
+          .then<Object?>((v) => v)
+          .catchError((Object _) => const <ServicesActivityEntry>[]),
+    ]);
+    if (!mounted) return;
+    final settings = results[1] as Map<String, dynamic>?;
+    final wallet = results[2] as Map<String, dynamic>?;
+    final name = '${settings?['fullName'] ?? ''}'.trim();
+    final region = '${settings?['region'] ?? ''}'.trim();
+    setState(() {
+      _overview = results[0] as Map<String, dynamic>?;
+      _remoteName = name.isEmpty ? null : name;
+      _remoteRegion = region.isEmpty ? null : region;
+      _balance = (wallet?['balance'] as num?)?.toDouble();
+      _dues = (wallet?['totalDues'] as num?)?.toDouble();
+      _mine = results[3] as List<ServicesActivityEntry>;
+    });
+  }
+
+  String _metric(String key, {String suffix = ''}) {
+    final v = _overview?[key];
+    if (v is! num) return '—';
+    final text = v.truncateToDouble() == v ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
+    return '$text$suffix';
+  }
+
+  String _money(double? v) {
+    if (v == null) return '—';
+    return v.truncateToDouble() == v ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
+  }
+
+  String _stamp(DateTime t) =>
+      '${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')} '
+      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+  Widget _buildMyActivity(bool isAr) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: _cardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            isAr ? 'نشاطي الأخير' : 'My recent activity',
+            style: TextStyle(color: AppColors.ink, fontSize: 14, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 8),
+          for (final e in _mine)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${servicesActionLabel(e.action)} · ${e.subject}',
+                    style: TextStyle(color: AppColors.ink, fontSize: 11.5, fontWeight: FontWeight.w700),
+                  ),
+                  Text(_stamp(e.at), style: TextStyle(color: AppColors.textMuted, fontSize: 10)),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSecurityCard(bool isAr) {
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () async {
+          final changed = await showChangePasswordDialog(context, arabic: isAr);
+          if (changed && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(isAr ? 'تم تغيير كلمة المرور' : 'Password changed')),
+            );
+          }
+        },
+        child: Container(
+          padding: const EdgeInsets.all(15),
+          decoration: _cardDecoration(),
+          child: Row(
+            children: [
+              MotionIcon(Icons.lock_outline, color: AppColors.ink, size: 22),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  isAr ? 'تغيير كلمة المرور' : 'Change password',
+                  style: TextStyle(color: AppColors.ink, fontSize: 13.5, fontWeight: FontWeight.w700),
+                ),
+              ),
+              Icon(isAr ? Icons.chevron_left : Icons.chevron_right, color: AppColors.textMuted),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _loadSavedProfile() async {
@@ -97,7 +232,10 @@ class _ServicesSupervisorProfileScreenState
 
     return Directionality(
       textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
-      child: ListView(
+      child: BrandRefreshIndicator(
+        onRefresh: _loadRemote,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 22),
         children: [
           ScrollFx(child: _buildIdentityCard(l10n)),
@@ -113,8 +251,10 @@ class _ServicesSupervisorProfileScreenState
               ),
             ),
           const SizedBox(height: 14),
-          ScrollFx(child: _buildDemoDataNotice(l10n)),
-          const SizedBox(height: 10),
+          if (!AuthSession.isSignedIn) ...[
+            ScrollFx(child: _buildDemoDataNotice(l10n)),
+            const SizedBox(height: 10),
+          ],
           ScrollFx(child: _buildMetrics(l10n)),
           const SizedBox(height: 14),
           ScrollFx(child: _buildWalletCard(context, l10n)),
@@ -129,6 +269,14 @@ class _ServicesSupervisorProfileScreenState
           ),
           const SizedBox(height: 9),
           ScrollFx(child: _buildAdministrationCard(context, l10n)),
+          if (AuthSession.isSignedIn) ...[
+            if (_mine.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              ScrollFx(child: _buildMyActivity(isArabic)),
+            ],
+            const SizedBox(height: 14),
+            ScrollFx(child: _buildSecurityCard(isArabic)),
+          ],
           const SizedBox(height: 18),
           SizedBox(
             height: 50,
@@ -156,7 +304,7 @@ class _ServicesSupervisorProfileScreenState
             ),
           ),
         ],
-      ),
+      )),
     );
   }
 
@@ -205,7 +353,7 @@ class _ServicesSupervisorProfileScreenState
                     Text(
                       _savedName?.isNotEmpty == true
                           ? _savedName!
-                          : l10n.servicesProfileName,
+                          : (_remoteName ?? l10n.servicesProfileName),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -230,7 +378,7 @@ class _ServicesSupervisorProfileScreenState
             child: Text(
               _savedCoverage?.isNotEmpty == true
                   ? _savedCoverage!
-                  : l10n.servicesProfileCoverage,
+                  : (_remoteRegion ?? l10n.servicesProfileCoverage),
               style: TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 10,
@@ -284,33 +432,34 @@ class _ServicesSupervisorProfileScreenState
   }
 
   Widget _buildMetrics(AppLocalizations l10n) {
+    final isAr = l10n.localeName.startsWith('ar');
     final metrics = [
       _ProfileMetric(
         icon: Icons.task_alt,
         label: l10n.servicesProfileCompletedTasks,
-        value: '342',
+        value: _metric('reviewedTotal'),
         detail: l10n.servicesProfileFieldTasks,
         color: AppColors.info,
       ),
       _ProfileMetric(
         icon: Icons.star,
-        label: l10n.servicesProfilePerformanceRating,
-        value: '4.9',
-        detail: l10n.servicesProfileRatingDetail,
+        label: isAr ? 'نسبة الاعتماد' : 'Approval rate',
+        value: _metric('approvalRate', suffix: '%'),
+        detail: isAr ? 'من قراراتك' : 'of your decisions',
         color: AppColors.warning,
       ),
       _ProfileMetric(
         icon: Icons.access_time,
-        label: l10n.servicesProfileAssignmentTime,
-        value: '15',
-        detail: l10n.servicesProfileMinutes,
+        label: isAr ? 'متوسط زمن المراجعة' : 'Avg. review time',
+        value: _metric('averageMinutes'),
+        detail: isAr ? 'دقيقة (آخر 30 يومًا)' : 'min (last 30 days)',
         color: AppColors.info,
       ),
       _ProfileMetric(
         icon: Icons.verified_outlined,
-        label: l10n.servicesProfileComplaintResolution,
-        value: '99.2%',
-        detail: l10n.servicesProfileResolutionDetail,
+        label: isAr ? 'شكاوى تعاملت معها' : 'Complaints handled',
+        value: _metric('complaintsHandled'),
+        detail: isAr ? 'تصعيد وتعويض' : 'escalated / compensated',
         color: AppColors.success,
       ),
     ];
@@ -419,7 +568,7 @@ class _ServicesSupervisorProfileScreenState
               Expanded(
                 child: _WalletBalance(
                   label: l10n.servicesProfileAvailableBalance,
-                  amount: '4,850',
+                  amount: _money(_balance),
                   currency: l10n.servicesProfileCurrency,
                 ),
               ),
@@ -427,7 +576,7 @@ class _ServicesSupervisorProfileScreenState
               Expanded(
                 child: _WalletBalance(
                   label: l10n.servicesProfilePendingDues,
-                  amount: '1,200',
+                  amount: _money(_dues),
                   currency: l10n.servicesProfileCurrency,
                 ),
               ),

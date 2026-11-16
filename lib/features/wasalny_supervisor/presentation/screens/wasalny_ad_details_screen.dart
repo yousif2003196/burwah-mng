@@ -83,7 +83,6 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
               l10n: l10n,
               showContactActions: canTakeAction,
               onChat: () => _openChat(context, seller),
-              onCall: () => _callSeller(context, ad, l10n),
             )),
             const SizedBox(height: 14),
             ScrollFx(child: _PhotoGallery(ad: ad, l10n: l10n)),
@@ -96,15 +95,9 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
                 children: [
                   _ReadOnlyValue(
                     icon: _categoryIcon(ad.categoryKey),
-                    value: _categoryLabel(ad.categoryKey, l10n),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    l10n.wasalnyAdDetailsCategoryMatch,
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 11,
-                    ),
+                    value: ad.categoryName.isNotEmpty
+                        ? ad.categoryName
+                        : _categoryLabel(ad.categoryKey, l10n),
                   ),
                 ],
               ),
@@ -121,8 +114,6 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
                     value:
                         '${NumberFormat('#,###').format(ad.price)} ${l10n.productWalletCurrency}',
                   ),
-                  const SizedBox(height: 10),
-                  _PriceRange(ad: ad, l10n: l10n),
                 ],
               ),
             )),
@@ -234,121 +225,6 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
     );
   }
 
-  void _callSeller(
-    BuildContext context,
-    WasalnyAd ad,
-    AppLocalizations l10n,
-  ) {
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            MotionIcon(Icons.phone_in_talk_outlined,
-                color: AppColors.ink, size: 24),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                l10n.wasalnyCallSeller,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.ink,
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              isArabic ? ad.sellerNameAr : ad.sellerNameEn,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceLight,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                children: [
-                  MotionIcon(Icons.phone_android,
-                      size: 18, color: AppColors.ink),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      ad.sellerPhone,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1,
-                        color: AppColors.textPrimary,
-                      ),
-                      textDirection: ui.TextDirection.ltr,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const MotionIcon(Icons.copy, size: 18),
-                    tooltip: l10n.wasalnyCopyPhone,
-                    onPressed: () async {
-                      await Clipboard.setData(
-                          ClipboardData(text: ad.sellerPhone));
-                      if (dialogContext.mounted) {
-                        Navigator.of(dialogContext).pop();
-                      }
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(l10n.wasalnyPhoneCopied),
-                            backgroundColor: AppColors.success,
-                          ),
-                        );
-                      }
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: Text(l10n.logoutCancel),
-          ),
-          FilledButton.icon(
-            key: const ValueKey('confirm-call-seller-button'),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.primaryDark,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            icon: const MotionIcon(Icons.phone, size: 16),
-            label: Text(l10n.wasalnyCallNow),
-            onPressed: () {
-              Navigator.of(dialogContext).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(l10n.wasalnyCallingSeller(ad.sellerPhone)),
-                  backgroundColor: AppColors.primaryDark,
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
 
   void _showContactOptions(
     BuildContext context,
@@ -439,35 +315,6 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
                   _openChat(context, seller);
                 },
               ),
-              const SizedBox(height: 8),
-              ListTile(
-                key: const ValueKey('sheet-call-option'),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                tileColor: AppColors.background,
-                leading: CircleAvatar(
-                  backgroundColor: AppColors.success,
-                  child:
-                      MotionIcon(Icons.phone_outlined, color: Colors.white, size: 20),
-                ),
-                title: Text(
-                  l10n.wasalnyCallSeller,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 13),
-                ),
-                subtitle: Text(
-                  ad.sellerPhone,
-                  textDirection: ui.TextDirection.ltr,
-                  style: TextStyle(
-                      fontSize: 11, color: AppColors.textSecondary),
-                ),
-                trailing: const MotionIcon(Icons.arrow_forward_ios, size: 14),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  _callSeller(context, ad, l10n);
-                },
-              ),
             ],
           ),
         ),
@@ -535,7 +382,6 @@ class _SellerCard extends StatelessWidget {
   final AppLocalizations l10n;
   final bool showContactActions;
   final VoidCallback onChat;
-  final VoidCallback onCall;
 
   const _SellerCard({
     required this.ad,
@@ -543,7 +389,6 @@ class _SellerCard extends StatelessWidget {
     required this.l10n,
     required this.showContactActions,
     required this.onChat,
-    required this.onCall,
   });
 
   @override
@@ -663,33 +508,6 @@ class _SellerCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      key: const ValueKey('call-seller-button'),
-                      onPressed: onCall,
-                      icon: const MotionIcon(Icons.phone_outlined, size: 16),
-                      label: Text(
-                        l10n.wasalnyCallSeller,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.ink,
-                        backgroundColor: AppColors.surface,
-                        side: BorderSide(color: AppColors.cardBorder),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 11),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ],
@@ -735,16 +553,47 @@ class _PhotoGallery extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 9),
-        Row(
-          children: [
-            for (var index = 0; index < labels.length; index++) ...[
-              if (index > 0) const SizedBox(width: 8),
-              Expanded(
-                child: _PhotoPlaceholder(label: labels[index], index: index),
+        if (ad.imageUrls.isNotEmpty)
+          SizedBox(
+            height: 170,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: ad.imageUrls.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (_, i) => ClipRRect(
+                borderRadius: BorderRadius.circular(13),
+                child: AspectRatio(
+                  aspectRatio: 0.9,
+                  child: Image.network(
+                    ad.imageUrls[i],
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => ColoredBox(
+                      color: AppColors.surfaceLight,
+                      child: const Center(
+                        child: Icon(Icons.broken_image_outlined),
+                      ),
+                    ),
+                  ),
+                ),
               ),
+            ),
+          )
+        else if (ad.photoCount == 0)
+          Text(
+            'لا توجد صور مرفقة بالإعلان',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+          )
+        else
+          Row(
+            children: [
+              for (var index = 0; index < labels.length; index++) ...[
+                if (index > 0) const SizedBox(width: 8),
+                Expanded(
+                  child: _PhotoPlaceholder(label: labels[index], index: index),
+                ),
+              ],
             ],
-          ],
-        ),
+          ),
       ],
     );
   }
@@ -905,57 +754,6 @@ class _ReadOnlyValue extends StatelessWidget {
           ],
         ),
       );
-}
-
-class _PriceRange extends StatelessWidget {
-  final WasalnyAd ad;
-  final AppLocalizations l10n;
-
-  const _PriceRange({required this.ad, required this.l10n});
-
-  @override
-  Widget build(BuildContext context) {
-    final minPrice = (ad.price - 300).clamp(0, ad.price);
-    final maxPrice = ad.price + 200;
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceLight,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          CountText(
-            '${l10n.wasalnyAdDetailsPriceRange}: ${NumberFormat('#,###').format(minPrice)} - ${NumberFormat('#,###').format(maxPrice)} ${l10n.productWalletCurrency}',
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 10,
-            ),
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: 0.64,
-              minHeight: 7,
-              backgroundColor: AppColors.cardBorder,
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.info),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            l10n.wasalnyAdDetailsPriceMatch,
-            style: TextStyle(
-              color: AppColors.info,
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _Pill extends StatelessWidget {

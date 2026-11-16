@@ -3,6 +3,11 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:barwah_app/core/auth/auth_session.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/network/api_consumer.dart';
+import 'package:barwah_app/core/network/api_endpoints.dart';
+
 class ServicesActivityEntry {
   final String action;
   final String subject;
@@ -38,7 +43,50 @@ class ServicesActivityLog {
   static const _maxEntries = 500;
   static final ValueNotifier<int> revision = ValueNotifier<int>(0);
 
+  /// بعد تسجيل الدخول السجل بيتقرأ من السيرفر (هو اللي بيسجل كل إجراء باسم المشرف).
   Future<List<ServicesActivityEntry>> getAll() async {
+    if (AuthSession.isSignedIn) {
+      try {
+        return await fetchRemote();
+      } on Object catch (error) {
+        debugPrint('Services audit log unavailable: $error');
+      }
+    }
+    return _local();
+  }
+
+  /// `GET api/SupervisorForSR/audit-log`. [mine] = إجراءات المشرف الحالي فقط.
+  static Future<List<ServicesActivityEntry>> fetchRemote({
+    bool mine = false,
+    int pageSize = 100,
+  }) async {
+    final consumer = sl<ApiConsumer>(instanceName: 'berwah');
+    final response = await consumer.get<Object>(
+      ApiEndpoints.serviceAuditLog,
+      queryParameters: {'page': 1, 'pageSize': pageSize, if (mine) 'mine': true},
+    );
+    final body = response.data;
+    final data = body is Map<String, dynamic> ? body['data'] : null;
+    if (data is! List) return const [];
+    return [
+      for (final item in data)
+        if (item is Map<String, dynamic>)
+          ServicesActivityEntry(
+            action: '${item['actionKey'] ?? ''}',
+            subject: '${item['title'] ?? ''}',
+            details: [
+              if ('${item['supervisorName'] ?? ''}'.trim().isNotEmpty)
+                'المشرف: ${item['supervisorName']}'.trim(),
+              if ('${item['reason'] ?? ''}'.trim().isNotEmpty)
+                '${item['reason']}'.trim(),
+            ].join(' • '),
+            at: DateTime.tryParse('${item['at'] ?? ''}')?.toLocal() ??
+                DateTime.now(),
+          ),
+    ];
+  }
+
+  Future<List<ServicesActivityEntry>> _local() async {
     final prefs = await SharedPreferences.getInstance();
     final encoded = prefs.getString(_key);
     if (encoded == null) return const [];
@@ -57,7 +105,9 @@ class ServicesActivityLog {
     required String subject,
     String details = '',
   }) async {
-    final all = await getAll();
+    // السيرفر بيسجل الإجراء بنفسه بعد نجاحه، فمنسجلوش محليًا تاني.
+    if (AuthSession.isSignedIn) return;
+    final all = await _local();
     final entries = [
       ServicesActivityEntry(
         action: action,

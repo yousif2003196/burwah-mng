@@ -1,10 +1,5 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
-import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
-import 'package:barwah_app/features/products/domain/entities/product_supervisor_audit_entry.dart';
-import 'package:barwah_app/features/products/domain/repositories/product_supervisor_audit_repository.dart';
 import 'package:barwah_app/features/wasalny_supervisor/domain/entities/wasalny_ad.dart';
 import 'package:barwah_app/features/wasalny_supervisor/domain/usecases/get_wasalny_ads_usecase.dart';
 import 'package:barwah_app/features/wasalny_supervisor/domain/usecases/update_wasalny_ad_status_usecase.dart';
@@ -32,48 +27,27 @@ class WasalnyAdsLoaded extends WasalnyAdsState {
 class WasalnyAdsCubit extends Cubit<WasalnyAdsState> {
   final GetWasalnyAdsUseCase getAds;
   final UpdateWasalnyAdStatusUseCase updateAdStatus;
-  final ProductSupervisorAuditRepository? auditRepository;
 
   WasalnyAdsCubit({
     required this.getAds,
     required this.updateAdStatus,
-    this.auditRepository,
   }) : super(const WasalnyAdsLoading());
 
   Future<void> loadAds() async {
     emit(const WasalnyAdsLoading());
     try {
-      final ads = await getAds();
-      for (final ad in ads.where((item) =>
-          item.status == WasalnyAdStatus.pending ||
-          item.status == WasalnyAdStatus.awaitingApproval)) {
-        try {
-          await LocalEventStore().publish(
-            LocalEvent(
-              id: 'wasalny-new-ad-${ad.id}',
-              recipient: 'wasalny',
-              source: 'wasalny',
-              titleAr: 'إعلان وصلني جديد بانتظار المراجعة',
-              titleEn: 'New Wasalny ad awaiting review',
-              messageAr: '${ad.titleAr} من ${ad.sellerNameAr}',
-              messageEn: '${ad.titleEn} by ${ad.sellerNameEn}',
-              createdAt: ad.submittedAt,
-            ),
-          );
-        } catch (error, stackTrace) {
-          FlutterError.reportError(
-            FlutterErrorDetails(
-              exception: error,
-              stack: stackTrace,
-              library: 'Wasalny ads',
-              context: ErrorDescription('while publishing a new-ad notification'),
-            ),
-          );
-        }
-      }
-      emit(WasalnyAdsLoaded(ads));
+      emit(WasalnyAdsLoaded(await getAds()));
     } catch (error) {
       emit(WasalnyAdsLoadFailure(error));
+    }
+  }
+
+  /// يحدّث القائمة من غير شاشة تحميل (للسحب للتحديث).
+  Future<void> refresh() async {
+    try {
+      emit(WasalnyAdsLoaded(await getAds()));
+    } catch (_) {
+      // نسيب القائمة الحالية زي ما هي لو التحديث فشل.
     }
   }
 
@@ -89,19 +63,6 @@ class WasalnyAdsCubit extends Cubit<WasalnyAdsState> {
         id: id,
         status: status,
         decisionNote: decisionNote,
-      );
-      final now = DateTime.now();
-      await auditRepository?.recordEntry(
-        ProductSupervisorAuditEntry(
-          id: now.microsecondsSinceEpoch.toString(),
-          actionKey: 'wasalny_ad_${status.name}',
-          subject: updated.titleAr,
-          details: [
-            updated.reference,
-            if (decisionNote?.isNotEmpty == true) decisionNote!,
-          ].join(' • '),
-          occurredAt: now,
-        ),
       );
       emit(
         WasalnyAdsLoaded([

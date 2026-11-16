@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
 import 'package:barwah_app/core/auth/auth_session.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/network/api_consumer.dart';
@@ -217,7 +218,7 @@ class _ProductReportsScreenState extends State<ProductReportsScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.scaffold,
-      body: RefreshIndicator(
+      body: BrandRefreshIndicator(
         onRefresh: () async {
           if (_remote) {
             setState(() => _complaintsFuture = _loadComplaints());

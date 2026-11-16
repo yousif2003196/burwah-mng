@@ -82,7 +82,12 @@ class ApiEndpoints {
   static String serviceSuspendRequest(int id) =>
       '$_supervisorForSr/suspend-request/$id';
   static String serviceEscalateRequest(int id) =>
-      '$_supervisorForSr/escalate-request/$id';
+      '$_supervisorForSr/escalate-request/$id';  static String serviceEscalateProvider(int providerId) =>
+      '$_supervisorForSr/escalate-provider/$providerId';
+  static const serviceProviderEscalations =
+      '$_supervisorForSr/provider-escalations';
+  static String serviceCloseProviderEscalation(int providerId) =>
+      '$_supervisorForSr/close-provider-escalation/$providerId';
   static String serviceSubcategories(int requestId) =>
       '$_supervisorForSr/subcategories/$requestId';
   static String serviceUpdateCategory(int id) =>
@@ -108,6 +113,9 @@ class ApiEndpoints {
   static const serviceAdvancedWalletWithdraw =
       '$_supervisorForSr/advanced-wallet/withdraw';
   static const serviceAccountSettings = '$_supervisorForSr/account-settings';
+  static const serviceAuditLog = '$_supervisorForSr/audit-log';
+  static const serviceProfileOverview = '$_supervisorForSr/profile-overview';
+  static const serviceReports = '$_supervisorForSr/reports';
 
   // المستعمل ووصلني — SupervisorUsed
 
@@ -119,6 +127,25 @@ class ApiEndpoints {
   static String usedApprove(int id) => '$_supervisorUsed/$id/approve';
   static String usedRequestEdit(int id) => '$_supervisorUsed/$id/request-edit';
   static String usedSuspend(int id) => '$_supervisorUsed/$id/suspend';
+  static String usedRestore(int id) => '$_supervisorUsed/$id/restore';
+
+  // طلبات وصلني على المنتجات المستعملة (مراجعة المشرف)
+  static const wasalnyRequests = 'api/WasalnyRequest/supervisor';
+  static String wasalnyRequest(int id) => '$wasalnyRequests/$id';
+  static String wasalnyRequestApprove(int id) => '$wasalnyRequests/$id/approve';
+  static String wasalnyRequestReject(int id) => '$wasalnyRequests/$id/reject';
+  static String wasalnyRequestFreeze(int id) => '$wasalnyRequests/$id/freeze';
+  static String wasalnyRequestReopen(int id) => '$wasalnyRequests/$id/reopen';
+  static const usedAuditLog = '$_supervisorUsed/audit-log';
+  static const usedReports = '$_supervisorUsed/reports';
+  static const usedProfileOverview = '$_supervisorUsed/profile-overview';
+  static const usedAdvancedWallet = '$_supervisorUsed/advanced-wallet';
+  static const usedComplaintEscalations =
+      '$_supervisorUsed/complaint-escalations';
+  static String usedComplaintResolve(int id) =>
+      '$_supervisorUsed/complaints/$id/resolve';
+  static String usedApproveOrder(int orderId) =>
+      'api/Order/Admin/ApproveOrder/$orderId';
   static String usedRejectWithPenalty(int id) =>
       '$_supervisorUsed/$id/reject-with-penalty';
 

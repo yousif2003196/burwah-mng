@@ -87,9 +87,10 @@ class ProductSupervisorAuditApiDataSource
     ApiConsumer apiConsumer, {
     bool mine = false,
     int pageSize = 100,
+    String path = ApiEndpoints.adAuditLog,
   }) async {
     final response = await apiConsumer.get<Object>(
-      ApiEndpoints.adAuditLog,
+      path,
       queryParameters: {'page': 1, 'pageSize': pageSize, if (mine) 'mine': true},
     );
     final body = response.data;

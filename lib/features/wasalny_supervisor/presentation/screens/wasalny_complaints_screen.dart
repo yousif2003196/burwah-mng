@@ -4,11 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/features/merchants/presentation/screens/merchant_conversation_screen.dart';
-import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
-import 'package:barwah_app/features/wasalny_supervisor/data/datasources/wasalny_case_store.dart';
 import 'package:barwah_app/features/wasalny_supervisor/domain/entities/wasalny_complaint.dart';
 import 'package:barwah_app/features/wasalny_supervisor/presentation/controllers/wasalny_complaints_cubit.dart';
 import 'package:barwah_app/l10n/app_localizations.dart';
@@ -16,7 +15,7 @@ import 'package:barwah_app/core/widgets/scroll_fx.dart';
 import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class WasalnyComplaintsScreen extends StatefulWidget {
-  /// One of: all, follow, head, overdue.
+  /// One of: all, follow, head.
   final String initialFilter;
 
   const WasalnyComplaintsScreen({super.key, this.initialFilter = 'all'});
@@ -29,33 +28,12 @@ class WasalnyComplaintsScreen extends StatefulWidget {
 class _WasalnyComplaintsScreenState extends State<WasalnyComplaintsScreen> {
   late String _filter = widget.initialFilter;
 
-  @override
-  void initState() {
-    super.initState();
-    LocalEventStore.revision.addListener(_sync);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _sync());
-  }
-
-  @override
-  void dispose() {
-    LocalEventStore.revision.removeListener(_sync);
-    super.dispose();
-  }
-
-  void _sync() {
-    if (!mounted) return;
-    context.read<WasalnyComplaintsCubit>().syncDecisions();
-  }
-
   bool _matches(WasalnyComplaint c, WasalnyComplaintsLoaded state) {
-    final overdue = WasalnyCaseRecord.isOverdue(
-        c.status, state.cases[c.id], DateTime.now());
     return switch (_filter) {
       'follow' => c.status == WasalnyComplaintStatus.underReview ||
           c.status == WasalnyComplaintStatus.returnedByHead,
       'head' => c.status == WasalnyComplaintStatus.escalatedToChief ||
           c.status == WasalnyComplaintStatus.escalatedToAdmin,
-      'overdue' => overdue,
       _ => true,
     };
   }
@@ -89,10 +67,22 @@ class _WasalnyComplaintsScreenState extends State<WasalnyComplaintsScreen> {
               return const SizedBox.shrink();
             }
             if (state.complaints.isEmpty) {
-              return Center(child: Text(l10n.wasalnyRequestsEmpty));
+              return BrandRefreshIndicator(
+                onRefresh: context.read<WasalnyComplaintsCubit>().refresh,
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: [
+                    SizedBox(height: MediaQuery.sizeOf(context).height * .3),
+                    Center(child: Text(l10n.wasalnyRequestsEmpty)),
+                  ],
+                ),
+              );
             }
 
-            return ListView(
+            return BrandRefreshIndicator(
+              onRefresh: context.read<WasalnyComplaintsCubit>().refresh,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
               children: [
                 Text(
@@ -111,7 +101,6 @@ class _WasalnyComplaintsScreenState extends State<WasalnyComplaintsScreen> {
                         ('all', isArabic ? 'الكل' : 'All'),
                         ('follow', isArabic ? 'تحتاج متابعة' : 'Needs follow-up'),
                         ('head', isArabic ? 'عند الرئيس' : 'With head'),
-                        ('overdue', isArabic ? 'متأخرة' : 'Overdue'),
                       ])
                         Padding(
                           padding: const EdgeInsetsDirectional.only(end: 6),
@@ -133,10 +122,6 @@ class _WasalnyComplaintsScreenState extends State<WasalnyComplaintsScreen> {
                       complaint: complaint,
                       isArabic: isArabic,
                       l10n: l10n,
-                      overdue: WasalnyCaseRecord.isOverdue(
-                          complaint.status,
-                          state.cases[complaint.id],
-                          DateTime.now()),
                       onTap: () => Navigator.of(context).push<void>(
                         MaterialPageRoute<void>(
                           builder: (_) => BlocProvider.value(
@@ -151,7 +136,7 @@ class _WasalnyComplaintsScreenState extends State<WasalnyComplaintsScreen> {
                     ),
                   ),
               ],
-            );
+            ));
           },
         ),
       ),
@@ -191,14 +176,11 @@ class _ComplaintListTile extends StatelessWidget {
   final bool isArabic;
   final AppLocalizations l10n;
   final VoidCallback onTap;
-  final bool overdue;
-
   const _ComplaintListTile({
     required this.complaint,
     required this.isArabic,
     required this.l10n,
     required this.onTap,
-    this.overdue = false,
   });
 
   @override
@@ -237,10 +219,6 @@ class _ComplaintListTile extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (overdue) ...[
-                    _OverdueBadge(isArabic: isArabic),
-                    const SizedBox(width: 6),
-                  ],
                   _ComplaintStatusBadge(status: complaint.status, l10n: l10n),
                 ],
               ),
@@ -334,9 +312,6 @@ class _WasalnyComplaintDetailsScreen extends StatelessWidget {
               context,
               currentComplaint,
               l10n,
-              state is WasalnyComplaintsLoaded
-                  ? state.cases[complaint.id]
-                  : null,
             );
           },
         ),
@@ -348,7 +323,6 @@ class _WasalnyComplaintDetailsScreen extends StatelessWidget {
     BuildContext context,
     WasalnyComplaint currentComplaint,
     AppLocalizations l10n,
-    WasalnyCaseRecord? record,
   ) {
     final sellerName = isArabic
         ? currentComplaint.sellerNameAr
@@ -509,58 +483,6 @@ class _WasalnyComplaintDetailsScreen extends StatelessWidget {
             ],
           ),
         )),
-        if (record != null && record.timeline.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          _DetailsSection(
-            title: isArabic ? 'مسار الشكوى' : 'Complaint path',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  isArabic
-                      ? 'مشرف وصلني ← رئيس المشرفين ← الأدمن (بقرار الرئيس)'
-                      : 'Wasalny supervisor → Head → Admin (head decision)',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 11,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                for (final note in record.timeline.reversed)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: EdgeInsets.only(top: 4),
-                          child: MotionIcon(Icons.circle,
-                              size: 8, color: AppColors.info),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(note.text,
-                                  style: const TextStyle(fontSize: 12)),
-                              Text(
-                                _fmt(note.at),
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: AppColors.textMuted,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
         const SizedBox(height: 16),
         if (canAct) ...[
           FilledButton.icon(
@@ -1486,31 +1408,4 @@ class _PartyContact extends StatelessWidget {
             ),
         ],
       );
-}
-
-class _OverdueBadge extends StatelessWidget {
-  final bool isArabic;
-  const _OverdueBadge({required this.isArabic});
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: AppColors.dangerDark.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(
-          isArabic ? 'متأخرة' : 'Overdue',
-          style: TextStyle(
-            color: AppColors.dangerDark,
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      );
-}
-
-String _fmt(DateTime d) {
-  String two(int n) => n.toString().padLeft(2, '0');
-  return '${d.year}-${two(d.month)}-${two(d.day)} ${two(d.hour)}:${two(d.minute)}';
 }

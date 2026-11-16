@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
@@ -178,7 +179,7 @@ class _FinancialActivityLogScreenState
           backgroundColor: AppColors.scaffold,
           body: SafeArea(
             bottom: false,
-            child: RefreshIndicator(
+            child: BrandRefreshIndicator(
               onRefresh: _load,
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),

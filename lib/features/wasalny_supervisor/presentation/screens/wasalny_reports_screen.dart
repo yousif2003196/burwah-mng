@@ -2,58 +2,20 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
-import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
+import 'package:barwah_app/core/auth/auth_session.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/network/api_consumer.dart';
+import 'package:barwah_app/core/network/api_endpoints.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/core/utils/csv_exporter.dart';
-import 'package:barwah_app/features/products/domain/entities/product_supervisor_audit_entry.dart';
-import 'package:barwah_app/features/products/domain/repositories/product_supervisor_audit_repository.dart';
-import 'package:barwah_app/features/wasalny_supervisor/data/datasources/wasalny_case_store.dart';
-import 'package:barwah_app/features/wasalny_supervisor/data/datasources/wasalny_request_store.dart';
-import 'package:barwah_app/features/wasalny_supervisor/domain/entities/wasalny_complaint.dart';
-import 'package:barwah_app/features/wasalny_supervisor/domain/usecases/get_wasalny_complaints_usecase.dart';
-import 'package:barwah_app/l10n/app_localizations.dart';
-import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/widgets/motion_icon.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/l10n/app_localizations.dart';
 
-/// Live numbers computed from complaints and request follow-up data.
-class _ReportExtra {
-  final int totalComplaints;
-  final int openComplaints;
-  final int atHead;
-  final int atAdmin;
-  final int resolvedComplaints;
-  final int overdueComplaints;
-  final Duration? avgResolution;
-  final int soldRequests;
-  final int flaggedRequests;
-  final int pendingFlags;
-  final List<List<String>> complaintRows;
-
-  const _ReportExtra({
-    required this.totalComplaints,
-    required this.openComplaints,
-    required this.atHead,
-    required this.atAdmin,
-    required this.resolvedComplaints,
-    required this.overdueComplaints,
-    required this.avgResolution,
-    required this.soldRequests,
-    required this.flaggedRequests,
-    required this.pendingFlags,
-    required this.complaintRows,
-  });
-}
-
-String _complaintStatusAr(WasalnyComplaintStatus s) => switch (s) {
-      WasalnyComplaintStatus.underReview => 'جديدة',
-      WasalnyComplaintStatus.escalatedToChief => 'عند رئيس المشرفين',
-      WasalnyComplaintStatus.actionTakenBlocked => 'تم الإجراء/الحجب',
-      WasalnyComplaintStatus.resolved => 'محلولة',
-      WasalnyComplaintStatus.returnedByHead => 'أُعيدت من الرئيس',
-      WasalnyComplaintStatus.escalatedToAdmin => 'عند الأدمن عبر الرئيس',
-    };
-
+/// تقرير مشرف وصلني من السيرفر (`GET api/SupervisorUsed/reports?period=`):
+/// مراجعة الإعلانات المستعملة وطلبات وصلني وطلبات الشراء والشكاوى.
 class WasalnyReportsScreen extends StatefulWidget {
   const WasalnyReportsScreen({super.key});
 
@@ -62,135 +24,108 @@ class WasalnyReportsScreen extends StatefulWidget {
 }
 
 class _WasalnyReportsScreenState extends State<WasalnyReportsScreen> {
-  late Future<List<ProductSupervisorAuditEntry>> _entriesFuture;
-  late Future<_ReportExtra> _extraFuture;
+  static const _periods = ['today', 'week', 'month', 'all'];
+
+  String _period = 'month';
+  Map<String, dynamic>? _data;
+  bool _loading = true;
+  bool _failed = false;
 
   @override
   void initState() {
     super.initState();
-    _entriesFuture = _loadEntries();
-    _extraFuture = _loadExtra();
+    _load();
   }
 
-  Future<List<ProductSupervisorAuditEntry>> _loadEntries() async {
-    final entries = await sl<ProductSupervisorAuditRepository>().getEntries();
-    return entries
-        .where((entry) => entry.actionKey.startsWith('wasalny_'))
-        .toList();
-  }
-
-  Future<_ReportExtra> _loadExtra() async {
-    final raw = await sl<GetWasalnyComplaintsUseCase>()();
-    final cases = await WasalnyCaseStore().refresh(raw);
-    final complaints = WasalnyCaseStore.apply(raw, cases);
-    final requests = await WasalnyRequestStore().load();
-    final now = DateTime.now();
-    bool isOpen(WasalnyComplaintStatus s) =>
-        s == WasalnyComplaintStatus.underReview ||
-        s == WasalnyComplaintStatus.returnedByHead;
-    final durations = <Duration>[];
-    for (final c in complaints) {
-      final record = cases[c.id];
-      if (c.status == WasalnyComplaintStatus.resolved &&
-          record != null &&
-          record.timeline.isNotEmpty) {
-        final d = record.timeline.last.at.difference(record.firstSeen);
-        if (!d.isNegative) durations.add(d);
-      }
+  Future<void> _load() async {
+    if (!AuthSession.isSignedIn) {
+      setState(() => _loading = false);
+      return;
     }
-    return _ReportExtra(
-      totalComplaints: complaints.length,
-      openComplaints: complaints.where((c) => isOpen(c.status)).length,
-      atHead: complaints
-          .where((c) => c.status == WasalnyComplaintStatus.escalatedToChief)
-          .length,
-      atAdmin: complaints
-          .where((c) => c.status == WasalnyComplaintStatus.escalatedToAdmin)
-          .length,
-      resolvedComplaints: complaints
-          .where((c) => c.status == WasalnyComplaintStatus.resolved)
-          .length,
-      overdueComplaints: complaints
-          .where((c) =>
-              WasalnyCaseRecord.isOverdue(c.status, cases[c.id], now))
-          .length,
-      avgResolution: durations.isEmpty
-          ? null
-          : Duration(
-              minutes: durations.fold<int>(0, (a, d) => a + d.inMinutes) ~/
-                  durations.length,
-            ),
-      soldRequests: requests.values.where((s) => s.isSold).length,
-      flaggedRequests: requests.values.where((s) => s.flagStatus != null).length,
-      pendingFlags: requests.values
-          .where((s) => s.flagStatus == WasalnyRequestFlagStatus.pendingHead)
-          .length,
-      complaintRows: [
-        for (final c in complaints)
-          [
-            'شكوى',
-            c.id,
-            c.titleAr,
-            _complaintStatusAr(c.status),
-            WasalnyCaseRecord.isOverdue(c.status, cases[c.id], now)
-                ? 'متأخرة'
-                : '',
-          ],
-      ],
-    );
+    setState(() {
+      _loading = true;
+      _failed = false;
+    });
+    try {
+      final response = await sl<ApiConsumer>(instanceName: 'berwah').get<Object>(
+        ApiEndpoints.usedReports,
+        queryParameters: {'period': _period},
+      );
+      final body = response.data;
+      final data = body is Map ? body['data'] : null;
+      if (data is! Map<String, dynamic>) throw const FormatException('report');
+      if (!mounted) return;
+      setState(() {
+        _data = data;
+        _loading = false;
+      });
+    } on Object catch (error) {
+      debugPrint('Wasalny report load failed: $error');
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _failed = true;
+      });
+    }
   }
 
-  Future<void> _export() async {
+  int _n(String key) => (_data?[key] as num?)?.toInt() ?? 0;
+  double? _d(String key) => (_data?[key] as num?)?.toDouble();
+
+  String _minutes(double? m, bool ar) {
+    if (m == null) return '—';
+    if (m < 90) return '${m.toStringAsFixed(0)} ${ar ? 'دقيقة' : 'min'}';
+    return '${(m / 60).toStringAsFixed(1)} ${ar ? 'ساعة' : 'h'}';
+  }
+
+  String _periodLabel(String p, bool ar) => switch (p) {
+    'today' => ar ? 'اليوم' : 'Today',
+    'week' => ar ? 'الأسبوع' : 'Week',
+    'month' => ar ? 'الشهر' : 'Month',
+    _ => ar ? 'الكل' : 'All',
+  };
+
+  Future<void> _export(bool ar) async {
+    final d = _data;
+    if (d == null) return;
     try {
-      final entries = await _entriesFuture;
-      final extra = await _extraFuture;
       final rows = <List<String>>[
-        ['مؤشر', 'إجمالي الشكاوى', '', '${extra.totalComplaints}', ''],
-        ['مؤشر', 'شكاوى مفتوحة', '', '${extra.openComplaints}', ''],
-        ['مؤشر', 'عند رئيس المشرفين', '', '${extra.atHead}', ''],
-        ['مؤشر', 'عند الأدمن عبر الرئيس', '', '${extra.atAdmin}', ''],
-        ['مؤشر', 'شكاوى محلولة', '', '${extra.resolvedComplaints}', ''],
-        ['مؤشر', 'شكاوى متأخرة', '', '${extra.overdueComplaints}', ''],
-        ['مؤشر', 'طلبات تم بيعها', '', '${extra.soldRequests}', ''],
-        ['مؤشر', 'طلبات مرفوعة للرئيس', '', '${extra.flaggedRequests}', ''],
-        ...extra.complaintRows,
-        for (final e in entries)
-          ['إجراء', e.actionKey, e.subject, e.details, e.occurredAt.toIso8601String()],
+        [ar ? 'إعلانات تمت مراجعتها' : 'Ads reviewed', '${_n('reviewed')}'],
+        [ar ? 'معتمدة' : 'Approved', '${_n('approved')}'],
+        [ar ? 'مرفوضة' : 'Rejected', '${_n('rejected')}'],
+        [ar ? 'طُلب تعديلها' : 'Edit requested', '${_n('editRequested')}'],
+        [ar ? 'معلّقة' : 'Suspended', '${_n('suspended')}'],
+        [ar ? 'طلبات وصلني معتمدة' : 'Wasalny approved', '${_n('requestsApproved')}'],
+        [ar ? 'طلبات وصلني مرفوضة' : 'Wasalny rejected', '${_n('requestsRejected')}'],
+        [ar ? 'طلبات وصلني مجمّدة' : 'Wasalny frozen', '${_n('requestsFrozen')}'],
+        [ar ? 'طلبات شراء معتمدة' : 'Orders approved', '${_n('ordersApproved')}'],
+        [ar ? 'شكاوى مصعّدة' : 'Complaints escalated', '${_n('complaintsEscalated')}'],
+        [ar ? 'شكاوى محلولة' : 'Complaints resolved', '${_n('complaintsResolved')}'],
+        [ar ? 'شكاوى مفتوحة' : 'Open complaints', '${_n('openComplaints')}'],
       ];
       await CsvExporter.share(
         fileName: 'wasalny_report_${CsvExporter.stamp()}.csv',
-        title: 'تقرير مشرف وصلني',
-        headers: const ['النوع', 'المعرف', 'الوصف', 'الحالة/القيمة', 'ملاحظة/الوقت'],
+        title: ar ? 'تقرير مشرف وصلني' : 'Wasalny supervisor report',
+        headers: [ar ? 'المؤشر' : 'Metric', ar ? 'القيمة' : 'Value'],
         rows: rows,
       );
-    } catch (error, stackTrace) {
-      FlutterError.reportError(
-        FlutterErrorDetails(
-          exception: error,
-          stack: stackTrace,
-          library: 'Wasalny reports',
-          context: ErrorDescription('while exporting the report'),
-        ),
-      );
+    } on Object catch (error) {
+      debugPrint('Wasalny report export failed: $error');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تعذر تصدير التقرير')),
+        SnackBar(content: Text(ar ? 'تعذر تصدير التقرير' : 'Could not export')),
       );
     }
   }
-
-  void _retry() => setState(() {
-        _entriesFuture = _loadEntries();
-        _extraFuture = _loadExtra();
-      });
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final isArabic = l10n.localeName.startsWith('ar');
+    final ar = l10n.localeName.startsWith('ar');
+    final change = _d('changePercent');
 
     return Directionality(
-      textDirection: isArabic ? ui.TextDirection.rtl : ui.TextDirection.ltr,
+      textDirection: ar ? ui.TextDirection.rtl : ui.TextDirection.ltr,
       child: Scaffold(
         backgroundColor: AppColors.scaffold,
         appBar: AppBar(
@@ -199,158 +134,127 @@ class _WasalnyReportsScreenState extends State<WasalnyReportsScreen> {
           title: Text(l10n.productReportsTab),
           actions: [
             IconButton(
-              tooltip: isArabic ? 'تصدير CSV' : 'Export CSV',
-              onPressed: _export,
+              tooltip: ar ? 'تصدير CSV' : 'Export CSV',
+              onPressed: _data == null ? null : () => _export(ar),
               icon: const MotionIcon(Icons.download_outlined),
             ),
           ],
         ),
-        body: FutureBuilder<List<ProductSupervisorAuditEntry>>(
-          future: _entriesFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return Center(
+        body: !AuthSession.isSignedIn
+            ? Center(child: Text(ar ? 'سجّل الدخول لعرض التقرير' : 'Sign in to see the report'))
+            : _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _failed || _data == null
+            ? Center(
                 child: FilledButton.icon(
-                  onPressed: _retry,
+                  onPressed: _load,
                   icon: const MotionIcon(Icons.refresh),
                   label: Text(l10n.retryLoadMerchants),
                 ),
-              );
-            }
-            final entries = snapshot.data ?? const [];
-            int count(String key) =>
-                entries.where((entry) => entry.actionKey == key).length;
-            final adReviews = entries
-                .where((entry) => entry.actionKey.startsWith('wasalny_ad_'))
-                .length;
-            final adApprovals = count('wasalny_ad_approved');
-            final resolved = count('wasalny_complaint_resolved');
-            final escalated = count('wasalny_complaint_escalated');
-            final contacts = count('wasalny_request_contact_revealed');
-
-            return ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                Text(
-                  l10n.wasalnyReportOverview,
-                  style: TextStyle(
-                    color: AppColors.ink,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                ScrollFx(child: _ReportMetric(
-                  icon: Icons.fact_check_outlined,
-                  label: isArabic
-                      ? 'مراجعات الإعلانات المسجلة'
-                      : 'Recorded ad reviews',
-                  value: '$adReviews',
-                  detail: isArabic
-                      ? 'من سجل الإجراءات الرقابية'
-                      : 'From the audit log',
-                )),
-                ScrollFx(child: _ReportMetric(
-                  icon: Icons.task_alt_outlined,
-                  label: isArabic ? 'الإعلانات المعتمدة' : 'Approved ads',
-                  value: '$adApprovals',
-                  detail: isArabic
-                      ? 'قرارات اعتماد مسجلة'
-                      : 'Approval decisions recorded',
-                )),
-                ScrollFx(child: _ReportMetric(
-                  icon: Icons.check_circle_outline,
-                  label: isArabic ? 'الشكاوى المحلولة' : 'Resolved complaints',
-                  value: '$resolved',
-                  detail: isArabic
-                      ? 'من سجل الإجراءات الرقابية'
-                      : 'From the audit log',
-                )),
-                ScrollFx(child: _ReportMetric(
-                  icon: Icons.escalator_warning_outlined,
-                  label: isArabic ? 'الشكاوى المصعّدة' : 'Escalated complaints',
-                  value: '$escalated',
-                  detail: isArabic
-                      ? 'تم إرسالها لرئيس المشرفين'
-                      : 'Sent to the head supervisor',
-                )),
-                ScrollFx(child: _ReportMetric(
-                  icon: Icons.contact_phone_outlined,
-                  label:
-                      isArabic ? 'طلبات إظهار التواصل' : 'Contact disclosures',
-                  value: '$contacts',
-                  detail: isArabic
-                      ? 'طلبات مسجلة في سجل الرقابة'
-                      : 'Requests recorded in the audit log',
-                )),
-                FutureBuilder<_ReportExtra>(
-                  future: _extraFuture,
-                  builder: (context, extraSnapshot) {
-                    final extra = extraSnapshot.data;
-                    if (extra == null) return const SizedBox.shrink();
-                    String hours(Duration? d) => d == null
-                        ? '—'
-                        : (d.inMinutes < 90
-                            ? '${d.inMinutes} ${isArabic ? 'دقيقة' : 'min'}'
-                            : '${(d.inMinutes / 60).toStringAsFixed(1)} ${isArabic ? 'ساعة' : 'h'}');
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+              )
+            : BrandRefreshIndicator(
+                onRefresh: _load,
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    Wrap(
+                      spacing: 8,
                       children: [
-                        const SizedBox(height: 8),
-                        _ReportMetric(
-                          icon: Icons.inbox_outlined,
-                          label: isArabic ? 'الشكاوى المفتوحة' : 'Open complaints',
-                          value: '${extra.openComplaints} / ${extra.totalComplaints}',
-                          detail: isArabic
-                              ? 'تحتاج متابعة من المشرف'
-                              : 'Need supervisor follow-up',
-                        ),
-                        _ReportMetric(
-                          icon: Icons.account_tree_outlined,
-                          label: isArabic ? 'عند الرئيس / الأدمن' : 'With head / admin',
-                          value: '${extra.atHead} / ${extra.atAdmin}',
-                          detail: isArabic
-                              ? 'بانتظار القرار'
-                              : 'Awaiting a decision',
-                        ),
-                        _ReportMetric(
-                          icon: Icons.timer_off_outlined,
-                          label: isArabic ? 'الشكاوى المتأخرة' : 'Overdue complaints',
-                          value: '${extra.overdueComplaints}',
-                          detail: isArabic
-                              ? 'تجاوزت 24 ساعة (المشرف) أو 48 ساعة (الرئيس)'
-                              : 'Past 24h (supervisor) or 48h (head)',
-                        ),
-                        _ReportMetric(
-                          icon: Icons.speed_outlined,
-                          label: isArabic ? 'متوسط زمن الحل' : 'Average resolution time',
-                          value: hours(extra.avgResolution),
-                          detail: isArabic
-                              ? 'للشكاوى المحلولة على هذا الجهاز'
-                              : 'For complaints resolved on this device',
-                        ),
-                        _ReportMetric(
-                          icon: Icons.sell_outlined,
-                          label: isArabic ? 'طلبات تم بيعها' : 'Sold requests',
-                          value: '${extra.soldRequests}',
-                          detail: isArabic
-                              ? 'مرفوع للرئيس: ${extra.flaggedRequests} (بانتظار القرار ${extra.pendingFlags})'
-                              : 'Flagged to head: ${extra.flaggedRequests} (${extra.pendingFlags} pending)',
-                        ),
+                        for (final p in _periods)
+                          ChoiceChip(
+                            label: Text(_periodLabel(p, ar)),
+                            selected: _period == p,
+                            onSelected: (_) {
+                              if (_period == p) return;
+                              setState(() => _period = p);
+                              _load();
+                            },
+                          ),
                       ],
-                    );
-                  },
+                    ),
+                    const SizedBox(height: 14),
+                    _section(ar ? 'مراجعة الإعلانات' : 'Ad review'),
+                    ScrollFx(child: _ReportMetric(
+                      icon: Icons.fact_check_outlined,
+                      label: ar ? 'إعلانات تمت مراجعتها' : 'Ads reviewed',
+                      value: '${_n('reviewed')}',
+                      detail: change == null
+                          ? (ar ? 'لا مقارنة بالفترة السابقة' : 'No previous period to compare')
+                          : '${change >= 0 ? '+' : ''}${change.toStringAsFixed(1)}% ${ar ? 'عن الفترة السابقة' : 'vs previous period'}',
+                    )),
+                    ScrollFx(child: _ReportMetric(
+                      icon: Icons.task_alt_outlined,
+                      label: ar ? 'معتمدة / مرفوضة' : 'Approved / rejected',
+                      value: '${_n('approved')} / ${_n('rejected')}',
+                      detail: ar
+                          ? 'نسبة القبول ${_d('approvalRate')?.toStringAsFixed(1) ?? '0'}% • الرفض ${_d('rejectionRate')?.toStringAsFixed(1) ?? '0'}%'
+                          : 'Approval ${_d('approvalRate')?.toStringAsFixed(1) ?? '0'}% • rejection ${_d('rejectionRate')?.toStringAsFixed(1) ?? '0'}%',
+                    )),
+                    ScrollFx(child: _ReportMetric(
+                      icon: Icons.edit_note_outlined,
+                      label: ar ? 'طُلب تعديل / معلّقة' : 'Edit requested / suspended',
+                      value: '${_n('editRequested')} / ${_n('suspended')}',
+                      detail: ar ? 'في الفترة المحددة' : 'In the selected period',
+                    )),
+                    ScrollFx(child: _ReportMetric(
+                      icon: Icons.speed_outlined,
+                      label: ar ? 'متوسط وقت المراجعة' : 'Average review time',
+                      value: _minutes(_d('averageMinutes'), ar),
+                      detail: ar ? 'من وصول الإعلان حتى القرار' : 'From submission to decision',
+                    )),
+                    ScrollFx(child: _ReportMetric(
+                      icon: Icons.hourglass_bottom_outlined,
+                      label: ar ? 'بانتظار المراجعة / متأخرة' : 'Pending / overdue',
+                      value: '${_n('pendingAds')} / ${_n('overdueAds')}',
+                      detail: ar ? 'المتأخر تجاوز 24 ساعة' : 'Overdue = more than 24 hours',
+                    )),
+                    const SizedBox(height: 8),
+                    _section(ar ? 'طلبات وصلني والشراء' : 'Wasalny & orders'),
+                    ScrollFx(child: _ReportMetric(
+                      icon: Icons.local_shipping_outlined,
+                      label: ar ? 'طلبات وصلني: معتمد / مرفوض / مجمّد' : 'Wasalny: approved / rejected / frozen',
+                      value: '${_n('requestsApproved')} / ${_n('requestsRejected')} / ${_n('requestsFrozen')}',
+                      detail: ar
+                          ? 'قيد المراجعة الآن: ${_n('pendingRequests')}'
+                          : 'Under review now: ${_n('pendingRequests')}',
+                    )),
+                    ScrollFx(child: _ReportMetric(
+                      icon: Icons.shopping_bag_outlined,
+                      label: ar ? 'طلبات شراء معتمدة' : 'Orders approved',
+                      value: '${_n('ordersApproved')}',
+                      detail: ar
+                          ? 'بانتظار الاعتماد: ${_n('pendingOrders')} • تنبيهات مشتركة: ${_n('jointAlerts')}'
+                          : 'Waiting: ${_n('pendingOrders')} • joint alerts: ${_n('jointAlerts')}',
+                    )),
+                    const SizedBox(height: 8),
+                    _section(ar ? 'الشكاوى' : 'Complaints'),
+                    ScrollFx(child: _ReportMetric(
+                      icon: Icons.inbox_outlined,
+                      label: ar ? 'الشكاوى المفتوحة' : 'Open complaints',
+                      value: '${_n('openComplaints')}',
+                      detail: ar ? 'تحتاج متابعة' : 'Need follow-up',
+                    )),
+                    ScrollFx(child: _ReportMetric(
+                      icon: Icons.account_tree_outlined,
+                      label: ar ? 'متابعة / مرسلة للبائع / مصعّدة / محلولة' : 'Follow-up / to seller / escalated / resolved',
+                      value:
+                          '${_n('complaintsFollowUp')} / ${_n('complaintsSentToSeller')} / ${_n('complaintsEscalated')} / ${_n('complaintsResolved')}',
+                      detail: ar ? 'في الفترة المحددة' : 'In the selected period',
+                    )),
+                  ],
                 ),
-              ],
-            );
-          },
-        ),
+              ),
       ),
     );
   }
+
+  Widget _section(String title) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Text(
+      title,
+      style: TextStyle(color: AppColors.ink, fontSize: 16, fontWeight: FontWeight.w800),
+    ),
+  );
 }
 
 class _ReportMetric extends StatelessWidget {
@@ -387,29 +291,13 @@ class _ReportMetric extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 11,
-                  ),
-                ),
+                Text(label, style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
                 const SizedBox(height: 4),
                 CountText(
                   value,
-                  style: TextStyle(
-                    color: AppColors.ink,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                  ),
+                  style: TextStyle(color: AppColors.ink, fontSize: 20, fontWeight: FontWeight.w800),
                 ),
-                Text(
-                  detail,
-                  style: TextStyle(
-                    color: AppColors.successDark,
-                    fontSize: 10,
-                  ),
-                ),
+                Text(detail, style: TextStyle(color: AppColors.successDark, fontSize: 10)),
               ],
             ),
           ),

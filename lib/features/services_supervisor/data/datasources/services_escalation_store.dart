@@ -3,7 +3,12 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:barwah_app/core/auth/auth_session.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/network/api_consumer.dart';
+import 'package:barwah_app/core/network/api_endpoints.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_supervisor_request_decision_sheet.dart';
+import 'package:barwah_app/features/services_supervisor/data/datasources/services_activity_log.dart';
 import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
 import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
 
@@ -193,6 +198,11 @@ class ServicesEscalationStore {
   }) async {
     final clean = reason.replaceAll(' — ', ' - ').replaceAll('\n', ' ').trim();
     if (clean.length < 5) throw ArgumentError('A written reason is required.');
+    if (AuthSession.isSignedIn) {
+      await _escalateRemote(kind, refId, clean);
+      revision.value++;
+      return;
+    }
     final all = await load();
     final key = ServicesEscalation.keyOf(kind, refId);
     final existing = all[key];
@@ -231,8 +241,127 @@ class ServicesEscalationStore {
     await _save(all);
   }
 
-  /// Applies head decisions (events addressed to `products`).
+  static int _numberOf(String text) =>
+      int.tryParse(text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+
+  /// Complaints and providers go to the head through the server. Requests are
+  /// already escalated by the review screen (status "Escalated").
+  Future<void> _escalateRemote(
+    ServicesEscalationKind kind,
+    String refId,
+    String reason,
+  ) async {
+    final id = _numberOf(refId);
+    if (id == 0) throw ArgumentError('Bad id: $refId');
+    final api = sl<ApiConsumer>(instanceName: 'berwah');
+    switch (kind) {
+      case ServicesEscalationKind.complaint:
+        await api.post<Object>(
+          ApiEndpoints.serviceComplaintEscalate(id),
+          data: {'supervisorNote': reason, 'sendNotification': true},
+        );
+      case ServicesEscalationKind.provider:
+        await api.post<Object>(
+          ApiEndpoints.serviceEscalateProvider(id),
+          data: {'reason': reason, 'adminNotes': ''},
+        );
+      case ServicesEscalationKind.request:
+        break;
+    }
+  }
+
+  static const _requestDecisions = {
+    'srv_approved': 'اعتمد الرئيس الطلب',
+    'srv_updated_approved': 'عدّل الرئيس الطلب واعتمده',
+    'srv_rejected': 'رفض الرئيس الطلب',
+    'srv_suspended': 'علّق الرئيس الطلب',
+  };
+  static const _providerDecisions = {
+    'srv_provider_suspended': 'تم إيقاف المزود',
+    'srv_provider_reactivated': 'أُعيد تفعيل المزود',
+    'srv_provider_escalation_closed': 'أغلق الرئيس التصعيد',
+  };
+
+  /// Built from the server audit trail: an escalation starts with the
+  /// supervisor's line and ends with a later decision on the same subject.
+  Future<Map<String, ServicesEscalation>> _remote() async {
+    final entries = await ServicesActivityLog.fetchRemote(pageSize: 300);
+    entries.sort((a, b) => a.at.compareTo(b.at));
+    final all = <String, ServicesEscalation>{};
+    ServicesEscalationKind? kindOf(String subject) {
+      if (subject.startsWith('SRV-')) return ServicesEscalationKind.request;
+      if (subject.startsWith('TCK-')) return ServicesEscalationKind.complaint;
+      if (subject.startsWith('PRV-')) return ServicesEscalationKind.provider;
+      return null;
+    }
+
+    for (final e in entries) {
+      final kind = kindOf(e.subject);
+      if (kind == null) continue;
+      final refId = _numberOf(e.subject).toString();
+      final key = ServicesEscalation.keyOf(kind, refId);
+      final existing = all[key];
+      final isStart = e.action == 'srv_escalated' ||
+          e.action == 'srv_complaint_escalated' ||
+          e.action == 'srv_provider_escalated';
+      if (isStart) {
+        all[key] = ServicesEscalation(
+          kind: kind,
+          refId: refId,
+          title: e.subject,
+          status: ServicesEscalationStatus.pendingHead,
+          reason: e.details,
+          escalatedAt: e.at,
+          rounds: (existing?.rounds ?? 0) + 1,
+          timeline: [
+            ...?existing?.timeline,
+            ServicesEscalationNote(
+                e.at, 'تم الرفع لرئيس المشرفين — ${e.details}'),
+          ],
+        );
+        continue;
+      }
+      if (existing == null ||
+          existing.status != ServicesEscalationStatus.pendingHead) {
+        continue;
+      }
+      String? text;
+      var status = ServicesEscalationStatus.decided;
+      if (kind == ServicesEscalationKind.request) {
+        if (e.action == 'srv_returned') {
+          status = ServicesEscalationStatus.returned;
+          text = 'أعاد الرئيس الطلب للمراجعة';
+        } else {
+          text = _requestDecisions[e.action];
+        }
+      } else if (kind == ServicesEscalationKind.provider) {
+        text = _providerDecisions[e.action];
+      }
+      if (text == null) continue;
+      all[key] = existing.copyWith(
+        status: status,
+        timeline: [
+          ...existing.timeline,
+          ServicesEscalationNote(
+            e.at,
+            e.details.isEmpty ? text : '$text — ${e.details}',
+          ),
+        ],
+      );
+    }
+    return all;
+  }
+
+  /// Applies head decisions (server audit trail, or local events when offline).
   Future<Map<String, ServicesEscalation>> refresh() async {
+    if (AuthSession.isSignedIn) {
+      try {
+        return await _remote();
+      } on Object catch (error) {
+        debugPrint('Services escalations unavailable: $error');
+        return {};
+      }
+    }
     final all = await load();
     final waiting = all.values
         .where((e) => e.status == ServicesEscalationStatus.pendingHead)

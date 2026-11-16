@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
 import 'package:barwah_app/core/auth/auth_session.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/network/api_consumer.dart';
@@ -553,7 +554,10 @@ class _ServicesRequestsReviewScreenState
             _selectedCategory == null || request.category == _selectedCategory)
         .toList();
 
-    return ListView(
+    return BrandRefreshIndicator(
+      onRefresh: _loadRemote,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
       children: [
         ScrollFx(child: _buildHeading(l10n, pendingRequests.length)),
@@ -652,7 +656,7 @@ class _ServicesRequestsReviewScreenState
             const SizedBox(height: 14),
           ],
       ],
-    );
+    ));
   }
 
   Widget _buildHeading(AppLocalizations l10n, int requestCount) {

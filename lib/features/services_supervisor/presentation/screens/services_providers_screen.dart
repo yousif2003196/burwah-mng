@@ -36,6 +36,7 @@ class _ServicesProvidersScreenState extends State<ServicesProvidersScreen> {
     _loadStates();
     ServicesProviderStateStore.revision.addListener(_loadStates);
     if (AuthSession.isSignedIn) {
+      serviceProviders.clear();
       ServicesProviderApiDataSource.refreshCatalog().then((_) {
         if (mounted) setState(() {});
       });

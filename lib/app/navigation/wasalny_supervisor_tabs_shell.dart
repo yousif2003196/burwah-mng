@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'package:barwah_app/core/realtime/realtime_hub.dart';
 import 'package:barwah_app/core/widgets/rolling_app_bar.dart';
 import 'package:barwah_app/features/messaging/presentation/widgets/unread_events_dot.dart';
 import 'package:barwah_app/core/widgets/side_panel.dart';
@@ -14,7 +15,9 @@ import 'package:barwah_app/features/messaging/data/datasources/local_event_store
 import 'package:barwah_app/features/messaging/presentation/screens/account_conversations_screen.dart';
 import 'package:barwah_app/features/products/presentation/screens/product_promotions_screen.dart';
 import 'package:barwah_app/features/products/presentation/screens/product_supervisor_profile_screen.dart';
-import 'package:barwah_app/features/wasalny_supervisor/data/datasources/wasalny_ads_mock_data_source.dart';
+import 'package:barwah_app/core/auth/auth_session.dart';
+import 'package:barwah_app/core/network/api_consumer.dart';
+import 'package:barwah_app/features/wasalny_supervisor/data/datasources/wasalny_ads_api_data_source.dart';
 import 'package:barwah_app/features/wasalny_supervisor/data/repositories/wasalny_ads_repository_impl.dart';
 import 'package:barwah_app/features/wasalny_supervisor/domain/usecases/get_wasalny_ads_usecase.dart';
 import 'package:barwah_app/features/wasalny_supervisor/domain/usecases/update_wasalny_ad_status_usecase.dart';
@@ -50,7 +53,9 @@ class _WasalnySupervisorTabsShellState
     extends State<WasalnySupervisorTabsShell> {
   late final PageController _pageController = PageController(initialPage: 3);
   late final WasalnyAdsRepositoryImpl _repository = WasalnyAdsRepositoryImpl(
-    dataSource: WasalnyAdsMockDataSource(),
+    dataSource: WasalnyAdsApiDataSource(
+      apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'),
+    ),
   );
   int _currentIndex = 3;
   int _unreadNotifications = 0;
@@ -62,6 +67,7 @@ class _WasalnySupervisorTabsShellState
   void initState() {
     super.initState();
     LocalEventStore.revision.addListener(_refreshUnreadNotifications);
+    RealtimeHub.instance.unread.addListener(_refreshUnreadNotifications);
     _refreshUnreadNotifications();
   }
 
@@ -72,6 +78,13 @@ class _WasalnySupervisorTabsShellState
   }
 
   Future<void> _refreshUnreadNotifications() async {
+    if (AuthSession.isSignedIn) {
+      final unread = RealtimeHub.instance.unread.value;
+      if (mounted && unread != _unreadNotifications) {
+        setState(() => _unreadNotifications = unread);
+      }
+      return;
+    }
     try {
       final events = await LocalEventStore().getEvents('wasalny');
       if (!mounted) return;
@@ -94,6 +107,7 @@ class _WasalnySupervisorTabsShellState
   @override
   void dispose() {
     LocalEventStore.revision.removeListener(_refreshUnreadNotifications);
+    RealtimeHub.instance.unread.removeListener(_refreshUnreadNotifications);
     _pageController.dispose();
     super.dispose();
   }
@@ -172,7 +186,6 @@ class _WasalnySupervisorTabsShellState
         create: (_) => WasalnyAdsCubit(
           getAds: GetWasalnyAdsUseCase(repository: _repository),
           updateAdStatus: UpdateWasalnyAdStatusUseCase(repository: _repository),
-          auditRepository: sl(),
         )..loadAds(),
         child: const WasalnyAdsReviewScreen(),
       ),

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
 import 'package:barwah_app/core/auth/auth_session.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/network/api_consumer.dart';
@@ -171,7 +172,7 @@ class _RemoteNotificationsViewState extends State<_RemoteNotificationsView> {
                       ],
                     ),
                   )
-                : RefreshIndicator(
+                : BrandRefreshIndicator(
                     onRefresh: _load,
                     child: _items.isEmpty
                         ? ListView(

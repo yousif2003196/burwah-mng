@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/features/services_supervisor/data/datasources/services_activity_log.dart';
 import 'package:barwah_app/core/widgets/scroll_fx.dart';
@@ -15,6 +16,21 @@ String servicesActionLabel(String action) => switch (action) {
       'provider_verified' => 'توثيق مزود',
       'provider_unverified' => 'إلغاء توثيق مزود',
       'provider_escalated' => 'طلب إيقاف طويل للرئيس',
+      'srv_approved' => 'اعتماد طلب خدمة',
+      'srv_updated_approved' => 'تعديل واعتماد طلب خدمة',
+      'srv_rejected' => 'رفض طلب خدمة',
+      'srv_suspended' => 'تعليق طلب خدمة',
+      'srv_escalated' => 'إحالة طلب مشبوه للرئيس',
+      'srv_returned' => 'إعادة طلب للمراجعة',
+      'srv_info_requested' => 'طلب توضيح من العميل',
+      'srv_category_changed' => 'تعديل التصنيف الفني',
+      'srv_reassigned' => 'إعادة إسناد طلب',
+      'srv_provider_suspended' => 'إيقاف مزود خدمة',
+      'srv_provider_reactivated' => 'إعادة تفعيل مزود',
+      'srv_provider_verified' => 'توثيق مزود',
+      'srv_provider_unverified' => 'إلغاء توثيق مزود',
+      'srv_complaint_escalated' => 'رفع شكوى للرئيس',
+      'srv_compensation' => 'إلزام مزود بالتعويض',
       _ => action,
     };
 
@@ -94,7 +110,10 @@ class _ServicesActivityLogScreenState extends State<ServicesActivityLogScreen> {
                           style: TextStyle(color: AppColors.textSecondary),
                         ),
                       )
-                    : ListView.separated(
+                    : BrandRefreshIndicator(
+                      onRefresh: _load,
+                      child: ListView.separated(
+                        physics: const AlwaysScrollableScrollPhysics(),
                         padding: const EdgeInsets.all(16),
                         itemCount: _items.length,
                         separatorBuilder: (_, __) => const SizedBox(height: 8),
@@ -139,7 +158,7 @@ class _ServicesActivityLogScreenState extends State<ServicesActivityLogScreen> {
                             ),
                           );
                         }),
-                      ),
+                      )),
       ),
     );
   }

@@ -1,238 +1,91 @@
-import 'dart:ui' as ui;
+import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart';
 
-import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
+import 'package:barwah_app/core/auth/auth_session.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/network/api_consumer.dart';
+import 'package:barwah_app/core/network/api_endpoints.dart';
+import 'package:barwah_app/core/realtime/realtime_hub.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
-import 'package:barwah_app/core/theme/app_palette.dart';
-import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
-import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
-import 'package:barwah_app/features/products/domain/entities/product_supervisor_audit_entry.dart';
-import 'package:barwah_app/features/products/domain/repositories/product_supervisor_audit_repository.dart';
-import 'package:barwah_app/features/wasalny_supervisor/data/datasources/wasalny_request_store.dart';
-import 'package:barwah_app/l10n/app_localizations.dart';
-import 'package:barwah_app/core/widgets/scroll_fx.dart';
-import 'package:barwah_app/core/widgets/motion_icon.dart';
+import 'package:barwah_app/core/widgets/app_snack_bar.dart';
+import 'package:barwah_app/features/messaging/presentation/screens/ad_owner_chat_screen.dart';
 
-enum _RequestStage { communication, sold }
+bool _isArabic(BuildContext context) =>
+    Localizations.localeOf(context).languageCode == 'ar';
 
-enum _RequestStatus { awaitingApproval, underReview, communication, sold }
+String _serverMessage(Object error, String fallback) {
+  try {
+    final data = (error as dynamic).response?.data;
+    if (data is Map && data['message'] is String && '${data['message']}'.isNotEmpty) {
+      return '${data['message']}';
+    }
+  } catch (_) {}
+  return fallback;
+}
 
-class _WasalnyRequest {
-  final String id;
-  final String titleAr;
-  final String titleEn;
-  final String sellerAr;
-  final String sellerEn;
-  final String buyerAr;
-  final String buyerEn;
-  final String sellerPhone;
+String _timeAgo(DateTime at, bool ar) {
+  final span = DateTime.now().difference(at);
+  if (span.inMinutes < 1) return ar ? 'الآن' : 'Just now';
+  if (span.inMinutes < 60) {
+    return ar ? 'منذ ${span.inMinutes} دقيقة' : '${span.inMinutes} min ago';
+  }
+  if (span.inHours < 24) {
+    return ar ? 'منذ ${span.inHours} ساعة' : '${span.inHours} h ago';
+  }
+  return ar ? 'منذ ${span.inDays} يوم' : '${span.inDays} d ago';
+}
+
+class _Req {
+  _Req(Map<String, dynamic> j)
+    : id = (j['id'] as num).toInt(),
+      adId = (j['adId'] as num?)?.toInt() ?? 0,
+      adTitle = '${j['adTitle'] ?? ''}',
+      adPrice = (j['adPrice'] as num?)?.toDouble() ?? 0,
+      imageUrl = '${j['imageUrl'] ?? ''}',
+      buyerName = '${j['buyerName'] ?? ''}',
+      buyerPhone = '${j['buyerPhone'] ?? ''}',
+      sellerName = '${j['sellerName'] ?? ''}',
+      sellerPhone = '${j['sellerPhone'] ?? ''}',
+      status = '${j['status'] ?? 'underReview'}',
+      reason = '${j['reason'] ?? ''}',
+      createdAt =
+          DateTime.tryParse('${j['createdAt'] ?? ''}')?.toLocal() ??
+          DateTime.now();
+
+  final int id;
+  final int adId;
+  final String adTitle;
+  final double adPrice;
+  final String imageUrl;
+  final String buyerName;
   final String buyerPhone;
-  final String price;
-  final String statusNoteAr;
-  final String statusNoteEn;
-  final String locationAr;
-  final String locationEn;
-  final String productDetailsAr;
-  final String productDetailsEn;
-  final String ageAr;
-  final String ageEn;
-  final _RequestStage stage;
-  final _RequestStatus status;
-  final IconData icon;
-  final Color color;
+  final String sellerName;
+  final String sellerPhone;
+  final String status;
+  final String reason;
+  final DateTime createdAt;
+}
 
-  const _WasalnyRequest({
-    required this.id,
-    required this.titleAr,
-    required this.titleEn,
-    required this.sellerAr,
-    required this.sellerEn,
-    required this.buyerAr,
-    required this.buyerEn,
-    required this.sellerPhone,
-    required this.buyerPhone,
-    required this.price,
-    required this.statusNoteAr,
-    required this.statusNoteEn,
-    required this.locationAr,
-    required this.locationEn,
-    required this.productDetailsAr,
-    required this.productDetailsEn,
-    required this.ageAr,
-    required this.ageEn,
-    required this.stage,
-    required this.status,
-    required this.icon,
-    required this.color,
-  });
-
-  /// Applies the persisted progress / head-flag state on top of the seed.
-  _WasalnyRequest withState(WasalnyRequestState? state) {
-    if (state == null) return this;
-    var stage = this.stage;
-    var status = this.status;
-    var noteAr = statusNoteAr;
-    var noteEn = statusNoteEn;
-    if (state.isSold) {
-      stage = _RequestStage.sold;
-      status = _RequestStatus.sold;
-      noteAr = 'تم البيع وإتمام التسليم بنجاح';
-      noteEn = 'Sold and delivered successfully';
-    }
-    final flag = state.flagStatus;
-    if (flag != null && !state.isSold) {
-      noteAr = '${state.flagKind?.labelAr ?? ''}: ${flag.labelAr}';
-      noteEn = switch (flag) {
-        WasalnyRequestFlagStatus.pendingHead =>
-          'Flagged to the head supervisor, awaiting decision',
-        WasalnyRequestFlagStatus.returned =>
-          'Returned by the head for review',
-        WasalnyRequestFlagStatus.escalatedToAdmin =>
-          'Escalated by the head to the admin',
-        WasalnyRequestFlagStatus.decided => 'Decided by the head supervisor',
-      };
-      if (flag == WasalnyRequestFlagStatus.pendingHead ||
-          flag == WasalnyRequestFlagStatus.escalatedToAdmin) {
-        status = _RequestStatus.underReview;
-      }
-    }
-    return _WasalnyRequest(
-      id: id,
-      titleAr: titleAr,
-      titleEn: titleEn,
-      sellerAr: sellerAr,
-      sellerEn: sellerEn,
-      buyerAr: buyerAr,
-      buyerEn: buyerEn,
-      sellerPhone: sellerPhone,
-      buyerPhone: buyerPhone,
-      price: price,
-      statusNoteAr: noteAr,
-      statusNoteEn: noteEn,
-      locationAr: locationAr,
-      locationEn: locationEn,
-      productDetailsAr: productDetailsAr,
-      productDetailsEn: productDetailsEn,
-      ageAr: ageAr,
-      ageEn: ageEn,
-      stage: stage,
-      status: status,
-      icon: icon,
-      color: color,
-    );
+({String ar, String en, Color Function() color}) _statusStyle(String status) {
+  switch (status) {
+    case 'approved':
+      return (ar: 'معتمد', en: 'Approved', color: () => AppColors.success);
+    case 'rejected':
+      return (ar: 'مرفوض', en: 'Rejected', color: () => AppColors.danger);
+    case 'frozen':
+      return (ar: 'مجمّد', en: 'Frozen', color: () => AppColors.info);
+    default:
+      return (ar: 'قيد المراجعة', en: 'Under review', color: () => AppColors.warning);
   }
 }
 
-List<_WasalnyRequest> get _sampleRequests => <_WasalnyRequest>[
-  _WasalnyRequest(
-    id: 'W-1042',
-    titleAr: 'كاميرا كانون EOS R6 (نظيفة جداً)',
-    titleEn: 'Canon EOS R6 camera (excellent condition)',
-    sellerAr: 'عبد الرحمن الشمري',
-    sellerEn: 'Abdulrahman Al-Shammari',
-    buyerAr: 'فهد العتيبي',
-    buyerEn: 'Fahad Al-Otaibi',
-    sellerPhone: '050 000 1042',
-    buyerPhone: '050 000 2042',
-    price: '6,400',
-    statusNoteAr: 'بيانات التواصل بين الطرفين محمية',
-    statusNoteEn: 'Contact details between both parties are protected',
-    locationAr: 'الرياض - حي النرجس',
-    locationEn: 'Riyadh - Al Narjis',
-    productDetailsAr:
-        'كاميرا بحالة ممتازة مع عدسة أصلية وبطاريتين وشاحن. تمت مراجعة بيانات الطلب.',
-    productDetailsEn:
-        'Excellent-condition camera with an original lens, two batteries, and charger. Request details have been reviewed.',
-    ageAr: 'منذ ساعتين',
-    ageEn: '2 hours ago',
-    stage: _RequestStage.communication,
-    status: _RequestStatus.communication,
-    icon: Icons.camera_alt_outlined,
-    color: AppColors.infoDark,
-  ),
-  _WasalnyRequest(
-    id: 'W-1038',
-    titleAr: 'جهاز بلايستيشن 5 مع 5 ألعاب أصلية',
-    titleEn: 'PlayStation 5 with 5 original games',
-    sellerAr: 'محمد الدوسري',
-    sellerEn: 'Mohammed Al-Dosari',
-    buyerAr: 'سلطان الحربي',
-    buyerEn: 'Sultan Al-Harbi',
-    sellerPhone: '050 000 1038',
-    buyerPhone: '050 000 2038',
-    price: '1,850',
-    statusNoteAr: 'تم استلام الشحنة في مستودع الفحص',
-    statusNoteEn: 'The shipment arrived at the inspection depot',
-    locationAr: 'مركز فحص شمال الرياض - المحطة',
-    locationEn: 'North Riyadh inspection center - station',
-    productDetailsAr:
-        'جهاز بلايستيشن 5 مع خمسة ألعاب أصلية وجميع الملحقات المذكورة في الإعلان.',
-    productDetailsEn:
-        'PlayStation 5 with five original games and all accessories listed in the advertisement.',
-    ageAr: 'منذ 4 ساعات',
-    ageEn: '4 hours ago',
-    stage: _RequestStage.communication,
-    status: _RequestStatus.underReview,
-    icon: Icons.sports_esports_outlined,
-    color: AppColors.info,
-  ),
-  _WasalnyRequest(
-    id: 'W-1031',
-    titleAr: 'ماك بوك برو M2 شاشة 14 إنش',
-    titleEn: 'MacBook Pro M2, 14-inch display',
-    sellerAr: 'تركي العتيبي',
-    sellerEn: 'Turki Al-Otaibi',
-    buyerAr: 'عبد الله القحطاني',
-    buyerEn: 'Abdullah Al-Qahtani',
-    sellerPhone: '050 000 1031',
-    buyerPhone: '050 000 2031',
-    price: '5,200',
-    statusNoteAr: 'بانتظار موافقة الطرفين على الشروط والسداد',
-    statusNoteEn: 'Waiting for both parties to agree to terms and payment',
-    locationAr: 'التواصل بين البائع والمشتري',
-    locationEn: 'Seller and buyer coordination',
-    productDetailsAr:
-        'ماك بوك برو بمعالج M2 وشاشة 14 إنش. الطلب بانتظار موافقة الطرفين على تفاصيل الصفقة.',
-    productDetailsEn:
-        'MacBook Pro with an M2 chip and 14-inch display. The request is awaiting both parties’ approval of the deal details.',
-    ageAr: 'منذ 6 ساعات',
-    ageEn: '6 hours ago',
-    stage: _RequestStage.communication,
-    status: _RequestStatus.awaitingApproval,
-    icon: Icons.laptop_mac_outlined,
-    color: AppColors.textSecondary,
-  ),
-  _WasalnyRequest(
-    id: 'W-1024',
-    titleAr: 'آيفون 15 برو سعة 256 جيجابايت',
-    titleEn: 'iPhone 15 Pro, 256 GB',
-    sellerAr: 'نواف المطيري',
-    sellerEn: 'Nawaf Al-Mutairi',
-    buyerAr: 'سعود الدخيل',
-    buyerEn: 'Saud Al-Dakhil',
-    sellerPhone: '050 000 1024',
-    buyerPhone: '050 000 2024',
-    price: '3,750',
-    statusNoteAr: 'تم البيع وإتمام التسليم بنجاح',
-    statusNoteEn: 'Sold and delivered successfully',
-    locationAr: 'الرياض',
-    locationEn: 'Riyadh',
-    productDetailsAr:
-        'آيفون 15 برو سعة 256 جيجابايت. تم البيع وإتمام التسليم بنجاح.',
-    productDetailsEn:
-        'iPhone 15 Pro, 256 GB. Sold and delivered successfully.',
-    ageAr: 'منذ يوم',
-    ageEn: '1 day ago',
-    stage: _RequestStage.sold,
-    status: _RequestStatus.sold,
-    icon: Icons.phone_iphone_outlined,
-    color: AppColors.textSecondary,
-  ),
-];
-
+/// طلبات وصلني: كل طلب جديد من مشتري على منتج مستعمل يوصل هنا الأول.
+/// المشرف يراجع بيانات الطرفين ثم يعتمد (تفتح محادثة بين البائع والمشتري)
+/// أو يرفض (السبب للمشتري) أو يجمّد (السبب للبائع). أي طلب اتخذ عليه قرار
+/// يروح للأرشيف ويقدر المشرف يرجّعه لقيد المراجعة.
 class WasalnyRequestsScreen extends StatefulWidget {
   const WasalnyRequestsScreen({super.key});
 
@@ -241,1289 +94,309 @@ class WasalnyRequestsScreen extends StatefulWidget {
 }
 
 class _WasalnyRequestsScreenState extends State<WasalnyRequestsScreen> {
-  _RequestStage? _selectedStage;
-  final Set<String> _revealedRequestIds = {};
-  final _requestStore = WasalnyRequestStore();
-  Map<String, WasalnyRequestState> _states = const {};
+  ApiConsumer get _api => sl<ApiConsumer>(instanceName: 'berwah');
+
+  bool _archive = false;
+  List<_Req> _items = const [];
+  int _reviewCount = 0;
+  int _archiveCount = 0;
+  bool _loading = true;
+  bool _failed = false;
+  Timer? _timer;
+  StreamSubscription<dynamic>? _live;
 
   @override
   void initState() {
     super.initState();
-    _loadRevealedRequests();
-    LocalEventStore.revision.addListener(_loadStates);
-    WasalnyRequestStore.revision.addListener(_loadStates);
-    _loadStates();
+    _load();
+    _timer = Timer.periodic(const Duration(seconds: 45), (_) => _load(quiet: true));
+    _live = RealtimeHub.instance.notifications
+        .where((n) => n.type == 'wasalny_request_new')
+        .listen((_) => _load(quiet: true));
   }
 
   @override
   void dispose() {
-    LocalEventStore.revision.removeListener(_loadStates);
-    WasalnyRequestStore.revision.removeListener(_loadStates);
+    _timer?.cancel();
+    _live?.cancel();
     super.dispose();
   }
 
-  Future<void> _loadStates() async {
-    try {
-      final states = await _requestStore.refresh();
-      if (!mounted) return;
-      setState(() => _states = states);
-    } catch (error, stackTrace) {
-      FlutterError.reportError(
-        FlutterErrorDetails(
-          exception: error,
-          stack: stackTrace,
-          library: 'Wasalny requests',
-          context: ErrorDescription('while loading request states'),
-        ),
-      );
+  Future<void> _load({bool quiet = false}) async {
+    if (!AuthSession.isSignedIn) {
+      setState(() => _loading = false);
+      return;
     }
-  }
-
-  List<_WasalnyRequest> get _effectiveRequests => [
-        for (final r in _sampleRequests) r.withState(_states[r.id]),
-      ];
-
-  Future<void> _loadRevealedRequests() async {
+    if (!quiet) setState(() => _loading = true);
     try {
-      final preferences = await SharedPreferences.getInstance();
+      final response = await _api.get<Object>(
+        ApiEndpoints.wasalnyRequests,
+        queryParameters: {'tab': _archive ? 'archive' : 'review', 'pageSize': 100},
+      );
+      final body = response.data;
+      if (body is! Map || body['data'] is! List) throw const FormatException('bad requests');
+      final counts = body['counts'];
+      final items = [
+        for (final item in body['data'] as List)
+          if (item is Map<String, dynamic>) _Req(item),
+      ];
       if (!mounted) return;
       setState(() {
-        _revealedRequestIds.addAll(
-          preferences.getStringList('wasalny_revealed_request_ids') ?? const [],
-        );
-      });
-    } catch (error, stackTrace) {
-      FlutterError.reportError(
-        FlutterErrorDetails(
-          exception: error,
-          stack: stackTrace,
-          library: 'Wasalny requests',
-          context: ErrorDescription('while loading revealed contact requests'),
-        ),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final isArabic = l10n.localeName.startsWith('ar');
-    final all = _effectiveRequests;
-    final requests = all
-        .where((request) =>
-            _selectedStage == null || request.stage == _selectedStage)
-        .toList();
-    final communicationCount =
-        all.where((request) => request.stage == _RequestStage.communication).length;
-    final soldCount =
-        all.where((request) => request.stage == _RequestStage.sold).length;
-    final completionRate =
-        all.isEmpty ? 0 : (soldCount * 100 / all.length).round();
-
-    return Directionality(
-      textDirection: isArabic ? ui.TextDirection.rtl : ui.TextDirection.ltr,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        children: [
-          ScrollFx(child: _SafetyBanner(l10n: l10n)),
-          const SizedBox(height: 14),
-          ScrollFx(child: Row(
-            children: [
-              Expanded(
-                child: _SummaryCard(
-                  value: '$completionRate%',
-                  label: l10n.wasalnyRequestsCompletionRate,
-                  icon: Icons.trending_up_rounded,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _SummaryCard(
-                  value: '${all.length - soldCount}',
-                  label: l10n.wasalnyRequestsActiveDeals,
-                  icon: Icons.handshake_outlined,
-                ),
-              ),
-            ],
-          )),
-          const SizedBox(height: 14),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _StageChip(
-                  label: l10n.wasalnyRequestsAll,
-                  count: all.length,
-                  selected: _selectedStage == null,
-                  onTap: () => setState(() => _selectedStage = null),
-                ),
-                _StageChip(
-                  label: l10n.wasalnyRequestsCommunication,
-                  count: communicationCount,
-                  selected: _selectedStage == _RequestStage.communication,
-                  onTap: () => setState(
-                    () => _selectedStage = _RequestStage.communication,
-                  ),
-                ),
-                _StageChip(
-                  label: l10n.wasalnyRequestsSold,
-                  count: soldCount,
-                  selected: _selectedStage == _RequestStage.sold,
-                  onTap: () =>
-                      setState(() => _selectedStage = _RequestStage.sold),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
-          if (requests.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 36),
-              child: Text(
-                l10n.wasalnyRequestsEmpty,
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-            ),
-          for (final request in requests) ...[
-            _RequestCard(
-              request: request,
-              l10n: l10n,
-              isArabic: isArabic,
-              isRevealed: _revealedRequestIds.contains(request.id),
-              onPreview: () => _showRequestDetails(
-                request,
-                l10n,
-                isArabic,
-                _revealedRequestIds.contains(request.id),
-              ),
-              onReveal: () => _confirmReveal(request, l10n),
-              onHideData: () => _hideContactDetails(request, l10n, isArabic),
-            ),
-            const SizedBox(height: 12),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Future<void> _confirmReveal(
-    _WasalnyRequest request,
-    AppLocalizations l10n,
-  ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        icon: const MotionIcon(Icons.lock_open_outlined),
-        title: Text(l10n.wasalnyRequestsRevealTitle),
-        content: Text(l10n.wasalnyRequestsRevealConfirmation),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(l10n.cancelAction),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(l10n.wasalnyRequestsRevealAction),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true && mounted) {
-      final disclosureKey = _monthlyDisclosureKey(request);
-      final preferences = await SharedPreferences.getInstance();
-      final disclosureCount = preferences.getInt(disclosureKey) ?? 0;
-      if (disclosureCount >= 2) {
-        await _publishBuyerNotice(
-          request,
-          'limit',
-          l10n.wasalnyRequestsMonthlyLimitMessage,
-          'This buyer reached the monthly contact disclosure limit. An in-app subscription is required.',
-          disclosureCount,
-        );
-        if (!mounted) return;
-        await showDialog<void>(
-          context: context,
-          builder: (context) => AlertDialog(
-            icon: const MotionIcon(Icons.workspace_premium_outlined),
-            title: Text(l10n.wasalnyRequestsMonthlyLimitTitle),
-            content: Text(l10n.wasalnyRequestsMonthlyLimitMessage),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text(l10n.cancelAction),
-              ),
-            ],
-          ),
-        );
-        return;
-      }
-      final recorded = await _recordContactAudit(
-        request: request,
-        actionKey: 'wasalny_request_contact_revealed',
-        l10n: l10n,
-        isArabic: l10n.localeName.startsWith('ar'),
-      );
-      if (!recorded || !mounted) return;
-      try {
-        await preferences.setInt(disclosureKey, disclosureCount + 1);
-        final revealed =
-            preferences.getStringList('wasalny_revealed_request_ids') ??
-                <String>[];
-        if (!revealed.contains(request.id)) revealed.add(request.id);
-        await preferences.setStringList(
-          'wasalny_revealed_request_ids',
-          revealed,
-        );
-      } catch (error, stackTrace) {
-        FlutterError.reportError(
-          FlutterErrorDetails(
-            exception: error,
-            stack: stackTrace,
-            library: 'Wasalny requests',
-            context: ErrorDescription('while saving contact disclosure usage'),
-          ),
-        );
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(l10n.productAuditSaveError)),
-          );
+        _items = items;
+        if (counts is Map) {
+          _reviewCount = (counts['review'] as num?)?.toInt() ?? _reviewCount;
+          _archiveCount = (counts['archive'] as num?)?.toInt() ?? _archiveCount;
         }
-        return;
-      }
-      await _publishBuyerNotice(
-        request,
-        'revealed',
-        'تمت الموافقة على إظهار بيانات التواصل',
-        'Your contact details were approved for disclosure. Two requests per month are included; additional requests require an in-app subscription.',
-        disclosureCount + 1,
-      );
-      setState(() => _revealedRequestIds.add(request.id));
-      await _checkRevealAnomaly();
-    }
-  }
-
-  /// Alerts the head when an unusual number of contact reveals happen in a day.
-  Future<void> _checkRevealAnomaly() async {
-    const threshold = 5;
-    try {
-      final entries = await sl<ProductSupervisorAuditRepository>().getEntries();
-      final now = DateTime.now();
-      final today = entries
-          .where((e) =>
-              e.actionKey == 'wasalny_request_contact_revealed' &&
-              e.occurredAt.year == now.year &&
-              e.occurredAt.month == now.month &&
-              e.occurredAt.day == now.day)
-          .length;
-      if (today < threshold) return;
-      final day =
-          '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
-      await LocalEventStore().publish(
-        LocalEvent(
-          id: 'head-wasalny-reveal-alert-$day',
-          recipient: 'head',
-          source: 'wasalny',
-          titleAr: 'نشاط غير معتاد: كشف أرقام التواصل',
-          titleEn: 'Unusual contact-reveal activity',
-          messageAr:
-              'تنبيه كشف أرقام: نشاط كشف أرقام غير معتاد في وصلني — تم كشف $today رقم/طلب اليوم (الحد المعتاد $threshold). السبب: مراجعة نشاط المشرف',
-          messageEn:
-              'Reveal alert: unusual Wasalny contact reveals — $today today (usual limit $threshold). Reason: review supervisor activity',
-          createdAt: now,
-        ),
-      );
-    } catch (error, stackTrace) {
-      FlutterError.reportError(
-        FlutterErrorDetails(
-          exception: error,
-          stack: stackTrace,
-          library: 'Wasalny requests',
-          context: ErrorDescription('while checking reveal activity'),
-        ),
-      );
-    }
-  }
-
-  Future<void> _markSold(_WasalnyRequest request, bool isArabic) async {
-    try {
-      await _requestStore.markSold(request.id);
-      await sl<ProductSupervisorAuditRepository>().recordEntry(
-        ProductSupervisorAuditEntry(
-          id: DateTime.now().microsecondsSinceEpoch.toString(),
-          actionKey: 'wasalny_request_marked_sold',
-          subject: isArabic ? request.titleAr : request.titleEn,
-          details: request.id,
-          occurredAt: DateTime.now(),
-        ),
-      );
-    } catch (error, stackTrace) {
-      FlutterError.reportError(
-        FlutterErrorDetails(
-          exception: error,
-          stack: stackTrace,
-          library: 'Wasalny requests',
-          context: ErrorDescription('while marking a request as sold'),
-        ),
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(isArabic ? 'تعذر الحفظ' : 'Could not save')),
-        );
-      }
-    }
-  }
-
-  Future<void> _flagRequest(_WasalnyRequest request, bool isArabic) async {
-    var kind = WasalnyRequestFlagKind.suspicious;
-    final controller = TextEditingController();
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setLocal) => Directionality(
-          textDirection: isArabic ? ui.TextDirection.rtl : ui.TextDirection.ltr,
-          child: AlertDialog(
-            title: Text(isArabic ? 'رفع لرئيس المشرفين' : 'Flag to the head'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SegmentedButton<WasalnyRequestFlagKind>(
-                  segments: [
-                    ButtonSegment(
-                      value: WasalnyRequestFlagKind.suspicious,
-                      label: Text(isArabic ? 'شبهة' : 'Suspicious'),
-                    ),
-                    ButtonSegment(
-                      value: WasalnyRequestFlagKind.banSeller,
-                      label: Text(isArabic ? 'حظر البائع' : 'Ban seller'),
-                    ),
-                  ],
-                  selected: {kind},
-                  onSelectionChanged: (v) => setLocal(() => kind = v.first),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  isArabic
-                      ? 'يمر دائماً على رئيس المشرفين، وهو من يقرر رفعه للأدمن.'
-                      : 'Always goes through the head, who decides on admin escalation.',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: controller,
-                  maxLines: 3,
-                  decoration: InputDecoration(
-                    labelText: isArabic ? 'السبب (إلزامي)' : 'Reason (required)',
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(false),
-                child: Text(isArabic ? 'إلغاء' : 'Cancel'),
-              ),
-              FilledButton(
-                onPressed: () {
-                  if (controller.text.trim().length < 5) return;
-                  Navigator.of(dialogContext).pop(true);
-                },
-                child: Text(isArabic ? 'رفع' : 'Send'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    final reason = controller.text;
-    controller.dispose();
-    if (confirmed != true) return;
-    try {
-      await _requestStore.flagToHead(
-        id: request.id,
-        title: isArabic ? request.titleAr : request.titleEn,
-        sellerName: isArabic ? request.sellerAr : request.sellerEn,
-        kind: kind,
-        reason: reason,
-      );
-      await sl<ProductSupervisorAuditRepository>().recordEntry(
-        ProductSupervisorAuditEntry(
-          id: DateTime.now().microsecondsSinceEpoch.toString(),
-          actionKey: 'wasalny_request_flagged',
-          subject: isArabic ? request.titleAr : request.titleEn,
-          details: '${request.id} • ${kind.labelAr}',
-          occurredAt: DateTime.now(),
-        ),
-      );
+        _loading = false;
+        _failed = false;
+      });
+    } on Object catch (error) {
+      debugPrint('Wasalny requests load failed: $error');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            isArabic ? 'تم الرفع لرئيس المشرفين' : 'Sent to the head supervisor',
-          ),
-        ),
-      );
-    } catch (error, stackTrace) {
-      FlutterError.reportError(
-        FlutterErrorDetails(
-          exception: error,
-          stack: stackTrace,
-          library: 'Wasalny requests',
-          context: ErrorDescription('while flagging a request'),
-        ),
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(isArabic ? 'تعذر الرفع' : 'Could not send')),
-        );
-      }
+      setState(() {
+        _loading = false;
+        _failed = _items.isEmpty;
+      });
     }
   }
 
-  Future<void> _publishBuyerNotice(
-    _WasalnyRequest request,
-    String eventType,
-    String messageAr,
-    String messageEn,
-    int requestCount,
-  ) async {
-    final buyerId = request.buyerPhone.replaceAll(RegExp(r'\D'), '');
-    final now = DateTime.now();
-    final month = '${now.year}${now.month.toString().padLeft(2, '0')}';
-    try {
-      await LocalEventStore().publish(
-        LocalEvent(
-          id: 'buyer-$eventType-$buyerId-$month-$requestCount',
-          recipient: 'buyer:$buyerId',
-          source: 'wasalny',
-          titleAr: eventType == 'limit'
-              ? 'يتطلب طلب إظهار البيانات اشتراكاً'
-              : 'تم تحديث طلب إظهار البيانات',
-          titleEn: eventType == 'limit'
-              ? 'Contact disclosure requires a subscription'
-              : 'Contact disclosure request updated',
-          messageAr: messageAr,
-          messageEn: messageEn,
-          createdAt: now,
-        ),
-      );
-    } catch (error, stackTrace) {
-      FlutterError.reportError(
-        FlutterErrorDetails(
-          exception: error,
-          stack: stackTrace,
-          library: 'Wasalny requests',
-          context: ErrorDescription('while notifying the buyer locally'),
-        ),
-      );
-    }
+  void _setTab(bool archive) {
+    if (_archive == archive) return;
+    setState(() {
+      _archive = archive;
+      _items = const [];
+    });
+    _load();
   }
 
-  String _monthlyDisclosureKey(_WasalnyRequest request) {
-    final now = DateTime.now();
-    final month = '${now.year}${now.month.toString().padLeft(2, '0')}';
-    final phone = request.buyerPhone.replaceAll(RegExp(r'\D'), '');
-    return 'wasalny_buyer_disclosures_${phone}_$month';
-  }
-
-  Future<void> _hideContactDetails(
-    _WasalnyRequest request,
-    AppLocalizations l10n,
-    bool isArabic,
-  ) async {
-    final recorded = await _recordContactAudit(
-      request: request,
-      actionKey: 'wasalny_request_contact_hidden',
-      l10n: l10n,
-      isArabic: isArabic,
-    );
-    if (!recorded || !mounted) return;
-    try {
-      final preferences = await SharedPreferences.getInstance();
-      final revealed =
-          preferences.getStringList('wasalny_revealed_request_ids') ?? <String>[];
-      revealed.remove(request.id);
-      await preferences.setStringList('wasalny_revealed_request_ids', revealed);
-      if (mounted) setState(() => _revealedRequestIds.remove(request.id));
-    } catch (error, stackTrace) {
-      FlutterError.reportError(
-        FlutterErrorDetails(
-          exception: error,
-          stack: stackTrace,
-          library: 'Wasalny requests',
-          context: ErrorDescription('while hiding contact details'),
-        ),
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.productAuditSaveError)),
-        );
-      }
-    }
-  }
-
-  Future<bool> _recordContactAudit({
-    required _WasalnyRequest request,
-    required String actionKey,
-    required AppLocalizations l10n,
-    required bool isArabic,
-  }) async {
-    try {
-      final now = DateTime.now();
-      await sl<ProductSupervisorAuditRepository>().recordEntry(
-        ProductSupervisorAuditEntry(
-          id: now.microsecondsSinceEpoch.toString(),
-          actionKey: actionKey,
-          subject: isArabic ? request.titleAr : request.titleEn,
-          details: request.id,
-          occurredAt: now,
-        ),
-      );
-      return true;
-    } catch (error, stackTrace) {
-      FlutterError.reportError(
-        FlutterErrorDetails(
-          exception: error,
-          stack: stackTrace,
-          library: 'Wasalny requests',
-          context: ErrorDescription('while recording a contact disclosure'),
-        ),
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.productAuditSaveError)),
-        );
-      }
-      return false;
-    }
-  }
-
-  Future<void> _showRequestDetails(
-    _WasalnyRequest request,
-    AppLocalizations l10n,
-    bool isArabic,
-    bool isRevealed,
-  ) {
-    final title = isArabic ? request.titleAr : request.titleEn;
-    final note = isArabic ? request.statusNoteAr : request.statusNoteEn;
-    final location = isArabic ? request.locationAr : request.locationEn;
-    final seller = isArabic ? request.sellerAr : request.sellerEn;
-    final buyer = isArabic ? request.buyerAr : request.buyerEn;
-    final productDetails =
-        isArabic ? request.productDetailsAr : request.productDetailsEn;
-    final status = _requestStatusLabel(request.status, l10n);
-    final contactProtection = isArabic
-        ? 'بيانات التواصل محمية حتى تأكيد إظهارها'
-        : 'Contact details are protected until revealed';
-
-    return showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (context) => FractionallySizedBox(
-        heightFactor: 0.9,
-        child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ScrollFx(child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        l10n.wasalnyRequestsPreviewTitle,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    _StatusPill(
-                      label: status,
-                      icon: _requestStatusIcon(request.status),
-                    ),
-                  ],
-                )),
-                const SizedBox(height: 14),
-                ScrollFx(child: _RequestPhotoGallery(request: request, title: title)),
-                const SizedBox(height: 18),
-                ScrollFx(child: _DetailsSection(
-                  title: isArabic ? 'بيانات المنتج' : 'Product details',
-                  icon: Icons.inventory_2_outlined,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      productDetails,
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                        height: 1.6,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    _DetailLine(
-                      label: l10n.wasalnyRequestsEstimatedValue,
-                      value: '${request.price} ${l10n.productWalletCurrency}',
-                    ),
-                  ],
-                )),
-                const SizedBox(height: 12),
-                ScrollFx(child: _DetailsSection(
-                  title: isArabic ? 'معلومات الطلب' : 'Request information',
-                  icon: Icons.receipt_long_outlined,
-                  children: [
-                    _DetailLine(
-                      label: l10n.wasalnyRequestsOrderNumber,
-                      value: request.id,
-                    ),
-                    _DetailLine(
-                      label: l10n.wasalnyRequestsCurrentStatus,
-                      value: '$status — $note',
-                    ),
-                    _DetailLine(
-                      label: l10n.wasalnyRequestsLocation,
-                      value: location,
-                    ),
-                    _DetailLine(
-                      label: isArabic ? 'تاريخ الطلب' : 'Request age',
-                      value: isArabic ? request.ageAr : request.ageEn,
-                    ),
-                  ],
-                )),
-                const SizedBox(height: 12),
-                ScrollFx(child: _DetailsSection(
-                  title: isArabic ? 'أطراف الطلب' : 'People in this request',
-                  icon: Icons.people_outline,
-                  children: [
-                    _PersonDetails(
-                      role: l10n.wasalnyRequestsSeller,
-                      name: seller,
-                      phone: isRevealed ? request.sellerPhone : null,
-                      protectedLabel: contactProtection,
-                      icon: Icons.storefront_outlined,
-                    ),
-                    const SizedBox(height: 10),
-                    _PersonDetails(
-                      role: l10n.wasalnyRequestsBuyer,
-                      name: buyer,
-                      phone: isRevealed ? request.buyerPhone : null,
-                      protectedLabel: contactProtection,
-                      icon: Icons.person_outline,
-                    ),
-                  ],
-                )),
-                const SizedBox(height: 12),
-                ScrollFx(child: _DetailsSection(
-                  title: isArabic ? 'إجراءات المشرف' : 'Supervisor actions',
-                  icon: Icons.gavel_outlined,
-                  children: [
-                    if (_states[request.id]?.flagStatus != null)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Text(
-                          '${_states[request.id]!.flagKind?.labelAr ?? ''} — ${_states[request.id]!.flagStatus!.labelAr}',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    if (request.stage != _RequestStage.sold)
-                      OutlinedButton.icon(
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                          _markSold(request, isArabic);
-                        },
-                        icon: const MotionIcon(Icons.check_circle_outline),
-                        label: Text(
-                          isArabic ? 'تأكيد إتمام البيع' : 'Confirm sale completed',
-                        ),
-                      ),
-                    if ((_states[request.id]?.canFlag ?? true) &&
-                        request.stage != _RequestStage.sold)
-                      OutlinedButton.icon(
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                          _flagRequest(request, isArabic);
-                        },
-                        icon: const MotionIcon(Icons.flag_outlined),
-                        label: Text(
-                          isArabic
-                              ? 'رفع شبهة / طلب حظر لرئيس المشرفين'
-                              : 'Flag / request seller ban via head',
-                        ),
-                      ),
-                  ],
-                )),
-              ],
-            ),
-          ),
-        ),
+  Future<void> _open(_Req request) async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => WasalnyRequestDetailsScreen(requestId: request.id),
       ),
     );
+    if (changed == true) _load(quiet: true);
   }
-}
-
-class _SafetyBanner extends StatelessWidget {
-  final AppLocalizations l10n;
-
-  const _SafetyBanner({required this.l10n});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: AppColors.blueFill ?? LinearGradient(
-          colors: [AppColors.infoDark, AppColors.primaryDark],
-        ),
-        border: AppColors.blueEdge,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [...?AppColors.blueGlow, BoxShadow(
-            color: AppPalette.overlay1A000000,
-            blurRadius: 8,
-            offset: Offset(0, 3),
-          ),],
-      ),
-      child: Row(
-        children: [
-          const MotionIcon(Icons.shield_outlined, color: Colors.white, size: 28),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l10n.wasalnyRequestsSafetyTitle,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  l10n.wasalnyRequestsSafetyDescription,
-                  style: TextStyle(
-                    color: AppColors.cardBorder,
-                    height: 1.5,
-                    fontSize: 10,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SummaryCard extends StatelessWidget {
-  final String value;
-  final String label;
-  final IconData icon;
-
-  const _SummaryCard({
-    required this.value,
-    required this.label,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(15),
-      ),
+    final ar = _isArabic(context);
+    return Directionality(
+      textDirection: ar ? TextDirection.rtl : TextDirection.ltr,
       child: Column(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CountText(
-                value,
-                style: TextStyle(
-                  color: AppColors.ink,
-                  fontSize: 23,
-                  fontWeight: FontWeight.w800,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _TabChip(
+                    label: '${ar ? 'قيد المراجعة' : 'Under review'} ($_reviewCount)',
+                    selected: !_archive,
+                    onTap: () => _setTab(false),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 3),
-              MotionIcon(icon, color: AppColors.ink, size: 15),
-            ],
-          ),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 10,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _TabChip(
+                    label: '${ar ? 'الأرشيف' : 'Archive'} ($_archiveCount)',
+                    selected: _archive,
+                    onTap: () => _setTab(true),
+                  ),
+                ),
+              ],
             ),
           ),
+          Expanded(child: _body(ar)),
         ],
       ),
     );
   }
+
+  Widget _body(bool ar) {
+    if (!AuthSession.isSignedIn) {
+      return _Message(text: ar ? 'سجّل الدخول لعرض الطلبات' : 'Sign in to see the requests');
+    }
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_failed) {
+      return Center(
+        child: TextButton.icon(
+          onPressed: _load,
+          icon: const Icon(Icons.refresh),
+          label: Text(ar ? 'تعذر تحميل الطلبات — إعادة المحاولة' : 'Could not load — retry'),
+        ),
+      );
+    }
+    return BrandRefreshIndicator(
+      onRefresh: () => _load(quiet: true),
+      child: _items.isEmpty
+          ? ListView(
+              children: [
+                SizedBox(
+                  height: 280,
+                  child: _Message(
+                    text: _archive
+                        ? (ar ? 'الأرشيف فاضي' : 'The archive is empty')
+                        : (ar ? 'مفيش طلبات قيد المراجعة' : 'No requests under review'),
+                  ),
+                ),
+              ],
+            )
+          : ListView.separated(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 110),
+              itemCount: _items.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 12),
+              itemBuilder: (_, i) => _RequestCard(request: _items[i], onTap: () => _open(_items[i])),
+            ),
+    );
+  }
 }
 
-class _StageChip extends StatelessWidget {
+class _Message extends StatelessWidget {
+  const _Message({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Text(text, textAlign: TextAlign.center, style: TextStyle(color: AppColors.textSecondary)),
+    ),
+  );
+}
+
+class _TabChip extends StatelessWidget {
+  const _TabChip({required this.label, required this.selected, required this.onTap});
+
   final String label;
-  final int count;
   final bool selected;
   final VoidCallback onTap;
 
-  const _StageChip({
-    required this.label,
-    required this.count,
-    required this.selected,
-    required this.onTap,
-  });
+  @override
+  Widget build(BuildContext context) => InkWell(
+    borderRadius: BorderRadius.circular(14),
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: selected ? AppColors.primaryDark : AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: selected ? AppColors.primaryDark : AppColors.cardBorder),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontWeight: FontWeight.w800,
+          fontSize: 13,
+          color: selected ? Colors.white : AppColors.textPrimary,
+        ),
+      ),
+    ),
+  );
+}
+
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({required this.status});
+
+  final String status;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(end: 6),
-      child: ChoiceChip(
-        label: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(label),
-            const SizedBox(width: 5),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: selected
-                    ? Colors.white.withValues(alpha: 0.18)
-                    : AppColors.cardBorder,
-                shape: BoxShape.circle,
-              ),
-              child: Text(
-                count.toString(),
-                style: TextStyle(
-                  color: selected ? Colors.white : AppColors.textSecondary,
-                  fontSize: 9,
-                ),
-              ),
-            ),
-          ],
-        ),
-        selected: selected,
-        onSelected: (_) => onTap(),
-        selectedColor: AppColors.primaryDark,
-        labelStyle: TextStyle(
-          color: selected ? Colors.white : AppColors.textSecondary,
-          fontSize: 10,
-        ),
-        side: BorderSide.none,
-        visualDensity: VisualDensity.compact,
-        showCheckmark: false,
+    final style = _statusStyle(status);
+    final color = style.color();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        _isArabic(context) ? style.ar : style.en,
+        style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 11),
       ),
     );
   }
 }
 
 class _RequestCard extends StatelessWidget {
-  final _WasalnyRequest request;
-  final AppLocalizations l10n;
-  final bool isArabic;
-  final bool isRevealed;
-  final VoidCallback onPreview;
-  final VoidCallback onReveal;
-  final VoidCallback onHideData;
+  const _RequestCard({required this.request, required this.onTap});
 
-  const _RequestCard({
-    required this.request,
-    required this.l10n,
-    required this.isArabic,
-    required this.isRevealed,
-    required this.onPreview,
-    required this.onReveal,
-    required this.onHideData,
-  });
+  final _Req request;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final title = isArabic ? request.titleAr : request.titleEn;
-    final seller = isArabic ? request.sellerAr : request.sellerEn;
-    final buyer = isArabic ? request.buyerAr : request.buyerEn;
-    final statusNote = isArabic ? request.statusNoteAr : request.statusNoteEn;
-    final location = isArabic ? request.locationAr : request.locationEn;
-    final age = isArabic ? request.ageAr : request.ageEn;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(
-            color: AppPalette.overlay10000000,
-            blurRadius: 7,
-            offset: Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              _StatusPill(
-                label: _requestStatusLabel(request.status, l10n),
-                icon: _requestStatusIcon(request.status),
-              ),
-              const Spacer(),
-              Text(
-                age,
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 9,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 9),
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        '${l10n.wasalnyRequestsEstimatedValue}: ${request.price} ${l10n.productWalletCurrency}',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 9,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  width: 62,
-                  height: 62,
-                  decoration: BoxDecoration(
-                    color: request.color,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: MotionIcon(request.icon, color: Colors.white, size: 32),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: _PersonPill(
-                  role: l10n.wasalnyRequestsSeller,
-                  name: seller,
-                  icon: Icons.storefront_outlined,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: _PersonPill(
-                  role: l10n.wasalnyRequestsBuyer,
-                  name: buyer,
-                  icon: Icons.person_outline,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          if (request.status != _RequestStatus.sold) ...[
-            Row(
-              children: [
-                Expanded(
-                  child: _CardButton(
-                    label: isRevealed
-                        ? l10n.wasalnyRequestsHideData
-                        : l10n.wasalnyRequestsRevealAction,
-                    icon: isRevealed
-                        ? Icons.lock_outline
-                        : Icons.lock_open_outlined,
-                    background: AppColors.primaryDark,
-                    foreground: Colors.white,
-                    onPressed: isRevealed ? onHideData : onReveal,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: _CardButton(
-                    label: l10n.wasalnyRequestsPreviewAction,
-                    icon: Icons.visibility_outlined,
-                    background: AppColors.surfaceLight,
-                    foreground: AppColors.ink,
-                    onPressed: onPreview,
-                  ),
-                ),
-              ],
-            ),
-          ],
-          if (isRevealed) ...[
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Expanded(
-                  child: _PhonePill(
-                    label: l10n.wasalnyRequestsSeller,
-                    phone: request.sellerPhone,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: _PhonePill(
-                    label: l10n.wasalnyRequestsBuyer,
-                    phone: request.buyerPhone,
-                  ),
-                ),
-              ],
-            ),
-          ],
-          const SizedBox(height: 6),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceHighlight,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(
-              children: [
-                MotionIcon(
-                  isRevealed ? Icons.lock_open_outlined : Icons.lock_outline,
-                  size: 15,
-                  color: AppColors.ink,
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    isRevealed ? '$statusNote • $location' : statusNote,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 9,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-}
-
-String _requestStatusLabel(_RequestStatus status, AppLocalizations l10n) =>
-    switch (status) {
-      _RequestStatus.awaitingApproval => l10n.wasalnyRequestsAwaitingApproval,
-      _RequestStatus.underReview => l10n.wasalnyRequestsUnderReview,
-      _RequestStatus.communication => l10n.wasalnyRequestsCommunication,
-      _RequestStatus.sold => l10n.wasalnyRequestsSold,
-    };
-
-IconData _requestStatusIcon(_RequestStatus status) => switch (status) {
-      _RequestStatus.awaitingApproval => Icons.hourglass_top_rounded,
-      _RequestStatus.underReview => Icons.manage_search_outlined,
-      _RequestStatus.communication => Icons.chat_bubble_outline,
-      _RequestStatus.sold => Icons.handshake_outlined,
-    };
-
-class _StatusPill extends StatelessWidget {
-  final String label;
-  final IconData icon;
-
-  const _StatusPill({required this.label, required this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: AppColors.infoBorder,
+    final ar = _isArabic(context);
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
         borderRadius: BorderRadius.circular(18),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          MotionIcon(icon, size: 12, color: AppColors.ink),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              color: AppColors.ink,
-              fontSize: 9,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PersonPill extends StatelessWidget {
-  final String role;
-  final String name;
-  final IconData icon;
-
-  const _PersonPill({
-    required this.role,
-    required this.name,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceHighlight,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          MotionIcon(icon, color: AppColors.ink, size: 15),
-          const SizedBox(width: 4),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  role,
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 8,
-                  ),
-                ),
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _RequestPhotoGallery extends StatelessWidget {
-  final _WasalnyRequest request;
-  final String title;
-
-  const _RequestPhotoGallery({required this.request, required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    final isArabic = AppLocalizations.of(context)!.localeName.startsWith('ar');
-    return SizedBox(
-      height: 150,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: 3,
-        separatorBuilder: (_, __) => const SizedBox(width: 9),
-        itemBuilder: (context, index) => Container(
-          width: 148,
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                request.color.withValues(alpha: 0.72),
-                request.color,
-              ],
-            ),
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppColors.cardBorder),
           ),
-          child: Stack(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(
-                child: MotionIcon(
-                  request.icon,
-                  color: Colors.white.withValues(alpha: 0.92),
-                  size: 66,
-                ),
+              Row(
+                children: [
+                  Text('#REQ-${request.id}', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w700)),
+                  const Spacer(),
+                  _StatusChip(status: request.status),
+                ],
               ),
-              PositionedDirectional(
-                top: 8,
-                start: 8,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.32),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: CountText(
-                    '${isArabic ? 'صورة' : 'Photo'} ${index + 1}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
+              const SizedBox(height: 10),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: SizedBox(
+                      width: 64,
+                      height: 64,
+                      child: request.imageUrl.isEmpty
+                          ? ColoredBox(color: AppColors.surfaceMuted, child: Icon(Icons.image_outlined, color: AppColors.textMuted))
+                          : Image.network(
+                              request.imageUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stack) => ColoredBox(color: AppColors.surfaceMuted, child: Icon(Icons.broken_image_outlined, color: AppColors.textMuted)),
+                            ),
                     ),
                   ),
-                ),
-              ),
-              PositionedDirectional(
-                start: 8,
-                end: 8,
-                bottom: 8,
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(request.adTitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 4),
+                        Text('${request.adPrice.toStringAsFixed(request.adPrice % 1 == 0 ? 0 : 2)} ${ar ? 'ج.م' : 'EGP'}', style: TextStyle(color: AppColors.primaryDark, fontWeight: FontWeight.w800)),
+                      ],
+                    ),
                   ),
-                ),
+                ],
               ),
+              const SizedBox(height: 10),
+              _PersonLine(icon: Icons.shopping_bag_outlined, label: ar ? 'المشتري' : 'Buyer', name: request.buyerName, phone: request.buyerPhone),
+              const SizedBox(height: 4),
+              _PersonLine(icon: Icons.storefront_outlined, label: ar ? 'البائع' : 'Seller', name: request.sellerName, phone: request.sellerPhone),
+              if (request.reason.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  '${ar ? 'السبب' : 'Reason'}: ${request.reason}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: AppColors.dangerDark, fontSize: 12),
+                ),
+              ],
+              const SizedBox(height: 8),
+              Text(_timeAgo(request.createdAt, ar), style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
             ],
           ),
         ),
@@ -1532,226 +405,475 @@ class _RequestPhotoGallery extends StatelessWidget {
   }
 }
 
-class _DetailsSection extends StatelessWidget {
-  final String title;
+class _PersonLine extends StatelessWidget {
+  const _PersonLine({required this.icon, required this.label, required this.name, required this.phone});
+
   final IconData icon;
-  final List<Widget> children;
-
-  const _DetailsSection({
-    required this.title,
-    required this.icon,
-    required this.children,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.cardBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              MotionIcon(icon, color: AppColors.ink, size: 18),
-              const SizedBox(width: 7),
-              Text(
-                title,
-                style: TextStyle(
-                  color: AppColors.ink,
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          ...children,
-        ],
-      ),
-    );
-  }
-}
-
-class _PersonDetails extends StatelessWidget {
-  final String role;
+  final String label;
   final String name;
-  final String? phone;
-  final String protectedLabel;
-  final IconData icon;
-
-  const _PersonDetails({
-    required this.role,
-    required this.name,
-    required this.phone,
-    required this.protectedLabel,
-    required this.icon,
-  });
+  final String phone;
 
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        MotionIcon(icon, color: AppColors.ink, size: 19),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                role,
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 10,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                name,
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                phone ?? protectedLabel,
-                textDirection: phone == null ? null : ui.TextDirection.ltr,
-                style: TextStyle(
-                  color: phone == null
-                      ? AppColors.textSecondary
-                      : AppColors.ink,
-                  fontSize: 10,
-                ),
+  Widget build(BuildContext context) => Row(
+    children: [
+      Icon(icon, size: 16, color: AppColors.textSecondary),
+      const SizedBox(width: 6),
+      Text('$label: ', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+      Expanded(
+        child: Text(
+          phone.isEmpty ? name : '$name • $phone',
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w700),
+        ),
+      ),
+    ],
+  );
+}
+
+// ───────────────────────── details ─────────────────────────
+
+class _Person {
+  _Person(Map<String, dynamic> j)
+    : id = (j['id'] as num?)?.toInt() ?? 0,
+      name = '${j['name'] ?? ''}',
+      phone = '${j['phone'] ?? ''}',
+      email = '${j['email'] ?? ''}',
+      governorate = '${j['governorate'] ?? ''}',
+      city = '${j['city'] ?? ''}',
+      address = '${j['address'] ?? ''}',
+      imageUrl = '${j['imageUrl'] ?? ''}',
+      rating = (j['rating'] as num?)?.toDouble() ?? 0,
+      isVerified = j['isVerified'] == true;
+
+  final int id;
+  final String name;
+  final String phone;
+  final String email;
+  final String governorate;
+  final String city;
+  final String address;
+  final String imageUrl;
+  final double rating;
+  final bool isVerified;
+}
+
+/// تفاصيل طلب وصلني: الإعلان وبيانات البائع والمشتري كاملة، مع القرار.
+class WasalnyRequestDetailsScreen extends StatefulWidget {
+  const WasalnyRequestDetailsScreen({super.key, required this.requestId});
+
+  final int requestId;
+
+  @override
+  State<WasalnyRequestDetailsScreen> createState() => _WasalnyRequestDetailsScreenState();
+}
+
+class _WasalnyRequestDetailsScreenState extends State<WasalnyRequestDetailsScreen> {
+  ApiConsumer get _api => sl<ApiConsumer>(instanceName: 'berwah');
+
+  Map<String, dynamic>? _data;
+  bool _loading = true;
+  bool _failed = false;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _failed = false;
+    });
+    try {
+      final response = await _api.get<Object>(ApiEndpoints.wasalnyRequest(widget.requestId));
+      final body = response.data;
+      final data = body is Map ? body['data'] : null;
+      if (data is! Map<String, dynamic>) throw const FormatException('bad request');
+      if (!mounted) return;
+      setState(() {
+        _data = data;
+        _loading = false;
+      });
+    } on Object catch (error) {
+      debugPrint('Wasalny request load failed: $error');
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _failed = true;
+      });
+    }
+  }
+
+  Future<String?> _askReason(String title) async {
+    final ar = _isArabic(context);
+    final controller = TextEditingController();
+    try {
+      return await showDialog<String>(
+        context: context,
+        builder: (ctx) => Directionality(
+          textDirection: ar ? TextDirection.rtl : TextDirection.ltr,
+          child: AlertDialog(
+            title: Text(title),
+            content: TextField(
+              controller: controller,
+              autofocus: true,
+              maxLines: 3,
+              maxLength: 500,
+              decoration: InputDecoration(hintText: ar ? 'اكتب السبب' : 'Write the reason'),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text(ar ? 'إلغاء' : 'Cancel')),
+              FilledButton(
+                onPressed: () {
+                  final text = controller.text.trim();
+                  if (text.length < 3) return;
+                  Navigator.of(ctx).pop(text);
+                },
+                child: Text(ar ? 'تأكيد' : 'Confirm'),
               ),
             ],
           ),
         ),
+      );
+    } finally {
+      controller.dispose();
+    }
+  }
+
+  Future<void> _decide(String path, {Map<String, dynamic>? data, required String done}) async {
+    final ar = _isArabic(context);
+    setState(() => _busy = true);
+    try {
+      await _api.post<Object>(path, data: data ?? const {});
+      if (!mounted) return;
+      AppSnackBar.showSuccess(context, done);
+      Navigator.of(context).pop(true);
+    } on Object catch (error) {
+      debugPrint('Wasalny decision failed: $error');
+      if (mounted) {
+        AppSnackBar.showError(context, _serverMessage(error, ar ? 'تعذر تنفيذ القرار، حاول مرة أخرى.' : 'Could not complete the action.'));
+        setState(() => _busy = false);
+      }
+    }
+  }
+
+  Future<void> _approve() => _decide(
+    ApiEndpoints.wasalnyRequestApprove(widget.requestId),
+    done: _isArabic(context) ? 'تم اعتماد الطلب وفتح المحادثة' : 'Approved — the chat is open',
+  );
+
+  Future<void> _reject() async {
+    final ar = _isArabic(context);
+    final reason = await _askReason(ar ? 'سبب الرفض (يوصل للمشتري)' : 'Rejection reason (sent to the buyer)');
+    if (reason == null || !mounted) return;
+    await _decide(
+      ApiEndpoints.wasalnyRequestReject(widget.requestId),
+      data: {'reason': reason},
+      done: ar ? 'تم الرفض وإرسال السبب للمشتري' : 'Rejected — the buyer was told why',
+    );
+  }
+
+  Future<void> _freeze() async {
+    final ar = _isArabic(context);
+    final reason = await _askReason(ar ? 'سبب التجميد (يوصل للبائع)' : 'Freeze reason (sent to the seller)');
+    if (reason == null || !mounted) return;
+    await _decide(
+      ApiEndpoints.wasalnyRequestFreeze(widget.requestId),
+      data: {'reason': reason},
+      done: ar ? 'تم التجميد وإرسال السبب للبائع' : 'Frozen — the seller was told why',
+    );
+  }
+
+  Future<void> _reopen() => _decide(
+    ApiEndpoints.wasalnyRequestReopen(widget.requestId),
+    done: _isArabic(context) ? 'رجع الطلب لقيد المراجعة' : 'Back under review',
+  );
+
+  void _message(String withRole, String adTitle, int adId) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AdOwnerChatScreen(
+          adId: adId,
+          adTitle: adTitle,
+          requestId: widget.requestId,
+          withRole: withRole,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ar = _isArabic(context);
+    return Directionality(
+      textDirection: ar ? TextDirection.rtl : TextDirection.ltr,
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          title: Text('${ar ? 'طلب وصلني' : 'Wasalny request'} #${widget.requestId}'),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+        ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _failed || _data == null
+            ? Center(
+                child: TextButton.icon(
+                  onPressed: _load,
+                  icon: const Icon(Icons.refresh),
+                  label: Text(ar ? 'تعذر التحميل — إعادة المحاولة' : 'Could not load — retry'),
+                ),
+              )
+            : _content(ar, _data!),
+      ),
+    );
+  }
+
+  Widget _content(bool ar, Map<String, dynamic> d) {
+    final status = '${d['status'] ?? 'underReview'}';
+    final reason = '${d['reason'] ?? ''}';
+    final note = '${d['buyerNote'] ?? ''}';
+    final ad = d['ad'] is Map<String, dynamic> ? d['ad'] as Map<String, dynamic> : const <String, dynamic>{};
+    final adId = (ad['id'] as num?)?.toInt() ?? 0;
+    final adTitle = '${ad['title'] ?? ''}';
+    final images = [for (final u in (ad['imageUrls'] as List? ?? const [])) '$u'];
+    final buyer = _Person(d['buyer'] is Map<String, dynamic> ? d['buyer'] as Map<String, dynamic> : const {});
+    final seller = _Person(d['seller'] is Map<String, dynamic> ? d['seller'] as Map<String, dynamic> : const {});
+    final history = [for (final h in (d['history'] as List? ?? const [])) if (h is Map<String, dynamic>) h];
+    final price = (ad['price'] as num?)?.toDouble() ?? 0;
+
+    return Column(
+      children: [
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+            children: [
+              Row(children: [_StatusChip(status: status)]),
+              if (reason.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text('${ar ? 'السبب' : 'Reason'}: $reason', style: TextStyle(color: AppColors.dangerDark, fontWeight: FontWeight.w700)),
+              ],
+              const SizedBox(height: 12),
+              _Section(
+                title: ar ? 'الإعلان' : 'The ad',
+                children: [
+                  if (images.isNotEmpty)
+                    SizedBox(
+                      height: 130,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: images.length,
+                        separatorBuilder: (context, index) => const SizedBox(width: 8),
+                        itemBuilder: (_, i) => ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.network(
+                            images[i],
+                            width: 150,
+                            height: 130,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stack) => SizedBox(width: 150, child: ColoredBox(color: AppColors.surfaceMuted)),
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (images.isNotEmpty) const SizedBox(height: 10),
+                  Text(adTitle, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800, fontSize: 15)),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${price.toStringAsFixed(price % 1 == 0 ? 0 : 2)} ${ar ? 'ج.م' : 'EGP'}${ad['isNegotiable'] == true ? (ar ? ' • قابل للتفاوض' : ' • negotiable') : ''}',
+                    style: TextStyle(color: AppColors.primaryDark, fontWeight: FontWeight.w800),
+                  ),
+                  if ('${ad['description'] ?? ''}'.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text('${ad['description']}', style: TextStyle(color: AppColors.textSecondary)),
+                  ],
+                  const SizedBox(height: 6),
+                  Text(
+                    [ad['governorate'], ad['city']].where((e) => '${e ?? ''}'.isNotEmpty).join(' - '),
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                  ),
+                ],
+              ),
+              if (note.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _Section(
+                  title: ar ? 'ملاحظة المشتري' : 'Buyer note',
+                  children: [Text(note, style: TextStyle(color: AppColors.textPrimary))],
+                ),
+              ],
+              const SizedBox(height: 12),
+              _PersonSection(
+                title: ar ? 'بيانات المشتري' : 'Buyer',
+                person: buyer,
+                onMessage: () => _message('buyer', adTitle, adId),
+              ),
+              const SizedBox(height: 12),
+              _PersonSection(
+                title: ar ? 'بيانات البائع' : 'Seller',
+                person: seller,
+                onMessage: () => _message('seller', adTitle, adId),
+              ),
+              if (history.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _Section(
+                  title: ar ? 'سجل القرارات' : 'History',
+                  children: [
+                    for (final h in history)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Text(
+                          '• ${h['label'] ?? h['actionKey']}'
+                          '${'${h['by'] ?? ''}'.isNotEmpty ? ' — ${h['by']}' : ''}'
+                          '${'${h['reason'] ?? ''}'.isNotEmpty ? ': ${h['reason']}' : ''}',
+                          style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+        _actions(ar, status),
       ],
     );
   }
-}
 
-class _PhonePill extends StatelessWidget {
-  final String label;
-  final String phone;
-
-  const _PhonePill({required this.label, required this.phone});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(7),
-      decoration: BoxDecoration(
-        color: AppColors.infoLight,
-        borderRadius: BorderRadius.circular(9),
-      ),
-      child: Text(
-        '$label: $phone',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          color: AppColors.ink,
-          fontSize: 9,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-}
-
-class _CardButton extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final Color background;
-  final Color foreground;
-  final VoidCallback onPressed;
-
-  const _CardButton({
-    required this.label,
-    required this.icon,
-    required this.background,
-    required this.foreground,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: background,
-      borderRadius: BorderRadius.circular(11),
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(11),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 11),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              MotionIcon(icon, color: foreground, size: 16),
-              const SizedBox(width: 5),
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: foreground,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w600,
+  Widget _actions(bool ar, String status) {
+    if (_busy) {
+      return const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator()));
+    }
+    final underReview = status == 'underReview';
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+        decoration: BoxDecoration(color: AppColors.surface, border: Border(top: BorderSide(color: AppColors.cardBorder))),
+        child: underReview
+            ? Row(
+                children: [
+                  Expanded(child: FilledButton(onPressed: _approve, child: Text(ar ? 'اعتماد' : 'Approve'))),
+                  const SizedBox(width: 8),
+                  Expanded(child: OutlinedButton(onPressed: _freeze, child: Text(ar ? 'تجميد' : 'Freeze'))),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _reject,
+                      style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
+                      child: Text(ar ? 'رفض' : 'Reject'),
+                    ),
                   ),
+                ],
+              )
+            : SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _reopen,
+                  icon: const Icon(Icons.undo_rounded),
+                  label: Text(ar ? 'إعادة المراجعة' : 'Review again'),
                 ),
               ),
-            ],
-          ),
-        ),
       ),
     );
   }
 }
 
-class _DetailLine extends StatelessWidget {
-  final String label;
-  final String value;
+class _Section extends StatelessWidget {
+  const _Section({required this.title, required this.children});
 
-  const _DetailLine({required this.label, required this.value});
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: AppColors.cardBorder),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800, fontSize: 14)),
+        const SizedBox(height: 10),
+        ...children,
+      ],
+    ),
+  );
+}
+
+class _PersonSection extends StatelessWidget {
+  const _PersonSection({required this.title, required this.person, required this.onMessage});
+
+  final String title;
+  final _Person person;
+  final VoidCallback onMessage;
+
+  Widget _row(BuildContext context, IconData icon, String value, {bool copy = false}) {
+    if (value.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: InkWell(
+        onTap: copy
+            ? () {
+                Clipboard.setData(ClipboardData(text: value));
+                AppSnackBar.showInfo(context, _isArabic(context) ? 'تم النسخ' : 'Copied');
+              }
+            : null,
+        child: Row(
+          children: [
+            Icon(icon, size: 16, color: AppColors.textSecondary),
+            const SizedBox(width: 8),
+            Expanded(child: SelectableText(value, style: TextStyle(color: AppColors.textPrimary, fontSize: 13))),
+            if (copy) Icon(Icons.copy_rounded, size: 14, color: AppColors.textMuted),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              label,
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 11,
-              ),
+    final ar = _isArabic(context);
+    final place = [person.governorate, person.city].where((e) => e.isNotEmpty).join(' - ');
+    return _Section(
+      title: title,
+      children: [
+        Row(
+          children: [
+            CircleAvatar(
+              radius: 22,
+              backgroundColor: AppColors.surfaceMuted,
+              backgroundImage: person.imageUrl.isEmpty ? null : NetworkImage(person.imageUrl),
+              child: person.imageUrl.isEmpty ? Icon(Icons.person_outline, color: AppColors.textSecondary) : null,
             ),
-          ),
-          Expanded(
-            child: CountText(
-              value,
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(person.name, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800)),
             ),
+            if (person.isVerified) Icon(Icons.verified_rounded, size: 18, color: AppColors.success),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _row(context, Icons.phone_outlined, person.phone, copy: true),
+        _row(context, Icons.email_outlined, person.email, copy: true),
+        _row(context, Icons.place_outlined, place),
+        _row(context, Icons.home_outlined, person.address),
+        if (person.rating > 0) _row(context, Icons.star_outline_rounded, person.rating.toStringAsFixed(1)),
+        const SizedBox(height: 8),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: OutlinedButton.icon(
+            onPressed: onMessage,
+            icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+            label: Text(ar ? 'مراسلة' : 'Message'),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

@@ -2,7 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:barwah_app/features/services_supervisor/data/datasources/services_activity_log.dart';
-import 'package:barwah_app/features/services_supervisor/data/datasources/services_escalation_store.dart';
 import 'package:barwah_app/features/services_supervisor/data/datasources/services_provider_state_store.dart';
 import 'package:barwah_app/features/services_supervisor/presentation/screens/services_reports_screen.dart';
 
@@ -30,7 +29,7 @@ void main() {
     expect((await store.load())['p2']!.verified, isTrue);
   });
 
-  test('activity log keeps newest first and feeds the report', () async {
+  test('activity log keeps newest first', () async {
     final log = ServicesActivityLog();
     await log.record(action: 'request_approved', subject: 'R-1');
     await log.record(action: 'request_rejected', subject: 'R-2', details: 'سبب');
@@ -38,16 +37,25 @@ void main() {
     final all = await log.getAll();
     expect(all.length, 3);
     expect(all.first.action, 'provider_suspended');
+  });
 
-    final m = ServicesReportMetrics.compute(all, const [], DateTime.now());
-    expect(m.approved, 1);
-    expect(m.rejected, 1);
+  test('report reads the server numbers', () {
+    final m = ServicesReportMetrics.fromJson({
+      'reviewed': 4,
+      'approved': 2,
+      'rejected': 2,
+      'approvalRate': 50,
+      'providerActions': 1,
+    });
+    expect(m.approved, 2);
+    expect(m.rejected, 2);
     expect(m.providerActions, 1);
-    expect(m.approvalRate, '50%');
+    expect(m.approvalRate, 50);
   });
 
   test('report is empty-safe', () {
-    final m = ServicesReportMetrics.compute(const [], const <ServicesEscalation>[], DateTime.now());
-    expect(m.approvalRate, '—');
+    final m = ServicesReportMetrics.fromJson(const {});
+    expect(m.reviewed, 0);
+    expect(m.averageMinutes, isNull);
   });
 }
