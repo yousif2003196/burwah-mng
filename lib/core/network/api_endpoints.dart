@@ -36,33 +36,23 @@ class ApiEndpoints {
   static const accountSettings = 'api/Account/Settings';
   static const adAuditLog = '$_supervisorForAd/audit-log';
 
-  // التجار — SupervisorForMerchant
-
+  // التجار — SupervisorForMerchant (مطاعم / بقالة / أكل بيتي)
   static const _supervisorMerchant = 'api/supervisor/merchant';
-
   static const merchantStats = '$_supervisorMerchant/stats';
   static const merchantList = '$_supervisorMerchant/merchants';
-  static const merchantAdd = '$_supervisorMerchant/merchants/add';
-  static String merchantProfile(int merchantId) =>
-      '$_supervisorMerchant/merchant/$merchantId/profile';
-  static String merchantPendingAds(int merchantId) =>
-      '$_supervisorMerchant/merchant/$merchantId/pending-ads';
-  static String merchantSuspend(int merchantId) =>
-      '$_supervisorMerchant/merchant/$merchantId/suspend';
-  static String merchantCommission(int merchantId) =>
-      '$_supervisorMerchant/merchant/$merchantId/commission';
-
-  static const merchantAdStats = '$_supervisorMerchant/ads/stats';
-  static const merchantAdPending = '$_supervisorMerchant/ads/pending';
-  static String merchantAdDetails(int id) =>
-      '$_supervisorMerchant/ads/$id/details';
-  static String merchantAdApprove(int id) =>
-      '$_supervisorMerchant/ads/$id/approve';
-  static String merchantAdReject(int id) =>
-      '$_supervisorMerchant/ads/$id/reject';
-  static String merchantAdRequestEdit(int id) =>
-      '$_supervisorMerchant/ads/$id/request-edit';
-
+  static String merchantDetails(int id) => '$_supervisorMerchant/merchants/$id';
+  static String merchantApprove(int id) => '$_supervisorMerchant/merchants/$id/approve';
+  static String merchantReject(int id) => '$_supervisorMerchant/merchants/$id/reject';
+  static String merchantRequestInfo(int id) => '$_supervisorMerchant/merchants/$id/request-info';
+  static String merchantSuspend(int id) => '$_supervisorMerchant/merchants/$id/suspend';
+  static String merchantReactivate(int id) => '$_supervisorMerchant/merchants/$id/reactivate';
+  static String merchantCommission(int id) => '$_supervisorMerchant/merchants/$id/commission';
+  static String merchantOrders(int id) => '$_supervisorMerchant/merchants/$id/orders';
+  static String merchantProductHide(int id) => '$_supervisorMerchant/products/$id/hide';
+  static String merchantProductShow(int id) => '$_supervisorMerchant/products/$id/show';
+  static const merchantWithdrawals = '$_supervisorMerchant/withdrawals';
+  static String merchantWithdrawalRecommend(int id) => '$_supervisorMerchant/withdrawals/$id/recommend';
+  static const merchantEvents = '$_supervisorMerchant/events';
   // طلبات الخدمات — SupervisorForSR
 
   static const _supervisorForSr = 'api/SupervisorForSR';

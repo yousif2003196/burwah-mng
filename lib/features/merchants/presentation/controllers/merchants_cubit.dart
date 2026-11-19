@@ -1,5 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'package:barwah_app/features/merchants/data/datasources/merchant_advertisement_local_store.dart';
+import 'package:barwah_app/features/merchants/data/datasources/merchant_supervisor_local_store.dart';
 import 'package:barwah_app/features/merchants/domain/entities/merchant_entity.dart';
 import 'package:barwah_app/features/merchants/domain/usecases/get_merchants_usecase.dart';
 import 'package:barwah_app/features/merchants/domain/usecases/get_supervised_merchants_usecase.dart';
@@ -15,7 +17,42 @@ class MerchantsCubit extends Cubit<MerchantsState> {
     required this.getMerchantsUseCase,
     required this.getSupervisorStatsUseCase,
     this.getSupervisedMerchantsUseCase,
-  }) : super(const MerchantsInitial());
+  }) : super(const MerchantsInitial()) {
+    MerchantSupervisorLocalStore.revision.addListener(_silentRefresh);
+    MerchantAdvertisementLocalStore.version.addListener(_silentRefresh);
+  }
+
+  @override
+  Future<void> close() {
+    MerchantSupervisorLocalStore.revision.removeListener(_silentRefresh);
+    MerchantAdvertisementLocalStore.version.removeListener(_silentRefresh);
+    return super.close();
+  }
+
+  /// يعيد تحميل التجار من السيرفر بعد أي إجراء (إيقاف/عمولة/إخفاء منتج)
+  /// بدون وميض شاشة التحميل، مع الحفاظ على الفلتر والبحث.
+  Future<void> _silentRefresh() async {
+    final current = state;
+    if (current is! MerchantsLoaded || isClosed) return;
+    try {
+      final stats = await getSupervisorStatsUseCase();
+      final merchants = getSupervisedMerchantsUseCase != null
+          ? await getSupervisedMerchantsUseCase!()
+          : await getMerchantsUseCase();
+      if (isClosed) return;
+      emit(current.copyWith(
+        stats: stats,
+        allMerchants: merchants,
+        filteredMerchants: _applyFilters(
+          merchants: merchants,
+          status: current.activeStatusFilter,
+          query: current.searchQuery,
+        ),
+      ));
+    } catch (_) {
+      // نسيب القائمة الحالية زي ما هي لو التحديث فشل.
+    }
+  }
 
   Future<void> loadMerchants() async {
     emit(const MerchantsLoading());

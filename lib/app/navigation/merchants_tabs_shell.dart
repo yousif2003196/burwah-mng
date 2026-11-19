@@ -11,9 +11,9 @@ import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/features/finance/presentation/widgets/finance_navigation.dart';
 import 'package:barwah_app/features/merchants/presentation/controllers/merchants_cubit.dart';
 import 'package:barwah_app/features/merchants/presentation/screens/ads_management_screen.dart';
-import 'package:barwah_app/features/merchants/presentation/screens/merchant_financial_requests_screen.dart';
+import 'package:barwah_app/features/merchants/presentation/screens/merchant_withdrawals_review_screen.dart';
 import 'package:barwah_app/features/merchants/presentation/screens/merchant_profile_screen.dart';
-import 'package:barwah_app/features/merchants/presentation/screens/merchant_upgrade_requests_screen.dart';
+import 'package:barwah_app/features/merchants/presentation/screens/merchant_registration_review_screen.dart';
 import 'package:barwah_app/features/merchants/presentation/screens/merchants_dashboard_screen.dart';
 import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
 import 'package:barwah_app/features/messaging/presentation/screens/account_conversations_screen.dart';
@@ -86,10 +86,10 @@ class _MerchantsTabsShellState extends State<MerchantsTabsShell> {
         label: l10n.navFinancialRequests,
       ),
       FinanceNavigationItem(
-        icon: Icons.upgrade,
+        icon: Icons.how_to_reg_outlined,
         label: l10n.localeName.startsWith('ar')
-            ? 'طلبات الترقيات'
-            : 'Upgrade requests',
+            ? 'تسجيل التجار'
+            : 'Registrations',
       ),
       FinanceNavigationItem(icon: Icons.person_outline, label: l10n.navAccount),
     ];
@@ -97,7 +97,7 @@ class _MerchantsTabsShellState extends State<MerchantsTabsShell> {
       l10n.navMerchants,
       l10n.navAds,
       l10n.navFinancialRequests,
-      l10n.localeName.startsWith('ar') ? 'طلبات الترقيات' : 'Upgrade requests',
+      l10n.localeName.startsWith('ar') ? 'تسجيل التجار' : 'Registrations',
       l10n.navAccount,
     ];
     final pages = [
@@ -109,8 +109,8 @@ class _MerchantsTabsShellState extends State<MerchantsTabsShell> {
         ),
       ),
       const AdsManagementScreen(),
-      const MerchantFinancialRequestsScreen(),
-      const MerchantUpgradeRequestsScreen(),
+      const MerchantWithdrawalsReviewScreen(),
+      const MerchantRegistrationReviewScreen(),
       MerchantProfileScreen(
         onLogout: widget.onLogout,
         onSupervisedMerchantsTap: () => _selectPage(0),

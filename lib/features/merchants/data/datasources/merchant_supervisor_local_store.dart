@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:barwah_app/features/merchants/data/datasources/merchants_api.dart';
 import 'package:barwah_app/features/merchants/domain/entities/merchant_supervisor_audit_event.dart';
 import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
 import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
@@ -63,6 +64,12 @@ class MerchantSupervisorLocalStore {
         commissionPercent > 100) {
       throw ArgumentError.value(commissionPercent, 'commissionPercent');
     }
+    final serverId = int.tryParse(merchantId);
+    if (serverId != null) {
+      await MerchantsApi.commission(serverId, commissionPercent);
+      revision.value++;
+      return;
+    }
     final state = await _readState();
     final merchants = state['merchants'] as Map<String, dynamic>;
     final existing = merchants[merchantId];
@@ -90,12 +97,24 @@ class MerchantSupervisorLocalStore {
   }
 
   static Future<List<MerchantSupervisorAuditEvent>> getAuditEvents() async {
+    final remote = await MerchantsApi.events();
+    final fromServer = <MerchantSupervisorAuditEvent>[
+      for (final e in remote)
+        MerchantSupervisorAuditEvent(
+          action: '${e['action'] ?? ''}',
+          subject: '${e['merchantName'] ?? ''}',
+          details: '${e['note'] ?? ''}',
+          occurredAt:
+              DateTime.tryParse('${e['at']}')?.toLocal() ?? DateTime.now(),
+          merchantId: '${e['merchantId']}',
+        ),
+    ];
     final state = await _readState();
     final events = state['events'];
     if (events is! List<dynamic>) {
       throw const FormatException('Merchant audit events are invalid.');
     }
-    return events.map((value) {
+    final local = events.map((value) {
       if (value is! Map<String, dynamic> ||
           value['action'] is! String ||
           value['subject'] is! String ||
@@ -111,6 +130,7 @@ class MerchantSupervisorLocalStore {
         merchantId: value['merchantId'] as String?,
       );
     }).toList(growable: false);
+    return [...fromServer, ...local];
   }
 
   static Future<void> setMerchantSuspended({
@@ -120,6 +140,20 @@ class MerchantSupervisorLocalStore {
     required String action,
     required String details,
   }) async {
+    final serverId = int.tryParse(merchantId);
+    if (serverId != null) {
+      if (isSuspended) {
+        await MerchantsApi.suspend(
+          serverId,
+          violationType: action,
+          description: details,
+        );
+      } else {
+        await MerchantsApi.reactivate(serverId, note: details);
+      }
+      revision.value++;
+      return;
+    }
     final state = await _readState();
     final merchants = state['merchants'] as Map<String, dynamic>;
     final existing = merchants[merchantId];

@@ -16,6 +16,7 @@ import 'package:barwah_app/features/products/presentation/controllers/product_re
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/features/products/domain/entities/product_supervisor_audit_entry.dart';
 import 'package:barwah_app/features/products/domain/repositories/product_supervisor_audit_repository.dart';
+import 'package:barwah_app/features/products/presentation/screens/auction_mismatch_reports_screen.dart';
 import 'package:barwah_app/features/products/presentation/screens/product_supervisor_audit_screen.dart';
 import 'package:barwah_app/features/products/presentation/screens/product_supervisor_chats_screen.dart';
 import 'package:barwah_app/features/products/presentation/screens/product_supervisor_complaints_screen.dart';
@@ -1448,6 +1449,14 @@ class _ProductSupervisorProfileScreenState
             ),
           if (widget.showGenericComplaintsShortcut)
             const ProductEscalationsEntry(),
+          if (AuthSession.backendRole == 'SupervisorForAd' ||
+              AuthSession.backendRole == 'BossOfSupervisor')
+            _operationLink(
+              icon: Icons.gavel_outlined,
+              title: 'بلاغات المزادات',
+              subtitle: 'مراجعة بلاغ "المنتج غير مطابق" وتأكيده أو تجاهله',
+              onTap: () => _openPage(const AuctionMismatchReportsScreen()),
+            ),
           _operationLink(
             icon: Icons.chat_outlined,
             title: 'التواصل مع المشرفين والدعم',

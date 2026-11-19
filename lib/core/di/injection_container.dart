@@ -1,4 +1,4 @@
-﻿import 'package:get_it/get_it.dart';
+import 'package:get_it/get_it.dart';
 
 import 'package:barwah_app/core/network/api_configuration.dart';
 import 'package:barwah_app/core/auth/auth_refresh_interceptor.dart';
@@ -49,7 +49,7 @@ import 'package:barwah_app/features/finance/domain/usecases/submit_expense_reque
 import 'package:barwah_app/features/finance/domain/usecases/update_expense_request_status_usecase.dart';
 import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_roster_store.dart';
 import 'package:barwah_app/features/merchants/data/datasources/merchants_data_source.dart';
-import 'package:barwah_app/features/merchants/data/datasources/merchants_mock_data_source.dart';
+import 'package:barwah_app/features/merchants/data/datasources/merchants_api_data_source.dart';
 import 'package:barwah_app/features/merchants/data/repositories/merchants_repository_impl.dart';
 import 'package:barwah_app/features/merchants/domain/repositories/merchants_repository.dart';
 import 'package:barwah_app/features/merchants/domain/usecases/get_merchants_usecase.dart';
@@ -206,7 +206,7 @@ Future<void> initDependencies() async {
 
   // Merchants
   sl.registerLazySingleton<MerchantsDataSource>(
-    () => MerchantsMockDataSource(),
+    () => MerchantsApiDataSource(),
   );
   sl.registerLazySingleton<MerchantsRepository>(
     () => MerchantsRepositoryImpl(dataSource: sl()),

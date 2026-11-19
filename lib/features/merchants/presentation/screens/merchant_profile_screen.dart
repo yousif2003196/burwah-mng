@@ -11,7 +11,7 @@ import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/features/merchants/data/datasources/merchant_supervisor_local_store.dart';
 import 'package:barwah_app/features/merchants/domain/entities/merchant_supervisor_audit_event.dart';
 import 'package:barwah_app/features/merchants/presentation/screens/supervised_merchants_screen.dart';
-import 'package:barwah_app/features/merchants/presentation/widgets/merchant_escalations_entry.dart';
+import 'package:barwah_app/features/merchants/presentation/widgets/merchant_complaints_entry.dart';
 import 'package:barwah_app/features/services_supervisor/presentation/screens/services_supervisor_wallet_screen.dart';
 import 'package:barwah_app/l10n/app_localizations.dart';
 import 'package:barwah_app/core/widgets/scroll_fx.dart';
@@ -268,7 +268,7 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
             const SizedBox(height: 8),
             ScrollFx(child: _buildAuditHistory(l10n)),
             const SizedBox(height: 18),
-            ScrollFx(child: const MerchantEscalationsEntry()),
+            ScrollFx(child: const MerchantComplaintsEntry()),
             const SizedBox(height: 18),
             ScrollFx(child: _buildSectionHeading(
               l10n.merchantProfileFinancialWallet,

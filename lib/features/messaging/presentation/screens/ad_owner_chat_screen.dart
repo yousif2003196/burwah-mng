@@ -98,7 +98,7 @@ class _AdOwnerChatScreenState extends State<AdOwnerChatScreen> {
   StreamSubscription<Amplitude>? _ampSub;
   final List<double> _live = List<double>.filled(22, 6);
 
-  static const _navy = Color(0xFF14284B);
+  Color get _navy => AppColors.primaryDark;
 
   String get _name =>
       widget.title ??
@@ -318,24 +318,24 @@ class _AdOwnerChatScreenState extends State<AdOwnerChatScreen> {
                   _AttachTile(
                     icon: Icons.photo_camera_outlined,
                     label: 'الكاميرا',
-                    bg: const Color(0xFFE0F2FE),
-                    fg: const Color(0xFF065986),
+                    bg: AppColors.infoLight,
+                    fg: AppColors.infoDark,
                     onTap: () => Navigator.pop(ctx, 'camera'),
                   ),
                   const SizedBox(width: 12),
                   _AttachTile(
                     icon: Icons.image_outlined,
                     label: 'صورة',
-                    bg: const Color(0xFFDCF5EF),
-                    fg: const Color(0xFF0B6B5E),
+                    bg: AppColors.successLight,
+                    fg: AppColors.successDark,
                     onTap: () => Navigator.pop(ctx, 'image'),
                   ),
                   const SizedBox(width: 12),
                   _AttachTile(
                     icon: Icons.videocam_outlined,
                     label: 'فيديو',
-                    bg: const Color(0xFFEBE9FE),
-                    fg: const Color(0xFF5925DC),
+                    bg: AppColors.purple.withValues(alpha: 0.16),
+                    fg: AppColors.purple,
                     onTap: () => Navigator.pop(ctx, 'video'),
                   ),
                 ],
@@ -555,10 +555,10 @@ class _AdOwnerChatScreenState extends State<AdOwnerChatScreen> {
             children: [
               CircleAvatar(
                 radius: 20,
-                backgroundColor: const Color(0xFFDDE7FF),
+                backgroundColor: AppColors.infoLight,
                 child: Text(initial,
-                    style: const TextStyle(
-                        color: Color(0xFF2A4A9B),
+                    style: TextStyle(
+                        color: AppColors.infoDark,
                         fontWeight: FontWeight.w800,
                         fontSize: 16)),
               ),
@@ -577,7 +577,7 @@ class _AdOwnerChatScreenState extends State<AdOwnerChatScreen> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                              fontSize: 11, color: Color(0xFF9FE3C8))),
+                              fontSize: 11, color: Colors.white70)),
                   ],
                 ),
               ),
@@ -644,7 +644,7 @@ class _AdOwnerChatScreenState extends State<AdOwnerChatScreen> {
                 color: _navy.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.sell_outlined, size: 20, color: _navy),
+              child: Icon(Icons.sell_outlined, size: 20, color: _navy),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -714,10 +714,10 @@ class _AdOwnerChatScreenState extends State<AdOwnerChatScreen> {
               height: 140,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(10),
-                gradient: const LinearGradient(
+                gradient: LinearGradient(
                   begin: Alignment.topRight,
                   end: Alignment.bottomLeft,
-                  colors: [Color(0xFF35507F), Color(0xFF16284D)],
+                  colors: [AppColors.primaryDark.withValues(alpha: 0.78), AppColors.primaryDark],
                 ),
               ),
               child: Stack(
@@ -729,7 +729,7 @@ class _AdOwnerChatScreenState extends State<AdOwnerChatScreen> {
                     decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: Colors.white.withValues(alpha: 0.92)),
-                    child: const Icon(Icons.play_arrow_rounded,
+                    child: Icon(Icons.play_arrow_rounded,
                         size: 34, color: _navy),
                   ),
                   if (m.seconds > 0)
@@ -872,11 +872,11 @@ class _AdOwnerChatScreenState extends State<AdOwnerChatScreen> {
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFEE4E2),
+                      color: AppColors.dangerLight,
                       borderRadius: BorderRadius.circular(14),
                     ),
-                    child: const Icon(Icons.delete_outline_rounded,
-                        color: Color(0xFFD92D20)),
+                    child: Icon(Icons.delete_outline_rounded,
+                        color: AppColors.danger),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -885,7 +885,7 @@ class _AdOwnerChatScreenState extends State<AdOwnerChatScreen> {
                     height: 44,
                     padding: const EdgeInsets.symmetric(horizontal: 14),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFEF3F2),
+                      color: AppColors.dangerLight,
                       borderRadius: BorderRadius.circular(22),
                     ),
                     child: Row(
@@ -895,10 +895,10 @@ class _AdOwnerChatScreenState extends State<AdOwnerChatScreen> {
                           height: 10,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: const Color(0xFFE5484D),
+                            color: AppColors.danger,
                             boxShadow: [
                               BoxShadow(
-                                  color: const Color(0xFFE5484D)
+                                  color: AppColors.danger
                                       .withValues(alpha: 0.2),
                                   spreadRadius: 5)
                             ],
@@ -906,10 +906,10 @@ class _AdOwnerChatScreenState extends State<AdOwnerChatScreen> {
                         ),
                         const SizedBox(width: 10),
                         Text(formatChatDuration(_recSeconds),
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700,
-                                color: Color(0xFFB42318))),
+                                color: AppColors.dangerDark)),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Row(
@@ -924,7 +924,7 @@ class _AdOwnerChatScreenState extends State<AdOwnerChatScreen> {
                                     height: _live[i],
                                     decoration: BoxDecoration(
                                       borderRadius: BorderRadius.circular(2),
-                                      color: const Color(0xFFE5484D).withValues(
+                                      color: AppColors.danger.withValues(
                                           alpha: 0.35 +
                                               0.65 * (i + 1) / _live.length),
                                     ),
@@ -944,7 +944,7 @@ class _AdOwnerChatScreenState extends State<AdOwnerChatScreen> {
                   child: Container(
                     width: 48,
                     height: 48,
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                         shape: BoxShape.circle, color: _navy),
                     child: const Icon(Icons.send_rounded, color: Colors.white),
                   ),

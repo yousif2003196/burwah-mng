@@ -9,6 +9,10 @@ import 'package:barwah_app/core/network/api_consumer.dart';
 import 'package:barwah_app/core/realtime/realtime_hub.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_requests_screen.dart';
+import 'package:barwah_app/features/merchants/presentation/screens/merchant_complaints_screen.dart';
+import 'package:barwah_app/features/merchants/presentation/screens/merchant_registration_review_screen.dart';
+import 'package:barwah_app/features/merchants/presentation/screens/merchant_withdrawals_review_screen.dart';
+import 'package:barwah_app/features/products/presentation/screens/auction_mismatch_reports_screen.dart';
 import 'package:barwah_app/features/products/presentation/screens/product_supervisor_complaints_screen.dart';
 import 'package:barwah_app/features/services_supervisor/presentation/screens/services_complaints_screen.dart';
 import 'package:barwah_app/features/services_supervisor/presentation/screens/services_requests_review_screen.dart';
@@ -114,7 +118,14 @@ class _ServerNotificationsScreenState extends State<ServerNotificationsScreen> {
         return const ServicesRequestsReviewScreen();
       case 'service_escalation':
         return const HeadSupervisorRequestsScreen();
+      case 'merchant_pending':
+        return const MerchantRegistrationReviewScreen();
+      case 'merchant_withdrawal':
+        return const MerchantWithdrawalsReviewScreen();
       case 'support_ticket':
+        if (AuthSession.backendRole == 'SupervisorForMerchant') {
+          return const MerchantComplaintsScreen();
+        }
         return isProduct
             ? const ProductSupervisorComplaintsScreen()
             : const ServicesComplaintsScreen();
@@ -124,6 +135,13 @@ class _ServerNotificationsScreenState extends State<ServerNotificationsScreen> {
   }
 
   void _open(_ServerNotice n) {
+    if (n.type == 'auction_mismatch') {
+      // The reports screen has its own app bar.
+      Navigator.of(context).push(MaterialPageRoute<void>(
+        builder: (_) => AuctionMismatchReportsScreen(openAuctionId: n.refId),
+      ));
+      return;
+    }
     final target = _targetFor(n);
     if (target == null) return;
     Navigator.of(context).push(MaterialPageRoute<void>(

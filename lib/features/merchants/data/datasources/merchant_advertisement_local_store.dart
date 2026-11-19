@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:barwah_app/features/merchants/data/datasources/merchants_api.dart';
 import 'package:barwah_app/features/merchants/domain/entities/merchant_entity.dart';
 
 class MerchantAdvertisementLocalStore {
@@ -71,6 +72,22 @@ class MerchantAdvertisementLocalStore {
     required String reference,
     required MerchantAdvertisementStatus status,
   }) async {
+    // منتجات التجار الحقيقية (P-<id>) تتحفظ على السيرفر مش محليًا.
+    if (reference.startsWith('P-')) {
+      final productId = int.tryParse(reference.substring(2));
+      if (productId != null) {
+        if (status == MerchantAdvertisementStatus.approved) {
+          await MerchantsApi.showProduct(productId);
+        } else {
+          await MerchantsApi.hideProduct(
+            productId,
+            'مخالف لسياسة المنصة',
+          );
+        }
+        version.value++;
+        return;
+      }
+    }
     await ensureLoaded();
     final previous = _statuses[reference];
     _statuses[reference] = status;
