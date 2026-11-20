@@ -1,134 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
-import 'package:barwah_app/core/widgets/motion.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
-import 'package:barwah_app/core/theme/app_theme_switcher.dart';
-import 'package:barwah_app/core/localization/app_locale_controller.dart';
-import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_audit_store.dart';
-import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_audit_record.dart';
-import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_wallet_screen.dart';
-import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_supervisor_broadcast_sheet.dart';
-import 'package:barwah_app/features/messaging/presentation/screens/local_event_inbox_screen.dart';
-import 'package:barwah_app/core/widgets/scroll_fx.dart';
 import 'package:barwah_app/core/widgets/motion_icon.dart';
+import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/features/head_supervisor/domain/entities/boss_profile.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/controllers/boss_load_state.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/controllers/boss_profile_cubit.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_wallet_screen.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/widgets/common/boss_state_views.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/widgets/profile/profile_cards.dart';
+import 'package:barwah_app/features/messaging/presentation/screens/local_event_inbox_screen.dart';
 
-List<_AuditEntry> get _sampleAuditEntries => [
-  _AuditEntry(
-    icon: Icons.cancel_outlined,
-    color: AppColors.dangerDark,
-    title: 'تعليق إعلان تجاري وإحالة للتحقيق',
-    details: 'تم توجيه الإجراء العاجل بحق مشرف القطاع الشرقي وإحالته للتحقيق الإداري.',
-    time: 'اليوم 11:20 ص',
-    code: '#CMP-SUP-104',
-    action: 'خصم حسابي مثبت',
-  ),
-  _AuditEntry(
-    icon: Icons.gavel_outlined,
-    color: AppColors.infoDark,
-    title: 'حسم نزاع تسليم كاميرا كانون',
-    details: 'قرار نهائي: إلزام البائع برد كامل المبلغ للمشتري بعد ثبوت التلف.',
-    time: 'اليوم 09:15 ص',
-    code: '#WAS-5510',
-    action: 'إلزام فوري',
-  ),
-  _AuditEntry(
-    icon: Icons.swap_horiz,
-    color: AppColors.textSecondary,
-    title: 'اعتماد إعادة إسناد طلب صيانة',
-    details: 'الموافقة على تحويل طلب تكييف وتبريد حي الياسمين إلى مزود معتمد بديل.',
-    time: 'أمس 04:30 م',
-    code: '#SRV-3042',
-    action: 'الرياض',
-  ),
-  _AuditEntry(
-    icon: Icons.warning_amber_outlined,
-    color: AppColors.textSecondary,
-    title: 'لفت نظر إداري رسمي',
-    details: 'توجيه إداري للمشرف لفحص المنتجات الجديدة وعدم التأخر في مراجعتها.',
-    time: 'أمس 02:10 م',
-    code: '#SUP-108',
-    action: 'إشعار سري',
-  ),
-];
-
-String _profileText(BuildContext context, String arabic, String english) =>
-    arabic;
-
-class HeadSupervisorProfileScreen extends StatefulWidget {
+/// الملف الشخصي والسجل الرقابي: `GET api/BossOfSupervisor/final/profile`.
+class HeadSupervisorProfileScreen extends StatelessWidget {
   final VoidCallback onLogout;
 
   const HeadSupervisorProfileScreen({super.key, required this.onLogout});
 
   @override
-  State<HeadSupervisorProfileScreen> createState() =>
-      _HeadSupervisorProfileScreenState();
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (_) => sl<BossProfileCubit>()..load(),
+      child: _ProfileView(onLogout: onLogout),
+    );
+  }
 }
 
-class _HeadSupervisorProfileScreenState extends State<HeadSupervisorProfileScreen> {
-  List<HeadSupervisorAuditRecord> _records = const [];
+class _ProfileView extends StatelessWidget {
+  final VoidCallback onLogout;
 
-  @override
-  void initState() {
-    super.initState();
-    HeadSupervisorAuditStore.revision.addListener(_loadAuditRecords);
-    _loadAuditRecords();
-  }
-
-  @override
-  void dispose() {
-    HeadSupervisorAuditStore.revision.removeListener(_loadAuditRecords);
-    super.dispose();
-  }
-
-  Future<void> _loadAuditRecords() async {
-    try {
-      final records = await HeadSupervisorAuditStore().getRecent(limit: 20);
-      if (!mounted) return;
-      setState(() => _records = records);
-    } catch (error, stackTrace) {
-      FlutterError.reportError(FlutterErrorDetails(
-        exception: error,
-        stack: stackTrace,
-        library: 'head supervisor profile audit',
-      ));
-    }
-  }
-
-  List<_AuditEntry> get _auditEntries {
-    if (_records.isEmpty) {
-      return _sampleAuditEntries;
-    }
-    return [
-      for (final record in _records)
-        _AuditEntry(
-          icon: switch (record.kind) {
-            'request' => Icons.gavel_outlined,
-            'summon' => Icons.person_search_outlined,
-            'wallet' => Icons.account_balance_wallet_outlined,
-            'broadcast' => Icons.campaign_outlined,
-            _ => Icons.policy_outlined,
-          },
-          color: record.kind == 'complaint'
-              ? AppColors.dangerDark
-              : AppColors.infoDark,
-          title: record.title,
-          details: record.details,
-          time: _auditTime(record.occurredAt),
-          code: '#${record.subjectId}',
-          action: record.department,
-        ),
-    ];
-  }
-
-  String _auditTime(DateTime value) {
-    final local = value.toLocal();
-    final now = DateTime.now();
-    final time = '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
-    if (local.year == now.year && local.month == now.month && local.day == now.day) {
-      return 'اليوم $time';
-    }
-    return '${local.day}/${local.month} $time';
-  }
+  const _ProfileView({required this.onLogout});
 
   @override
   Widget build(BuildContext context) {
@@ -138,16 +41,16 @@ class _HeadSupervisorProfileScreenState extends State<HeadSupervisorProfileScree
         backgroundColor: AppColors.surface,
         foregroundColor: AppColors.ink,
         elevation: 0,
-        title: Text(_profileText(context, 'رئيس المشرفين', 'Head Supervisor'),
+        title: Text(profileText(context, 'رئيس المشرفين', 'Head Supervisor'),
             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
-            tooltip: _profileText(context, 'الإشعارات', 'Notifications'),
+            tooltip: profileText(context, 'الإشعارات', 'Notifications'),
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => LocalEventInboxScreen(
                   recipient: 'head',
-                  title: _profileText(context, 'الإشعارات', 'Notifications'),
+                  title: profileText(context, 'الإشعارات', 'Notifications'),
                 ),
               ),
             ),
@@ -156,92 +59,53 @@ class _HeadSupervisorProfileScreenState extends State<HeadSupervisorProfileScree
           const SizedBox(width: 8),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-        children: [
-          ScrollFx(child: const _SessionBanner()),
-          const SizedBox(height: 14),
-          ScrollFx(child: _ProfileCard(onEdit: () => _showEditProfile(context))),
-          const SizedBox(height: 10),
-          ScrollFx(child: _BroadcastNoticeCard(onTap: () => _openBroadcast(context))),
-          const SizedBox(height: 14),
-          ScrollFx(child: _WalletCard(onOpen: () => _showWallet(context))),
-          const SizedBox(height: 18),
-          ScrollFx(child: _SectionHeading(
-              title: _profileText(context, 'مؤشرات الرقابة والامتثال', 'Oversight & Compliance'),
-              subtitle: _profileText(context, 'خلال 30 يوماً', 'Last 30 days'))),
-          const SizedBox(height: 8),
-          ScrollFx(child: Row(children: [
-            Expanded(child: _MetricCard(value: '18', label: _profileText(context, 'مشرفاً تحت الإدارة', 'Supervisors managed'), icon: Icons.groups_outlined)),
-            const SizedBox(width: 8),
-            Expanded(child: _MetricCard(value: '98.4%', label: _profileText(context, 'معيار الحوكمة', 'Governance score'), icon: Icons.verified_outlined, valueColor: AppColors.infoDark)),
-            const SizedBox(width: 8),
-            Expanded(child: _MetricCard(value: '342', label: _profileText(context, 'تدخل رقابي معتمد', 'Approved interventions'), icon: Icons.gavel_outlined)),
-          ])),
-          const SizedBox(height: 14),
-          ScrollFx(child: _AuditCard(
-            entries: _auditEntries,
-            totalCount: _records.isEmpty ? 142 : _records.length,
-            onViewAll: () => _showAudit(context),
-          )),
-          const SizedBox(height: 14),
-          ScrollFx(child: const _SecurityCard()),
-          const SizedBox(height: 14),
-          ScrollFx(child: const _PreferencesCard()),
-          const SizedBox(height: 14),
-          SizedBox(
-            height: 48,
-            child: OutlinedButton.icon(
-              onPressed: () => _confirmLogout(context, widget.onLogout),
-              icon: MotionIcon(Icons.logout, color: AppColors.dangerDark, size: 18),
-              label: Text(_profileText(context, 'إنهاء الجلسة الإدارية وإغلاق التطبيق', 'End the admin session and sign out'),
-                  style: TextStyle(
-                      color: AppColors.dangerDark,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold)),
-              style: OutlinedButton.styleFrom(
-                backgroundColor: AppColors.surfaceHighlight,
-                side: BorderSide.none,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
-              ),
+      body: BlocBuilder<BossProfileCubit, BossProfileState>(
+        builder: (context, state) => switch (state) {
+          BossLoading() => const BossLoadingView(),
+          BossLoadFailure(:final message) => BossErrorView(
+              message: message,
+              onRetry: context.read<BossProfileCubit>().load,
             ),
-          ),
+          BossLoaded(:final data) => RefreshIndicator(
+              onRefresh: context.read<BossProfileCubit>().load,
+              child: _ProfileBody(profile: data, onLogout: onLogout),
+            ),
+        },
+      ),
+    );
+  }
+}
+
+class _ProfileBody extends StatelessWidget {
+  final BossProfile profile;
+  final VoidCallback onLogout;
+
+  const _ProfileBody({required this.profile, required this.onLogout});
+
+  Future<void> _showEditProfile(BuildContext context) async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(profileText(context, 'بيانات رئيس المشرفين', 'Head Supervisor account')),
+        content: Text(profileText(context,
+            'لتعديل بيانات الحساب، تواصل مع مسؤول النظام.',
+            'To update account details, contact the system administrator.')),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(profileText(context, 'حسناً', 'OK'))),
         ],
       ),
     );
   }
 
-  static Future<void> _showEditProfile(BuildContext context) async {
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(_profileText(context, 'بيانات رئيس المشرفين', 'Head Supervisor account')),
-        content: Text(_profileText(context, 'لتعديل بيانات الحساب، تواصل مع مسؤول النظام.', 'To update account details, contact the system administrator.')),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text(_profileText(context, 'حسناً', 'OK')))],
-      ),
-    );
-  }
-
-  static Future<void> _showWallet(BuildContext context) async {
+  Future<void> _showWallet(BuildContext context) async {
+    final cubit = context.read<BossProfileCubit>();
     await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => const HeadSupervisorWalletScreen(),
-      ),
+      MaterialPageRoute<void>(builder: (_) => const HeadSupervisorWalletScreen()),
     );
-  }
-
-  Future<void> _openBroadcast(BuildContext context) async {
-    final sent = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => const HeadSupervisorBroadcastSheet(),
-    );
-    if (!mounted || sent != true) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(_profileText(context, 'تم إرسال الإشعار وتسجيله في السجل الرقابي.', 'The notice was sent and recorded in the audit log.'))),
-    );
+    // الرصيد في الملف الشخصي يتغير بعد أي عملية صرف.
+    await cubit.load();
   }
 
   Future<void> _showAudit(BuildContext context) async {
@@ -254,417 +118,99 @@ class _HeadSupervisorProfileScreenState extends State<HeadSupervisorProfileScree
         child: SizedBox(
           height: MediaQuery.sizeOf(context).height * .72,
           child: ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 24), children: [
-            Text(_profileText(context, 'السجل الرقابي والإداري', 'Oversight & Administration Log'), textAlign: TextAlign.right, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            Text(profileText(context, 'السجل الرقابي والإداري', 'Oversight & Administration Log'),
+                textAlign: TextAlign.right,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
-            ..._auditEntries.map((entry) => Padding(padding: const EdgeInsets.only(bottom: 8), child: _AuditEntryTile(entry: entry))),
-            Text(_profileText(context, 'إجمالي القرارات المسجلة: ${_records.isEmpty ? 142 : _records.length}', 'Total recorded decisions: ${_records.isEmpty ? 142 : _records.length}'), textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+            for (final log in profile.recentAuditLogs)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: ProfileAuditEntryTile(log: log),
+              ),
           ]),
         ),
       ),
     );
   }
 
-  static Future<void> _confirmLogout(BuildContext context, VoidCallback onLogout) async {
+  Future<void> _confirmLogout(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(_profileText(context, 'إنهاء الجلسة؟', 'End session?')),
-        content: Text(_profileText(context, 'سيتم تسجيل الخروج من حساب رئيس المشرفين.', 'You will be signed out of the Head Supervisor account.')),
+        title: Text(profileText(context, 'إنهاء الجلسة؟', 'End session?')),
+        content: Text(profileText(context,
+            'سيتم تسجيل الخروج من حساب رئيس المشرفين.',
+            'You will be signed out of the Head Supervisor account.')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(_profileText(context, 'إلغاء', 'Cancel'))),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(_profileText(context, 'تسجيل الخروج', 'Sign out'))),
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(profileText(context, 'إلغاء', 'Cancel'))),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(profileText(context, 'تسجيل الخروج', 'Sign out'))),
         ],
       ),
     );
     if (confirmed == true) onLogout();
   }
-}
-
-class _PreferencesCard extends StatelessWidget {
-  const _PreferencesCard();
 
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
-        listenable: AppLocaleController.instance,
-        builder: (context, _) {
-          final isArabic = AppLocaleController.instance.isArabic;
-          Widget row(String title, Widget trailing) => Row(children: [
-                trailing,
-                const Spacer(),
-                Text(title,
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.ink)),
-              ]);
-          return Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppColors.cardBorder),
-            ),
-            child: Column(children: [
-              row(isArabic ? 'المظهر (فاتح / داكن)' : 'Appearance (light / dark)',
-                  const AppThemeSwitcherButton()),
-              Divider(height: 18, color: AppColors.cardBorder),
-              row(
-                isArabic ? 'اللغة' : 'Language',
-                InkWell(
-                  borderRadius: BorderRadius.circular(20),
-                  onTap: AppLocaleController.instance.toggle,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceLight,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: AppColors.cardBorder),
-                    ),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      MotionIcon(Icons.language, color: AppColors.ink, size: 15),
-                      const SizedBox(width: 5),
-                      Text(isArabic ? 'English' : 'العربية',
-                          style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.ink)),
-                    ]),
-                  ),
-                ),
-              ),
-            ]),
-          );
-        },
-      );
-}
-
-class _SessionBanner extends StatelessWidget {
-  const _SessionBanner();
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(color: AppColors.surfaceHighlight, borderRadius: BorderRadius.circular(14)),
-        child: Row(children: [
-          const _Tag(text: 'SUP-HEAD-01', icon: Icons.shield_outlined),
-          const Spacer(),
-          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text(_profileText(context, 'جلسة نفاذ الوطني موثقة', 'Verified national access session'), style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-            Text(_profileText(context, 'الرقابة الإدارية النشطة • تشفير قياسي', 'Active administration • Standard encryption'), style: TextStyle(fontSize: 8, color: AppColors.textSecondary)),
-          ]),
-          const SizedBox(width: 8),
-          CircleAvatar(radius: 14, backgroundColor: AppColors.cardBorder, child: MotionIcon(Icons.verified_user_outlined, size: 16, color: AppColors.infoDark)),
-        ]),
-      );
-}
-
-class _BroadcastNoticeCard extends StatelessWidget {
-  final VoidCallback onTap;
-  const _BroadcastNoticeCard({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) => Material(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(14),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
-            decoration: BoxDecoration(
-              border: Border.all(color: AppColors.surfaceHighlight),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Row(children: [
-              MotionIcon(Icons.campaign_outlined, color: AppColors.infoDark, size: 21),
-              const SizedBox(width: 10),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                Text(_profileText(context, 'إشعار المشرفين', 'Supervisor announcement'), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.ink)),
-                Text(_profileText(context, 'أرسل توجيهاً لجميع المشرفين أو لمشرف محدد', 'Send guidance to all supervisors or a selected supervisor'), textAlign: TextAlign.right, style: TextStyle(fontSize: 8, color: AppColors.textSecondary)),
-              ])),
-              const SizedBox(width: 7),
-              MotionIcon(Icons.arrow_back_ios_new, size: 13, color: AppColors.textSecondary),
-            ]),
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      children: [
+        ScrollFx(child: ProfileSessionBanner(badgeCode: profile.badgeCode)),
+        const SizedBox(height: 14),
+        ScrollFx(
+          child: ProfileCard(
+              profile: profile, onEdit: () => _showEditProfile(context)),
+        ),
+        const SizedBox(height: 14),
+        ScrollFx(
+          child: ProfileWalletCard(
+              profile: profile, onOpen: () => _showWallet(context)),
+        ),
+        const SizedBox(height: 18),
+        ScrollFx(
+          child: ProfileSectionHeading(
+              title: profileText(
+                  context, 'مؤشرات الرقابة والامتثال', 'Oversight & Compliance')),
+        ),
+        const SizedBox(height: 8),
+        ScrollFx(child: ProfileMetricsRow(metrics: profile.complianceMetrics)),
+        const SizedBox(height: 14),
+        ScrollFx(
+          child: ProfileAuditCard(
+            logs: profile.recentAuditLogs,
+            onViewAll: () => _showAudit(context),
           ),
         ),
-      );
-}
-
-class _ProfileCard extends StatelessWidget {
-  final VoidCallback onEdit;
-  const _ProfileCard({required this.onEdit});
-
-  @override
-  Widget build(BuildContext context) => _WhiteCard(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Row(children: [
-            IconButton(onPressed: onEdit, icon: const MotionIcon(Icons.edit_outlined, size: 18), style: IconButton.styleFrom(backgroundColor: AppColors.surfaceLight)),
-            const Spacer(),
-            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Row(children: [Text(_profileText(context, 'عادل الشمري', 'Adel Alshammari'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.ink)), const SizedBox(width: 4), MotionIcon(Icons.verified, color: AppColors.infoDark, size: 15)]),
-              Text(_profileText(context, 'رئيس هيئة المشرفين والرقابة الميدانية', 'Head of Supervisors & Field Oversight'), style: TextStyle(fontSize: 9, color: AppColors.textSecondary)),
-              Text(_profileText(context, '4.9 ★  (1,280 تقييم امتثال)', '4.9 ★  (1,280 compliance ratings)'), style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: AppColors.ink)),
-            ]),
-            const SizedBox(width: 8),
-            const _Avatar(),
-          ]),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(9),
-            decoration: BoxDecoration(color: AppColors.surfaceLight, borderRadius: BorderRadius.circular(12)),
-            child: Column(children: [
-              _ProfileInfo(icon: Icons.mail_outline, text: 'adel.alshammari@almazouri.sa', tag: _profileText(context, 'رسمي', 'Official')),
-              const SizedBox(height: 8),
-              _ProfileInfo(icon: Icons.phone_iphone, text: '+966 50 ••• 8821', tag: _profileText(context, 'نفاذ موثق', 'Verified')),
-              const SizedBox(height: 8),
-              _ProfileInfo(icon: Icons.location_city_outlined, text: _profileText(context, 'نطاق الإشراف: الرياض، الغربية، الشرقية، الشمالي (4 قطاعات)', 'Coverage: Riyadh, West, East and North (4 sectors)')),
-            ]),
+        const SizedBox(height: 14),
+        ScrollFx(child: ProfileSecurityCard(settings: profile.securitySettings)),
+        const SizedBox(height: 14),
+        const ScrollFx(child: ProfilePreferencesCard()),
+        const SizedBox(height: 14),
+        SizedBox(
+          height: 48,
+          child: OutlinedButton.icon(
+            onPressed: () => _confirmLogout(context),
+            icon: MotionIcon(Icons.logout, color: AppColors.dangerDark, size: 18),
+            label: Text(
+                profileText(context, 'إنهاء الجلسة الإدارية وإغلاق التطبيق',
+                    'End the admin session and sign out'),
+                style: TextStyle(
+                    color: AppColors.dangerDark,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold)),
+            style: OutlinedButton.styleFrom(
+              backgroundColor: AppColors.surfaceHighlight,
+              side: BorderSide.none,
+              shape:
+                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
+            ),
           ),
-          const SizedBox(height: 10),
-          Text(_profileText(context, 'الصلاحيات التنفيذية السيادية:', 'Executive authorities:'), textAlign: TextAlign.right, style: TextStyle(fontSize: 8, color: AppColors.textSecondary)),
-          const SizedBox(height: 6),
-          Wrap(alignment: WrapAlignment.end, spacing: 5, runSpacing: 5, children: [
-            _PermissionChip(text: _profileText(context, 'فك الحظر والإلغاء (Override)', 'Override restrictions'), icon: Icons.history),
-            _PermissionChip(text: _profileText(context, 'التحقيق الإداري الإلزامي', 'Mandatory administrative investigation'), icon: Icons.policy_outlined),
-            _PermissionChip(text: _profileText(context, 'التدخل المالي المشروط', 'Conditional financial intervention'), icon: Icons.account_balance_outlined),
-          ]),
-        ]),
-      );
+        ),
+      ],
+    );
+  }
 }
-
-class _WalletCard extends StatelessWidget {
-  final VoidCallback onOpen;
-  const _WalletCard({required this.onOpen});
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(15),
-        decoration: BoxDecoration(gradient: AppColors.blueFill,
-border: AppColors.blueEdge,
-boxShadow: AppColors.blueGlow, color: AppColors.primaryDark, borderRadius: BorderRadius.circular(15)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Row(children: [
-            _Tag(text: _profileText(context, 'سارية المفعول', 'Active'), icon: Icons.verified_outlined, light: true),
-            const Spacer(),
-            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Text(_profileText(context, 'محفظة البدلات ومستحقات الإشراف', 'Supervisor Allowances Wallet'), style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-            ]),
-            const SizedBox(width: 8),
-            CircleAvatar(radius: 15, backgroundColor: AppColors.infoDark, child: MotionIcon(Icons.account_balance_wallet_outlined, color: Colors.white, size: 17)),
-          ]),
-          const SizedBox(height: 16),
-          Text(_profileText(context, 'الرصيد الحالي المتاح للمشرف الرئاسي', 'Available balance'), textAlign: TextAlign.right, style: TextStyle(color: AppColors.info, fontSize: 9)),
-          const SizedBox(height: 4),
-          Text(_profileText(context, '45,800.00 ج.م', 'EGP 45,800.00'), textAlign: TextAlign.right, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 14),
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            _WalletAmount(label: _profileText(context, 'معلق تحت الإقفال الدوري', 'Pending settlement'), value: '7,800.00'),
-            _WalletAmount(label: _profileText(context, 'جاهز للصرف الفوري', 'Available to withdraw'), value: '38,000.00'),
-          ]),
-          const SizedBox(height: 16),
-          SizedBox(height: 42, child: FilledButton.icon(onPressed: onOpen, icon: const MotionIcon(Icons.account_balance_wallet_outlined, size: 17), label: Text(_profileText(context, 'فتح المحفظة وإدارة السحب المالي', 'Open wallet and manage withdrawals'), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)), style: FilledButton.styleFrom(backgroundColor: AppColors.info, foregroundColor: AppColors.ink, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))))),
-        ]),
-      );
-}
-
-class _AuditCard extends StatelessWidget {
-  final List<_AuditEntry> entries;
-  final int totalCount;
-  final VoidCallback onViewAll;
-  const _AuditCard({required this.entries, required this.totalCount, required this.onViewAll});
-
-  @override
-  Widget build(BuildContext context) => _WhiteCard(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Row(children: [_Tag(text: _profileText(context, 'مشفر', 'Encrypted')), const Spacer(), Text(_profileText(context, 'السجل الرقابي والإداري الأخير', 'Recent oversight log'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.ink)), const SizedBox(width: 6), MotionIcon(Icons.receipt_long_outlined, size: 17, color: AppColors.infoDark)]),
-          const SizedBox(height: 10),
-          for (final entry in entries.take(4)) ...[
-            _AuditEntryTile(entry: entry),
-            const SizedBox(height: 7),
-          ],
-          SizedBox(height: 34, child: TextButton.icon(onPressed: onViewAll, icon: const MotionIcon(Icons.arrow_back, size: 15), label: Text(_profileText(context, 'عرض كامل السجل الإداري والقرارات ($totalCount قرار)', 'View all administrative decisions ($totalCount)'), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold)), style: TextButton.styleFrom(backgroundColor: AppColors.surfaceHighlight, foregroundColor: AppColors.ink, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9))))),
-        ]),
-      );
-}
-
-class _SecurityCard extends StatelessWidget {
-  const _SecurityCard();
-
-  @override
-  Widget build(BuildContext context) => _WhiteCard(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text(_profileText(context, 'الأمان وصلاحيات النظام', 'Security & System Access'), textAlign: TextAlign.right, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.ink)),
-          const SizedBox(height: 10),
-          _SecurityRow(icon: Icons.shield_outlined, title: _profileText(context, 'المصادقة الثنائية التلقائية (2FA)', 'Two-factor authentication (2FA)'), subtitle: _profileText(context, 'مفعلة تلقائياً عبر النفاذ الموحد', 'Enabled through unified access'), status: _profileText(context, 'نشطة', 'Active')),
-          const SizedBox(height: 7),
-          _SecurityRow(icon: Icons.devices_outlined, title: _profileText(context, 'الجلسات المفتوحة والمصرحة', 'Active authorized sessions'), subtitle: _profileText(context, 'جهازك الحالي (iPad Pro) • الرياض', 'Current device (iPad Pro) • Riyadh'), status: '1 device'),
-          const SizedBox(height: 7),
-          _SecurityRow(icon: Icons.campaign_outlined, title: _profileText(context, 'إشعارات البلاغات العاجلة', 'Urgent report notifications'), subtitle: _profileText(context, 'تنبيهات فورية عند التجاوز الرقابي', 'Instant alerts for oversight violations'), status: _profileText(context, 'مفعلة', 'Enabled')),
-        ]),
-      );
-}
-
-class _SecurityRow extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final String status;
-  const _SecurityRow({required this.icon, required this.title, required this.subtitle, required this.status});
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(9),
-        decoration: BoxDecoration(color: AppColors.surfaceLight, borderRadius: BorderRadius.circular(11)),
-        child: Row(children: [
-          _Tag(text: status),
-          const Spacer(),
-          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(title, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: AppColors.ink)), Text(subtitle, style: TextStyle(fontSize: 8, color: AppColors.textSecondary))]),
-          const SizedBox(width: 8),
-          CircleAvatar(radius: 15, backgroundColor: AppColors.cardBorder, child: MotionIcon(icon, size: 16, color: AppColors.ink)),
-        ]),
-      );
-}
-
-class _AuditEntry {
-  final IconData icon;
-  final Color color;
-  final String title;
-  final String details;
-  final String time;
-  final String code;
-  final String action;
-  const _AuditEntry({required this.icon, required this.color, required this.title, required this.details, required this.time, required this.code, required this.action});
-}
-
-class _AuditEntryTile extends StatelessWidget {
-  final _AuditEntry entry;
-  const _AuditEntryTile({required this.entry});
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(9),
-        decoration: BoxDecoration(color: AppColors.surfaceLight, borderRadius: BorderRadius.circular(11)),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          CircleAvatar(radius: 14, backgroundColor: entry.color.withValues(alpha: .12), child: MotionIcon(entry.icon, size: 16, color: entry.color)),
-          const SizedBox(width: 8),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(entry.time, style: TextStyle(fontSize: 8, color: AppColors.textSecondary)), Flexible(child: Text(entry.title, textAlign: TextAlign.right, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.ink)))]),
-            const SizedBox(height: 4),
-            Text(entry.details, textAlign: TextAlign.right, style: TextStyle(fontSize: 8, height: 1.4, color: AppColors.textSecondary)),
-            const SizedBox(height: 4),
-            Row(mainAxisAlignment: MainAxisAlignment.end, children: [Text(entry.action, style: TextStyle(fontSize: 8, color: AppColors.infoDark)), const SizedBox(width: 9), _Tag(text: entry.code)]),
-          ])),
-        ]),
-      );
-}
-
-class _ProfileInfo extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  final String? tag;
-  const _ProfileInfo({required this.icon, required this.text, this.tag});
-
-  @override
-  Widget build(BuildContext context) => Row(children: [
-        if (tag != null) _Tag(text: tag!),
-        const Spacer(),
-        Flexible(child: Text(text, textAlign: TextAlign.right, style: TextStyle(fontSize: 8, color: AppColors.textSecondary))),
-        const SizedBox(width: 5),
-        MotionIcon(icon, size: 14, color: AppColors.infoDark),
-      ]);
-}
-
-class _MetricCard extends StatelessWidget {
-  final String value;
-  final String label;
-  final IconData icon;
-  final Color? _valueColor;
-  Color get valueColor => _valueColor ?? AppColors.primaryDark;
-  const _MetricCard({required this.value, required this.label, required this.icon, Color? valueColor}) : _valueColor = valueColor;
-
-  @override
-  Widget build(BuildContext context) => _WhiteCard(
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 10),
-        child: Column(children: [
-          CircleAvatar(radius: 15, backgroundColor: AppColors.surfaceLight, child: MotionIcon(icon, size: 16, color: valueColor)),
-          const SizedBox(height: 7),
-          CountText(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: valueColor)),
-          Text(label, textAlign: TextAlign.center, style: TextStyle(fontSize: 8, color: AppColors.textSecondary)),
-        ]),
-      );
-}
-
-class _SectionHeading extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  const _SectionHeading({required this.title, required this.subtitle});
-
-  @override
-  Widget build(BuildContext context) => Row(children: [Text(subtitle, style: TextStyle(fontSize: 8, color: AppColors.infoDark)), const Spacer(), Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.ink))]);
-}
-
-class _WhiteCard extends StatelessWidget {
-  final Widget child;
-  final EdgeInsetsGeometry padding;
-  const _WhiteCard({required this.child, this.padding = const EdgeInsets.all(14)});
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: padding,
-        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(15), border: Border.all(color: AppColors.surfaceHighlight)),
-        child: child,
-      );
-}
-
-class _Tag extends StatelessWidget {
-  final String text;
-  final IconData? icon;
-  final bool light;
-  const _Tag({required this.text, this.icon, this.light = false});
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(color: light ? AppColors.infoDark : AppColors.surfaceHighlight, borderRadius: BorderRadius.circular(9)),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Text(text, style: TextStyle(fontSize: 7, fontWeight: FontWeight.w600, color: light ? Colors.white : AppColors.textSecondary)),
-          if (icon != null) ...[const SizedBox(width: 3), MotionIcon(icon, size: 11, color: light ? Colors.white : AppColors.infoDark)],
-        ]),
-      );
-}
-
-class _Avatar extends StatelessWidget {
-  const _Avatar();
-
-  @override
-  Widget build(BuildContext context) => Container(
-        width: 54,
-        height: 58,
-        decoration: BoxDecoration(color: AppColors.cardBorder, borderRadius: BorderRadius.circular(12)),
-        child: MotionIcon(Icons.person, color: AppColors.infoDark, size: 30),
-      );
-}
-
-class _PermissionChip extends StatelessWidget {
-  final String text;
-  final IconData icon;
-  const _PermissionChip({required this.text, required this.icon});
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-        decoration: BoxDecoration(color: AppColors.surfaceLight, borderRadius: BorderRadius.circular(10)),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [Text(text, style: TextStyle(fontSize: 7, fontWeight: FontWeight.w600, color: AppColors.ink)), const SizedBox(width: 3), MotionIcon(icon, size: 11, color: AppColors.infoDark)]),
-      );
-}
-
-class _WalletAmount extends StatelessWidget {
-  final String label;
-  final String value;
-  const _WalletAmount({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(label, style: TextStyle(fontSize: 8, color: AppColors.info)), CountText('$value ج.م', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white))]);
-}
-
