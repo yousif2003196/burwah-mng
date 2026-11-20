@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:barwah_app/core/auth/auth_session.dart';
 import 'package:barwah_app/core/auth/auth_token_store.dart';
+import 'package:barwah_app/core/auth/jwt_claims.dart';
 import 'package:barwah_app/core/errors/failures.dart';
 import 'package:barwah_app/features/admin/data/datasources/admin_managed_account_store.dart';
 import 'package:barwah_app/features/admin/data/datasources/admin_security_store.dart';
@@ -41,11 +42,24 @@ class AuthRepositoryImpl implements AuthRepository {
         tokenStore = tokenStore ?? AuthTokenStore(),
         userStore = userStore ?? SessionUserStore();
 
+  /// الجلسة المحلية تُمسح أولًا فيخرج المستخدم فورًا حتى لو السيرفر لا يرد،
+  /// ثم تُلغى جلسة هذا الجهاز في السيرفر بالتوكن الذي كان مستخدمًا.
   @override
   Future<void> logout() async {
+    final accessToken = AuthSession.accessToken?.trim() ?? '';
     AuthSession.clear();
     HeadAccessPolicy.activeEmail = null;
     await _forgetSavedSession();
+    if (accessToken.isNotEmpty) await _revokeServerSession(accessToken);
+  }
+
+  /// فشل الإلغاء في السيرفر لا يعيد الجلسة محليًا؛ التوكن ينتهي وحده.
+  Future<void> _revokeServerSession(String accessToken) async {
+    try {
+      await api.logout(accessToken: accessToken);
+    } on Object catch (error) {
+      debugPrint('Revoking the server session failed: $error');
+    }
   }
 
   @override
@@ -104,17 +118,35 @@ class AuthRepositoryImpl implements AuthRepository {
       final tokens = await tokenStore.read();
       final user = await userStore.load();
       if (tokens == null && user == null) return const Right(null);
-      final role = user == null ? null : AuthApiDataSource.roleFor(user.role);
-      if (tokens == null || user == null || role == null) {
-        // جلسة ناقصة (توكنات باقية في Keychain بعد إعادة التثبيت مثلًا) أو دور
-        // لم يعد مسموحًا له: نمسح الباقي ونبدأ من شاشة الدخول.
+      final backendRole = tokens == null || user == null
+          ? null
+          : AuthApiDataSource.resolveBackendRole(
+              reportedRole: user.role,
+              token: tokens.accessToken,
+            );
+      final role =
+          backendRole == null ? null : AuthApiDataSource.roleFor(backendRole);
+      if (tokens == null ||
+          user == null ||
+          backendRole == null ||
+          role == null ||
+          _cannotRenew(tokens.accessToken, tokens.refreshToken)) {
+        // جلسة ناقصة (توكنات باقية في Keychain بعد إعادة التثبيت مثلًا)، أو دور
+        // لم يعد مسموحًا له، أو توكن منتهٍ بلا توكن تجديد: نمسح الباقي ونبدأ من
+        // شاشة الدخول.
         await _forgetSavedSession();
         return const Right(null);
       }
       final entity = _startSession(
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
-        user: user,
+        user: SessionUserModel(
+          userId: user.userId,
+          email: user.email,
+          name: user.name,
+          role: backendRole,
+          lastLogin: user.lastLogin,
+        ),
         role: role,
       );
       if (role == UserRole.headOfSupervisors) {
@@ -126,6 +158,14 @@ class AuthRepositoryImpl implements AuthRepository {
       await _forgetSavedSession();
       return const Left(AuthFailure('تعذرت استعادة الجلسة المحفوظة.'));
     }
+  }
+
+  /// توكن منتهٍ يُجدَّد عند أول 401 بواسطة `AuthRefreshInterceptor`؛ بدون توكن
+  /// تجديد لا فائدة من استعادته.
+  bool _cannotRenew(String accessToken, String refreshToken) {
+    if (refreshToken.trim().isNotEmpty) return false;
+    final claims = JwtClaims.tryParse(accessToken);
+    return claims != null && claims.isExpiredAt(DateTime.now());
   }
 
   /// يبدأ الجلسة في الذاكرة ويرجع كيان المستخدم.
