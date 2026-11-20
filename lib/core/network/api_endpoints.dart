@@ -157,4 +157,24 @@ class ApiEndpoints {
       '$_supervisorUsed/complaints/$id/escalate';
 
   static const usedWallet = '$_supervisorUsed/wallet';
+
+  // رئيس المشرفين — BossOfSupervisor
+
+  static const _boss = 'api/BossOfSupervisor';
+
+  static const bossOrdersAndDisputes = '$_boss/orders-and-disputes';
+  static String bossReevaluateRequest(int id) => '$_boss/requests/$id/reevaluate';
+  static String bossResolveDispute(int id) => '$_boss/disputes/$id/resolve';
+  static const bossMerchantComplaints = '$_boss/merchant-complaints';
+  static String bossComplaintDetails(int id) =>
+      '$_boss/final/complaints/$id/details';
+  static String bossComplaintSummonChat(int id) =>
+      '$_boss/final/complaints/$id/summon-chat';
+  static String bossComplaintUnbanAndInvestigate(int id) =>
+      '$_boss/final/complaints/$id/unban-and-investigate';
+  static String bossComplaintDecision(int id) =>
+      '$_boss/final/complaints/$id/decision';
+  static const bossProfile = '$_boss/final/profile';
+  static const bossWallet = '$_boss/final/wallet';
+  static const bossWalletPayout = '$_boss/final/wallet/payout';
 }
