@@ -13,7 +13,7 @@ import 'package:barwah_app/features/head_supervisor/presentation/widgets/common/
 import 'package:barwah_app/features/head_supervisor/presentation/widgets/profile/profile_cards.dart';
 import 'package:barwah_app/features/messaging/presentation/screens/local_event_inbox_screen.dart';
 
-/// الملف الشخصي والسجل الرقابي: `GET api/BossOfSupervisor/final/profile`.
+/// الملف الشخصي والسجل الرقابي: `GET api/BossOfSupervisor/profile`.
 class HeadSupervisorProfileScreen extends StatelessWidget {
   final VoidCallback onLogout;
 

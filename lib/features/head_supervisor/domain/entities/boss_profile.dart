@@ -42,7 +42,7 @@ class BossSecuritySettings {
   });
 }
 
-/// الملف الشخصي والسجل الرقابي من `final/profile`.
+/// الملف الشخصي والسجل الرقابي من `profile`.
 class BossProfile {
   final int userId;
   final String fullName;

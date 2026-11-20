@@ -167,14 +167,14 @@ class ApiEndpoints {
   static String bossResolveDispute(int id) => '$_boss/disputes/$id/resolve';
   static const bossMerchantComplaints = '$_boss/merchant-complaints';
   static String bossComplaintDetails(int id) =>
-      '$_boss/final/complaints/$id/details';
+      '$_boss/complaints/$id/details';
   static String bossComplaintSummonChat(int id) =>
-      '$_boss/final/complaints/$id/summon-chat';
+      '$_boss/complaints/$id/summon-chat';
   static String bossComplaintUnbanAndInvestigate(int id) =>
-      '$_boss/final/complaints/$id/unban-and-investigate';
+      '$_boss/complaints/$id/unban-and-investigate';
   static String bossComplaintDecision(int id) =>
-      '$_boss/final/complaints/$id/decision';
-  static const bossProfile = '$_boss/final/profile';
-  static const bossWallet = '$_boss/final/wallet';
-  static const bossWalletPayout = '$_boss/final/wallet/payout';
+      '$_boss/complaints/$id/decision';
+  static const bossProfile = '$_boss/profile';
+  static const bossWallet = '$_boss/wallet';
+  static const bossWalletPayout = '$_boss/wallet/payout';
 }

@@ -7,7 +7,7 @@ import 'package:barwah_app/features/head_supervisor/presentation/utils/boss_form
 import 'package:barwah_app/features/head_supervisor/presentation/utils/head_supervisor_text.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/widgets/complaints/complaint_common.dart';
 
-/// أقسام شاشة تفاصيل التظلم (من `final/complaints/{id}/details`).
+/// أقسام شاشة تفاصيل التظلم (من `complaints/{id}/details`).
 
 class ComplaintHeaderPanel extends StatelessWidget {
   final MerchantComplaintDetails details;

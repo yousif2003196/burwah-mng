@@ -15,8 +15,8 @@ import 'package:barwah_app/features/head_supervisor/presentation/widgets/common/
 import 'package:barwah_app/features/head_supervisor/presentation/widgets/wallet/wallet_cards.dart';
 
 /// محفظة رئيس المشرفين:
-/// - `GET api/BossOfSupervisor/final/wallet` للرصيد والسجل
-/// - `POST api/BossOfSupervisor/final/wallet/payout` للصرف الفوري (SARIE)
+/// - `GET api/BossOfSupervisor/wallet` للرصيد والسجل
+/// - `POST api/BossOfSupervisor/wallet/payout` للصرف الفوري (SARIE)
 class HeadSupervisorWalletScreen extends StatelessWidget {
   const HeadSupervisorWalletScreen({super.key});
 

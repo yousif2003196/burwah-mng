@@ -81,7 +81,7 @@ class ComplaintEvidence {
   });
 }
 
-/// الملف الكامل للتظلم من `final/complaints/{id}/details`.
+/// الملف الكامل للتظلم من `complaints/{id}/details`.
 class MerchantComplaintDetails {
   final int complaintId;
   final String code;

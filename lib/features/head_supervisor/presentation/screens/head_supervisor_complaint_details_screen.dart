@@ -17,7 +17,7 @@ import 'package:barwah_app/features/head_supervisor/presentation/widgets/complai
 import 'package:barwah_app/features/head_supervisor/presentation/widgets/complaints/summon_supervisor_sheet.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/widgets/complaints/unban_investigation_sheet.dart';
 
-/// تفاصيل التظلم والفحص الآلي: `GET final/complaints/{id}/details`
+/// تفاصيل التظلم والفحص الآلي: `GET complaints/{id}/details`
 /// + الإجراءات (استدعاء / فك حظر وتحقيق / قرار إداري).
 ///
 /// عند نجاح أي إجراء ترجع الشاشة رسالة الخادم للقائمة لتحدّث نفسها.

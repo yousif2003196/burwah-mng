@@ -20,7 +20,7 @@ class BossWalletTransaction {
   });
 }
 
-/// بيانات المحفظة من `final/wallet`.
+/// بيانات المحفظة من `wallet`.
 class BossWallet {
   final double totalBalance;
   final double availableForWithdrawal;
@@ -39,7 +39,7 @@ class BossWallet {
   });
 }
 
-/// جسم طلب `final/wallet/payout`.
+/// جسم طلب `wallet/payout`.
 class BossPayoutRequest {
   final double amount;
   final String payoutMethod;
