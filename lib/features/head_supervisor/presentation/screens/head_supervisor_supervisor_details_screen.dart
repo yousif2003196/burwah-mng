@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 
+import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_api_data_source.dart';
 import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_audit_store.dart';
+import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_account.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_supervisor_add_supervisor_sheet.dart';
 import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_audit_record.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/utils/head_supervisor_text.dart';
 import 'package:barwah_app/core/widgets/scroll_fx.dart';
@@ -47,15 +51,34 @@ class _HeadSupervisorSupervisorDetailsScreenState
   String _searchQuery = '';
   final _activitySearchController = TextEditingController();
   late Future<List<HeadSupervisorAuditRecord>> _recordsFuture;
+  Future<HeadSupervisorAccountInfo>? _accountFuture;
+  bool _accountBusy = false;
+
+  /// رقم المشرف في السيرفر عند الدخول بحساب رئيس المشرفين، وإلا `null`.
+  int? get _serverId => HeadSupervisorApiDataSource.canUse
+      ? HeadSupervisorApiDataSource.numberFrom(widget.supervisorId)
+      : null;
 
   @override
   void initState() {
     super.initState();
     HeadSupervisorAuditStore.revision.addListener(_refreshRecords);
     _recordsFuture = _loadRecords();
+    _accountFuture = _loadAccount();
+  }
+
+  Future<HeadSupervisorAccountInfo>? _loadAccount() {
+    final id = _serverId;
+    return id == null
+        ? null
+        : sl<HeadSupervisorApiDataSource>().getSupervisorAccount(id);
   }
 
   Future<List<HeadSupervisorAuditRecord>> _loadRecords() async {
+    final serverId = _serverId;
+    if (serverId != null) {
+      return sl<HeadSupervisorApiDataSource>().getSupervisorActivity(serverId);
+    }
     final records = await HeadSupervisorAuditStore().getRecent(limit: 1000);
     return records
         .where((record) =>
@@ -66,7 +89,127 @@ class _HeadSupervisorSupervisorDetailsScreenState
   }
 
   void _refreshRecords() {
-    if (mounted) setState(() => _recordsFuture = _loadRecords());
+    if (mounted) {
+      setState(() {
+        _recordsFuture = _loadRecords();
+        _accountFuture = _loadAccount();
+      });
+    }
+  }
+
+  void _notice(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _runAccountAction(
+    Future<void> Function(HeadSupervisorApiDataSource api, int id) call,
+    String success,
+  ) async {
+    final id = _serverId;
+    if (id == null || _accountBusy) return;
+    setState(() => _accountBusy = true);
+    try {
+      await call(sl<HeadSupervisorApiDataSource>(), id);
+      if (!mounted) return;
+      _notice(success);
+      _refreshRecords();
+    } on HeadSupervisorApiRejection catch (rejection) {
+      if (mounted) _notice(rejection.message);
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'head supervisor account control',
+      ));
+      if (mounted) _notice('تعذر تنفيذ الإجراء على السيرفر. حاول مرة أخرى.');
+    } finally {
+      if (mounted) setState(() => _accountBusy = false);
+    }
+  }
+
+  Future<void> _resetPassword() async {
+    final formKey = GlobalKey<FormState>();
+    final controller = TextEditingController();
+    final password = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(headSupervisorText(dialogContext,
+            arabic: 'كلمة مرور جديدة لـ ${widget.name}',
+            english: 'New password for ${widget.name}')),
+        content: Form(
+          key: formKey,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextFormField(
+              controller: controller,
+              obscureText: true,
+              autofocus: true,
+              validator: (value) => supervisorPasswordError(dialogContext, value ?? ''),
+              decoration: InputDecoration(
+                labelText: headSupervisorText(dialogContext,
+                    arabic: 'كلمة المرور', english: 'Password'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              headSupervisorText(dialogContext,
+                  arabic: 'سيخرج المشرف من كل أجهزته ويدخل بكلمة المرور الجديدة.',
+                  english: 'The supervisor will be signed out everywhere.'),
+              style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+            ),
+          ]),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(headSupervisorText(dialogContext, arabic: 'إلغاء', english: 'Cancel')),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(dialogContext, controller.text);
+              }
+            },
+            child: Text(headSupervisorText(dialogContext, arabic: 'حفظ', english: 'Save')),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (password == null || !mounted) return;
+    await _runAccountAction(
+      (api, id) => api.resetSupervisorPassword(id, password),
+      'تم تغيير كلمة المرور وإنهاء جلسات ${widget.name}.',
+    );
+  }
+
+  Future<void> _endSessions() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(headSupervisorText(dialogContext,
+            arabic: 'إنهاء جلسات المشرف', english: 'End supervisor sessions')),
+        content: Text(headSupervisorText(dialogContext,
+            arabic: 'سيُطلب من ${widget.name} تسجيل الدخول من جديد على كل الأجهزة.',
+            english: '${widget.name} will have to sign in again on every device.')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(headSupervisorText(dialogContext, arabic: 'إلغاء', english: 'Cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(headSupervisorText(dialogContext, arabic: 'إنهاء الجلسات', english: 'End sessions')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await _runAccountAction(
+      (api, id) => api.endSupervisorSessions(id),
+      'تم إنهاء جلسات ${widget.name} على كل الأجهزة.',
+    );
   }
 
   @override
@@ -165,6 +308,20 @@ class _HeadSupervisorSupervisorDetailsScreenState
             city: widget.city,
             marketScope: widget.marketScope,
           )),
+          if (_accountFuture != null) ...[
+            const SizedBox(height: 12),
+            FutureBuilder<HeadSupervisorAccountInfo>(
+              future: _accountFuture,
+              builder: (context, snapshot) => _AccountControlCard(
+                info: snapshot.data,
+                loading: snapshot.connectionState != ConnectionState.done,
+                failed: snapshot.hasError,
+                busy: _accountBusy,
+                onResetPassword: _resetPassword,
+                onEndSessions: _endSessions,
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           FutureBuilder<List<HeadSupervisorAuditRecord>>(
             future: _recordsFuture,
@@ -524,3 +681,119 @@ String _activityText(BuildContext context, String text) => headSupervisorText(
         _ => text,
       },
     );
+
+
+/// التحكم في حساب دخول المشرف: الجلسات النشطة، تغيير كلمة المرور، إنهاء الجلسات.
+class _AccountControlCard extends StatelessWidget {
+  final HeadSupervisorAccountInfo? info;
+  final bool loading;
+  final bool failed;
+  final bool busy;
+  final VoidCallback onResetPassword;
+  final VoidCallback onEndSessions;
+
+  const _AccountControlCard({
+    required this.info,
+    required this.loading,
+    required this.failed,
+    required this.busy,
+    required this.onResetPassword,
+    required this.onEndSessions,
+  });
+
+  static String _date(DateTime? value) {
+    if (value == null) return '—';
+    final local = value.toLocal();
+    return '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final data = info;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.surfaceHighlight),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          if (data != null && data.deletionPending)
+            _Chip(text: headSupervisorText(context, arabic: 'طلب حذف عند الأدمن', english: 'Deletion pending'), color: AppColors.dangerDark),
+          const Spacer(),
+          Text(headSupervisorText(context, arabic: 'حساب الدخول', english: 'Login account'),
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.ink)),
+          const SizedBox(width: 6),
+          MotionIcon(Icons.admin_panel_settings_outlined, size: 18, color: AppColors.infoDark),
+        ]),
+        const SizedBox(height: 10),
+        if (loading)
+          const LinearProgressIndicator()
+        else if (failed || data == null)
+          Text(headSupervisorText(context, arabic: 'تعذر تحميل بيانات الحساب من السيرفر.', english: 'Could not load the account from the server.'),
+              textAlign: TextAlign.right, style: TextStyle(fontSize: 11, color: AppColors.textSecondary))
+        else ...[
+          _InfoRow(label: headSupervisorText(context, arabic: 'الحالة', english: 'Status'),
+              value: data.frozen
+                  ? headSupervisorText(context, arabic: 'معلّق', english: 'Suspended')
+                  : headSupervisorText(context, arabic: 'نشط', english: 'Active')),
+          _InfoRow(label: headSupervisorText(context, arabic: 'الأجهزة المسجّل دخولها', english: 'Signed-in devices'), value: '${data.activeSessions}'),
+          _InfoRow(label: headSupervisorText(context, arabic: 'قرارات على الإعلانات', english: 'Ad decisions'),
+              value: '${data.adDecisions} (${data.approved} قبول / ${data.rejected} رفض)'),
+          _InfoRow(label: headSupervisorText(context, arabic: 'إجراءات أخرى', english: 'Other actions'), value: '${data.otherActions}'),
+          _InfoRow(label: headSupervisorText(context, arabic: 'آخر نشاط', english: 'Last activity'), value: _date(data.lastActivity)),
+          _InfoRow(label: headSupervisorText(context, arabic: 'آخر تغيير لكلمة المرور', english: 'Last password change'), value: _date(data.lastPasswordChange)),
+          _InfoRow(label: headSupervisorText(context, arabic: 'تاريخ الإنشاء', english: 'Created'), value: _date(data.createdAt)),
+        ],
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: OutlinedButton.icon(
+            onPressed: busy ? null : onEndSessions,
+            icon: const MotionIcon(Icons.logout, size: 16),
+            label: Text(headSupervisorText(context, arabic: 'إنهاء الجلسات', english: 'End sessions'), style: const TextStyle(fontSize: 11)),
+          )),
+          const SizedBox(width: 8),
+          Expanded(child: FilledButton.icon(
+            onPressed: busy ? null : onResetPassword,
+            icon: const MotionIcon(Icons.password, size: 16),
+            label: Text(headSupervisorText(context, arabic: 'كلمة مرور جديدة', english: 'New password'), style: const TextStyle(fontSize: 11)),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.primaryDark),
+          )),
+        ]),
+      ]),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final String label;
+  final String value;
+  const _InfoRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Row(children: [
+          Text(value, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.ink)),
+          const Spacer(),
+          Text(label, style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+        ]),
+      );
+}
+
+class _Chip extends StatelessWidget {
+  final String text;
+  final Color color;
+  const _Chip({required this.text, required this.color});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: .1),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(text, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: color)),
+      );
+}

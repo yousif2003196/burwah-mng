@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/utils/currency_formatter.dart';
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/core/theme/app_theme_switcher.dart';
 import 'package:barwah_app/core/localization/app_locale_controller.dart';
+import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_api_data_source.dart';
 import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_audit_store.dart';
+import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_account.dart';
 import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_audit_record.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_market_branches_screen.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_vip_screen.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_wallet_screen.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_supervisor_broadcast_sheet.dart';
 import 'package:barwah_app/features/messaging/presentation/screens/local_event_inbox_screen.dart';
@@ -67,11 +73,36 @@ class HeadSupervisorProfileScreen extends StatefulWidget {
 class _HeadSupervisorProfileScreenState extends State<HeadSupervisorProfileScreen> {
   List<HeadSupervisorAuditRecord> _records = const [];
 
+  /// ملف رئيس المشرفين من السيرفر (null في الوضع المحلي أو قبل التحميل).
+  HeadSupervisorProfile? _profile;
+
   @override
   void initState() {
     super.initState();
     HeadSupervisorAuditStore.revision.addListener(_loadAuditRecords);
     _loadAuditRecords();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    if (!HeadSupervisorApiDataSource.canUse) return;
+    try {
+      final profile = await sl<HeadSupervisorApiDataSource>().getProfile();
+      if (!mounted) return;
+      setState(() => _profile = profile);
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'head supervisor profile',
+      ));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(error is HeadSupervisorApiRejection
+            ? error.message
+            : 'تعذر تحميل بيانات الحساب من السيرفر.'),
+      ));
+    }
   }
 
   @override
@@ -95,8 +126,25 @@ class _HeadSupervisorProfileScreenState extends State<HeadSupervisorProfileScree
   }
 
   List<_AuditEntry> get _auditEntries {
+    final serverLogs = _profile?.recentAuditLogs ?? const [];
+    if (_records.isEmpty && serverLogs.isNotEmpty) {
+      return [
+        for (final log in serverLogs)
+          _AuditEntry(
+            icon: Icons.fact_check_outlined,
+            color: log.status == 'Rejected'
+                ? AppColors.dangerDark
+                : AppColors.infoDark,
+            title: log.title,
+            details: log.note,
+            time: log.reviewedAt == null ? '' : _auditTime(log.reviewedAt!),
+            code: '#${log.code}',
+            action: log.status,
+          ),
+      ];
+    }
     if (_records.isEmpty) {
-      return _sampleAuditEntries;
+      return _profile == null ? _sampleAuditEntries : const [];
     }
     return [
       for (final record in _records)
@@ -159,29 +207,54 @@ class _HeadSupervisorProfileScreenState extends State<HeadSupervisorProfileScree
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
-          ScrollFx(child: const _SessionBanner()),
+          ScrollFx(child: _SessionBanner(badge: _profile?.badgeCode)),
           const SizedBox(height: 14),
-          ScrollFx(child: _ProfileCard(onEdit: () => _showEditProfile(context))),
+          ScrollFx(child: _ProfileCard(profile: _profile, onEdit: () => _showEditProfile(context))),
           const SizedBox(height: 10),
           ScrollFx(child: _BroadcastNoticeCard(onTap: () => _openBroadcast(context))),
+          const SizedBox(height: 10),
+          ScrollFx(child: _BroadcastNoticeCard(
+            icon: Icons.workspace_premium_outlined,
+            title: _profileText(context, 'إعلانات VIP والبنرات', 'VIP ads & banners'),
+            subtitle: _profileText(context, 'حدد عدد إعلانات VIP في البنر وأدر بنرات القسم', 'Set the VIP banner limit and manage banners'),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const HeadSupervisorVipScreen()),
+            ),
+          )),
+          const SizedBox(height: 10),
+          ScrollFx(child: _BroadcastNoticeCard(
+            icon: Icons.storefront_outlined,
+            title: _profileText(context, 'فروع سوق برواح', 'Barwah market branches'),
+            subtitle: _profileText(context, 'أضف الفروع وحساباتها وعدّلها أو اطلب حذفها', 'Add, edit and remove market branches'),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const HeadSupervisorMarketBranchesScreen()),
+            ),
+          )),
           const SizedBox(height: 14),
-          ScrollFx(child: _WalletCard(onOpen: () => _showWallet(context))),
+          ScrollFx(child: _WalletCard(profile: _profile, onOpen: () async {
+            await _showWallet(context);
+            _loadProfile();
+          })),
           const SizedBox(height: 18),
           ScrollFx(child: _SectionHeading(
               title: _profileText(context, 'مؤشرات الرقابة والامتثال', 'Oversight & Compliance'),
               subtitle: _profileText(context, 'خلال 30 يوماً', 'Last 30 days'))),
           const SizedBox(height: 8),
           ScrollFx(child: Row(children: [
-            Expanded(child: _MetricCard(value: '18', label: _profileText(context, 'مشرفاً تحت الإدارة', 'Supervisors managed'), icon: Icons.groups_outlined)),
+            Expanded(child: _MetricCard(value: _profile == null ? '18' : '${_profile!.managedSupervisors}', label: _profileText(context, 'مشرفاً تحت الإدارة', 'Supervisors managed'), icon: Icons.groups_outlined)),
             const SizedBox(width: 8),
-            Expanded(child: _MetricCard(value: '98.4%', label: _profileText(context, 'معيار الحوكمة', 'Governance score'), icon: Icons.verified_outlined, valueColor: AppColors.infoDark)),
+            Expanded(child: _MetricCard(value: _profile == null || _profile!.governanceScore.isEmpty ? '98.4%' : _profile!.governanceScore, label: _profileText(context, 'معيار الحوكمة', 'Governance score'), icon: Icons.verified_outlined, valueColor: AppColors.infoDark)),
             const SizedBox(width: 8),
-            Expanded(child: _MetricCard(value: '342', label: _profileText(context, 'تدخل رقابي معتمد', 'Approved interventions'), icon: Icons.gavel_outlined)),
+            Expanded(child: _MetricCard(value: _profile == null ? '342' : '${_profile!.approvedInterventions}', label: _profileText(context, 'تدخل رقابي معتمد', 'Approved interventions'), icon: Icons.gavel_outlined)),
           ])),
           const SizedBox(height: 14),
           ScrollFx(child: _AuditCard(
             entries: _auditEntries,
-            totalCount: _records.isEmpty ? 142 : _records.length,
+            totalCount: _records.isNotEmpty
+                ? _records.length
+                : _profile == null
+                    ? 142
+                    : _profile!.recentAuditLogs.length,
             onViewAll: () => _showAudit(context),
           )),
           const SizedBox(height: 14),
@@ -340,14 +413,15 @@ class _PreferencesCard extends StatelessWidget {
 }
 
 class _SessionBanner extends StatelessWidget {
-  const _SessionBanner();
+  final String? badge;
+  const _SessionBanner({this.badge});
 
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(color: AppColors.surfaceHighlight, borderRadius: BorderRadius.circular(14)),
         child: Row(children: [
-          const _Tag(text: 'SUP-HEAD-01', icon: Icons.shield_outlined),
+          _Tag(text: (badge ?? '').isEmpty ? 'SUP-HEAD-01' : badge!, icon: Icons.shield_outlined),
           const Spacer(),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
             Text(_profileText(context, 'جلسة نفاذ الوطني موثقة', 'Verified national access session'), style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
@@ -361,7 +435,15 @@ class _SessionBanner extends StatelessWidget {
 
 class _BroadcastNoticeCard extends StatelessWidget {
   final VoidCallback onTap;
-  const _BroadcastNoticeCard({required this.onTap});
+  final IconData icon;
+  final String? title;
+  final String? subtitle;
+  const _BroadcastNoticeCard({
+    required this.onTap,
+    this.icon = Icons.campaign_outlined,
+    this.title,
+    this.subtitle,
+  });
 
   @override
   Widget build(BuildContext context) => Material(
@@ -377,11 +459,11 @@ class _BroadcastNoticeCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(14),
             ),
             child: Row(children: [
-              MotionIcon(Icons.campaign_outlined, color: AppColors.infoDark, size: 21),
+              MotionIcon(icon, color: AppColors.infoDark, size: 21),
               const SizedBox(width: 10),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                Text(_profileText(context, 'إشعار المشرفين', 'Supervisor announcement'), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.ink)),
-                Text(_profileText(context, 'أرسل توجيهاً لجميع المشرفين أو لمشرف محدد', 'Send guidance to all supervisors or a selected supervisor'), textAlign: TextAlign.right, style: TextStyle(fontSize: 8, color: AppColors.textSecondary)),
+                Text(title ?? _profileText(context, 'إشعار المشرفين', 'Supervisor announcement'), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.ink)),
+                Text(subtitle ?? _profileText(context, 'أرسل توجيهاً لجميع المشرفين أو لمشرف محدد', 'Send guidance to all supervisors or a selected supervisor'), textAlign: TextAlign.right, style: TextStyle(fontSize: 8, color: AppColors.textSecondary)),
               ])),
               const SizedBox(width: 7),
               MotionIcon(Icons.arrow_back_ios_new, size: 13, color: AppColors.textSecondary),
@@ -392,8 +474,12 @@ class _BroadcastNoticeCard extends StatelessWidget {
 }
 
 class _ProfileCard extends StatelessWidget {
+  final HeadSupervisorProfile? profile;
   final VoidCallback onEdit;
-  const _ProfileCard({required this.onEdit});
+  const _ProfileCard({this.profile, required this.onEdit});
+
+  String _or(String? value, String fallback) =>
+      value == null || value.trim().isEmpty ? fallback : value;
 
   @override
   Widget build(BuildContext context) => _WhiteCard(
@@ -402,8 +488,8 @@ class _ProfileCard extends StatelessWidget {
             IconButton(onPressed: onEdit, icon: const MotionIcon(Icons.edit_outlined, size: 18), style: IconButton.styleFrom(backgroundColor: AppColors.surfaceLight)),
             const Spacer(),
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Row(children: [Text(_profileText(context, 'عادل الشمري', 'Adel Alshammari'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.ink)), const SizedBox(width: 4), MotionIcon(Icons.verified, color: AppColors.infoDark, size: 15)]),
-              Text(_profileText(context, 'رئيس هيئة المشرفين والرقابة الميدانية', 'Head of Supervisors & Field Oversight'), style: TextStyle(fontSize: 9, color: AppColors.textSecondary)),
+              Row(children: [Text(_or(profile?.fullName, _profileText(context, 'عادل الشمري', 'Adel Alshammari')), style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.ink)), const SizedBox(width: 4), MotionIcon(Icons.verified, color: AppColors.infoDark, size: 15)]),
+              Text(_or(profile?.roleTitle, _profileText(context, 'رئيس هيئة المشرفين والرقابة الميدانية', 'Head of Supervisors & Field Oversight')), style: TextStyle(fontSize: 9, color: AppColors.textSecondary)),
               Text(_profileText(context, '4.9 ★  (1,280 تقييم امتثال)', '4.9 ★  (1,280 compliance ratings)'), style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: AppColors.ink)),
             ]),
             const SizedBox(width: 8),
@@ -414,11 +500,11 @@ class _ProfileCard extends StatelessWidget {
             padding: const EdgeInsets.all(9),
             decoration: BoxDecoration(color: AppColors.surfaceLight, borderRadius: BorderRadius.circular(12)),
             child: Column(children: [
-              _ProfileInfo(icon: Icons.mail_outline, text: 'adel.alshammari@almazouri.sa', tag: _profileText(context, 'رسمي', 'Official')),
+              _ProfileInfo(icon: Icons.mail_outline, text: _or(profile?.email, profile == null ? 'adel.alshammari@almazouri.sa' : '—'), tag: _profileText(context, 'رسمي', 'Official')),
               const SizedBox(height: 8),
-              _ProfileInfo(icon: Icons.phone_iphone, text: '+966 50 ••• 8821', tag: _profileText(context, 'نفاذ موثق', 'Verified')),
+              _ProfileInfo(icon: Icons.phone_iphone, text: _or(profile?.phoneNumber, profile == null ? '+966 50 ••• 8821' : '—'), tag: _profileText(context, 'نفاذ موثق', 'Verified')),
               const SizedBox(height: 8),
-              _ProfileInfo(icon: Icons.location_city_outlined, text: _profileText(context, 'نطاق الإشراف: الرياض، الغربية، الشرقية، الشمالي (4 قطاعات)', 'Coverage: Riyadh, West, East and North (4 sectors)')),
+              _ProfileInfo(icon: Icons.location_city_outlined, text: profile == null || profile!.supervisionScope.isEmpty ? _profileText(context, 'نطاق الإشراف: الرياض، الغربية، الشرقية، الشمالي (4 قطاعات)', 'Coverage: Riyadh, West, East and North (4 sectors)') : 'نطاق الإشراف: ${profile!.supervisionScope}'),
             ]),
           ),
           const SizedBox(height: 10),
@@ -434,8 +520,11 @@ class _ProfileCard extends StatelessWidget {
 }
 
 class _WalletCard extends StatelessWidget {
+  final HeadSupervisorProfile? profile;
   final VoidCallback onOpen;
-  const _WalletCard({required this.onOpen});
+  const _WalletCard({this.profile, required this.onOpen});
+
+  String _money(double value) => CurrencyFormatter.format(value, includeCurrency: false);
 
   @override
   Widget build(BuildContext context) => Container(
@@ -456,11 +545,11 @@ boxShadow: AppColors.blueGlow, color: AppColors.primaryDark, borderRadius: Borde
           const SizedBox(height: 16),
           Text(_profileText(context, 'الرصيد الحالي المتاح للمشرف الرئاسي', 'Available balance'), textAlign: TextAlign.right, style: TextStyle(color: AppColors.info, fontSize: 9)),
           const SizedBox(height: 4),
-          Text(_profileText(context, '45,800.00 ج.م', 'EGP 45,800.00'), textAlign: TextAlign.right, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+          Text(profile == null ? _profileText(context, '45,800.00 ج.م', 'EGP 45,800.00') : '${_money(profile!.totalBalance)} ج.م', textAlign: TextAlign.right, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
           const SizedBox(height: 14),
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            _WalletAmount(label: _profileText(context, 'معلق تحت الإقفال الدوري', 'Pending settlement'), value: '7,800.00'),
-            _WalletAmount(label: _profileText(context, 'جاهز للصرف الفوري', 'Available to withdraw'), value: '38,000.00'),
+            _WalletAmount(label: _profileText(context, 'معلق تحت الإقفال الدوري', 'Pending settlement'), value: profile == null ? '7,800.00' : _money(profile!.lockedBalance)),
+            _WalletAmount(label: _profileText(context, 'جاهز للصرف الفوري', 'Available to withdraw'), value: profile == null ? '38,000.00' : _money(profile!.availableForWithdrawal)),
           ]),
           const SizedBox(height: 16),
           SizedBox(height: 42, child: FilledButton.icon(onPressed: onOpen, icon: const MotionIcon(Icons.account_balance_wallet_outlined, size: 17), label: Text(_profileText(context, 'فتح المحفظة وإدارة السحب المالي', 'Open wallet and manage withdrawals'), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)), style: FilledButton.styleFrom(backgroundColor: AppColors.info, foregroundColor: AppColors.ink, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))))),

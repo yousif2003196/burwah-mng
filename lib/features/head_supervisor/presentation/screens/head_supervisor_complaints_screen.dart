@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/core/theme/app_palette.dart';
@@ -7,6 +8,7 @@ import 'package:barwah_app/features/admin/data/datasources/admin_request_store.d
 import 'package:barwah_app/features/admin/data/services/head_access_policy.dart';
 import 'package:barwah_app/features/admin/domain/entities/admin_request.dart';
 import 'package:barwah_app/features/admin/domain/entities/head_account.dart';
+import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_api_data_source.dart';
 import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_audit_store.dart';
 import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_complaint_store.dart';
 import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_roster_store.dart';
@@ -82,7 +84,9 @@ class _HeadSupervisorComplaintsScreenState
           .toSet();
       final handledIds = _complaints
           .where((complaint) =>
-              actionIds.contains(complaint.id) && !complaint.reopenedForReview)
+              (actionIds.contains(complaint.id) ||
+                  complaint.statusLabel == 'تم اتخاذ إجراء') &&
+              !complaint.reopenedForReview)
           .map((complaint) => complaint.id)
           .toSet();
       if (!mounted) return;
@@ -162,6 +166,14 @@ class _HeadSupervisorComplaintsScreenState
   }
 
   Future<void> _addComplaint() async {
+    if (HeadSupervisorComplaintStore.isRemote) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(headSupervisorText(context,
+            arabic: 'الشكاوى تصل من السيرفر مباشرة، ولا يوجد مسار لإضافتها يدويًا بعد.',
+            english: 'Complaints come from the server; manual entry is not available yet.'))),
+      );
+      return;
+    }
     final formKey = GlobalKey<FormState>();
     final title = TextEditingController();
     final description = TextEditingController();
@@ -728,6 +740,29 @@ class HeadSupervisorComplaintDetailsScreenState
       widget.alreadyHandled ||
       widget.complaint.statusLabel == 'تم اتخاذ إجراء';
 
+  /// ينفذ إجراء الشكوى على السيرفر عند الدخول بحساب رئيس المشرفين.
+  /// في الوضع المحلي لا يفعل شيئًا. أي فشل يُرمى لتعرضه الشاشة.
+  Future<void> _server(
+    Future<void> Function(HeadSupervisorApiDataSource api, int ticketId) call,
+  ) async {
+    if (!HeadSupervisorApiDataSource.canUse) return;
+    final ticketId = HeadSupervisorApiDataSource.numberFrom(widget.complaint.id);
+    if (ticketId == null) return;
+    await call(sl<HeadSupervisorApiDataSource>(), ticketId);
+  }
+
+  /// نوع الإجراء الذي يفهمه `HandleMerchantComplaintDto.ActionType`.
+  static String _actionTypeFor(HeadSupervisorComplaintAction action) {
+    if (action.summon) return 'summon_supervisor';
+    if (action.unblockInvestigation || action.title.contains('حظر')) {
+      return 'cancel_ban';
+    }
+    if (action.title.contains('إسناد') || action.title.contains('سحب')) {
+      return 'reassign_ads';
+    }
+    return 'issue_warning';
+  }
+
   Future<void> _saveReviewState({required bool reopened}) async {
     final store = HeadSupervisorComplaintStore();
     final complaints = (await store.getAll()).toList();
@@ -792,6 +827,11 @@ class HeadSupervisorComplaintDetailsScreenState
     if (!mounted || draft == null) return;
     setState(() => _sending = true);
     try {
+      await _server((api, id) => api.summonSupervisor(
+            id,
+            topic: draft.topic,
+            message: draft.message,
+          ));
       await _recordAudit(
         kind: 'summon',
         title: 'استدعاء المشرف للتوضيح',
@@ -839,6 +879,13 @@ class HeadSupervisorComplaintDetailsScreenState
     ];
     setState(() => _sending = true);
     try {
+      await _server((api, id) => api.unbanAndInvestigate(
+            id,
+            unbanAd: draft.releaseAdvertisement,
+            openInvestigation: draft.investigateSupervisor,
+            compensateMerchant: draft.compensateMerchant,
+            justification: draft.note,
+          ));
       await _recordAudit(
         kind: 'complaint',
         title: 'إلغاء حظر الإعلان والتحقيق مع المشرف',
@@ -1009,6 +1056,11 @@ class HeadSupervisorComplaintDetailsScreenState
     final complaint = widget.complaint;
     setState(() => _sending = true);
     try {
+      await _server((api, id) => api.applyComplaintDecision(
+            id,
+            decisionType: 'escalate_legal_gm',
+            notes: note,
+          ));
       final now = DateTime.now();
       await AdminRequestStore().submit(AdminRequest(
         id: 'escalation-complaint-${complaint.id}',
@@ -1062,6 +1114,11 @@ class HeadSupervisorComplaintDetailsScreenState
     if (_sending) return;
     setState(() => _sending = true);
     try {
+      await _server((api, id) => api.handleComplaintAction(
+            id,
+            actionType: _actionTypeFor(action),
+            notes: action.detail,
+          ));
       await _recordAudit(
         kind: 'complaint',
         title: action.title,
@@ -1165,6 +1222,20 @@ class HeadSupervisorComplaintDetailsScreenState
 
       final replacement = result.supervisor!;
       final current = currentSupervisor!;
+      await _server((api, id) => api.handleComplaintAction(
+            id,
+            actionType: 'reassign_ads',
+            notes: 'إسناد المهمة إلى ${replacement.name} (${replacement.id}) '
+                'بدلًا من ${current.name}.',
+          ));
+      final currentServerId = HeadSupervisorApiDataSource.numberFrom(current.id);
+      if (currentServerId != null) {
+        await _server((api, _) => api.suspendSupervisor(
+              currentServerId,
+              duration: 'حتى انتهاء التحقيق',
+              reason: 'تعليق احترازي بعد سحب المهمة وإعادة إسنادها بسبب الشكوى ${complaint.id}.',
+            ));
+      }
       final updatedRoster = roster.map((supervisor) {
         if (supervisor.id == current.id) {
           return supervisor.copyWith(

@@ -157,4 +157,58 @@ class ApiEndpoints {
       '$_supervisorUsed/complaints/$id/escalate';
 
   static const usedWallet = '$_supervisorUsed/wallet';
+
+  // رئيس المشرفين — BossOfSupervisor
+
+  static const _boss = 'api/BossOfSupervisor';
+
+  static const bossOverview = '$_boss/dashboard-overview';
+  static const bossSupervisors = '$_boss/supervisors';
+  static const bossAddSupervisor = '$_boss/supervisors/add';
+  static String bossSupervisorProfile(int id) => '$_boss/supervisors/$id/profile';
+  static String bossSuspendSupervisor(int id) => '$_boss/supervisors/$id/suspend';
+  static String bossDeleteSupervisor(int id) =>
+      '$_boss/supervisors/$id/delete-permanent';
+  static String bossSupervisorPermissions(int id) =>
+      '$_boss/supervisors/$id/permissions';
+  static String bossReactivateSupervisor(int id) =>
+      '$_boss/supervisors/$id/reactivate';
+  static String bossResetSupervisorPassword(int id) =>
+      '$_boss/supervisors/$id/reset-password';
+  static String bossEndSupervisorSessions(int id) =>
+      '$_boss/supervisors/$id/end-sessions';
+  static String bossSupervisorAuditLog(int id) =>
+      '$_boss/supervisors/$id/audit-log';
+  static const bossDeletionRequests = '$_boss/deletion-requests';
+  static String bossApproveDeletion(int supervisorId) =>
+      '$_boss/deletion-requests/$supervisorId/approve';
+  static String bossRejectDeletion(int supervisorId) =>
+      '$_boss/deletion-requests/$supervisorId/reject';
+  static const bossOrdersAndDisputes = '$_boss/orders-and-disputes';
+  static String bossReevaluateRequest(int id) => '$_boss/requests/$id/reevaluate';
+  static String bossResolveDispute(int id) => '$_boss/disputes/$id/resolve';
+  static const bossTickets = '$_boss/tickets';
+  static const bossMerchantComplaints = '$_boss/merchant-complaints';
+  static String bossMerchantComplaintAction(int id) =>
+      '$_boss/merchant-complaints/$id/action';
+  static String bossComplaintDetails(int id) => '$_boss/complaints/$id/details';
+  static String bossUnbanAndInvestigate(int id) =>
+      '$_boss/complaints/$id/unban-and-investigate';
+  static String bossComplaintDecision(int id) => '$_boss/complaints/$id/decision';
+  static String bossSummonChat(int id) => '$_boss/complaints/$id/summon-chat';
+  static const bossProfile = '$_boss/profile';
+  static const bossWallet = '$_boss/wallet';
+  static const bossWalletPayout = '$_boss/wallet/payout';
+
+  // فروع سوق برواح — رئيس المشرفين يديرها والأدمن يعتمد حذفها
+  static const _branches = 'api/BrowahBranches';
+  static const marketBranches = _branches;
+  static String marketBranch(int id) => '$_branches/$id';
+  static String marketBranchDeleteRequest(int id) => '$_branches/$id/delete-request';
+  static const marketBranchDeletionRequests = '$_branches/deletion-requests';
+  static String marketBranchApproveDeletion(int id) => '$_branches/$id/approve-deletion';
+  static String marketBranchRejectDeletion(int id) => '$_branches/$id/reject-deletion';
+
+  /// محافظات ومدن مصر (نفس قائمة تطبيق اليوزر).
+  static const egyptPlaces = 'api/Places/Egypt';
 }

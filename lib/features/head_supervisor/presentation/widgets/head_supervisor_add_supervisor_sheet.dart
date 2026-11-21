@@ -12,11 +12,15 @@ class HeadSupervisorDraft {
   final bool reviewAds;
   final bool hideAds;
 
+  /// كلمة مرور دخول المشرف التي يحددها رئيس المشرفين.
+  final String password;
+
   const HeadSupervisorDraft({
     required this.name,
     required this.email,
     required this.phone,
     required this.department,
+    this.password = '',
     required this.reviewAds,
     required this.hideAds,
   });
@@ -30,12 +34,27 @@ class HeadSupervisorAddSupervisorSheet extends StatefulWidget {
       _HeadSupervisorAddSupervisorSheetState();
 }
 
+/// نفس سياسة كلمة المرور في السيرفر (Identity): 9 أحرف على الأقل، حرف كبير
+/// وحرف صغير ورمز. يرجع `null` لو مقبولة.
+String? supervisorPasswordError(BuildContext context, String value) {
+  if (value.length < 9 ||
+      !value.contains(RegExp(r'[A-Z]')) ||
+      !value.contains(RegExp(r'[a-z]')) ||
+      !value.contains(RegExp(r'[^A-Za-z0-9]'))) {
+    return headSupervisorText(context,
+        arabic: '9 أحرف على الأقل وتحتوي حرفاً كبيراً وصغيراً ورمزاً (مثل @)',
+        english: 'At least 9 characters with upper, lower and a symbol');
+  }
+  return null;
+}
+
 class _HeadSupervisorAddSupervisorSheetState
     extends State<HeadSupervisorAddSupervisorSheet> {
   final _formKey = GlobalKey<FormState>();
   final _name = TextEditingController();
   final _email = TextEditingController();
   final _phone = TextEditingController();
+  final _password = TextEditingController();
   String _department = 'تجار ومتاجر';
   bool _reviewAds = false;
   bool _hideAds = false;
@@ -45,6 +64,7 @@ class _HeadSupervisorAddSupervisorSheetState
     _name.dispose();
     _email.dispose();
     _phone.dispose();
+    _password.dispose();
     super.dispose();
   }
 
@@ -55,6 +75,7 @@ class _HeadSupervisorAddSupervisorSheetState
       email: _email.text.trim(),
       phone: _phone.text.trim(),
       department: _department,
+      password: _password.text,
       reviewAds: _reviewAds,
       hideAds: _hideAds,
     ));
@@ -95,6 +116,9 @@ class _HeadSupervisorAddSupervisorSheetState
                     const SizedBox(height: 12),
                     _FieldTitle(title: headSupervisorText(context, arabic: 'رقم الجوال والتحقق السريع', english: 'Phone and two-factor authentication'), hint: '2FA'),
                     _InputField(controller: _phone, hint: '+966 50 842 1904', icon: Icons.phone_iphone_outlined, keyboardType: TextInputType.phone, validator: (value) => value == null || value.trim().length < 8 ? headSupervisorText(context, arabic: 'أدخل رقم جوال صحيحاً', english: 'Enter a valid phone number') : null),
+                    const SizedBox(height: 12),
+                    _FieldTitle(title: headSupervisorText(context, arabic: 'كلمة مرور الدخول', english: 'Login password'), hint: headSupervisorText(context, arabic: '9 أحرف: كبير وصغير ورمز', english: '9+ chars: upper, lower, symbol')),
+                    _InputField(controller: _password, hint: '••••••••••', icon: Icons.lock_outline, obscure: true, validator: (value) => supervisorPasswordError(context, value ?? '')),
                     const SizedBox(height: 13),
                     _FieldTitle(title: headSupervisorText(context, arabic: 'القسم الإشرافي المكلف', english: 'Assigned department'), hint: headSupervisorText(context, arabic: 'النشط: تجار ومتاجر', english: 'Active: merchants and stores')),
                     _DepartmentSelector(selected: _department, onChanged: (value) => setState(() => _department = value)),
@@ -158,11 +182,13 @@ class _InputField extends StatelessWidget {
   final IconData icon;
   final TextInputType keyboardType;
   final String? Function(String?)? validator;
-  const _InputField({required this.controller, required this.hint, required this.icon, this.keyboardType = TextInputType.text, this.validator});
+  final bool obscure;
+  const _InputField({required this.controller, required this.hint, required this.icon, this.keyboardType = TextInputType.text, this.validator, this.obscure = false});
   @override
   Widget build(BuildContext context) => TextFormField(
         controller: controller,
         validator: validator,
+        obscureText: obscure,
         keyboardType: keyboardType,
         textAlign: TextAlign.right,
         decoration: InputDecoration(

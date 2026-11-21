@@ -14,7 +14,9 @@ class HeadSupervisorComplaintSummary {
     final actionIds = auditRecords.map((record) => record.subjectId).toSet();
     return complaints
         .where((complaint) =>
-            complaint.reopenedForReview || !actionIds.contains(complaint.id))
+            complaint.reopenedForReview ||
+            (!actionIds.contains(complaint.id) &&
+                complaint.statusLabel != 'تم اتخاذ إجراء'))
         .length;
   }
 }

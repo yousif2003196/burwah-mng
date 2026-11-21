@@ -3,7 +3,6 @@
 import 'package:flutter/material.dart';
 import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
 import 'package:barwah_app/features/products/presentation/screens/promoted_ad_review_screen.dart';
-import 'package:barwah_app/features/products/presentation/screens/vip_banners_screen.dart';
 import 'package:barwah_app/features/wasalny_supervisor/presentation/screens/wasalny_promoted_ad_review_screen.dart';
 import 'package:intl/intl.dart';
 
@@ -41,12 +40,10 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
   bool _isSaving = false;
   bool _isLoading = true;
 
-  // حد إعلانات VIP في بنر الرئيسية (يحدده المشرف) وعدد الجاري والمنتظر.
+  // حد إعلانات VIP في بنر الرئيسية (يحدده رئيس المشرفين) وعدد الجاري والمنتظر.
   int? _vipLimit;
-  int _vipDraft = 5;
   int _vipRunning = 0;
   int _vipWaiting = 0;
-  bool _savingVip = false;
 
   /// الباك إند الحقيقي بعد تسجيل دخول ناجح (مشرف المنتجات الجديدة أو مشرف وصلني؛
   /// السيرفر يفلتر الطلبات حسب نوع الإعلان: مستعمل / غير مستعمل).
@@ -87,7 +84,6 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
       if (!mounted) return;
       setState(() {
         _vipLimit = settings.limit;
-        _vipDraft = settings.limit;
         _vipRunning = settings.running;
         _vipWaiting = settings.waiting;
       });
@@ -96,72 +92,6 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
     }
   }
 
-  Future<void> _saveVipLimit() async {
-    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
-    setState(() => _savingVip = true);
-    try {
-      await sl<ProductPromotionApiDataSource>().saveVipLimit(_vipDraft);
-      await _loadVipSettings();
-      await _loadRequests();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(isArabic ? 'تم حفظ حد إعلانات VIP' : 'VIP limit saved'),
-      ));
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(isArabic ? 'تعذر حفظ الحد' : 'Could not save the limit'),
-      ));
-    } finally {
-      if (mounted) setState(() => _savingVip = false);
-    }
-  }
-
-  Widget _buildVipBannersEntry(bool isArabic) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(15),
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute<void>(builder: (_) => const VipBannersScreen()),
-      ),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: AppColors.cardBorder),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.view_carousel_outlined),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    isArabic ? 'بنرات VIP' : 'VIP banners',
-                    style: TextStyle(
-                      color: AppColors.ink,
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    isArabic
-                        ? 'أضف صورة بنر بتفاصيل وعروض تظهر في قسم VIP'
-                        : 'Add a banner image with details and offers for the VIP section',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.chevron_right),
-          ],
-        ),
-      ),
-    );
-  }
   Widget _buildVipLimitCard(bool isArabic) {
     final limit = _vipLimit;
     if (!_remote || limit == null) return const SizedBox.shrink();
@@ -192,59 +122,17 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
                 : '$_vipRunning shown + $_vipWaiting waiting. A waiting ad\'s days start when it enters the banner.',
             style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
           ),
-          if (widget.isWasalny) ...[
-            const SizedBox(height: 8),
-            Text(
-              isArabic
-                  ? 'الحد الحالي: $limit (للعرض فقط، يعدّله مشرف المنتجات)'
-                  : 'Current limit: $limit (view only, set by the products supervisor)',
-              style: TextStyle(
-                color: AppColors.ink,
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-              ),
+          const SizedBox(height: 8),
+          Text(
+            isArabic
+                ? 'الحد الحالي: $limit (للعرض فقط، يعدّله رئيس المشرفين)'
+                : 'Current limit: $limit (view only, set by the head of supervisors)',
+            style: TextStyle(
+              color: AppColors.ink,
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
             ),
-          ] else ...[
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              IconButton.outlined(
-                onPressed: _savingVip || _vipDraft <= 0
-                    ? null
-                    : () => setState(() => _vipDraft--),
-                icon: const Icon(Icons.remove),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 18),
-                child: Text(
-                  '$_vipDraft',
-                  style: TextStyle(
-                    color: AppColors.ink,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              IconButton.outlined(
-                onPressed: _savingVip || _vipDraft >= 100
-                    ? null
-                    : () => setState(() => _vipDraft++),
-                icon: const Icon(Icons.add),
-              ),
-              const Spacer(),
-              FilledButton(
-                onPressed: _savingVip || _vipDraft == limit ? null : _saveVipLimit,
-                child: _savingVip
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(isArabic ? 'حفظ' : 'Save'),
-              ),
-            ],
           ),
-          ],
         ],
       ),
     );
@@ -334,10 +222,6 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
                 if (_remote && _vipLimit != null) ...[
                   const SizedBox(height: 12),
                   _buildVipLimitCard(isArabic),
-                ],
-                if (!widget.isWasalny) ...[
-                  const SizedBox(height: 12),
-                  _buildVipBannersEntry(isArabic),
                 ],
                 const SizedBox(height: 18),
                 Text(

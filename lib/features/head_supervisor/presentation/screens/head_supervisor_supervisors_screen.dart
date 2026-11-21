@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 
+import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/features/admin/data/datasources/admin_request_store.dart';
 import 'package:barwah_app/features/admin/data/services/head_access_policy.dart';
 import 'package:barwah_app/features/admin/domain/entities/admin_request.dart';
 import 'package:barwah_app/features/admin/domain/entities/head_account.dart';
+import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_api_data_source.dart';
 import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_audit_store.dart';
+import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_account.dart';
 import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_roster_store.dart';
 import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_audit_record.dart';
 import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_record.dart';
@@ -62,9 +65,9 @@ class _HeadSupervisorSupervisorsScreenState
       final records = await _rosterStore.getAll();
       if (!mounted) return;
       setState(() {
-        _supervisors = records.isEmpty
+        _supervisors = records.isEmpty && !HeadSupervisorApiDataSource.canUse
             ? List.of(HeadSupervisorRosterStore.defaultRoster)
-            : records;
+            : List.of(records);
         _loading = false;
       });
     } catch (error, stackTrace) {
@@ -206,6 +209,39 @@ class _HeadSupervisorSupervisorsScreenState
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
+  /// واجهة السيرفر عند الدخول بحساب رئيس المشرفين، وإلا `null` (وضع محلي).
+  HeadSupervisorApiDataSource? get _api => HeadSupervisorApiDataSource.canUse
+      ? sl<HeadSupervisorApiDataSource>()
+      : null;
+
+  /// ينفذ طلب السيرفر ويعرض رسالة الفشل. يرجع `true` عند النجاح.
+  Future<bool> _callServer(
+    Future<void> Function(HeadSupervisorApiDataSource api) call,
+    String failure,
+  ) async {
+    final api = _api;
+    if (api == null) return true;
+    try {
+      await call(api);
+      return true;
+    } on HeadSupervisorApiRejection catch (rejection) {
+      if (mounted) _showNotice(rejection.message);
+      return false;
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'head supervisor api',
+      ));
+      if (mounted) _showNotice(failure);
+      return false;
+    }
+  }
+
+  /// رقم المشرف في السيرفر من المعرّف المعروض (#SUP-12).
+  int? _serverId(HeadSupervisorRecord supervisor) =>
+      HeadSupervisorApiDataSource.numberFrom(supervisor.id);
+
   void _openDetails(HeadSupervisorRecord supervisor) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -242,6 +278,24 @@ class _HeadSupervisorSupervisorsScreenState
     if (_supervisors.any((supervisor) =>
         supervisor.email.trim().toLowerCase() == normalizedEmail)) {
       _showNotice('هذا البريد مسجل بالفعل لمشرف آخر.');
+      return;
+    }
+    if (_api != null) {
+      final created = await _callServer(
+        (api) => api.addSupervisor(
+          fullName: draft.name,
+          email: normalizedEmail,
+          phoneNumber: draft.phone,
+          password: draft.password,
+          accountId: HeadSupervisorRecord.accountForDepartment(draft.department),
+          canReviewAds: draft.reviewAds,
+          canHideAds: draft.hideAds,
+        ),
+        'تعذر إنشاء حساب المشرف على السيرفر.',
+      );
+      if (!created) return;
+      await _loadSupervisors();
+      _showNotice('تمت إضافة ${draft.name}. يدخل بالبريد $normalizedEmail وكلمة المرور التي حددتها.');
       return;
     }
     final supervisor = HeadSupervisorRecord(
@@ -292,6 +346,20 @@ class _HeadSupervisorSupervisorsScreenState
       ),
     );
     if (!mounted || draft == null) return;
+    final deleteId = _serverId(supervisor);
+    if (_api != null && deleteId != null) {
+      final sent = await _callServer(
+        (api) => api.deleteSupervisor(
+          deleteId,
+          reasonCategory: draft.reason,
+          notes: draft.notes,
+          administrativeRecordNumber:
+              draft.caseReference.isEmpty ? null : draft.caseReference,
+        ),
+        'تعذر إرسال طلب الحذف إلى السيرفر.',
+      );
+      if (!sent || !mounted) return;
+    }
     final requestId = draft.caseReference.isEmpty
         ? 'DEL-${DateTime.now().millisecondsSinceEpoch}'
         : draft.caseReference;
@@ -305,6 +373,11 @@ class _HeadSupervisorSupervisorsScreenState
       );
     });
     if (!await _saveRoster()) return;
+    if (_api != null) {
+      // السيرفر سجّل الطلب ويعرضه على الأدمن للاعتماد.
+      _showNotice('تم رفع طلب حذف ${supervisor.name} إلى الأدمن للاعتماد.');
+      return;
+    }
     final audited = await _recordManagementAction(
       supervisor: _supervisors.firstWhere((item) => item.id == supervisor.id),
       title: 'رفع طلب حذف مشرف',
@@ -360,6 +433,20 @@ class _HeadSupervisorSupervisorsScreenState
       ),
     );
     if (!mounted || permissions == null) return;
+    final permissionsId = _serverId(supervisor);
+    if (_api != null && permissionsId != null) {
+      final saved = await _callServer(
+        (api) => api.updatePermissions(
+          permissionsId,
+          accountId:
+              HeadSupervisorRecord.accountForDepartment(permissions.department),
+          geographicScope: '${permissions.area}/${permissions.city}',
+          specialtyCategory: permissions.marketScope,
+        ),
+        'تعذر حفظ الصلاحيات على السيرفر.',
+      );
+      if (!saved || !mounted) return;
+    }
     final previousDepartment = supervisor.department;
     final previousArea = supervisor.area;
     final previousCity = supervisor.city;
@@ -382,6 +469,7 @@ class _HeadSupervisorSupervisorsScreenState
           '${permissions.area}/${permissions.city}. '
           'نطاق السوق: $previousMarketScope ← ${permissions.marketScope}.',
     );
+    if (_api != null) await _loadSupervisors();
     if (audited) {
       _showNotice('تم تحديث صلاحيات ${supervisor.name} ونطاقه المكاني.');
     }
@@ -403,6 +491,17 @@ class _HeadSupervisorSupervisorsScreenState
           ],
         ),
       );
+      final reactivateId = _serverId(supervisor);
+      if (reactivate == true && mounted && _api != null && reactivateId != null) {
+        final done = await _callServer(
+          (api) => api.reactivateSupervisor(reactivateId),
+          'تعذر إعادة تفعيل المشرف على السيرفر.',
+        );
+        if (!done) return;
+        await _loadSupervisors();
+        _showNotice('تمت إعادة تفعيل ${supervisor.name}.');
+        return;
+      }
       if (reactivate == true && mounted) {
         setState(() {
           final index = _supervisors.indexOf(supervisor);
@@ -437,6 +536,18 @@ class _HeadSupervisorSupervisorsScreenState
       ),
     );
     if (!mounted || suspension == null) return;
+    final suspendId = _serverId(supervisor);
+    if (_api != null && suspendId != null) {
+      final suspended = await _callServer(
+        (api) => api.suspendSupervisor(
+          suspendId,
+          duration: suspension.duration,
+          reason: suspension.reason,
+        ),
+        'تعذر تعليق المشرف على السيرفر.',
+      );
+      if (!suspended || !mounted) return;
+    }
     setState(() {
       final index = _supervisors.indexOf(supervisor);
       _supervisors[index] = supervisor.copyWith(

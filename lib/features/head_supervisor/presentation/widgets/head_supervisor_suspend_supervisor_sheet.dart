@@ -50,6 +50,11 @@ class _HeadSupervisorSuspendSupervisorSheetState
       setState(() => _reasonError = headSupervisorText(context, arabic: 'سبب التعليق الرقابي مطلوب', english: 'A suspension reason is required'));
       return;
     }
+    // السيرفر يرفض السبب الأقل من 10 أحرف (SuspendSupervisorDto).
+    if (reason.length < 10) {
+      setState(() => _reasonError = headSupervisorText(context, arabic: 'السبب يجب ألا يقل عن 10 أحرف', english: 'The reason must be at least 10 characters'));
+      return;
+    }
     Navigator.of(context).pop(HeadSupervisorSuspensionDraft(duration: _duration, reason: reason));
   }
 

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:barwah_app/core/auth/auth_session.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/payments/payment_method_store.dart';
 import 'package:barwah_app/features/admin/domain/entities/admin_request.dart';
@@ -12,6 +13,8 @@ import 'package:barwah_app/features/merchants/domain/entities/merchant_entity.da
 import 'package:barwah_app/features/merchants/domain/repositories/merchants_repository.dart';
 import 'package:barwah_app/features/finance/data/datasources/finance_instruction_store.dart';
 import 'package:barwah_app/features/finance/domain/entities/finance_instruction.dart';
+import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_api_data_source.dart';
+import 'package:barwah_app/features/head_supervisor/data/datasources/market_branches_api_data_source.dart';
 import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_audit_store.dart';
 import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_roster_store.dart';
 import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_audit_record.dart';
@@ -25,7 +28,22 @@ class AdminRequestStore {
 
   final LocalEventStore _events = LocalEventStore();
 
+  /// بادئة معرّف طلبات حذف المشرفين القادمة من السيرفر (`deletion-server-<رقم المشرف>`).
+  static const serverDeletionPrefix = 'deletion-server-';
+
+  /// بادئة طلبات حذف فروع سوق برواح من السيرفر (`branch-deletion-server-<رقم الفرع>`).
+  static const serverBranchDeletionPrefix = 'branch-deletion-server-';
+
   Future<List<AdminRequest>> getAll() async {
+    final items = await _readLocal();
+    if (_isServerAdmin) {
+      await _mergeServerDeletions(items);
+      await _mergeServerBranchDeletions(items);
+    }
+    return items..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }
+
+  Future<List<AdminRequest>> _readLocal() async {
     final preferences = await SharedPreferences.getInstance();
     final encoded = preferences.getString(_storageKey);
     if (encoded == null) return [];
@@ -38,8 +56,97 @@ class AdminRequestStore {
         throw const FormatException('Invalid admin request.');
       }
       return AdminRequest.fromJson(value);
-    }).toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    }).toList();
+  }
+
+  static bool get _isServerAdmin =>
+      AuthSession.isSignedIn && AuthSession.backendRole == 'Admin';
+
+  /// يضيف طلبات حذف فروع سوق برواح المعلقة في السيرفر إلى الطابور.
+  Future<void> _mergeServerBranchDeletions(List<AdminRequest> items) async {
+    try {
+      final requests =
+          await sl<MarketBranchesApiDataSource>().getDeletionRequests();
+      final known = items.map((item) => item.id).toSet();
+      final added = <AdminRequest>[];
+      for (final request in requests) {
+        final id = '$serverBranchDeletionPrefix${request.id}';
+        if (known.contains(id)) continue;
+        final reason = request.reason.isEmpty ? '' : ' السبب: ${request.reason}.';
+        added.add(AdminRequest(
+          id: id,
+          kind: AdminRequestKind.deletion,
+          titleAr: 'طلب حذف فرع سوق برواح',
+          titleEn: 'Barwah market branch deletion',
+          detailsAr:
+              'حذف ${request.name} (${request.place}) - المسئول: ${request.managerName}.$reason عند الموافقة يختفي الفرع ويتقفل حسابه.',
+          detailsEn:
+              'Delete ${request.name} (${request.place}).$reason If approved the branch is hidden and its account closed.',
+          fromAr: 'رئيس المشرفين',
+          fromEn: 'Head of supervisors',
+          origin: 'head',
+          refId: 'branch-${request.id}',
+          createdAt: request.requestedAt,
+        ));
+      }
+      if (added.isEmpty) return;
+      items.addAll(added);
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setString(
+        _storageKey,
+        jsonEncode(items.map((item) => item.toJson()).toList()),
+      );
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'admin server branch deletion requests',
+      ));
+    }
+  }
+
+  /// يضيف طلبات حذف المشرفين المعلقة في السيرفر (يرفعها رئيس المشرفين من جهازه)
+  /// إلى الطابور. الفشل لا يوقف عرض الطلبات المحلية.
+  Future<void> _mergeServerDeletions(List<AdminRequest> items) async {
+    try {
+      final requests =
+          await sl<HeadSupervisorApiDataSource>().getDeletionRequests();
+      final known = items.map((item) => item.id).toSet();
+      final added = <AdminRequest>[];
+      for (final request in requests) {
+        final id = '$serverDeletionPrefix${request.supervisorId}';
+        if (known.contains(id)) continue;
+        added.add(AdminRequest(
+          id: id,
+          kind: AdminRequestKind.deletion,
+          titleAr: 'طلب حذف مشرف',
+          titleEn: 'Supervisor deletion request',
+          detailsAr:
+              'حذف ${request.supervisorName} (${request.role}). السبب: ${request.reason}. ${request.notes}',
+          detailsEn:
+              'Delete ${request.supervisorName} (${request.role}). Reason: ${request.reason}. ${request.notes}',
+          fromAr: request.requestedBy.isEmpty ? 'رئيس المشرفين' : request.requestedBy,
+          fromEn: 'Head of supervisors',
+          origin: 'head',
+          refId: '#SUP-${request.supervisorId}',
+          createdAt: request.requestedAt,
+        ));
+      }
+      if (added.isEmpty) return;
+      items.addAll(added);
+      // بدون رفع revision حتى لا تتكرر إعادة التحميل.
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setString(
+        _storageKey,
+        jsonEncode(items.map((item) => item.toJson()).toList()),
+      );
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'admin server deletion requests',
+      ));
+    }
   }
 
   Future<List<AdminRequest>> getPending() async =>
@@ -81,6 +188,27 @@ class AdminRequestStore {
     final items = await getAll();
     final index = items.indexWhere((item) => item.id == id);
     if (index < 0 || !items[index].isPending) return;
+    // طلب حذف من السيرفر: القرار يُنفَّذ هناك أولًا، وأي فشل يُرمى للشاشة.
+    if (id.startsWith(serverDeletionPrefix) &&
+        status != AdminRequestStatus.frozen) {
+      final supervisorId =
+          int.parse(id.substring(serverDeletionPrefix.length));
+      await sl<HeadSupervisorApiDataSource>().decideDeletion(
+        supervisorId,
+        approve: status == AdminRequestStatus.approved,
+        note: note.isEmpty ? null : note,
+      );
+    }
+    if (id.startsWith(serverBranchDeletionPrefix) &&
+        status != AdminRequestStatus.frozen) {
+      final branchId =
+          int.parse(id.substring(serverBranchDeletionPrefix.length));
+      await sl<MarketBranchesApiDataSource>().decideDeletion(
+        branchId,
+        approve: status == AdminRequestStatus.approved,
+        note: note.isEmpty ? null : note,
+      );
+    }
     final decided = items[index].copyWith(
       status: status,
       decisionNote: note,

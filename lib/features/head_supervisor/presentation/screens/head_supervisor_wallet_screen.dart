@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/utils/currency_formatter.dart';
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/core/theme/app_palette.dart';
 import 'package:barwah_app/features/admin/data/datasources/admin_request_store.dart';
 import 'package:barwah_app/features/admin/data/services/head_access_policy.dart';
 import 'package:barwah_app/features/admin/domain/entities/admin_request.dart';
+import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_api_data_source.dart';
 import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_audit_store.dart';
+import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_account.dart';
 import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_audit_record.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/utils/head_supervisor_text.dart';
 import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
@@ -28,6 +32,128 @@ class _HeadSupervisorWalletScreenState extends State<HeadSupervisorWalletScreen>
   String _accountType = 'حساب بنكي';
   String _selectedAccount = 'مصرف الراجحي';
   bool _submitting = false;
+
+  /// بيانات المحفظة من السيرفر (null في الوضع المحلي أو قبل التحميل).
+  HeadSupervisorWallet? _wallet;
+  bool _walletLoading = false;
+  String? _walletError;
+
+  bool get _remote => HeadSupervisorApiDataSource.canUse;
+  double get _available => _wallet?.availableForWithdrawal ?? 38000;
+  double get _minimum => _wallet?.minimumWithdrawal ?? 500;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_remote) _loadWallet();
+  }
+
+  Future<void> _loadWallet() async {
+    setState(() {
+      _walletLoading = true;
+      _walletError = null;
+    });
+    try {
+      final wallet = await sl<HeadSupervisorApiDataSource>().getWallet();
+      if (!mounted) return;
+      setState(() {
+        _wallet = wallet;
+        _walletLoading = false;
+        _amountController.text = wallet.availableForWithdrawal >= wallet.minimumWithdrawal
+            ? wallet.availableForWithdrawal.floor().toString()
+            : '';
+      });
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'head supervisor wallet',
+      ));
+      if (!mounted) return;
+      setState(() {
+        _walletLoading = false;
+        _walletError = error is HeadSupervisorApiRejection
+            ? error.message
+            : 'تعذر تحميل المحفظة من السيرفر.';
+      });
+    }
+  }
+
+  /// قيمة `PayoutMethod` التي يتوقعها السيرفر.
+  String get _payoutMethod => switch (_accountType) {
+        'إنستاباي (IPA)' => 'instapay',
+        'محفظة ذكية' => 'wallet',
+        _ => 'bank',
+      };
+
+  String get _destinationAccount {
+    final match = _accounts.where((account) => account.bank == _selectedAccount);
+    return match.isEmpty
+        ? _selectedAccount
+        : '${match.first.bank} ${match.first.number}';
+  }
+
+  List<_WalletTransaction> get _visibleTransactions {
+    final wallet = _wallet;
+    if (wallet == null) return _transactions;
+    return [
+      for (final item in wallet.transactions)
+        _WalletTransaction(
+          amount: CurrencyFormatter.format(item.amount.abs()),
+          bank: item.description.isEmpty ? item.kind : item.description,
+          date: item.createdAt == null
+              ? ''
+              : '${item.createdAt!.day}/${item.createdAt!.month}/${item.createdAt!.year}',
+          code: item.referenceCode,
+        ),
+    ];
+  }
+
+  Future<void> _submitRemote() async {
+    setState(() => _submitting = true);
+    try {
+      final result = await sl<HeadSupervisorApiDataSource>().requestPayout(
+        amount: _amount,
+        payoutMethod: _payoutMethod,
+        destinationAccount: _destinationAccount,
+      );
+      await HeadSupervisorAuditStore().record(
+        HeadSupervisorAuditRecord(
+          id: 'head-wallet-withdrawal-${result.transactionId}-${DateTime.now().microsecondsSinceEpoch}',
+          subjectId: 'TXN-${result.transactionId}',
+          kind: 'wallet',
+          title: 'سحب مالي بقيمة ${_amount.toStringAsFixed(0)} ج.م',
+          details: 'تم تنفيذ السحب على السيرفر إلى $_destinationAccount.',
+          department: 'المحفظة',
+          occurredAt: DateTime.now(),
+        ),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result.message.isEmpty
+            ? headSupervisorText(context, arabic: 'تم تنفيذ طلب السحب.', english: 'Withdrawal completed.')
+            : result.message)),
+      );
+      await _loadWallet();
+    } on HeadSupervisorApiRejection catch (rejection) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(rejection.message)),
+      );
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'head supervisor wallet payout',
+      ));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(headSupervisorText(context, arabic: 'تعذر إرسال طلب السحب للسيرفر. حاول مرة أخرى.', english: 'Could not send the withdrawal to the server. Try again.'))),
+      );
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
 
   static const _accounts = [
     _PayoutAccount(
@@ -78,13 +204,19 @@ class _HeadSupervisorWalletScreenState extends State<HeadSupervisorWalletScreen>
 
   Future<void> _submitRequest() async {
     if (_submitting) return;
-    if (_amount < 500) {
+    if (_amount < _minimum) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(headSupervisorText(context, arabic: 'الحد الأدنى لطلب السحب هو 500 ج.م.', english: 'The minimum withdrawal is EGP 500.'))),
+        SnackBar(content: Text(headSupervisorText(context, arabic: 'الحد الأدنى لطلب السحب هو ${_minimum.toStringAsFixed(0)} ج.م.', english: 'The minimum withdrawal is EGP ${_minimum.toStringAsFixed(0)}.'))),
       );
       return;
     }
-    if (_amount > 38000) {
+    if (_remote && _wallet == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(headSupervisorText(context, arabic: 'انتظر تحميل رصيد المحفظة من السيرفر.', english: 'Wait for the wallet balance to load.'))),
+      );
+      return;
+    }
+    if (_amount > _available) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(headSupervisorText(context, arabic: 'المبلغ يتجاوز الرصيد المتاح للسحب الفوري.', english: 'The amount exceeds the available balance.'))),
       );
@@ -127,6 +259,11 @@ class _HeadSupervisorWalletScreenState extends State<HeadSupervisorWalletScreen>
           SnackBar(content: Text(headSupervisorText(context, arabic: 'تعذر رفع الطلب للأدمن. حاول مرة أخرى.', english: 'Could not send the request to the admin. Try again.'))),
         );
       }
+      return;
+    }
+
+    if (_remote) {
+      await _submitRemote();
       return;
     }
 
@@ -206,7 +343,23 @@ class _HeadSupervisorWalletScreenState extends State<HeadSupervisorWalletScreen>
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
-          ScrollFx(child: const _WalletSummaryCard()),
+          if (_walletLoading)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 10),
+              child: LinearProgressIndicator(),
+            ),
+          if (_walletError != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Row(children: [
+                TextButton(
+                  onPressed: _loadWallet,
+                  child: Text(headSupervisorText(context, arabic: 'إعادة المحاولة', english: 'Retry')),
+                ),
+                Expanded(child: Text(_walletError!, textAlign: TextAlign.right, style: TextStyle(fontSize: 11, color: AppColors.dangerDark))),
+              ]),
+            ),
+          ScrollFx(child: _WalletSummaryCard(wallet: _wallet)),
           const SizedBox(height: 22),
           ScrollFx(child: _SectionTitle(title: headSupervisorText(context, arabic: 'طلب صرف وتحويل فوري', english: 'Instant withdrawal'), trailing: headSupervisorText(context, arabic: 'الحد الأدنى: 500 ج.م', english: 'Minimum: EGP 500'))),
           const SizedBox(height: 10),
@@ -277,7 +430,12 @@ class _HeadSupervisorWalletScreenState extends State<HeadSupervisorWalletScreen>
           const SizedBox(height: 22),
           ScrollFx(child: _SectionTitle(title: headSupervisorText(context, arabic: 'سجل عمليات الصرف السابقة', english: 'Withdrawal history'), action: null, trailing: headSupervisorText(context, arabic: 'عرض الأرشيف المالي', english: 'View financial archive'))),
           const SizedBox(height: 10),
-          for (final transaction in _transactions)
+          if (_wallet != null && _wallet!.transactions.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(headSupervisorText(context, arabic: 'لا توجد عمليات سابقة.', english: 'No previous transactions.'), textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+            ),
+          for (final transaction in _visibleTransactions)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: _TransactionCard(transaction: transaction),
@@ -300,7 +458,10 @@ class _HeadSupervisorWalletScreenState extends State<HeadSupervisorWalletScreen>
 }
 
 class _WalletSummaryCard extends StatelessWidget {
-  const _WalletSummaryCard();
+  final HeadSupervisorWallet? wallet;
+  const _WalletSummaryCard({this.wallet});
+
+  String _money(double value) => CurrencyFormatter.format(value, includeCurrency: false);
 
   @override
   Widget build(BuildContext context) => Container(
@@ -320,12 +481,16 @@ class _WalletSummaryCard extends StatelessWidget {
           const SizedBox(height: 17),
           Text(headSupervisorText(context, arabic: 'إجمالي المستحقات المعتمدة للإشراف', english: 'Total approved supervisor earnings'), textAlign: TextAlign.right, style: TextStyle(fontSize: 12, color: AppColors.info)),
           const SizedBox(height: 3),
-          Text(headSupervisorText(context, arabic: '45,800.00 ج.م', english: 'EGP 45,800.00'), textAlign: TextAlign.right, style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: Colors.white)),
+          Text(
+              wallet == null
+                  ? headSupervisorText(context, arabic: '45,800.00 ج.م', english: 'EGP 45,800.00')
+                  : headSupervisorText(context, arabic: '${_money(wallet!.totalBalance)} ج.م', english: 'EGP ${_money(wallet!.totalBalance)}'),
+              textAlign: TextAlign.right, style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: Colors.white)),
           const SizedBox(height: 17),
           Row(children: [
-            Expanded(child: _BalanceTile(label: headSupervisorText(context, arabic: 'الرصيد المعلق', english: 'Pending balance'), value: '7,800.00', icon: Icons.hourglass_top)),
+            Expanded(child: _BalanceTile(label: headSupervisorText(context, arabic: 'الرصيد المعلق', english: 'Pending balance'), value: wallet == null ? '7,800.00' : _money(wallet!.lockedBalance), icon: Icons.hourglass_top)),
             const SizedBox(width: 8),
-            Expanded(child: _BalanceTile(label: headSupervisorText(context, arabic: 'المتاح للسحب الفوري', english: 'Available for withdrawal'), value: '38,000.00', icon: Icons.account_balance_wallet_outlined, emphasized: true)),
+            Expanded(child: _BalanceTile(label: headSupervisorText(context, arabic: 'المتاح للسحب الفوري', english: 'Available for withdrawal'), value: wallet == null ? '38,000.00' : _money(wallet!.availableForWithdrawal), icon: Icons.account_balance_wallet_outlined, emphasized: true)),
           ]),
         ]),
       );

@@ -3,9 +3,31 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_api_data_source.dart';
 import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_complaint.dart';
 
+/// شكاوى رئيس المشرفين.
+///
+/// بحساب سيرفر تُقرأ من `api/BossOfSupervisor/tickets` (تذاكر قسم
+/// BossOfSupervisors)، وتبقى حالة المراجعة المحلية (إعادة الفتح والإسناد)
+/// محفوظة فوقها. بدون جلسة سيرفر تعمل البيانات التجريبية المحلية.
 class HeadSupervisorComplaintStore {
+  HeadSupervisorComplaintStore({HeadSupervisorApiDataSource? api}) : _api = api;
+
+  final HeadSupervisorApiDataSource? _api;
+
+  HeadSupervisorApiDataSource? get _remote {
+    if (!HeadSupervisorApiDataSource.canUse) return null;
+    if (_api != null) return _api;
+    return sl.isRegistered<HeadSupervisorApiDataSource>()
+        ? sl<HeadSupervisorApiDataSource>()
+        : null;
+  }
+
+  /// هل الشكاوى قادمة من السيرفر الآن؟
+  static bool get isRemote => HeadSupervisorApiDataSource.canUse;
+
   static const _storageKey = 'head_supervisor_complaints_v1';
   static final ValueNotifier<int> revision = ValueNotifier<int>(0);
 
@@ -73,6 +95,8 @@ class HeadSupervisorComplaintStore {
   ];
 
   Future<List<HeadSupervisorComplaint>> getAll() async {
+    final remote = _remote;
+    if (remote != null) return _getRemote(remote);
     final preferences = await SharedPreferences.getInstance();
     final encoded = preferences.getString(_storageKey);
     if (encoded == null) {
@@ -91,6 +115,61 @@ class HeadSupervisorComplaintStore {
     }).toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return List.unmodifiable(complaints);
+  }
+
+  Future<List<HeadSupervisorComplaint>> _getRemote(
+    HeadSupervisorApiDataSource remote,
+  ) async {
+    final server = await remote.getComplaints();
+    final cached = {
+      for (final complaint in await _readCache()) complaint.id: complaint,
+    };
+    final merged = [
+      for (final complaint in server)
+        _merge(complaint, cached[complaint.id]),
+    ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    // بدون رفع revision حتى لا تتكرر إعادة التحميل.
+    await _writeCache(merged);
+    return List.unmodifiable(merged);
+  }
+
+  /// التذكرة المغلقة في السيرفر تبقى في الأرشيف ما لم يُعِد الرئيس فتحها محليًا.
+  static HeadSupervisorComplaint _merge(
+    HeadSupervisorComplaint server,
+    HeadSupervisorComplaint? local,
+  ) {
+    if (local == null) return server;
+    final serverClosed = server.statusLabel == 'تم اتخاذ إجراء';
+    return server.copyWith(
+      reopenedForReview: local.reopenedForReview,
+      statusLabel: local.reopenedForReview
+          ? 'قيد المراجعة والتحقيق'
+          : serverClosed
+              ? server.statusLabel
+              : local.statusLabel,
+      assignedSupervisorId: local.assignedSupervisorId,
+      assignedSupervisorName: local.assignedSupervisorName,
+    );
+  }
+
+  Future<List<HeadSupervisorComplaint>> _readCache() async {
+    final preferences = await SharedPreferences.getInstance();
+    final encoded = preferences.getString(_storageKey);
+    if (encoded == null) return const [];
+    final decoded = jsonDecode(encoded);
+    if (decoded is! List<dynamic>) return const [];
+    return [
+      for (final value in decoded)
+        if (value is Map<String, dynamic>) HeadSupervisorComplaint.fromJson(value),
+    ];
+  }
+
+  Future<void> _writeCache(List<HeadSupervisorComplaint> complaints) async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(
+      _storageKey,
+      jsonEncode(complaints.map((complaint) => complaint.toJson()).toList()),
+    );
   }
 
   Future<void> add(HeadSupervisorComplaint complaint) async {

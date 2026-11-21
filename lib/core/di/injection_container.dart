@@ -47,6 +47,8 @@ import 'package:barwah_app/features/finance/domain/usecases/restore_frozen_withd
 import 'package:barwah_app/features/finance/domain/usecases/submit_bank_account_edit_request_usecase.dart';
 import 'package:barwah_app/features/finance/domain/usecases/submit_expense_request_usecase.dart';
 import 'package:barwah_app/features/finance/domain/usecases/update_expense_request_status_usecase.dart';
+import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_api_data_source.dart';
+import 'package:barwah_app/features/head_supervisor/data/datasources/market_branches_api_data_source.dart';
 import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_roster_store.dart';
 import 'package:barwah_app/features/merchants/data/datasources/merchants_data_source.dart';
 import 'package:barwah_app/features/merchants/data/datasources/merchants_api_data_source.dart';
@@ -122,6 +124,18 @@ Future<void> initDependencies() async {
       return consumer;
     },
     instanceName: 'berwah',
+  );
+  // رئيس المشرفين (api/BossOfSupervisor).
+  sl.registerLazySingleton<HeadSupervisorApiDataSource>(
+    () => HeadSupervisorApiDataSource(
+      apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'),
+    ),
+  );
+  // فروع سوق برواح (api/BrowahBranches).
+  sl.registerLazySingleton<MarketBranchesApiDataSource>(
+    () => MarketBranchesApiDataSource(
+      apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'),
+    ),
   );
   sl.registerLazySingleton<ProductReportApiDataSource>(
     () => ProductReportApiDataSource(
