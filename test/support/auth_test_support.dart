@@ -10,8 +10,8 @@ import 'package:barwah_app/features/auth/domain/usecases/restore_session_usecase
 import 'package:barwah_app/features/auth/presentation/controllers/auth_cubit.dart';
 import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_roster_store.dart';
 
-/// Offline stand-in for the backend `api/Account/Login` endpoint so tests never
-/// hit the network. The email prefix (before `@`) picks the account role.
+/// Offline stand-in for the backend login routes (`LoginForSupervisor`, then
+/// `api/Account/Login`) and logout, so tests never hit the network. The email prefix (before `@`) picks the account role.
 class FakeAuthApiDataSource extends AuthApiDataSource {
   FakeAuthApiDataSource()
       : super(apiConsumer: ApiConsumer(baseUrl: 'http://localhost'));
@@ -42,6 +42,19 @@ class FakeAuthApiDataSource extends AuthApiDataSource {
       );
     }
     final (role, backendRole) = account;
+    return _result(prefix, email, role, backendRole);
+  }
+
+  /// Server logout is a no-op offline.
+  @override
+  Future<void> logout({required String accessToken}) async {}
+
+  ApiLoginResult _result(
+    String prefix,
+    String email,
+    UserRole role,
+    String backendRole,
+  ) {
     return ApiLoginResult(
       userId: 'test-$prefix',
       name: prefix,

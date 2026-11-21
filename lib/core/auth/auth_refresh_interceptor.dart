@@ -36,8 +36,7 @@ class AuthRefreshInterceptor extends Interceptor {
     ErrorInterceptorHandler handler,
   ) async {
     final request = err.requestOptions;
-    final isAuthCall = request.path == ApiEndpoints.login ||
-        request.path == ApiEndpoints.refreshToken;
+    final isAuthCall = ApiEndpoints.authPaths.contains(request.path);
     final alreadyRetried = request.extra['retried'] == true;
     if (err.response?.statusCode != 401 ||
         isAuthCall ||

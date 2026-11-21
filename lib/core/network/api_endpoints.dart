@@ -7,15 +7,28 @@ class ApiEndpoints {
 
   // المصادقة
 
-  /// مسار تسجيل الدخول المستخدم حاليًا لكل الأدوار.
-  ///
-  /// للتحويل إلى [loginForSupervisor] بعد أن يؤكد الباك إند قبوله حسابات
-  /// BossOfSupervisor وAccountant، غيّر هذا السطر وحده.
-  static const login = accountLogin;
-
-  static const accountLogin = 'api/Account/Login';
+  /// دخول المشرفين ورئيس المشرفين (auth.md 3.1). يُجرَّب أولًا.
   static const loginForSupervisor = '$_supervisorForAd/LoginForSupervisor';
+
+  /// دخول الحسابات العامة (Admin وAccountant)؛ يُجرَّب لو رفض
+  /// [loginForSupervisor] الحساب.
+  static const accountLogin = 'api/Account/Login';
+
+  /// ترتيب مسارات الدخول التي يجربها التطبيق.
+  static const loginRoutes = [loginForSupervisor, accountLogin];
+
   static const refreshToken = 'api/Account/RefreshToken';
+
+  /// يلغي جلسة هذا الجهاز في السيرفر (الجلسات على الأجهزة الأخرى تبقى).
+  static const logout = 'api/Account/Logout';
+
+  /// طلبات المصادقة لا يُجدَّد لها التوكن عند 401.
+  static const authPaths = {
+    loginForSupervisor,
+    accountLogin,
+    refreshToken,
+    logout,
+  };
 
   // مراجعة الإعلانات — SupervisorForAd
 
@@ -196,6 +209,10 @@ class ApiEndpoints {
       '$_boss/complaints/$id/unban-and-investigate';
   static String bossComplaintDecision(int id) => '$_boss/complaints/$id/decision';
   static String bossSummonChat(int id) => '$_boss/complaints/$id/summon-chat';
+  static String bossComplaintSummonChat(int id) =>
+      '$_boss/complaints/$id/summon-chat';
+  static String bossComplaintUnbanAndInvestigate(int id) =>
+      '$_boss/complaints/$id/unban-and-investigate';
   static const bossProfile = '$_boss/profile';
   static const bossWallet = '$_boss/wallet';
   static const bossWalletPayout = '$_boss/wallet/payout';

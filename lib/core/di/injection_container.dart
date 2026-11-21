@@ -1,5 +1,38 @@
 import 'package:get_it/get_it.dart';
 
+import 'package:barwah_app/features/head_supervisor/data/datasources/boss_supervisor_remote_data_source.dart';
+import 'package:barwah_app/features/head_supervisor/data/repositories/boss_supervisor_repository_impl.dart';
+import 'package:barwah_app/features/head_supervisor/data/datasources/head_escalations_remote_data_source.dart';
+import 'package:barwah_app/features/head_supervisor/data/repositories/head_escalations_repository_impl.dart';
+import 'package:barwah_app/features/head_supervisor/domain/repositories/head_escalations_repository.dart';
+import 'package:barwah_app/features/head_supervisor/domain/usecases/close_provider_escalation_usecase.dart';
+import 'package:barwah_app/features/head_supervisor/domain/usecases/decide_service_escalation_usecase.dart';
+import 'package:barwah_app/features/head_supervisor/domain/usecases/get_provider_escalations_usecase.dart';
+import 'package:barwah_app/features/head_supervisor/domain/usecases/get_service_escalations_usecase.dart';
+import 'package:barwah_app/features/head_supervisor/domain/usecases/get_used_complaint_escalations_usecase.dart';
+import 'package:barwah_app/features/head_supervisor/domain/usecases/resolve_used_complaint_escalation_usecase.dart';
+import 'package:barwah_app/features/head_supervisor/domain/usecases/suspend_escalated_provider_usecase.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/controllers/head_escalations_cubits.dart';
+import 'package:barwah_app/features/services_supervisor/data/datasources/services_request_api_data_source.dart';
+import 'package:barwah_app/features/head_supervisor/domain/repositories/boss_supervisor_repository.dart';
+import 'package:barwah_app/features/head_supervisor/domain/usecases/decide_complaint_usecase.dart';
+import 'package:barwah_app/features/head_supervisor/domain/usecases/get_boss_operations_usecase.dart';
+import 'package:barwah_app/features/head_supervisor/domain/usecases/get_boss_profile_usecase.dart';
+import 'package:barwah_app/features/head_supervisor/domain/usecases/get_boss_wallet_usecase.dart';
+import 'package:barwah_app/features/head_supervisor/domain/usecases/get_complaint_details_usecase.dart';
+import 'package:barwah_app/features/head_supervisor/domain/usecases/get_merchant_complaints_usecase.dart';
+import 'package:barwah_app/features/head_supervisor/domain/usecases/reevaluate_request_usecase.dart';
+import 'package:barwah_app/features/head_supervisor/domain/usecases/request_boss_payout_usecase.dart';
+import 'package:barwah_app/features/head_supervisor/domain/usecases/resolve_dispute_usecase.dart';
+import 'package:barwah_app/features/head_supervisor/domain/usecases/summon_supervisor_chat_usecase.dart';
+import 'package:barwah_app/features/head_supervisor/domain/usecases/unban_and_investigate_usecase.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/controllers/boss_operations_cubit.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/controllers/boss_overview_cubit.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/controllers/boss_profile_cubit.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/controllers/boss_wallet_cubit.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/controllers/complaint_details_cubit.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/controllers/merchant_complaints_cubit.dart';
+
 import 'package:barwah_app/core/network/api_configuration.dart';
 import 'package:barwah_app/core/auth/auth_refresh_interceptor.dart';
 import 'package:barwah_app/core/auth/auth_session.dart';
@@ -316,6 +349,91 @@ Future<void> initDependencies() async {
     () => WasalnyComplaintsCubit(
       getComplaints: sl(),
       escalateComplaint: sl(),
+      resolveComplaint: sl(),
+    ),
+  );
+
+  _registerBossOfSupervisor();
+}
+
+/// رئيس المشرفين (`api/BossOfSupervisor`).
+void _registerBossOfSupervisor() {
+  sl.registerLazySingleton(
+    () => BossSupervisorRemoteDataSource(
+      apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'),
+    ),
+  );
+  sl.registerLazySingleton<BossSupervisorRepository>(
+    () => BossSupervisorRepositoryImpl(dataSource: sl()),
+  );
+  sl.registerLazySingleton(() => GetBossOperationsUseCase(sl()));
+  sl.registerLazySingleton(() => ReevaluateRequestUseCase(sl()));
+  sl.registerLazySingleton(() => ResolveDisputeUseCase(sl()));
+  sl.registerLazySingleton(() => GetMerchantComplaintsUseCase(sl()));
+  sl.registerLazySingleton(() => GetComplaintDetailsUseCase(sl()));
+  sl.registerLazySingleton(() => SummonSupervisorChatUseCase(sl()));
+  sl.registerLazySingleton(() => UnbanAndInvestigateUseCase(sl()));
+  sl.registerLazySingleton(() => DecideComplaintUseCase(sl()));
+  sl.registerLazySingleton(() => GetBossProfileUseCase(sl()));
+  sl.registerLazySingleton(() => GetBossWalletUseCase(sl()));
+  sl.registerLazySingleton(() => RequestBossPayoutUseCase(sl()));
+
+  sl.registerFactory(
+    () => BossOperationsCubit(
+      getOperations: sl(),
+      reevaluateRequest: sl(),
+      resolveDispute: sl(),
+    ),
+  );
+  sl.registerFactory(() => MerchantComplaintsCubit(getComplaints: sl()));
+  sl.registerFactory(
+    () => ComplaintDetailsCubit(
+      getDetails: sl(),
+      summonChat: sl(),
+      unbanAndInvestigate: sl(),
+      decideComplaint: sl(),
+    ),
+  );
+  sl.registerFactory(() => BossProfileCubit(getProfile: sl()));
+  sl.registerFactory(
+    () => BossWalletCubit(getWallet: sl(), requestPayout: sl()),
+  );
+  sl.registerFactory(
+    () => BossOverviewCubit(getOperations: sl(), getComplaints: sl()),
+  );
+
+  // التصعيدات الواردة من أقسام الخدمات والمستعمل.
+  sl.registerLazySingleton(
+    () => HeadEscalationsRemoteDataSource(
+      apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'),
+      servicesRequests: ServicesRequestApiDataSource(
+        apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'),
+      ),
+    ),
+  );
+  sl.registerLazySingleton<HeadEscalationsRepository>(
+    () => HeadEscalationsRepositoryImpl(dataSource: sl()),
+  );
+  sl.registerLazySingleton(() => GetServiceEscalationsUseCase(sl()));
+  sl.registerLazySingleton(() => DecideServiceEscalationUseCase(sl()));
+  sl.registerLazySingleton(() => GetProviderEscalationsUseCase(sl()));
+  sl.registerLazySingleton(() => SuspendEscalatedProviderUseCase(sl()));
+  sl.registerLazySingleton(() => CloseProviderEscalationUseCase(sl()));
+  sl.registerLazySingleton(() => GetUsedComplaintEscalationsUseCase(sl()));
+  sl.registerLazySingleton(() => ResolveUsedComplaintEscalationUseCase(sl()));
+  sl.registerFactory(
+    () => HeadServiceEscalationsCubit(getItems: sl(), decide: sl()),
+  );
+  sl.registerFactory(
+    () => HeadProviderEscalationsCubit(
+      getItems: sl(),
+      suspendProvider: sl(),
+      closeEscalation: sl(),
+    ),
+  );
+  sl.registerFactory(
+    () => HeadUsedComplaintEscalationsCubit(
+      getItems: sl(),
       resolveComplaint: sl(),
     ),
   );

@@ -7,7 +7,6 @@ import 'package:barwah_app/core/network/api_endpoints.dart';
 import 'package:barwah_app/core/theme/app_palette.dart';
 import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_account.dart';
 import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_audit_record.dart';
-import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_complaint.dart';
 import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_record.dart';
 
 /// لوحة رئيس المشرفين من السيرفر (`api/BossOfSupervisor/*`).
@@ -242,153 +241,6 @@ class HeadSupervisorApiDataSource {
         _ => 'Merchant',
       };
 
-  // ── الشكاوى (تذاكر رئيس المشرفين) ───────────────────────
-
-  Future<List<HeadSupervisorComplaint>> getComplaints() async {
-    final rows = await _getList(ApiEndpoints.bossTickets);
-    return [for (final row in rows) _complaintFromRow(row)];
-  }
-
-  Future<void> summonSupervisor(
-    int complaintId, {
-    required String topic,
-    required String message,
-  }) =>
-      _send(() => apiConsumer.post<Object>(
-            ApiEndpoints.bossSummonChat(complaintId),
-            data: {
-              'summonTopic': topic,
-              'initialMessage': _clip(message, 500),
-              'attachCaseDocument': true,
-            },
-          ));
-
-  Future<void> unbanAndInvestigate(
-    int complaintId, {
-    required bool unbanAd,
-    required bool openInvestigation,
-    required bool compensateMerchant,
-    required String justification,
-  }) =>
-      _send(() => apiConsumer.post<Object>(
-            ApiEndpoints.bossUnbanAndInvestigate(complaintId),
-            data: {
-              'unbanAdImmediately': unbanAd,
-              'openFormalInvestigation': openInvestigation,
-              'compensateMerchantPromotion': compensateMerchant,
-              'promotionCompensationDays': 3,
-              'justificationAndDirective':
-                  justification.isEmpty ? null : _clip(justification, 200),
-            },
-          ));
-
-  /// [actionType]: `cancel_ban` أو `summon_supervisor` أو `issue_warning`
-  /// أو `reassign_ads`. السيرفر يغلق التذكرة بعد الإجراء.
-  Future<void> handleComplaintAction(
-    int complaintId, {
-    required String actionType,
-    String? notes,
-  }) =>
-      _send(() => apiConsumer.post<Object>(
-            ApiEndpoints.bossMerchantComplaintAction(complaintId),
-            data: {'actionType': actionType, 'notes': notes},
-          ));
-
-  /// `escalate_legal_gm` يبقي التذكرة قيد التنفيذ، وأي قرار آخر يغلقها.
-  Future<void> applyComplaintDecision(
-    int complaintId, {
-    required String decisionType,
-    String? notes,
-  }) =>
-      _send(() => apiConsumer.post<Object>(
-            ApiEndpoints.bossComplaintDecision(complaintId),
-            data: {'decisionType': decisionType, 'notes': notes},
-          ));
-
-  // ── الملف الشخصي والمحفظة ─────────────────────────────────
-
-  Future<HeadSupervisorProfile> getProfile() async {
-    final data = await _getMap(ApiEndpoints.bossProfile);
-    final metrics = _map(data['complianceMetrics']);
-    final logs = data['recentAuditLogs'];
-    return HeadSupervisorProfile(
-      userId: _int(data['userId']),
-      fullName: _text(data['fullName']),
-      roleTitle: _text(data['roleTitle']),
-      badgeCode: _text(data['badgeCode']),
-      email: _text(data['email']),
-      phoneNumber: _text(data['phoneNumber']),
-      supervisionScope: _text(data['supervisionScope']),
-      totalBalance: _double(data['totalBalance']),
-      availableForWithdrawal: _double(data['availableForWithdrawal']),
-      lockedBalance: _double(data['lockedBalance']),
-      approvedInterventions: _int(metrics['approvedInterventions']),
-      governanceScore: _text(metrics['governanceScore']),
-      managedSupervisors: _int(metrics['managedSupervisors']),
-      recentAuditLogs: [
-        if (logs is List)
-          for (final log in logs.whereType<Map>())
-            HeadSupervisorAuditLogItem(
-              code: _text(log['code']),
-              title: _text(log['title']),
-              status: _text(log['status']),
-              note: _text(log['note']),
-              reviewedAt: _date(log['reviewedAt']),
-            ),
-      ],
-    );
-  }
-
-  Future<HeadSupervisorWallet> getWallet() async {
-    final data = await _getMap(ApiEndpoints.bossWallet);
-    final methods = data['payoutMethods'];
-    final transactions = data['transactions'];
-    return HeadSupervisorWallet(
-      totalBalance: _double(data['totalBalance']),
-      availableForWithdrawal: _double(data['availableForWithdrawal']),
-      lockedBalance: _double(data['lockedBalance']),
-      minimumWithdrawal: _double(data['minimumWithdrawal'], fallback: 500),
-      payoutMethods: [
-        if (methods is List) for (final method in methods) '$method',
-      ],
-      transactions: [
-        if (transactions is List)
-          for (final row in transactions.whereType<Map>())
-            HeadSupervisorWalletTransaction(
-              referenceCode: _text(row['referenceCode']),
-              kind: _text(row['kind']),
-              amount: _double(row['amount']),
-              description: _text(row['description']),
-              status: _text(row['status']),
-              createdAt: _date(row['createdAt']),
-            ),
-      ],
-    );
-  }
-
-  /// [payoutMethod]: `bank` أو `instapay` أو `wallet`.
-  Future<HeadSupervisorPayoutResult> requestPayout({
-    required double amount,
-    required String payoutMethod,
-    required String destinationAccount,
-  }) async {
-    final response = await _send(() => apiConsumer.post<Object>(
-          ApiEndpoints.bossWalletPayout,
-          data: {
-            'amount': amount,
-            'payoutMethod': payoutMethod,
-            'destinationAccount': destinationAccount,
-          },
-        ));
-    final body = _map(response.data);
-    final data = _map(body['data']);
-    return HeadSupervisorPayoutResult(
-      message: _text(body['message']),
-      transactionId: _text(data['transactionId']),
-      remainingBalance: _double(data['remainingBalance']),
-    );
-  }
-
   // ── أدوات الطلب والتحويل ─────────────────────────────────
 
   Future<List<Map<String, dynamic>>> _getList(String path) async {
@@ -470,62 +322,6 @@ class HeadSupervisorApiDataSource {
     );
   }
 
-  static HeadSupervisorComplaint _complaintFromRow(Map<String, dynamic> row) {
-    final id = _text(row['code']).isNotEmpty
-        ? _text(row['code'])
-        : 'CMP-SUP-${row['id']}';
-    final subject = _text(row['subject']);
-    final description = _text(row['description']);
-    final status = _text(row['status']);
-    final closed = status == 'Closed';
-    return HeadSupervisorComplaint(
-      id: id,
-      status: switch (status) {
-        'InProgress' => 'قيد التحقيق',
-        'Closed' => 'مغلقة',
-        _ => 'شكوى جديدة',
-      },
-      statusLabel: closed ? 'تم اتخاذ إجراء' : 'قيد المراجعة والتحقيق',
-      title: subject.isEmpty ? id : subject,
-      description: description.isEmpty ? (subject.isEmpty ? id : subject) : description,
-      merchant: _text(row['complainant']).isEmpty
-          ? 'مستخدم / تاجر'
-          : _text(row['complainant']),
-      merchantCode: '',
-      supervisor: '—',
-      supervisorCode: '—',
-      department: 'رئيس المشرفين',
-      recipient: 'merchant',
-      evidence: '',
-      urgency: status == 'InProgress' ? 'قيد التحقيق' : '',
-      warning: false,
-      createdAt: _date(row['createdAt']) ?? DateTime.now(),
-      actions: _defaultComplaintActions,
-    );
-  }
-
-  static final _defaultComplaintActions = [
-    HeadSupervisorComplaintAction(
-      title: 'إلغاء حظر الإعلان والتحقيق مع المشرف',
-      detail: 'إعادة الإعلان للمراجعة وطلب مسوغات قرار الحجب من المشرف.',
-      iconCodePoint: Icons.fact_check_outlined.codePoint,
-      unblockInvestigation: true,
-    ),
-    HeadSupervisorComplaintAction(
-      title: 'استدعاء المشرف للتوضيح',
-      detail: 'إرسال طلب إفادة رسمية للمشرف وتوثيق رده في سجل التحقيق.',
-      iconCodePoint: Icons.person_search_outlined.codePoint,
-      summon: true,
-    ),
-    HeadSupervisorComplaintAction(
-      title: 'توجيه تنبيه إداري ولفت نظر للمشرف',
-      detail: 'تسجيل الشكوى في سجل أداء المشرف وطلب إفادة حول أسبابها.',
-      iconCodePoint: Icons.notification_important_outlined.codePoint,
-    ),
-  ];
-
-  static String _clip(String value, int max) =>
-      value.length <= max ? value : value.substring(0, max);
 
   static Map<String, dynamic> _map(Object? value) =>
       value is Map ? Map<String, dynamic>.from(value) : const {};
@@ -535,8 +331,6 @@ class HeadSupervisorApiDataSource {
   static int _int(Object? value) =>
       value is num ? value.toInt() : int.tryParse('$value') ?? 0;
 
-  static double _double(Object? value, {double fallback = 0}) =>
-      value is num ? value.toDouble() : double.tryParse('$value') ?? fallback;
 
   static DateTime? _date(Object? value) =>
       value == null ? null : DateTime.tryParse('$value')?.toLocal();

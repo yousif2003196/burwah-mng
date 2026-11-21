@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_audit_store.dart';
-import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_complaint_store.dart';
 import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_roster_store.dart';
+import 'package:barwah_app/features/head_supervisor/domain/entities/boss_operation.dart';
 import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_audit_record.dart';
-import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_complaint_summary.dart';
 import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_record.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/controllers/boss_load_state.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/controllers/boss_overview_cubit.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/utils/boss_formatters.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_complaints_screen.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_requests_screen.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_supervisors_screen.dart';
@@ -32,13 +36,15 @@ class _HeadSupervisorOverviewScreenState
   final _audit = HeadSupervisorAuditStore();
   late Future<_OverviewData> _data;
 
+  /// العمليات الحرجة والتظلمات المفتوحة من `api/BossOfSupervisor`.
+  late final BossOverviewCubit _api = sl<BossOverviewCubit>()..load();
+
   @override
   void initState() {
     super.initState();
     LocalEventStore.revision.addListener(_refresh);
     HeadSupervisorRosterStore.revision.addListener(_refresh);
     HeadSupervisorAuditStore.revision.addListener(_refresh);
-    HeadSupervisorComplaintStore.revision.addListener(_refresh);
     _data = _load();
   }
 
@@ -47,7 +53,7 @@ class _HeadSupervisorOverviewScreenState
     LocalEventStore.revision.removeListener(_refresh);
     HeadSupervisorRosterStore.revision.removeListener(_refresh);
     HeadSupervisorAuditStore.revision.removeListener(_refresh);
-    HeadSupervisorComplaintStore.revision.removeListener(_refresh);
+    _api.close();
     super.dispose();
   }
 
@@ -61,12 +67,16 @@ class _HeadSupervisorOverviewScreenState
     if (mounted) setState(() => _data = _load());
   }
 
+  Future<void> _refreshAll() async {
+    _refresh();
+    await _api.load();
+  }
+
   Future<_OverviewData> _load() async {
     final results = await Future.wait<Object>([
       _events.getEvents('head'),
       _roster.getAll(),
       _audit.getAll(),
-      HeadSupervisorComplaintSummary.getOpenCount(),
     ]);
     final events = (results[0] as List<LocalEvent>)
         .where((event) =>
@@ -92,15 +102,12 @@ class _HeadSupervisorOverviewScreenState
       'الخدمات': 'services',
     };
     return _OverviewData(
-      pendingRequests: events.where((event) => !event.isRead).length,
       activeSupervisors: supervisors
           .where((supervisor) =>
               !supervisor.suspended && !supervisor.deletionPending)
           .length,
       supervisors: supervisors,
       todayActions: todayActions,
-      openComplaints: results[3] as int,
-      pendingItems: events.where((event) => !event.isRead).take(5).toList(),
       trendDays: days,
       workflowTrends: {
         for (final entry in departmentSources.entries)
@@ -154,7 +161,17 @@ class _HeadSupervisorOverviewScreenState
   }
 
   @override
-  Widget build(BuildContext context) => ColoredBox(
+  Widget build(BuildContext context) =>
+      BlocBuilder<BossOverviewCubit, BossOverviewState>(
+        bloc: _api,
+        builder: _buildBody,
+      );
+
+  Widget _buildBody(BuildContext context, BossOverviewState api) {
+    final apiData = api is BossLoaded<BossOverviewSnapshot> ? api.data : null;
+    final pendingRequests = apiData?.totalOperations ?? 0;
+    final openComplaints = apiData?.openComplaints ?? 0;
+    return ColoredBox(
         color: AppColors.scaffold,
         child: FutureBuilder<_OverviewData>(
           future: _data,
@@ -166,7 +183,7 @@ class _HeadSupervisorOverviewScreenState
                       arabic: 'تعذر تحميل مؤشرات لوحة المتابعة.',
                       english: 'Could not load dashboard metrics.')),
                   TextButton(
-                    onPressed: _refresh,
+                    onPressed: _refreshAll,
                     child: Text(headSupervisorText(context,
                         arabic: 'إعادة المحاولة', english: 'Retry')),
                   ),
@@ -184,10 +201,10 @@ class _HeadSupervisorOverviewScreenState
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               children: [
                 ScrollFx(child: _HeroCard(
-                  pending: data.pendingRequests,
+                  pending: pendingRequests,
                   todayActions: data.todayActions,
                   activeSupervisors: data.activeSupervisors,
-                  openComplaints: data.openComplaints,
+                  openComplaints: openComplaints,
                 )),
                 const SizedBox(height: 18),
                 ScrollFx(child: _SectionTitle(
@@ -201,7 +218,8 @@ class _HeadSupervisorOverviewScreenState
                 )),
                 const SizedBox(height: 10),
                 ScrollFx(child: _PendingWorkPanel(
-                  events: data.pendingItems,
+                  state: api,
+                  onRetry: _api.load,
                   onOpen: () => _open(
                       context, const HeadSupervisorRequestsScreen()),
                 )),
@@ -229,7 +247,7 @@ class _HeadSupervisorOverviewScreenState
                       title: headSupervisorText(context,
                           arabic: 'الشكاوى المفتوحة',
                           english: 'Open complaints'),
-                      value: '${data.openComplaints}',
+                      value: '$openComplaints',
                       color: AppColors.danger,
                       background: AppColors.dangerLight,
                       onTap: () => _open(
@@ -255,25 +273,20 @@ class _HeadSupervisorOverviewScreenState
           },
         ),
       );
+  }
 }
 
 class _OverviewData {
-  final int pendingRequests;
   final int activeSupervisors;
   final List<HeadSupervisorRecord> supervisors;
   final int todayActions;
-  final int openComplaints;
-  final List<LocalEvent> pendingItems;
   final List<DateTime> trendDays;
   final Map<String, List<int>> workflowTrends;
 
   const _OverviewData({
-    required this.pendingRequests,
     required this.activeSupervisors,
     required this.supervisors,
     required this.todayActions,
-    required this.openComplaints,
-    required this.pendingItems,
     required this.trendDays,
     required this.workflowTrends,
   });
@@ -699,15 +712,20 @@ class _WorkflowChartPainter extends CustomPainter {
       oldDelegate.trends != trends;
 }
 
+/// آخر العمليات الحرجة من `orders-and-disputes` (حالات تحميل/خطأ/فراغ).
 class _PendingWorkPanel extends StatelessWidget {
-  final List<LocalEvent> events;
+  final BossOverviewState state;
+  final VoidCallback onRetry;
   final VoidCallback onOpen;
 
-  const _PendingWorkPanel({required this.events, required this.onOpen});
+  const _PendingWorkPanel({
+    required this.state,
+    required this.onRetry,
+    required this.onOpen,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
@@ -715,114 +733,122 @@ class _PendingWorkPanel extends StatelessWidget {
         border: Border.all(color: AppColors.cardBorder),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: events.isEmpty
-          ? Padding(
-              padding: const EdgeInsets.symmetric(vertical: 22),
-              child: Column(children: [
-                MotionIcon(Icons.task_alt_rounded,
-                    size: 28, color: AppColors.success),
-                const SizedBox(height: 8),
-                Text(
-                    headSupervisorText(context,
-                        arabic: 'لا توجد طلبات معلقة تحتاج إلى مراجعتك.',
-                        english:
-                            'There are no pending requests that need your review.'),
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                        fontSize: 13, color: AppColors.textSecondary)),
-              ]),
-            )
-          : Column(children: [
-              for (var i = 0; i < events.length; i++) ...[
-                if (i > 0) Divider(height: 1, color: AppColors.cardBorder),
-                InkWell(
-                  onTap: onOpen,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: Row(children: [
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: _tint(events[i].source).withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: MotionIcon(Icons.assignment_outlined,
-                            size: 18, color: _tint(events[i].source)),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                                isArabic
-                                    ? events[i].titleAr
-                                    : events[i].titleEn,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColors.ink)),
-                            const SizedBox(height: 2),
-                            Text(
-                                '${_departmentName(context, events[i].source)} • ${_ago(context, events[i].createdAt)}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.textSecondary)),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      MotionIcon(Icons.chevron_right_rounded,
-                          size: 20, color: AppColors.textMuted),
-                    ]),
-                  ),
-                ),
-              ],
+      child: switch (state) {
+        BossLoading() => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 22),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+        BossLoadFailure(:final message) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            child: Column(children: [
+              Text(message,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+              TextButton(
+                onPressed: onRetry,
+                child: Text(headSupervisorText(context,
+                    arabic: 'إعادة المحاولة', english: 'Retry')),
+              ),
             ]),
+          ),
+        BossLoaded(:final data) when data.latestOperations.isEmpty => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 22),
+            child: Column(children: [
+              MotionIcon(Icons.task_alt_rounded,
+                  size: 28, color: AppColors.success),
+              const SizedBox(height: 8),
+              Text(
+                  headSupervisorText(context,
+                      arabic: 'لا توجد طلبات معلقة تحتاج إلى مراجعتك.',
+                      english:
+                          'There are no pending requests that need your review.'),
+                  textAlign: TextAlign.center,
+                  style:
+                      TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+            ]),
+          ),
+        BossLoaded(:final data) => Column(children: [
+            for (var i = 0; i < data.latestOperations.length; i++) ...[
+              if (i > 0) Divider(height: 1, color: AppColors.cardBorder),
+              _PendingOperationRow(
+                operation: data.latestOperations[i],
+                onTap: onOpen,
+              ),
+            ],
+          ]),
+      },
     );
   }
+}
 
-  Color _tint(String source) => switch (source) {
-        'merchant' => AppColors.info,
-        'wasalny' => AppColors.success,
-        'products' => AppColors.purple,
-        'services' => AppColors.warning,
-        _ => AppColors.textSecondary,
+class _PendingOperationRow extends StatelessWidget {
+  final BossOperation operation;
+  final VoidCallback onTap;
+
+  const _PendingOperationRow({required this.operation, required this.onTap});
+
+  Color get _tint => switch (operation.type) {
+        BossOperationType.ad => AppColors.info,
+        BossOperationType.dispute => AppColors.warning,
+        BossOperationType.unknown => AppColors.textSecondary,
       };
 
-  String _ago(BuildContext context, DateTime date) {
-    final minutes = DateTime.now().difference(date).inMinutes;
-    if (minutes < 1) {
-      return headSupervisorText(context, arabic: 'الآن', english: 'Just now');
-    }
-    if (minutes < 60) {
-      return headSupervisorText(context,
-          arabic: 'منذ $minutes د', english: '$minutes min ago');
-    }
-    final hours = minutes ~/ 60;
-    if (hours < 24) {
-      return headSupervisorText(context,
-          arabic: 'منذ $hours ساعة', english: '$hours h ago');
-    }
-    final days = hours ~/ 24;
-    return headSupervisorText(context,
-        arabic: 'منذ $days يوم', english: '$days d ago');
-  }
-
-  String _departmentName(BuildContext context, String source) {
-    final (arabic, english) = switch (source) {
-      'merchant' => ('التجار', 'Merchants'),
-      'wasalny' => ('وصلني', 'Wasalny'),
-      'products' => ('المنتجات', 'Products'),
-      'services' => ('الخدمات', 'Services'),
-      _ => ('الإدارة', 'Management'),
-    };
-    return headSupervisorText(context, arabic: arabic, english: english);
+  @override
+  Widget build(BuildContext context) {
+    final tint = _tint;
+    final subtitle = [
+      if (operation.category.isNotEmpty) operation.category,
+      bossElapsed(context, operation.createdAt),
+    ].join(' • ');
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: tint.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: MotionIcon(
+                operation.type == BossOperationType.dispute
+                    ? Icons.gavel_outlined
+                    : Icons.assignment_outlined,
+                size: 18,
+                color: tint),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                    operation.title.isEmpty
+                        ? operation.trackingNumber
+                        : operation.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.ink)),
+                const SizedBox(height: 2),
+                Text(subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 12, color: AppColors.textSecondary)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          MotionIcon(Icons.chevron_right_rounded,
+              size: 20, color: AppColors.textMuted),
+        ]),
+      ),
+    );
   }
 }
 

@@ -62,11 +62,17 @@ class ApiConsumer {
     return dio.get<T>(path, queryParameters: queryParameters);
   }
 
+  /// [headers] تُضاف لهذا الطلب وحده (مثل توكن صريح عند تسجيل الخروج).
   Future<Response<T>> post<T>(
     String path, {
     Object? data,
+    Map<String, Object?>? headers,
   }) {
-    return dio.post<T>(path, data: data);
+    return dio.post<T>(
+      path,
+      data: data,
+      options: headers == null ? null : Options(headers: headers),
+    );
   }
 
   Future<Response<T>> put<T>(
