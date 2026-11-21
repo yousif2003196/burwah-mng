@@ -40,8 +40,15 @@ jobs:
         run: flutter build apk --debug
 
       - name: Upload to Firebase App Distribution
+        env:
+          SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
+          echo "$SA_JSON" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
           firebase appdistribution:distribute build/app/outputs/flutter-apk/app-debug.apk \
             --app "${{ secrets.FIREBASE_APP_ID }}" \
-            --groups "testers" \
-            --token "${{ secrets.FIREBASE_TOKEN }}"
+            --groups "testers"
+
+      - name: Remove service account key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/sa.json"
