@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 
 import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/widgets/full_data_view.dart';
 import 'package:barwah_app/core/widgets/motion_icon.dart';
+import 'package:barwah_app/features/head_supervisor/domain/entities/boss_status.dart';
+import 'package:barwah_app/features/head_supervisor/domain/entities/merchant_complaint.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_complaint_details_screen.dart';
 import 'package:barwah_app/features/head_supervisor/data/datasources/supervisor_escalations_api.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/utils/boss_formatters.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/utils/head_supervisor_text.dart';
@@ -174,6 +178,48 @@ class _HeadSupervisorEscalationsPanelState
   }
 }
 
+/// رقم الإعلان / التذكرة من مرجع التصعيد ("12" أو "AD-12" أو "TCK-12").
+int? _refNumber(String refKey) {
+  final match = RegExp(r'(\d+)$').firstMatch(refKey.trim());
+  return match == null ? null : int.tryParse(match.group(1)!);
+}
+
+/// يفتح اللي اتصعّد عليه: الإعلان كامل أو تفاصيل الشكوى.
+void _openReference(BuildContext context, SupervisorEscalationRecord item) {
+  final number = _refNumber(item.refKey);
+  if (number == null) return;
+  if (item.department == 'products' && item.kind == 'product') {
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => FullDataScreen(
+        kind: FullDataKind.newAd,
+        path: 'api/SupervisorForAd/ad/$number',
+        title: item.title,
+      ),
+    ));
+    return;
+  }
+  if (item.department == 'services' && item.kind == 'complaint') {
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => HeadSupervisorComplaintDetailsScreen(
+        summary: MerchantComplaintSummary(
+          id: number,
+          code: item.refKey,
+          title: item.title,
+          description: item.reason,
+          complainant: '',
+          status: const BossStatus(raw: 'مصعد لرئيس المشرفين', kind: BossStatusKind.escalated),
+          createdAt: item.createdAt,
+        ),
+      ),
+    ));
+  }
+}
+
+bool _canOpenReference(SupervisorEscalationRecord item) =>
+    _refNumber(item.refKey) != null &&
+    ((item.department == 'products' && item.kind == 'product') ||
+        (item.department == 'services' && item.kind == 'complaint'));
+
 class _EscalationTile extends StatelessWidget {
   final SupervisorEscalationRecord item;
   final bool busy;
@@ -231,6 +277,25 @@ class _EscalationTile extends StatelessWidget {
                 arabic: 'السبب: ${item.reason}', english: 'Reason: ${item.reason}'),
             textAlign: TextAlign.right,
             style: TextStyle(fontSize: 12, height: 1.5, color: AppColors.textPrimary)),
+        if (_canOpenReference(item)) ...[
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () => _openReference(context, item),
+            icon: MotionIcon(
+                item.department == 'products' ? Icons.inventory_2_outlined : Icons.description_outlined,
+                size: 16),
+            label: Text(
+                item.department == 'products'
+                    ? headSupervisorText(context, arabic: 'عرض المنتج بالتفاصيل', english: 'View product')
+                    : headSupervisorText(context, arabic: 'فتح الشكوى', english: 'Open complaint'),
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.infoDark,
+              minimumSize: const Size(0, 38),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          ),
+        ],
         const SizedBox(height: 8),
         if (busy)
           const Center(child: Padding(

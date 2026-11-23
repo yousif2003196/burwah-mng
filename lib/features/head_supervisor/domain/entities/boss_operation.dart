@@ -24,6 +24,18 @@ class BossOperation {
   final BossStatus status;
   final DateTime? createdAt;
 
+  /// المشرف اللي اتخذ القرار على الإعلان (لو مسجّل).
+  final int? supervisorId;
+  final String supervisorName;
+
+  /// القسم المسؤول: مشرف المنتجات الجديدة / مشرف المستعمل / نزاعات التوصيل.
+  final String department;
+  final DateTime? decidedAt;
+  final String sellerName;
+  final double? price;
+
+  bool get hasSupervisor => supervisorName.isNotEmpty;
+
   const BossOperation({
     required this.id,
     required this.type,
@@ -33,6 +45,12 @@ class BossOperation {
     required this.reason,
     required this.status,
     required this.createdAt,
+    this.supervisorId,
+    this.supervisorName = '',
+    this.department = '',
+    this.decidedAt,
+    this.sellerName = '',
+    this.price,
   });
 }
 

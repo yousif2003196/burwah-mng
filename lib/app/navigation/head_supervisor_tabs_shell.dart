@@ -94,7 +94,9 @@ class _HeadSupervisorTabsShellState extends State<HeadSupervisorTabsShell> {
       backgroundColor: AppColors.scaffold,
       extendBody: true,
       appBar: RollingAppBar(
-        docked: _topDocked,
+        // ثابت دايمًا عند رئيس المشرفين: لفّ الشريط كان بيخفيه ويغيّر ارتفاع
+        // المحتوى فجأة أثناء السكرول (قفزة)، ومكانش بيرجع غير عند أول الصفحة.
+        docked: true,
         badge: const UnreadEventsDot(recipient: 'head'),
         bar: FinancePageAppBar(
                 title: _currentIndex == 0

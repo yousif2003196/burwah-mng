@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/widgets/full_data_view.dart';
 import 'package:barwah_app/core/widgets/motion_icon.dart';
 import 'package:barwah_app/features/head_supervisor/domain/entities/boss_operation.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/utils/boss_formatters.dart';
@@ -16,6 +17,37 @@ String bossOperationTypeLabel(BuildContext context, BossOperationType type) =>
       BossOperationType.unknown =>
         headSupervisorText(context, arabic: 'عملية', english: 'Operation'),
     };
+
+/// يفتح الإعلان كامل (صور، مواصفات، بيانات البائع) بنفس شاشة باقي المشرفين.
+void openBossOperationAd(BuildContext context, BossOperation operation) {
+  Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => FullDataScreen(
+        kind: operation.department.contains('المستعمل')
+            ? FullDataKind.usedAd
+            : FullDataKind.newAd,
+        path: 'api/SupervisorForAd/ad/${operation.id}',
+        title: operation.title.isEmpty ? operation.trackingNumber : operation.title,
+      ),
+    ),
+  );
+}
+
+/// سطر "مين المشرف": اللي أخد القرار + القسم المسؤول.
+String bossOperationSupervisorLine(BuildContext context, BossOperation operation) {
+  final department = operation.department;
+  if (operation.hasSupervisor) {
+    return headSupervisorText(context,
+        arabic: 'بقرار ${operation.supervisorName}${department.isEmpty ? '' : ' • $department'}',
+        english: 'Decided by ${operation.supervisorName}${department.isEmpty ? '' : ' • $department'}');
+  }
+  if (operation.type == BossOperationType.ad) {
+    return headSupervisorText(context,
+        arabic: 'مفيش مشرف مسجّل على القرار${department.isEmpty ? '' : ' • المسؤول: $department'}',
+        english: 'No supervisor recorded${department.isEmpty ? '' : ' • Owner: $department'}');
+  }
+  return department;
+}
 
 /// بطاقة عملية حرجة من `orders-and-disputes`.
 ///
@@ -114,14 +146,20 @@ class BossOperationCard extends StatelessWidget {
             CircleAvatar(
                 radius: 15,
                 backgroundColor: AppColors.infoDark,
-                child: MotionIcon(_icon, size: 14, color: Colors.white)),
+                child: MotionIcon(
+                    operation.hasSupervisor ? Icons.person_outline : _icon,
+                    size: 14,
+                    color: Colors.white)),
             const SizedBox(width: 9),
             Expanded(
-              child: Text(typeLabel,
-                  maxLines: 1,
+              child: Text(
+                  bossOperationSupervisorLine(context, operation).isEmpty
+                      ? typeLabel
+                      : bossOperationSupervisorLine(context, operation),
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                      fontSize: 13,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                       color: AppColors.ink)),
             ),
@@ -132,6 +170,23 @@ class BossOperationCard extends StatelessWidget {
                 style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
           ]),
         ),
+        if (operation.type == BossOperationType.ad) ...[
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () => openBossOperationAd(context, operation),
+            icon: const MotionIcon(Icons.inventory_2_outlined, size: 17),
+            label: Text(
+                headSupervisorText(context,
+                    arabic: 'عرض المنتج بالتفاصيل', english: 'View product details'),
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+            style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.infoDark,
+                side: BorderSide(color: AppColors.infoBorder),
+                minimumSize: const Size(0, 42),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14))),
+          ),
+        ],
         const SizedBox(height: 12),
         Row(children: [
           if (_canReview)

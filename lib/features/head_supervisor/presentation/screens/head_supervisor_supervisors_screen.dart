@@ -332,6 +332,8 @@ class _HeadSupervisorSupervisorsScreenState
           accountId: HeadSupervisorRecord.accountForDepartment(draft.department),
           canReviewAds: draft.reviewAds,
           canHideAds: draft.hideAds,
+          governorate: draft.governorate,
+          city: draft.city,
         ),
         'تعذر إنشاء حساب المشرف على السيرفر.',
       );
@@ -353,6 +355,8 @@ class _HeadSupervisorSupervisorsScreenState
             phone: draft.phone,
             reviewAds: draft.reviewAds,
             hideAds: draft.hideAds,
+            area: draft.governorate.isEmpty ? 'القاهرة' : draft.governorate,
+            city: draft.city.isEmpty ? 'القاهرة' : draft.city,
             accountId: HeadSupervisorRecord.accountForDepartment(draft.department),
           );
     setState(() => _supervisors.insert(0, supervisor));
@@ -629,6 +633,22 @@ class _HeadSupervisorSupervisorsScreenState
           onAdd: _addSupervisor,
         )),
         const SizedBox(height: 12),
+        SizedBox(
+          height: 50,
+          child: FilledButton.icon(
+            onPressed: _addSupervisor,
+            icon: const MotionIcon(Icons.person_add_alt_1, size: 20, color: Colors.white),
+            label: Text(
+                headSupervisorText(context,
+                    arabic: 'إضافة مشرف جديد', english: 'Add a new supervisor'),
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.primaryDark,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
         TextField(
           controller: _searchController,
           textInputAction: TextInputAction.search,
@@ -743,25 +763,6 @@ class _ScreenHeading extends StatelessWidget {
                         height: 1.4,
                         color: AppColors.textSecondary)),
               ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          Tooltip(
-            message: headSupervisorText(context,
-                arabic: 'مشرف جديد', english: 'Add supervisor'),
-            child: Material(
-              color: AppColors.primaryDark,
-              borderRadius: BorderRadius.circular(16),
-              child: InkWell(
-                onTap: onAdd,
-                borderRadius: BorderRadius.circular(16),
-                child: const SizedBox(
-                  width: 48,
-                  height: 48,
-                  child: MotionIcon(Icons.person_add_alt_1,
-                      size: 22, color: Colors.white),
-                ),
-              ),
             ),
           ),
         ],

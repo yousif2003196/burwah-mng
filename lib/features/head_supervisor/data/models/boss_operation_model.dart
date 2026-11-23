@@ -11,6 +11,12 @@ class BossOperationModel extends BossOperation {
     required super.reason,
     required super.status,
     required super.createdAt,
+    super.supervisorId,
+    super.supervisorName,
+    super.department,
+    super.decidedAt,
+    super.sellerName,
+    super.price,
   });
 
   factory BossOperationModel.fromJson(Map<String, dynamic> json) {
@@ -25,7 +31,19 @@ class BossOperationModel extends BossOperation {
       reason: BossJson.text(json['reason']),
       status: BossJson.status(json['status']),
       createdAt: BossJson.date(json['createdAt']),
+      supervisorId: BossJson.optionalInteger(json['supervisorId']),
+      supervisorName: BossJson.text(json['supervisorName']),
+      department: BossJson.text(json['department']),
+      decidedAt: BossJson.date(json['decidedAt']),
+      sellerName: BossJson.text(json['sellerName']),
+      price: _price(json['price']),
     );
+  }
+
+  static double? _price(Object? value) {
+    if (value is num) return value.toDouble();
+    if (value == null) return null;
+    return double.tryParse('$value');
   }
 
   static BossOperationType _type(String value) => switch (value.toLowerCase()) {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_supervisor_edit_permissions_sheet.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/utils/head_supervisor_text.dart';
 import 'package:barwah_app/core/widgets/motion_icon.dart';
 
@@ -11,6 +12,10 @@ class HeadSupervisorDraft {
   final String department;
   final bool reviewAds;
   final bool hideAds;
+
+  /// نطاق الإشراف.
+  final String governorate;
+  final String city;
 
   /// كلمة مرور دخول المشرف التي يحددها رئيس المشرفين.
   final String password;
@@ -23,6 +28,8 @@ class HeadSupervisorDraft {
     this.password = '',
     required this.reviewAds,
     required this.hideAds,
+    this.governorate = '',
+    this.city = '',
   });
 }
 
@@ -58,6 +65,8 @@ class _HeadSupervisorAddSupervisorSheetState
   String _department = 'تجار ومتاجر';
   bool _reviewAds = true;
   bool _hideAds = true;
+  String _governorate = supervisorGovernorates.first;
+  String _city = supervisorCitiesByGovernorate[supervisorGovernorates.first]!.first;
 
   @override
   void dispose() {
@@ -78,6 +87,8 @@ class _HeadSupervisorAddSupervisorSheetState
       password: _password.text,
       reviewAds: _reviewAds,
       hideAds: _hideAds,
+      governorate: _governorate,
+      city: _city,
     ));
   }
 
@@ -122,6 +133,31 @@ class _HeadSupervisorAddSupervisorSheetState
                     const SizedBox(height: 13),
                     _FieldTitle(title: headSupervisorText(context, arabic: 'القسم الإشرافي المكلف', english: 'Assigned department'), hint: headSupervisorText(context, arabic: 'النشط: تجار ومتاجر', english: 'Active: merchants and stores')),
                     _DepartmentSelector(selected: _department, onChanged: (value) => setState(() => _department = value)),
+                    const SizedBox(height: 13),
+                    _FieldTitle(title: headSupervisorText(context, arabic: 'نطاق الإشراف', english: 'Supervision scope'), hint: headSupervisorText(context, arabic: 'المحافظة والمدينة', english: 'Governorate and city')),
+                    Row(children: [
+                      Expanded(
+                        child: _ScopeDropdown(
+                          key: ValueKey('city-$_governorate'),
+                          label: headSupervisorText(context, arabic: 'المدينة', english: 'City'),
+                          value: _city,
+                          options: supervisorCitiesByGovernorate[_governorate] ?? const [],
+                          onChanged: (value) => setState(() => _city = value),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _ScopeDropdown(
+                          label: headSupervisorText(context, arabic: 'المحافظة', english: 'Governorate'),
+                          value: _governorate,
+                          options: supervisorGovernorates,
+                          onChanged: (value) => setState(() {
+                            _governorate = value;
+                            _city = supervisorCitiesByGovernorate[value]!.first;
+                          }),
+                        ),
+                      ),
+                    ]),
                     const SizedBox(height: 16),
                     _PermissionsPanel(
                       reviewAds: _reviewAds,
@@ -148,6 +184,32 @@ class _HeadSupervisorAddSupervisorSheetState
       ),
     );
   }
+}
+
+class _ScopeDropdown extends StatelessWidget {
+  final String label;
+  final String value;
+  final List<String> options;
+  final ValueChanged<String> onChanged;
+  const _ScopeDropdown({super.key, required this.label, required this.value, required this.options, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) => DropdownButtonFormField<String>(
+        initialValue: options.contains(value) ? value : null,
+        isExpanded: true,
+        items: [for (final option in options) DropdownMenuItem(value: option, child: Text(option, overflow: TextOverflow.ellipsis))],
+        onChanged: (selected) {
+          if (selected != null) onChanged(selected);
+        },
+        decoration: InputDecoration(
+          labelText: label,
+          filled: true,
+          fillColor: AppColors.surface,
+          isDense: true,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.cardBorder)),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.cardBorder)),
+        ),
+      );
 }
 
 class _SheetHeader extends StatelessWidget {

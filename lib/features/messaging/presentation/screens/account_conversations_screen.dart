@@ -186,7 +186,7 @@ class _AccountConversationsScreenState
   StreamSubscription<RealtimeChatMessage>? _chatSub;
   String _query = '';
   int _filter = 0; // 0 all · 1 customers · 2 supervisors · 3 unread
-  static const _navy = Color(0xFF14284B);
+  static Color get _navy => AppColors.primaryDark;
   bool get _isArabic => Localizations.localeOf(context).languageCode == 'ar';
 
   @override
@@ -253,11 +253,11 @@ class _AccountConversationsScreenState
             children: [
               CircleAvatar(
                 radius: 24,
-                backgroundColor: const Color(0xFFDDE7FF),
+                backgroundColor: AppColors.infoLight,
                 child: Text(
                   name.characters.first,
-                  style: const TextStyle(
-                      color: Color(0xFF2A4A9B),
+                  style: TextStyle(
+                      color: AppColors.infoDark,
                       fontWeight: FontWeight.w800,
                       fontSize: 17),
                 ),
@@ -292,7 +292,7 @@ class _AccountConversationsScreenState
                             borderRadius: BorderRadius.circular(99),
                           ),
                           child: Text(kind,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 10,
                                   fontWeight: FontWeight.w700,
                                   color: _navy)),
@@ -348,9 +348,9 @@ class _AccountConversationsScreenState
                           const BoxConstraints(minWidth: 20, minHeight: 20),
                       padding: const EdgeInsets.symmetric(horizontal: 6),
                       alignment: Alignment.center,
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                           color: _navy,
-                          borderRadius: BorderRadius.all(Radius.circular(99))),
+                          borderRadius: const BorderRadius.all(Radius.circular(99))),
                       child: CountText('${chat.unread}',
                           style: const TextStyle(
                               color: Colors.white,

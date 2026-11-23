@@ -55,6 +55,11 @@ const _headSupervisorLocationsEn = <String, String>{
 String _headSupervisorOptionText(BuildContext context, String value) =>
     headSupervisorText(context, arabic: value, english: _headSupervisorLocationsEn[value] ?? value);
 
+/// محافظات ومدن نطاق الإشراف (نفس قايمة تعديل الصلاحيات) لاستخدامها في إضافة مشرف.
+const supervisorGovernorates = _HeadSupervisorEditPermissionsSheetState._governorates;
+const supervisorCitiesByGovernorate =
+    _HeadSupervisorEditPermissionsSheetState._citiesByGovernorate;
+
 class HeadSupervisorPermissionsDraft {
   final String department;
   final String area;

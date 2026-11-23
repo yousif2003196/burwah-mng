@@ -61,12 +61,20 @@ class ReviewSupervisorDecisionCard extends StatelessWidget {
   final String reason;
   final Color statusColor;
 
+  /// اسم المشرف اللي اتخذ الإجراء + القسم المسؤول + وقت القرار.
+  final String supervisorName;
+  final String department;
+  final String decidedAtLabel;
+
   const ReviewSupervisorDecisionCard({
     super.key,
     required this.category,
     required this.status,
     required this.reason,
     required this.statusColor,
+    this.supervisorName = '',
+    this.department = '',
+    this.decidedAtLabel = '',
   });
 
   @override
@@ -78,14 +86,28 @@ class ReviewSupervisorDecisionCard extends StatelessWidget {
             ReviewStatusBadge(label: status, color: statusColor),
           const Spacer(),
           Flexible(
-            child: Text(
-                headSupervisorText(context,
-                    arabic: 'المشرف المختص', english: 'Responsible supervisor'),
-                textAlign: TextAlign.right,
-                style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text(
+                  supervisorName.isNotEmpty
+                      ? supervisorName
+                      : headSupervisorText(context,
+                          arabic: 'مفيش مشرف مسجّل على القرار',
+                          english: 'No supervisor recorded'),
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary)),
+              Text(
+                  [
+                    headSupervisorText(context,
+                        arabic: 'المشرف اللي اتخذ الإجراء', english: 'Supervisor who acted'),
+                    if (department.isNotEmpty) department,
+                    if (decidedAtLabel.isNotEmpty) decidedAtLabel,
+                  ].join(' • '),
+                  textAlign: TextAlign.right,
+                  style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+            ]),
           ),
           const SizedBox(width: 8),
           CircleAvatar(

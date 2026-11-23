@@ -9,6 +9,7 @@ import 'package:barwah_app/features/head_supervisor/domain/entities/boss_operati
 import 'package:barwah_app/features/head_supervisor/presentation/controllers/boss_operations_cubit.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/utils/boss_formatters.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/utils/head_supervisor_text.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/widgets/requests/boss_operation_card.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/widgets/review/review_cards.dart';
 
 /// إعادة مراجعة قرار مشرف: `POST requests/{id}/reevaluate`.
@@ -132,6 +133,11 @@ class _HeadSupervisorRequestReviewScreenState
               status: operation.status.raw,
               reason: operation.reason,
               statusColor: statusColor,
+              supervisorName: operation.supervisorName,
+              department: operation.department,
+              decidedAtLabel: operation.decidedAt == null
+                  ? ''
+                  : bossElapsed(context, operation.decidedAt),
             ),
           ),
           const SizedBox(height: 12),
@@ -139,9 +145,37 @@ class _HeadSupervisorRequestReviewScreenState
             child: ReviewRequestDetailsCard(
               trackingNumber: operation.trackingNumber,
               title: operation.title,
-              category: operation.category,
+              category: [
+                operation.category,
+                if (operation.sellerName.isNotEmpty)
+                  headSupervisorText(context,
+                      arabic: 'البائع: ${operation.sellerName}',
+                      english: 'Seller: ${operation.sellerName}'),
+                if (operation.price != null)
+                  '${operation.price!.toStringAsFixed(operation.price! % 1 == 0 ? 0 : 2)} ${headSupervisorText(context, arabic: 'ج.م', english: 'EGP')}',
+              ].where((part) => part.isNotEmpty).join(' • '),
             ),
           ),
+          if (operation.type == BossOperationType.ad) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 46,
+              child: OutlinedButton.icon(
+                onPressed: () => openBossOperationAd(context, operation),
+                icon: const MotionIcon(Icons.inventory_2_outlined, size: 18),
+                label: Text(
+                    headSupervisorText(context,
+                        arabic: 'عرض المنتج بالتفاصيل (صور، مواصفات، البائع)',
+                        english: 'View product (photos, specs, seller)'),
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.infoDark,
+                  side: BorderSide(color: AppColors.infoBorder),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 18),
           ScrollFx(
             child: ReviewSectionHeading(
