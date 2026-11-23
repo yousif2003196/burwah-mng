@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/features/admin/data/datasources/admin_request_store.dart';
 import 'package:barwah_app/features/finance/data/datasources/finance_instruction_store.dart';
+import 'package:barwah_app/features/finance/data/datasources/finance_server_requests_api.dart';
 import 'package:barwah_app/features/finance/presentation/screens/finance_admin_desk_screen.dart';
 import 'package:barwah_app/core/widgets/admin_gavel_icon.dart';
 import 'package:barwah_app/core/widgets/motion_icon.dart';
@@ -39,9 +40,14 @@ class _FinanceAdminDeskEntryState extends State<FinanceAdminDeskEntry> {
     try {
       final instructions = await FinanceInstructionStore().getAll();
       final requests = await AdminRequestStore().getAll();
+      // طلبات الصرف من رئيس المشرفين على السيرفر.
+      var serverPending = 0;
+      try {
+        serverPending = await FinanceServerRequestsApi().pendingCount();
+      } catch (_) {}
       if (!mounted) return;
       setState(() {
-        _pendingInstructions = instructions.where((e) => e.isPending).length;
+        _pendingInstructions = instructions.where((e) => e.isPending).length + serverPending;
         final mine = requests.where((r) => r.origin == 'finance' && r.isPending);
         _awaitingDecision = mine.length;
         _overdue = mine.where((r) => r.isOverdue).length;

@@ -16,6 +16,18 @@ class AuthSession {
   static String email = '';
   static String backendRole = '';
 
+  /// رسالة التعليق من السيرفر (code = account_suspended) لما الحساب يتعلّق من
+  /// رئيس المشرفين؛ شاشة الدخول بتعرضها مرة واحدة ثم تمسحها.
+  static String? suspendedMessage;
+
+  /// يرجّع رسالة التعليق من رد السيرفر لو موجودة.
+  static String? suspensionFrom(Object? body) {
+    if (body is! Map) return null;
+    if ('${body['code'] ?? ''}' != 'account_suspended') return null;
+    final message = '${body['message'] ?? ''}'.trim();
+    return message.isEmpty ? 'حسابك معلّق من قبل المدير التنفيذي.' : message;
+  }
+
   /// يُستدعى عند انتهاء الجلسة نهائيًا (فشل تجديد التوكن) للعودة لشاشة الدخول.
   static void Function()? onExpired;
 

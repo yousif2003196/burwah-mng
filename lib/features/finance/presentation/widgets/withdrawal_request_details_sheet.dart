@@ -1,3 +1,4 @@
+import 'package:barwah_app/core/auth/review_timer.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' as intl;
 
@@ -12,6 +13,8 @@ Future<void> showWithdrawalRequestDetailsSheet(
   BuildContext context,
   WithdrawalRequestEntity request,
 ) {
+  // طلبات السحب الحقيقية من السيرفر (srv-wd-ID) بيبدأ وقت مراجعتها من فتحها.
+  if ('${request.id}'.startsWith('srv-wd-')) ReviewTimer.open('withdrawal', request.id);
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,

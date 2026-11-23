@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+import 'package:barwah_app/core/auth/auth_session.dart';
 import 'package:barwah_app/core/auth/jwt_claims.dart';
 import 'package:barwah_app/core/network/api_consumer.dart';
 import 'package:barwah_app/core/network/api_endpoints.dart';
@@ -131,6 +132,12 @@ class AuthApiDataSource {
       );
       return _parse(response.data, email);
     } on DioException catch (error) {
+      // مشرف معلّق: مفيش داعي نجرّب مسار تاني، الرسالة تظهر له زي ما هي.
+      final suspended = AuthSession.suspensionFrom(error.response?.data);
+      if (suspended != null) {
+        AuthSession.suspendedMessage = suspended;
+        throw ApiLoginRejected(suspended);
+      }
       return (_outcomeForError(error, route), null);
     }
   }

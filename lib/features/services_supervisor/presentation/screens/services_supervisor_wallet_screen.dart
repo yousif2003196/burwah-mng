@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
 import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
@@ -42,11 +43,14 @@ class _ServicesSupervisorWalletScreenState
     if (!AuthSession.isSignedIn) return;
     try {
       final response = await sl<ApiConsumer>(instanceName: 'berwah')
-          .get<Object>(widget.owner == SupervisorWalletOwner.wasalny
-              ? ApiEndpoints.usedAdvancedWallet
-              : ApiEndpoints.serviceAdvancedWallet);
+          .get<Object>(switch (widget.owner) {
+            SupervisorWalletOwner.wasalny => ApiEndpoints.usedAdvancedWallet,
+            SupervisorWalletOwner.services => ApiEndpoints.serviceAdvancedWallet,
+            // مشرف المنتجات والتجار: محفظة الحساب العادية على السيرفر.
+            _ => ApiEndpoints.walletSummary,
+          });
       final body = response.data;
-      final data = body is Map ? body['data'] : null;
+      final data = body is Map ? (body['data'] ?? body) : null;
       final balance = data is Map ? data['balance'] : null;
       if (balance is num && mounted) {
         setState(() {
@@ -59,12 +63,20 @@ class _ServicesSupervisorWalletScreenState
     }
   }
 
-  final _amountController = TextEditingController(text: '480');
-  final _instapayController =
-      TextEditingController(text: 'supervisor.ops@instapay');
-  final _walletPhoneController = TextEditingController(text: '050 000 1042');
-  final _bankAccountController =
-      TextEditingController(text: 'SA•• •••• •••• •••• 4812');
+  final _amountController =
+      TextEditingController(text: AuthSession.isSignedIn ? '' : '480');
+  final _instapayController = TextEditingController(
+      text: AuthSession.isSignedIn ? '' : 'supervisor.ops@instapay');
+  final _walletPhoneController = TextEditingController(
+      text: AuthSession.isSignedIn ? '' : '050 000 1042');
+  final _bankAccountController = TextEditingController(
+      text: AuthSession.isSignedIn ? '' : 'SA•• •••• •••• •••• 4812');
+
+  /// مشرف المنتجات والتجار بيسحبوا من محفظتهم الحقيقية، والطلب بيروح للمشرف المالي.
+  bool get _serverWallet =>
+      AuthSession.isSignedIn &&
+      (widget.owner == SupervisorWalletOwner.product ||
+          widget.owner == SupervisorWalletOwner.merchant);
 
   _WalletPayoutMethod _selectedMethod = _WalletPayoutMethod.instapay;
   FinancialOperationType _operationType = FinancialOperationType.withdrawal;
@@ -90,6 +102,31 @@ class _ServicesSupervisorWalletScreenState
         _isLoadingRequests = true;
         _requestsLoadFailed = false;
       });
+    }
+    if (_serverWallet) {
+      try {
+        final response = await sl<ApiConsumer>(instanceName: 'berwah')
+            .get<Object>(ApiEndpoints.walletMyWithdrawals);
+        final body = response.data;
+        final data = body is Map ? body['data'] : null;
+        if (!mounted) return;
+        setState(() {
+          _requests = [
+            if (data is List)
+              for (final row in data)
+                if (row is Map) _fromServer(Map<String, dynamic>.from(row)),
+          ];
+          _isLoadingRequests = false;
+        });
+      } on Object catch (error) {
+        debugPrint('Wallet withdrawals failed: $error');
+        if (!mounted) return;
+        setState(() {
+          _isLoadingRequests = false;
+          _requestsLoadFailed = true;
+        });
+      }
+      return;
     }
     try {
       final result = await sl<FinanceRepository>().getSupervisorWithdrawals();
@@ -240,6 +277,7 @@ class _ServicesSupervisorWalletScreenState
                           ),
                 ),
               ),
+              if (!_serverWallet) ...[
               const SizedBox(width: 8),
               Expanded(
                 child: ChoiceChip(
@@ -254,6 +292,7 @@ class _ServicesSupervisorWalletScreenState
                           ),
                 ),
               ),
+              ],
             ],
           ),
           const SizedBox(height: 10),
@@ -674,6 +713,42 @@ class _ServicesSupervisorWalletScreenState
     if (confirmed != true || !mounted) return;
 
     setState(() => _isSubmitting = true);
+    if (_serverWallet) {
+      if (!isWithdrawal) {
+        setState(() => _isSubmitting = false);
+        _showMessage('الإيداع مش متاح من محفظة المشرف.');
+        return;
+      }
+      try {
+        final response = await sl<ApiConsumer>(instanceName: 'berwah').post<Object>(
+          ApiEndpoints.walletWithdraw,
+          data: {
+            'amount': amount,
+            'method': switch (_selectedMethod) {
+              _WalletPayoutMethod.instapay => 'instapay',
+              _WalletPayoutMethod.mobileWallet => 'cash',
+              _WalletPayoutMethod.bank => 'bank',
+            },
+            'destination': destination.replaceAll(' ', ''),
+            'holderName': AuthSession.name,
+          },
+        );
+        final body = response.data;
+        final message = body is Map ? '${body['message'] ?? ''}'.trim() : '';
+        if (!mounted) return;
+        setState(() => _isSubmitting = false);
+        _showMessage(message.isEmpty ? l10n.financeWalletWithdrawalRequestSent : message);
+        await _loadBalance();
+        await _loadRequests();
+      } on DioException catch (error) {
+        final body = error.response?.data;
+        final message = body is Map ? '${body['message'] ?? ''}'.trim() : '';
+        if (!mounted) return;
+        setState(() => _isSubmitting = false);
+        _showMessage(message.isEmpty ? l10n.financeWalletRequestFailed : message);
+      }
+      return;
+    }
     final method = switch (_selectedMethod) {
       _WalletPayoutMethod.instapay => l10n.servicesWalletInstapay,
       _WalletPayoutMethod.mobileWallet => l10n.servicesWalletMobileWallet,
@@ -739,6 +814,45 @@ class _ServicesSupervisorWalletScreenState
       isWithdrawal
           ? l10n.financeWalletWithdrawalRequestSent
           : l10n.financeWalletDepositRequestSent,
+    );
+  }
+
+  WithdrawalRequestEntity _fromServer(Map<String, dynamic> row) {
+    double number(Object? v) => v is num ? v.toDouble() : double.tryParse('$v') ?? 0;
+    final amount = number(row['amount']);
+    final fee = number(row['fee']);
+    final raw = '${row['createdAt'] ?? ''}';
+    final created = DateTime.tryParse(raw.endsWith('Z') ? raw : '${raw}Z')?.toLocal();
+    final method = switch ('${row['method']}') {
+      'instapay' => 'إنستا باي',
+      'cash' || 'vodafone_cash' => 'محفظة كاش',
+      'bank' => 'تحويل بنكي',
+      final other => other,
+    };
+    final reason = '${row['rejectReason'] ?? ''}'.trim();
+    return WithdrawalRequestEntity(
+      id: 'srv-wd-${row['id']}',
+      requestNumber: '#WD-${row['id']}',
+      beneficiaryName: AuthSession.name,
+      beneficiaryRole: '',
+      beneficiaryType: BeneficiaryType.supervisor,
+      grossAmount: amount,
+      platformFeePercentage: amount == 0 ? 0 : fee * 100 / amount,
+      platformFeeAmount: fee,
+      netAmount: amount - fee,
+      bankName: method,
+      iban: '${row['destination'] ?? ''}',
+      dateText: created == null
+          ? ''
+          : '${created.year}/${created.month.toString().padLeft(2, '0')}/${created.day.toString().padLeft(2, '0')}',
+      status: switch ('${row['status']}') {
+        'paid' => RequestStatus.approved,
+        'rejected' => RequestStatus.rejected,
+        _ => RequestStatus.pending,
+      },
+      alertNotice: reason.isEmpty ? null : 'سبب الرفض: $reason',
+      transferMethod: method,
+      sourceAccount: _sourceAccount,
     );
   }
 

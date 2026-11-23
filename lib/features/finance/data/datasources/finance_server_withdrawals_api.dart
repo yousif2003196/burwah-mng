@@ -30,7 +30,11 @@ class FinanceServerWithdrawalsApi {
   Future<List<WithdrawalRequestEntity>> pendingHeadSupervisorWithdrawals() async {
     final response = await apiConsumer.get<Object>(
       ApiEndpoints.walletAdminWithdrawals,
-      queryParameters: {'status': 0, 'role': 'BossOfSupervisor'},
+      // رئيس المشرفين ومشرفي المنتجات والتجار (محافظهم على السيرفر).
+      queryParameters: {
+        'status': 0,
+        'role': 'BossOfSupervisor,SupervisorForAd,SupervisorForMerchant',
+      },
     );
     final body = _map(response.data);
     final rows = body['data'];
@@ -53,16 +57,24 @@ class FinanceServerWithdrawalsApi {
     final id = _int(row['id']);
     final amount = _num(row['amount']);
     final fee = _num(row['fee']);
-    final created = DateTime.tryParse('${row['createdAt'] ?? ''}')?.toLocal();
+    final rawCreated = '${row['createdAt'] ?? ''}';
+    final created = DateTime.tryParse(
+            rawCreated.endsWith('Z') || rawCreated.isEmpty ? rawCreated : '${rawCreated}Z')
+        ?.toLocal();
     final method = '${row['method'] ?? ''}'.trim();
     final holder = '${row['holderName'] ?? ''}'.trim();
+    final roleName = switch ('${row['role'] ?? ''}') {
+      'SupervisorForAd' => 'مشرف المنتجات الجديدة',
+      'SupervisorForMerchant' => 'مشرف التجار',
+      _ => 'رئيس المشرفين',
+    };
     return WithdrawalRequestEntity(
       id: '$idPrefix$id',
       requestNumber: '#WDR-$id',
       beneficiaryName: '${row['userName'] ?? ''}'.trim().isEmpty
-          ? 'رئيس المشرفين'
+          ? roleName
           : '${row['userName']}'.trim(),
-      beneficiaryRole: 'رئيس المشرفين',
+      beneficiaryRole: roleName,
       beneficiaryType: BeneficiaryType.supervisor,
       grossAmount: amount,
       platformFeePercentage: amount == 0 ? 0 : fee / amount * 100,
@@ -75,7 +87,7 @@ class FinanceServerWithdrawalsApi {
           : '${created.year}-${_two(created.month)}-${_two(created.day)} '
               '${_two(created.hour)}:${_two(created.minute)}',
       status: RequestStatus.pending,
-      sourceOfFunds: 'مستحقات محفظة رئيس المشرفين (مخصومة من رصيده لحين قرارك)',
+      sourceOfFunds: 'مستحقات محفظة $roleName (مخصومة من رصيده لحين قرارك)',
       transferMethod: holder.isEmpty ? method : '$method — $holder',
       operationType: FinancialOperationType.withdrawal,
       sourceAccount: 'محفظة رئيس المشرفين',

@@ -28,6 +28,7 @@ class ProductReviewModel extends ProductReview {
     super.details,
     super.sellerEmail,
     super.promotionPlan,
+    super.editRequested,
   });
 
   factory ProductReviewModel.fromEntity(ProductReview entity) {
@@ -58,6 +59,7 @@ class ProductReviewModel extends ProductReview {
       details: entity.details,
       sellerEmail: entity.sellerEmail,
       promotionPlan: entity.promotionPlan,
+      editRequested: entity.editRequested,
     );
   }
 
@@ -76,6 +78,7 @@ class ProductReviewModel extends ProductReview {
     int? categoryId,
     int? subCategoryId,
     String? categoryName,
+    bool? editRequested,
   }) {
     return ProductReviewModel(
       id: id,
@@ -105,6 +108,7 @@ class ProductReviewModel extends ProductReview {
       details: details,
       sellerEmail: sellerEmail,
       promotionPlan: promotionPlan,
+      editRequested: editRequested ?? this.editRequested,
     );
   }
 }

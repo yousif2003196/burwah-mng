@@ -36,6 +36,17 @@ class AuthRefreshInterceptor extends Interceptor {
     ErrorInterceptorHandler handler,
   ) async {
     final request = err.requestOptions;
+    // الحساب اتعلّق من رئيس المشرفين: نقفل الجلسة ونعرض رسالة التعليق.
+    final suspended = AuthSession.suspensionFrom(err.response?.data);
+    if (suspended != null &&
+        AuthSession.isSignedIn &&
+        !ApiEndpoints.loginRoutes.contains(request.path)) {
+      AuthSession.suspendedMessage = suspended;
+      AuthSession.clear();
+      await _forgetSavedTokens();
+      onSessionExpired?.call();
+      return handler.next(err);
+    }
     final isAuthCall = ApiEndpoints.authPaths.contains(request.path);
     final alreadyRetried = request.extra['retried'] == true;
     if (err.response?.statusCode != 401 ||
@@ -89,6 +100,10 @@ class AuthRefreshInterceptor extends Interceptor {
       AuthSession.updateTokens(token: token, refresh: refresh);
       await _saveTokens(token, refresh);
       return true;
+    } on DioException catch (error) {
+      final suspended = AuthSession.suspensionFrom(error.response?.data);
+      if (suspended != null) AuthSession.suspendedMessage = suspended;
+      return false;
     } on Object {
       return false;
     }

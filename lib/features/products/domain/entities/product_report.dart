@@ -10,6 +10,8 @@ class ProductReport {
     required this.rejectionRate,
     required this.logs,
     this.averageMinutes,
+    this.myAverageMinutes,
+    this.myMeasuredDecisions = 0,
     this.previousReviewed = 0,
     this.changePercent,
     this.categories = const [],
@@ -26,6 +28,10 @@ class ProductReport {
 
   /// متوسط وقت المراجعة بالدقائق (null لو مفيش قرارات في الفترة).
   final double? averageMinutes;
+
+  /// متوسط وقت مراجعة المشرف نفسه (من فتحه للإعلان لحد قراره) وعدد القرارات اللي اتقاست.
+  final double? myAverageMinutes;
+  final int myMeasuredDecisions;
   final int previousReviewed;
 
   /// نسبة التغير عن الفترة السابقة (null لو مفيش فترة سابقة للمقارنة).

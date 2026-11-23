@@ -930,11 +930,11 @@ class _ProductSupervisorProfileScreenState
         ),
         _ProfileMetric(
           title: 'متوسط وقت المراجعة',
-          value: _averageValue(r.averageMinutes),
-          unit: _averageUnit(r.averageMinutes),
-          detail: r.averageMinutes == null
-              ? 'لا توجد قرارات بعد'
-              : 'من الإرسال حتى القرار',
+          value: _averageValue(r.myAverageMinutes),
+          unit: _averageUnit(r.myAverageMinutes),
+          detail: r.myAverageMinutes == null
+              ? 'بيتحسب من فتحك للإعلان لحد قرارك'
+              : 'من فتحك للإعلان لحد قرارك (${r.myMeasuredDecisions} قرار)',
           icon: Icons.bolt,
           color: AppColors.info,
         ),
@@ -1223,11 +1223,13 @@ class _ProductSupervisorProfileScreenState
             subtitle: l10n.productProfileAuthorizationSubtitle,
             badge: l10n.productProfileActive,
             icon: Icons.badge_outlined,
-            onTap: () => _showInformation(
-              l10n.productProfileAuthorization,
-              l10n.productProfileAuthorizationSubtitle,
-              l10n,
-            ),
+            onTap: () => AuthSession.isSignedIn
+                ? _showMyAccess(l10n)
+                : _showInformation(
+                    l10n.productProfileAuthorization,
+                    l10n.productProfileAuthorizationSubtitle,
+                    l10n,
+                  ),
           ),
           const SizedBox(height: 7),
           _documentTile(
@@ -1654,6 +1656,66 @@ class _ProductSupervisorProfileScreenState
           ),
         ],
       );
+
+  /// صلاحياتي الحقيقية كما حددها رئيس المشرفين (`GET my-access`).
+  Future<void> _showMyAccess(AppLocalizations l10n) async {
+    Map<String, dynamic>? data;
+    String? error;
+    try {
+      final response = await sl<ApiConsumer>(instanceName: 'berwah')
+          .get<Object>(ApiEndpoints.adMyAccess);
+      final body = response.data;
+      final raw = body is Map ? body['data'] : null;
+      if (raw is Map) data = Map<String, dynamic>.from(raw);
+    } on DioException {
+      error = 'تعذر تحميل صلاحياتك. حاول تاني.';
+    }
+    if (!mounted) return;
+    Widget line(bool allowed, String text) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          child: Row(children: [
+            MotionIcon(allowed ? Icons.check_circle_outline : Icons.block,
+                size: 18, color: allowed ? AppColors.successDark : AppColors.dangerDark),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text('$text: ${allowed ? 'مسموح' : 'موقوف من رئيس المشرفين'}',
+                  style: TextStyle(fontSize: 13, color: AppColors.ink)),
+            ),
+          ]),
+        );
+    final scope = data == null
+        ? ''
+        : ['${data['governorate'] ?? ''}', '${data['city'] ?? ''}']
+            .where((p) => p.trim().isNotEmpty && p != 'null')
+            .join(' • ');
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.productProfileAuthorization),
+        content: error != null || data == null
+            ? Text(error ?? 'تعذر تحميل صلاحياتك.')
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  line(data['canReviewAds'] == true, 'مراجعة الإعلانات (قبول / رفض / تعديل)'),
+                  line(data['canHideAds'] == true, 'إخفاء وتعليق الإعلانات'),
+                  if (scope.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text('نطاق الإشراف: $scope',
+                        style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                  ],
+                ],
+              ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('حسنًا'),
+          ),
+        ],
+      ),
+    );
+  }
 
   Future<void> _showInformation(
     String title,

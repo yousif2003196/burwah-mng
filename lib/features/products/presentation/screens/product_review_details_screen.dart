@@ -23,12 +23,16 @@ class ProductReviewDetailsScreen extends StatefulWidget {
   /// القائمة بمجرد وصولها.
   final Future<ProductReview?> Function()? loadFullDetails;
 
+  /// طلب تعديل من المعلن بالسبب؛ يرجّع true لو اتبعت.
+  final Future<bool> Function(String reason)? onRequestEdit;
+
   const ProductReviewDetailsScreen({
     super.key,
     required this.product,
     required this.isArabic,
     required this.onSubmit,
     this.loadFullDetails,
+    this.onRequestEdit,
   });
 
   @override
@@ -154,6 +158,24 @@ class _ProductReviewDetailsScreenState
                       ),
                     ],
                   ),
+                  if (widget.onRequestEdit != null) ...[
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _requestEdit,
+                        icon: const MotionIcon(Icons.edit_note_outlined, size: 18),
+                        label: Text(widget.isArabic
+                            ? 'طلب تعديل من المعلن'
+                            : 'Ask the seller to edit'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.warningDark,
+                          side: BorderSide(color: AppColors.warningBorder),
+                          minimumSize: const Size(0, 44),
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   SizedBox(
                     width: double.infinity,
@@ -195,6 +217,55 @@ class _ProductReviewDetailsScreenState
         ),
       ),
     );
+  }
+
+  Future<void> _requestEdit() async {
+    final send = widget.onRequestEdit;
+    if (send == null) return;
+    final controller = TextEditingController();
+    String? error;
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (_, setDialogState) => AlertDialog(
+          title: Text(widget.isArabic ? 'طلب تعديل من المعلن' : 'Ask the seller to edit'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            minLines: 2,
+            maxLines: 5,
+            maxLength: 300,
+            decoration: InputDecoration(
+              hintText: widget.isArabic
+                  ? 'إيه المطلوب يتعدل؟ (الصور، السعر، الوصف...)'
+                  : 'What should be changed?',
+              errorText: error,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(widget.isArabic ? 'إلغاء' : 'Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final text = controller.text.trim();
+                if (text.length < 3) {
+                  setDialogState(() => error = widget.isArabic ? 'اكتب المطلوب تعديله' : 'Required');
+                  return;
+                }
+                Navigator.pop(dialogContext, text);
+              },
+              child: Text(widget.isArabic ? 'إرسال' : 'Send'),
+            ),
+          ],
+        ),
+      ),
+    );
+    controller.dispose();
+    if (reason == null || !mounted) return;
+    final sent = await send(reason);
+    if (sent && mounted) Navigator.of(context).maybePop();
   }
 
   Widget _reviewStatusStrip(AppLocalizations l10n, ProductReview product) {

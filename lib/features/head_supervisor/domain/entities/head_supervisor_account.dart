@@ -122,6 +122,7 @@ class HeadSupervisorAccountInfo {
     this.decisionsLast30Days = 0,
     this.approvalRate,
     this.avgReviewMinutes,
+    this.measuredDecisions = 0,
   });
 
   final int activeSessions;
@@ -151,6 +152,9 @@ class HeadSupervisorAccountInfo {
 
   /// متوسط دقائق مراجعة الإعلان في آخر 30 يوم.
   final double? avgReviewMinutes;
+
+  /// عدد القرارات اللي اتقاس وقت مراجعتها (من فتح العنصر للقرار).
+  final int measuredDecisions;
 
   bool get handlesAds =>
       role == 'SupervisorForAd' || role == 'SupervisorUsed';

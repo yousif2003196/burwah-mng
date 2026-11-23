@@ -30,6 +30,27 @@ class ProductReviewApiDataSource implements ProductReviewDataSource {
   final Map<String, ProductReviewModel> _cache = {};
   final Map<String, ({int category, int sub})> _categoryIds = {};
 
+  /// عدد الصفحات المحمّلة لكل حالة (تحميل المزيد بيزوّدها).
+  final Map<String, int> _pages = {};
+
+  /// الحالة اللي آخر صفحة فيها كانت كاملة (يعني فيه أقدم منها على السيرفر).
+  final Map<String, bool> _hasMore = {};
+
+  static String _statusKey(ProductReviewStatus status) => switch (status) {
+        ProductReviewStatus.pending => 'Pending',
+        ProductReviewStatus.approved => 'Approved',
+        ProductReviewStatus.rejected => 'Rejected',
+        ProductReviewStatus.suspended || ProductReviewStatus.hidden => 'Suspended',
+      };
+
+  bool hasMore(ProductReviewStatus status) => _hasMore[_statusKey(status)] ?? false;
+
+  /// يزوّد صفحة للحالة دي؛ القائمة الجديدة بتيجي مع التحديث الجاي.
+  void addPage(ProductReviewStatus status) {
+    final key = _statusKey(status);
+    _pages[key] = (_pages[key] ?? 1) + 1;
+  }
+
   @override
   Future<List<ProductReviewModel>> getProductReviews() async {
     final reviews = <ProductReviewModel>[];
@@ -39,23 +60,31 @@ class ProductReviewApiDataSource implements ProductReviewDataSource {
       'Rejected',
       'Suspended',
     ]) {
-      final response = await apiConsumer.get<Object>(
-        ApiEndpoints.adList,
-        queryParameters: {'status': status, 'page': 1, 'pageSize': _pageSize},
-      );
-      final body = response.data;
-      if (body is! Map<String, dynamic> || body['data'] is! List<dynamic>) {
-        throw FormatException('ads?status=$status: data must be a list.');
-      }
-      for (final item in body['data'] as List<dynamic>) {
-        if (item is Map<String, dynamic>) {
-          reviews.add(_fromJson(item));
-          _categoryIds['${item['id']}'] = (
-            category: (item['categoryId'] as num?)?.toInt() ?? 0,
-            sub: (item['subCategoryId'] as num?)?.toInt() ?? 0,
-          );
+      final pages = _pages[status] ?? 1;
+      var lastCount = 0;
+      for (var page = 1; page <= pages; page++) {
+        final response = await apiConsumer.get<Object>(
+          ApiEndpoints.adList,
+          queryParameters: {'status': status, 'page': page, 'pageSize': _pageSize},
+        );
+        final body = response.data;
+        if (body is! Map<String, dynamic> || body['data'] is! List<dynamic>) {
+          throw FormatException('ads?status=$status: data must be a list.');
         }
+        final rows = body['data'] as List<dynamic>;
+        lastCount = rows.length;
+        for (final item in rows) {
+          if (item is Map<String, dynamic>) {
+            reviews.add(_fromJson(item));
+            _categoryIds['${item['id']}'] = (
+              category: (item['categoryId'] as num?)?.toInt() ?? 0,
+              sub: (item['subCategoryId'] as num?)?.toInt() ?? 0,
+            );
+          }
+        }
+        if (lastCount < _pageSize) break;
       }
+      _hasMore[status] = lastCount >= _pageSize;
     }
     _cache
       ..clear()
@@ -124,10 +153,7 @@ class ProductReviewApiDataSource implements ProductReviewDataSource {
             },
           );
         } on DioException catch (error) {
-          throw StateError(
-            'Could not save the ad '
-            '(${error.response?.statusCode ?? 'network'}).',
-          );
+          throw ProductReviewApiFailure.from(error, 'تعذر حفظ تعديلات الإعلان.');
         }
       }
     }
@@ -202,10 +228,7 @@ class ProductReviewApiDataSource implements ProductReviewDataSource {
           );
       }
     } on DioException catch (error) {
-      throw StateError(
-        'Could not update the ad status '
-        '(${error.response?.statusCode ?? 'network'}).',
-      );
+      throw ProductReviewApiFailure.from(error, 'تعذر تنفيذ القرار على الإعلان.');
     }
     final current = _cache[id];
     if (current == null) {
@@ -283,6 +306,11 @@ class ProductReviewApiDataSource implements ProductReviewDataSource {
       sellerEmail: _text(json['sellerEmail']) ?? fallback?.sellerEmail,
       promotionPlan:
           _text(json['promotionPlan']) ?? fallback?.promotionPlan ?? 'Free',
+      categoryName: [
+        _text(json['categoryName']),
+        _text(json['subCategoryName']),
+      ].whereType<String>().join(' • ').ifEmpty(fallback?.categoryName),
+      editRequested: json['editRequested'] == true,
     );
   }
 
@@ -323,7 +351,11 @@ class ProductReviewApiDataSource implements ProductReviewDataSource {
     add('بريد البائع', json['sellerEmail']);
     add('رقم البائع', json['sellerPhone']);
     add('عدد الصور', photos);
-    final created = DateTime.tryParse('${json['createdAt']}');
+    final rawCreated = '${json['createdAt'] ?? ''}'.trim();
+    final zoned = rawCreated.endsWith('Z') ||
+        RegExp(r'[+-]\d{2}:?\d{2}$').hasMatch(rawCreated);
+    final created =
+        DateTime.tryParse(zoned || rawCreated.isEmpty ? rawCreated : '${rawCreated}Z');
     if (created != null) {
       final t = created.toLocal();
       add('تاريخ النشر',
@@ -359,4 +391,26 @@ class ProductReviewApiDataSource implements ProductReviewDataSource {
     }
     return buffer.toString();
   }
+}
+
+/// رفض من السيرفر برسالته العربية (مثلًا "صلاحية المراجعة موقوفة من رئيس المشرفين").
+class ProductReviewApiFailure implements Exception {
+  const ProductReviewApiFailure(this.message);
+  final String message;
+
+  factory ProductReviewApiFailure.from(DioException error, String fallback) {
+    final body = error.response?.data;
+    final message = body is Map ? '${body['message'] ?? ''}'.trim() : '';
+    if (message.isNotEmpty) return ProductReviewApiFailure(message);
+    return ProductReviewApiFailure(error.response == null
+        ? 'تعذر الاتصال بالسيرفر. تأكد من الإنترنت وحاول تاني.'
+        : fallback);
+  }
+
+  @override
+  String toString() => message;
+}
+
+extension on String {
+  String? ifEmpty(String? other) => isEmpty ? other : this;
 }

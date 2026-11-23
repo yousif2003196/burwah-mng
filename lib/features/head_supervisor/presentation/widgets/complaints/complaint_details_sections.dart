@@ -6,6 +6,7 @@ import 'package:barwah_app/features/head_supervisor/domain/entities/merchant_com
 import 'package:barwah_app/features/head_supervisor/presentation/utils/boss_formatters.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/utils/head_supervisor_text.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/widgets/complaints/complaint_common.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/widgets/complaints/complaint_link_widgets.dart';
 
 /// أقسام شاشة تفاصيل التظلم (من `complaints/{id}/details`).
 
@@ -40,7 +41,12 @@ class ComplaintHeaderPanel extends StatelessWidget {
               style: TextStyle(
                   fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.ink)),
         ]),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: ComplaintLinkChip(linkType: details.linkType),
+        ),
+        const SizedBox(height: 8),
         Text(details.title,
             textAlign: TextAlign.right,
             style: TextStyle(
@@ -59,7 +65,7 @@ class ComplaintHeaderPanel extends StatelessWidget {
         ComplaintInfoRow(
           icon: Icons.store_outlined,
           label: headSupervisorText(context,
-              arabic: 'الشاكي (التاجر)', english: 'Complainant'),
+              arabic: 'صاحب الشكوى', english: 'Complainant'),
           value: [
             complainant.name.isEmpty ? '—' : complainant.name,
             if (complainant.id != null) '#${complainant.id}',
@@ -70,13 +76,14 @@ class ComplaintHeaderPanel extends StatelessWidget {
         ComplaintInfoRow(
           icon: Icons.person_outline,
           label: headSupervisorText(context,
-              arabic: 'المشكو في حقه', english: 'Accused supervisor'),
+              arabic: 'المشرف المسؤول', english: 'Responsible supervisor'),
           value: [
             supervisor.name.isEmpty ? '—' : supervisor.name,
             if (supervisor.code.isNotEmpty) '#${supervisor.code}',
           ].join(' • '),
           valueColor: AppColors.dangerDark,
         ),
+        if (details.linkType == 'ad') ...[
         const Divider(height: 16),
         ComplaintInfoRow(
           icon: Icons.fact_check_outlined,
@@ -85,6 +92,7 @@ class ComplaintHeaderPanel extends StatelessWidget {
           value: '${supervisor.approvedDecisionsCount}',
           valueColor: AppColors.ink,
         ),
+        ],
       ]),
     );
   }

@@ -44,6 +44,13 @@ class ApiEndpoints {
       '$_supervisorForAd/update-ad-status/$id';
   static String adReject(int id) => '$_supervisorForAd/reject/$id';
   static String adHide(int id) => '$_supervisorForAd/hide/$id';
+  static String adRequestEdit(int id) => '$_supervisorForAd/request-edit/$id';
+  static const adMyAccess = '$_supervisorForAd/my-access';
+
+  // محفظة الحساب نفسه (المشرفين): الرصيد وطلبات السحب للمالية.
+  static const walletSummary = 'api/Wallet/Summary';
+  static const walletWithdraw = 'api/Wallet/Withdraw';
+  static const walletMyWithdrawals = 'api/Wallet/MyWithdrawals';
   static const adReports = '$_supervisorForAd/reports';
   static const accountChangePassword = 'api/Account/ChangePassword';
   static const accountSettings = 'api/Account/Settings';
@@ -205,6 +212,15 @@ class ApiEndpoints {
   static String bossMerchantComplaintAction(int id) =>
       '$_boss/merchant-complaints/$id/action';
   static String bossComplaintDetails(int id) => '$_boss/complaints/$id/details';
+  static String bossComplaintCompensate(int id) => '$_boss/complaints/$id/compensate';
+  static String bossComplaintSuspendProvider(int id) =>
+      '$_boss/complaints/$id/suspend-provider';
+  static String bossComplaintWarn(int id) => '$_boss/complaints/$id/warn';
+
+  // طلبات صرف من رئيس المشرفين ينفّذها المشرف المالي
+  static const financeRequests = 'api/FinanceRequests';
+  static String executeFinanceRequest(int id) => 'api/FinanceRequests/$id/execute';
+  static String rejectFinanceRequest(int id) => 'api/FinanceRequests/$id/reject';
   static String bossUnbanAndInvestigate(int id) =>
       '$_boss/complaints/$id/unban-and-investigate';
   static String bossComplaintDecision(int id) => '$_boss/complaints/$id/decision';

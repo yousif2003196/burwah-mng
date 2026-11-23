@@ -9,6 +9,7 @@ import 'package:barwah_app/app/navigation/merchants_tabs_shell.dart';
 import 'package:barwah_app/app/navigation/product_supervisor_tabs_shell.dart';
 import 'package:barwah_app/app/navigation/services_supervisor_tabs_shell.dart';
 import 'package:barwah_app/app/navigation/wasalny_supervisor_tabs_shell.dart';
+import 'package:barwah_app/core/auth/account_suspended_dialog.dart';
 import 'package:barwah_app/core/auth/auth_session.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/localization/app_locale_controller.dart';
@@ -60,6 +61,16 @@ class _BarwahAppState extends State<BarwahApp> {
       MaterialPageRoute<void>(builder: _buildLogin),
       (_) => false,
     );
+    // الحساب اتعلّق من رئيس المشرفين: رسالة التعليق بدل "انتهت الجلسة".
+    final suspended = AuthSession.suspendedMessage;
+    if (suspended != null) {
+      AuthSession.suspendedMessage = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final current = _navigatorKey.currentContext;
+        if (current != null) showAccountSuspendedDialog(current, suspended);
+      });
+      return;
+    }
     ScaffoldMessenger.maybeOf(_navigatorKey.currentContext ?? context)
         ?.showSnackBar(
       const SnackBar(

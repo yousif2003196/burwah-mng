@@ -8,6 +8,7 @@ import 'package:barwah_app/core/widgets/app_snack_bar.dart';
 import 'package:barwah_app/features/admin/data/datasources/admin_request_store.dart';
 import 'package:barwah_app/features/admin/domain/entities/admin_request.dart';
 import 'package:barwah_app/features/finance/data/datasources/finance_instruction_store.dart';
+import 'package:barwah_app/features/finance/data/datasources/finance_server_requests_api.dart';
 import 'package:barwah_app/features/finance/domain/entities/finance_instruction.dart';
 import 'package:barwah_app/features/finance/domain/repositories/finance_repository.dart';
 import 'package:barwah_app/features/finance/presentation/utils/finance_unified_report.dart';
@@ -24,6 +25,7 @@ class FinanceAdminDeskScreen extends StatefulWidget {
 
 class _FinanceAdminDeskScreenState extends State<FinanceAdminDeskScreen> {
   final _instructions = FinanceInstructionStore();
+  final _server = FinanceServerRequestsApi();
   final _requests = AdminRequestStore();
 
   List<FinanceInstruction> _instructionItems = const [];
@@ -56,7 +58,23 @@ class _FinanceAdminDeskScreenState extends State<FinanceAdminDeskScreen> {
 
   Future<void> _load() async {
     try {
-      final instructions = await _instructions.getAll();
+      final local = await _instructions.getAll();
+      // قرارات الصرف من رئيس المشرفين (سيرفر) + تعليمات الأدمن المحلية، المعلّق أولًا.
+      var server = const <FinanceInstruction>[];
+      try {
+        server = await _server.all();
+      } catch (error, stackTrace) {
+        FlutterError.reportError(FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'finance server requests',
+        ));
+      }
+      final instructions = [...server, ...local]
+        ..sort((a, b) {
+          if (a.isPending != b.isPending) return a.isPending ? -1 : 1;
+          return b.createdAt.compareTo(a.createdAt);
+        });
       final requests = (await _requests.getAll())
           .where((r) => r.origin == 'finance' && _financialKinds.contains(r.kind))
           .toList()
@@ -130,10 +148,27 @@ class _FinanceAdminDeskScreenState extends State<FinanceAdminDeskScreen> {
   ) async {
     final done = status == FinanceInstructionStatus.executed;
     final note = await _askNote(
-      done ? 'تأكيد التنفيذ' : 'سبب تعذّر التنفيذ',
+      done
+          ? (FinanceServerRequestsApi.isServer(item.id) ? 'تأكيد الصرف (الفلوس هتتحرك فعلًا)' : 'تأكيد التنفيذ')
+          : (FinanceServerRequestsApi.isServer(item.id) ? 'سبب الرفض (بيرجع لرئيس المشرفين)' : 'سبب تعذّر التنفيذ'),
       required: !done,
     );
     if (note == null || !mounted) return;
+    if (FinanceServerRequestsApi.isServer(item.id)) {
+      try {
+        final message = await _server.resolve(item.id, execute: done, note: note);
+        if (!mounted) return;
+        AppSnackBar.showSuccess(
+          context,
+          message.isNotEmpty ? message : (done ? 'تم التنفيذ.' : 'تم رفض الطلب.'),
+        );
+        await _load();
+      } on FinanceServerRequestFailure catch (failure) {
+        if (!mounted) return;
+        AppSnackBar.showError(context, failure.message);
+      }
+      return;
+    }
     try {
       await _instructions.resolve(item.id, status, note);
       if (!mounted) return;
@@ -275,9 +310,11 @@ class _FinanceAdminDeskScreenState extends State<FinanceAdminDeskScreen> {
                   children: [
                     Expanded(
                       child: Text(
-                        item.kind == FinanceInstructionKind.refund
-                            ? 'استرداد للعميل'
-                            : 'تعويض التاجر',
+                        FinanceServerRequestsApi.isServer(item.id)
+                            ? 'طلب صرف بانتظار تنفيذك'
+                            : item.kind == FinanceInstructionKind.refund
+                                ? 'استرداد للعميل'
+                                : 'تعويض التاجر',
                         style: TextStyle(
                             fontSize: 13.5,
                             fontWeight: FontWeight.bold,
@@ -295,7 +332,7 @@ class _FinanceAdminDeskScreenState extends State<FinanceAdminDeskScreen> {
                   ],
                 ),
                 const SizedBox(height: 6),
-                CountText('${item.amount.toStringAsFixed(0)} ج.م',
+                CountText(item.amount > 0 ? '${item.amount.toStringAsFixed(0)} ج.م' : 'أرباح الكابتن على الطلب',
                     style: const TextStyle(
                         fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
@@ -305,7 +342,7 @@ class _FinanceAdminDeskScreenState extends State<FinanceAdminDeskScreen> {
                 if (item.adminNote.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 6),
-                    child: Text('ملاحظة الأدمن: ${item.adminNote}',
+                    child: Text('${FinanceServerRequestsApi.isServer(item.id) ? 'القرار' : 'ملاحظة الأدمن'}: ${item.adminNote}',
                         style: const TextStyle(fontSize: 11.5)),
                   ),
                 Padding(
@@ -331,7 +368,7 @@ class _FinanceAdminDeskScreenState extends State<FinanceAdminDeskScreen> {
                               backgroundColor: AppColors.success),
                           onPressed: () =>
                               _resolve(item, FinanceInstructionStatus.executed),
-                          child: const Text('تم التنفيذ'),
+                          child: Text(FinanceServerRequestsApi.isServer(item.id) ? 'تنفيذ الصرف' : 'تم التنفيذ'),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -339,7 +376,7 @@ class _FinanceAdminDeskScreenState extends State<FinanceAdminDeskScreen> {
                         child: OutlinedButton(
                           onPressed: () =>
                               _resolve(item, FinanceInstructionStatus.failed),
-                          child: const Text('تعذّر'),
+                          child: Text(FinanceServerRequestsApi.isServer(item.id) ? 'رفض' : 'تعذّر'),
                         ),
                       ),
                     ],

@@ -186,6 +186,7 @@ class HeadSupervisorApiDataSource {
       decisionsLast30Days: _int(metrics['decisionsLast30Days']),
       approvalRate: rate == null ? null : _int(rate),
       avgReviewMinutes: avg is num ? avg.toDouble() : double.tryParse('${avg ?? ''}'),
+      measuredDecisions: metrics['measuredDecisions'] is num ? (metrics['measuredDecisions'] as num).toInt() : 0,
     );
   }
 
@@ -243,6 +244,8 @@ class HeadSupervisorApiDataSource {
           department: switch (_text(rows[i]['source'])) {
             'head_action' => 'إجراء رئيس المشرفين',
             'ad_review' => 'مراجعة إعلان',
+            'merchant_review' => 'قرار على تاجر',
+            'finance' => 'قرار مالي',
             _ => 'إجراء المشرف',
           },
           occurredAt: _utcDate(rows[i]['createdAt']) ?? DateTime.now(),
@@ -252,6 +255,11 @@ class HeadSupervisorApiDataSource {
 
   static String _activityTitle(Map<String, dynamic> row) {
     final subject = _text(row['subject']);
+    // السيرفر بيبعت اسم الإجراء بالعربي (قبول تاجر، اعتماد سحب، ...).
+    final title = _text(row['title']);
+    if (title.isNotEmpty && title != 'إجراء') {
+      return subject.isEmpty ? title : '$title: $subject';
+    }
     if (_text(row['source']) != 'ad_review') return subject;
     final action = switch (_text(row['actionKey'])) {
       'ad_Approved' => 'قبول إعلان',

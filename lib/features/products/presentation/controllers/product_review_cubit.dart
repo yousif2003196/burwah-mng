@@ -3,7 +3,14 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'package:dio/dio.dart';
+
 import 'package:barwah_app/core/auth/auth_session.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/network/api_consumer.dart';
+import 'package:barwah_app/core/network/api_endpoints.dart';
+import 'package:barwah_app/features/products/data/datasources/product_review_api_data_source.dart';
+import 'package:barwah_app/features/products/data/datasources/product_review_data_source.dart';
 import 'package:barwah_app/core/realtime/realtime_hub.dart';
 import 'package:barwah_app/features/products/data/datasources/product_category_api_data_source.dart';
 import 'package:barwah_app/features/products/domain/entities/product_review.dart';
@@ -44,6 +51,60 @@ class ProductReviewCubit extends Cubit<ProductReviewState> {
     }
   }
 
+  /// رسالة آخر فشل (من السيرفر لو موجودة) عشان الشاشة تعرضها بدل رسالة عامة.
+  String? lastError;
+
+  ProductReviewApiDataSource? get _api {
+    final source = sl<ProductReviewDataSource>();
+    return source is ProductReviewApiDataSource ? source : null;
+  }
+
+  /// فيه إعلانات أقدم على السيرفر للحالة دي.
+  bool hasMore(ProductReviewStatus status) => _api?.hasMore(status) ?? false;
+
+  bool _loadingMore = false;
+
+  Future<void> loadMore(ProductReviewStatus status) async {
+    final api = _api;
+    if (api == null || _loadingMore) return;
+    _loadingMore = true;
+    try {
+      api.addPage(status);
+      await refresh();
+    } finally {
+      _loadingMore = false;
+    }
+  }
+
+  /// طلب تعديل من المعلن: الإعلان بيرجعله بالسبب ويفضل مستني التعديل.
+  Future<bool> requestEdit(String id, String reason) async {
+    final current = state;
+    final adId = int.tryParse(id);
+    if (current is! ProductReviewLoaded || adId == null) return false;
+    try {
+      await sl<ApiConsumer>(instanceName: 'berwah').post<Object>(
+        ApiEndpoints.adRequestEdit(adId),
+        data: {'reason': reason},
+      );
+    } on DioException catch (error) {
+      lastError = ProductReviewApiFailure.from(error, 'تعذر إرسال طلب التعديل.').message;
+      return false;
+    }
+    lastError = null;
+    if (isClosed) return true;
+    emit(current.copyWith(reviews: [
+      for (final review in current.reviews)
+        review.id == id
+            ? review.copyWith(
+                status: ProductReviewStatus.pending,
+                decisionNote: 'طلب تعديل: $reason',
+                editRequested: true,
+              )
+            : review,
+    ]));
+    return true;
+  }
+
   StreamSubscription<RealtimeNotification>? _live;
   Timer? _timer;
   bool _refreshing = false;
@@ -69,7 +130,7 @@ class ProductReviewCubit extends Cubit<ProductReviewState> {
       final names = {for (final c in current.categories) c.id: c.name};
       reviews = [
         for (final review in reviews)
-          names[review.categoryId] == null
+          names[review.categoryId] == null || review.categoryName != null
               ? review
               : review.copyWith(categoryName: names[review.categoryId]),
       ];
@@ -103,7 +164,7 @@ class ProductReviewCubit extends Cubit<ProductReviewState> {
           final names = {for (final c in categories) c.id: c.name};
           reviews = [
             for (final review in reviews)
-              names[review.categoryId] == null
+              names[review.categoryId] == null || review.categoryName != null
                   ? review
                   : review.copyWith(categoryName: names[review.categoryId]),
           ];
@@ -139,7 +200,7 @@ class ProductReviewCubit extends Cubit<ProductReviewState> {
       if (current is ProductReviewLoaded && !isClosed) {
         final names = {for (final c in current.categories) c.id: c.name};
         final categoryName = names[review.categoryId];
-        if (categoryName != null) {
+        if (categoryName != null && review.categoryName == null) {
           review = review.copyWith(categoryName: categoryName);
         }
         emit(current.copyWith(reviews: [
@@ -206,7 +267,8 @@ class ProductReviewCubit extends Cubit<ProductReviewState> {
       return true;
     } catch (error) {
       debugPrint('ProductReview save failed: $error');
-      emit(const ProductReviewError(ProductReviewFailure.saving));
+      // نسيب القائمة زي ما هي ونعرض السبب بدل ما الشاشة كلها تتحول لخطأ.
+      lastError = error is ProductReviewApiFailure ? error.message : null;
       return false;
     }
   }
@@ -253,7 +315,7 @@ class ProductReviewCubit extends Cubit<ProductReviewState> {
       return true;
     } catch (error) {
       debugPrint('ProductReview update failed: $error');
-      emit(const ProductReviewError(ProductReviewFailure.updating));
+      lastError = error is ProductReviewApiFailure ? error.message : null;
       return false;
     }
   }

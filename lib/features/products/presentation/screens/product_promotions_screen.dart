@@ -1,5 +1,6 @@
 ﻿import 'dart:ui' as ui;
 
+import 'package:barwah_app/core/auth/review_timer.dart';
 import 'package:flutter/material.dart';
 import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
 import 'package:barwah_app/features/products/presentation/screens/promoted_ad_review_screen.dart';
@@ -426,8 +427,9 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
   Future<void> _showPromotionDetails(
     ProductPromotionRequest request,
     AppLocalizations l10n,
-  ) =>
-      showModalBottomSheet<void>(
+  ) {
+    ReviewTimer.open('ad', request.adReference);
+    return showModalBottomSheet<void>(
         context: context,
         isScrollControlled: true,
         useSafeArea: true,
@@ -502,6 +504,7 @@ class _ProductPromotionsScreenState extends State<ProductPromotionsScreen> {
           );
         },
       );
+  }
 
   Future<void> _decide(
     ProductPromotionRequest request,

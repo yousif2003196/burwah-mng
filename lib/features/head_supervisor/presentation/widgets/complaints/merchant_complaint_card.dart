@@ -6,6 +6,7 @@ import 'package:barwah_app/features/head_supervisor/domain/entities/merchant_com
 import 'package:barwah_app/features/head_supervisor/presentation/utils/boss_formatters.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/utils/head_supervisor_text.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/widgets/complaints/complaint_common.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/widgets/complaints/complaint_link_widgets.dart';
 
 /// بطاقة تظلم من `merchant-complaints`.
 class MerchantComplaintCard extends StatelessWidget {
@@ -54,7 +55,12 @@ class MerchantComplaintCard extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                         color: AppColors.ink)),
               ]),
-              const SizedBox(height: 11),
+              const SizedBox(height: 9),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: ComplaintLinkChip(linkType: complaint.linkType, escalated: complaint.escalated),
+              ),
+              const SizedBox(height: 8),
               Text(complaint.title,
                   textAlign: TextAlign.right,
                   maxLines: 3,
@@ -86,7 +92,7 @@ class MerchantComplaintCard extends StatelessWidget {
                   ComplaintInfoRow(
                     icon: Icons.store_outlined,
                     label: headSupervisorText(context,
-                        arabic: 'الشاكي (التاجر):', english: 'Complainant:'),
+                        arabic: 'صاحب الشكوى:', english: 'Complainant:'),
                     value: complaint.complainant.isEmpty
                         ? '—'
                         : complaint.complainant,

@@ -43,13 +43,13 @@ class _HeadSupervisorInterventionScreenState
     (
       DisputeResolutionType.notDelivered,
       'الطلب ما وصلش للعميل',
-      'الكابتن ما ياخدش نصيبه، والعميل يسترد اللي دفعه إلكترونيًا في محفظته (الكاش ما اتدفعش أصلًا).',
+      'الكابتن ما ياخدش نصيبه، والعميل يسترد اللي دفعه إلكترونيًا في محفظته (الكاش ما اتدفعش أصلًا). الاسترداد بينفّذه المشرف المالي.',
       'ثبت إن الطلب ما اتسلّمش للعميل.',
     ),
     (
       DisputeResolutionType.payCaptain,
       'الطلب وصل — اعتماد التوصيل',
-      'يتصرف للكابتن نصيبه، وبلاغ العميل يتقفل برسالة إن الطلب اتسلّم.',
+      'يتصرف للكابتن نصيبه بعد تنفيذ المشرف المالي، وبلاغ العميل يتقفل برسالة إن الطلب اتسلّم.',
       'ثبت إن الطلب اتسلّم للعميل.',
     ),
   ];
@@ -182,7 +182,7 @@ class _HeadSupervisorInterventionScreenState
                   : const MotionIcon(Icons.gavel_outlined, size: 18),
               label: Text(
                   headSupervisorText(context,
-                      arabic: 'اعتماد قرار حسم النزاع وإنهاء البلاغ فوراً',
+                      arabic: 'اعتماد القرار وإرساله للمشرف المالي',
                       english: 'Approve dispute resolution and close the report'),
                   style:
                       const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
@@ -197,7 +197,7 @@ class _HeadSupervisorInterventionScreenState
           Text(
             headSupervisorText(context,
                 arabic:
-                    'قرار الحسم يصدر بموجب صلاحيات رئيس هيئة المشرفين المختصين، ويُرسل للطرفين فوراً.',
+                    'أي قرار فيه فلوس بيروح للمشرف المالي ينفّذه، والبلاغ بيتقفل ويتبلّغ الطرفين بعد التنفيذ.',
                 english:
                     'The decision is issued under the Head Supervisor’s authority and sent to both parties.'),
             textAlign: TextAlign.center,

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:barwah_app/core/auth/review_timer.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -582,6 +583,7 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
     AppLocalizations l10n,
   ) async {
     final isArabic = l10n.localeName.startsWith('ar');
+    ReviewTimer.open('ticket', complaint.id);
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,

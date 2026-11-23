@@ -157,6 +157,22 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
                 isArabic,
                 l10n,
               ),
+            if (_moreStatuses(context).isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Center(
+                  child: TextButton.icon(
+                    onPressed: () async {
+                      final cubit = context.read<ProductReviewCubit>();
+                      for (final status in _moreStatuses(context)) {
+                        await cubit.loadMore(status);
+                      }
+                    },
+                    icon: const MotionIcon(Icons.expand_more, size: 18),
+                    label: Text(isArabic ? 'تحميل المزيد' : 'Load more'),
+                  ),
+                ),
+              ),
           ],
         ),
         );
@@ -548,7 +564,7 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
               ),
               const SizedBox(width: 4),
               Text(
-                l10n.productReceivedMinutesAgo(product.receivedMinutesAgo),
+                _receivedAgo(context, product.receivedMinutesAgo),
                 style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 10,
@@ -556,6 +572,26 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
               ),
             ],
           ),
+          if (product.editRequested) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: AppColors.warningLight,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.warningBorder),
+              ),
+              child: Text(
+                isArabic
+                    ? 'بانتظار تعديل المعلن${(product.decisionNote ?? '').isEmpty ? '' : ' — ${product.decisionNote!.replaceFirst('طلب تعديل: ', '')}'}'
+                    : 'Waiting for the seller to edit',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 11, color: AppColors.warningDark, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -900,6 +936,21 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
         .length;
   }
 
+  /// الحالات اللي ليها إعلانات أقدم على السيرفر في العرض الحالي.
+  List<ProductReviewStatus> _moreStatuses(BuildContext context) {
+    final cubit = context.read<ProductReviewCubit>();
+    final statuses = !_showArchive
+        ? const [ProductReviewStatus.pending]
+        : _archiveStatus != null
+            ? [_archiveStatus!]
+            : const [
+                ProductReviewStatus.approved,
+                ProductReviewStatus.rejected,
+                ProductReviewStatus.suspended,
+              ];
+    return statuses.where(cubit.hasMore).toList();
+  }
+
   Widget _statusTag(ProductReviewStatus status, AppLocalizations l10n) {
     final (label, color, background) = switch (status) {
       ProductReviewStatus.pending => (
@@ -1012,7 +1063,7 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
       final detailsSaved = await cubit.updateDetails(product);
       if (!detailsSaved || !context.mounted) {
         if (context.mounted) {
-          AppSnackBar.showError(context, l10n.productReviewUpdateError);
+          AppSnackBar.showError(context, cubit.lastError ?? l10n.productReviewUpdateError);
         }
         return false;
       }
@@ -1025,7 +1076,7 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
     );
     if (!context.mounted) return false;
     if (!statusUpdated) {
-      AppSnackBar.showError(context, l10n.productReviewUpdateError);
+      AppSnackBar.showError(context, cubit.lastError ?? l10n.productReviewUpdateError);
       return false;
     }
     AppSnackBar.showSuccess(context, l10n.productReviewActionSuccess);
@@ -1037,7 +1088,8 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
     ProductReview product,
     AppLocalizations l10n,
   ) async {
-    final restored = await context.read<ProductReviewCubit>().updateStatus(
+    final reviewCubit = context.read<ProductReviewCubit>();
+    final restored = await reviewCubit.updateStatus(
           id: product.id,
           status: ProductReviewStatus.pending,
         );
@@ -1050,7 +1102,7 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
             : 'Product returned to the review queue',
       );
     } else {
-      AppSnackBar.showError(context, l10n.productReviewUpdateError);
+      AppSnackBar.showError(context, reviewCubit.lastError ?? l10n.productReviewUpdateError);
     }
   }
 
@@ -1092,6 +1144,18 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
             status,
             saveDetails: true,
           ),
+          onRequestEdit: (reason) async {
+            final ok = await cubit.requestEdit(product.id, reason);
+            if (!context.mounted) return ok;
+            if (ok) {
+              AppSnackBar.showSuccess(context,
+                  isArabic ? 'اتبعت طلب التعديل للمعلن' : 'Edit request sent');
+            } else {
+              AppSnackBar.showError(
+                  context, cubit.lastError ?? l10n.productReviewUpdateError);
+            }
+            return ok;
+          },
         ),
       ),
     );
@@ -1112,4 +1176,37 @@ class _ProductAdsReviewScreenState extends State<ProductAdsReviewScreen> {
         ProductImageKind.fragrance => Icons.spa_outlined,
         ProductImageKind.tool => Icons.handyman_outlined,
       };
+}
+
+/// "منذ دقيقة / ساعة / يوم" بدل عدد الدقائق دايمًا.
+String _receivedAgo(BuildContext context, int minutes) {
+  final arabic = Localizations.localeOf(context).languageCode == 'ar';
+  if (minutes < 1) return arabic ? 'الآن' : 'Just now';
+  if (minutes < 60) {
+    if (!arabic) return minutes == 1 ? '1 minute ago' : '$minutes minutes ago';
+    return switch (minutes) {
+      1 => 'منذ دقيقة',
+      2 => 'منذ دقيقتين',
+      <= 10 => 'منذ $minutes دقائق',
+      _ => 'منذ $minutes دقيقة',
+    };
+  }
+  final hours = minutes ~/ 60;
+  if (hours < 24) {
+    if (!arabic) return hours == 1 ? '1 hour ago' : '$hours hours ago';
+    return switch (hours) {
+      1 => 'منذ ساعة',
+      2 => 'منذ ساعتين',
+      <= 10 => 'منذ $hours ساعات',
+      _ => 'منذ $hours ساعة',
+    };
+  }
+  final days = hours ~/ 24;
+  if (!arabic) return days == 1 ? '1 day ago' : '$days days ago';
+  return switch (days) {
+    1 => 'منذ يوم',
+    2 => 'منذ يومين',
+    <= 10 => 'منذ $days أيام',
+    _ => 'منذ $days يوم',
+  };
 }

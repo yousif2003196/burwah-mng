@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'package:barwah_app/core/auth/account_suspended_dialog.dart';
+import 'package:barwah_app/core/auth/auth_session.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/core/widgets/app_snack_bar.dart';
 import 'package:barwah_app/features/admin/data/datasources/admin_security_store.dart';
@@ -66,7 +68,13 @@ class _LoginScreenState extends State<LoginScreen>
         if (state is AuthSuccess) {
           _playSuccessTransition(state.user);
         } else if (state is AuthError) {
-          AppSnackBar.showError(context, state.message);
+          final suspended = AuthSession.suspendedMessage;
+          if (suspended != null) {
+            AuthSession.suspendedMessage = null;
+            showAccountSuspendedDialog(context, suspended);
+          } else {
+            AppSnackBar.showError(context, state.message);
+          }
         }
       },
       builder: (context, state) {

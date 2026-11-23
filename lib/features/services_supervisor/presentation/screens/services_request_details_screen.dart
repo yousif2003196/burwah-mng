@@ -1,3 +1,4 @@
+import 'package:barwah_app/core/auth/review_timer.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -86,6 +87,7 @@ class _ServicesRequestDetailsScreenState
     super.initState();
     _selectedCategory = _ServiceCategory.values.byName(widget.initialCategory);
     _selectedProvider = widget.assignedProvider;
+    ReviewTimer.open('service', widget.reference);
     _loadCategoryOptions();
   }
 

@@ -15,6 +15,8 @@ class ProductReportModel extends ProductReport {
     required super.rejectionRate,
     required super.logs,
     super.averageMinutes,
+    super.myAverageMinutes,
+    super.myMeasuredDecisions,
     super.previousReviewed,
     super.changePercent,
     super.categories,
@@ -32,6 +34,8 @@ class ProductReportModel extends ProductReport {
       approvalRate: _double(json['approvalRate']),
       rejectionRate: _double(json['rejectionRate']),
       averageMinutes: (json['averageCheckSpeedMinutes'] as num?)?.toDouble(),
+      myAverageMinutes: (json['myAverageReviewMinutes'] as num?)?.toDouble(),
+      myMeasuredDecisions: _int(json['myMeasuredDecisions']),
       previousReviewed: _int(json['previousAdsCount']),
       changePercent: (json['changePercent'] as num?)?.toDouble(),
       categories: [

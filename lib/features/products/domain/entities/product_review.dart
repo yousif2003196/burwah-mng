@@ -40,6 +40,9 @@ class ProductReview {
   final String? sellerEmail;
   final String promotionPlan;
 
+  /// المشرف طلب من المعلن يعدّل الإعلان، والإعلان مستني التعديل.
+  final bool editRequested;
+
   /// إعلان مميز أو VIP: يُدار من تبويب ترويج المنتجات فقط.
   bool get isPromoted {
     final plan = promotionPlan.toLowerCase();
@@ -73,6 +76,7 @@ class ProductReview {
     this.details = const [],
     this.sellerEmail,
     this.promotionPlan = 'Free',
+    this.editRequested = false,
   });
 
   ProductReview copyWith({
@@ -89,6 +93,7 @@ class ProductReview {
     int? categoryId,
     int? subCategoryId,
     String? categoryName,
+    bool? editRequested,
   }) {
     return ProductReview(
       id: id,
@@ -118,6 +123,7 @@ class ProductReview {
       details: details,
       sellerEmail: sellerEmail,
       promotionPlan: promotionPlan,
+      editRequested: editRequested ?? this.editRequested,
     );
   }
 }

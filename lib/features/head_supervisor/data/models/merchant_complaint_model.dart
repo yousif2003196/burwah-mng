@@ -10,6 +10,8 @@ class MerchantComplaintSummaryModel extends MerchantComplaintSummary {
     required super.complainant,
     required super.status,
     required super.createdAt,
+    super.linkType,
+    super.escalated,
   });
 
   factory MerchantComplaintSummaryModel.fromJson(Map<String, dynamic> json) {
@@ -25,6 +27,10 @@ class MerchantComplaintSummaryModel extends MerchantComplaintSummary {
       complainant: BossJson.text(json['complainant']),
       status: BossJson.status(json['status']),
       createdAt: BossJson.date(json['createdAt']),
+      linkType: BossJson.text(json['linkType']).isEmpty
+          ? (json['adId'] != null ? 'ad' : 'none')
+          : BossJson.text(json['linkType']),
+      escalated: json['escalated'] == true,
     );
   }
 }
@@ -41,6 +47,9 @@ class MerchantComplaintDetailsModel extends MerchantComplaintDetails {
     required super.automatedAudit,
     required super.supervisorStatement,
     required super.evidences,
+    super.linkType,
+    super.link,
+    super.status,
   });
 
   factory MerchantComplaintDetailsModel.fromJson(Map<String, dynamic> json) {
@@ -50,7 +59,11 @@ class MerchantComplaintDetailsModel extends MerchantComplaintDetails {
     final statement = BossJson.map(json['supervisorStatement']);
     final id = BossJson.integer(json['complaintId']);
     final code = BossJson.text(json['code']);
+    final linkJson = BossJson.map(json['link']);
     return MerchantComplaintDetailsModel(
+      linkType: BossJson.text(json['linkType']).isEmpty ? 'none' : BossJson.text(json['linkType']),
+      link: linkJson.isEmpty ? null : _link(linkJson),
+      status: BossJson.text(json['status']),
       complaintId: id,
       code: code.isEmpty ? '#$id' : code,
       title: BossJson.text(json['title']),
@@ -66,6 +79,8 @@ class MerchantComplaintDetailsModel extends MerchantComplaintDetails {
         code: BossJson.text(supervisor['code']),
         approvedDecisionsCount:
             BossJson.integer(supervisor['approvedDecisionsCount']),
+        lastDecision: BossJson.text(supervisor['lastDecision']),
+        lastDecisionAt: BossJson.date(supervisor['lastDecisionAt']),
       ),
       automatedAudit: ComplaintAutomatedAudit(
         engineVersion: BossJson.text(audit['engineVersion']),
@@ -85,6 +100,45 @@ class MerchantComplaintDetailsModel extends MerchantComplaintDetails {
             previewUrl: BossJson.text(row['previewUrl']),
           ),
       ],
+    );
+  }
+
+  static double _number(Object? v) => v is num ? v.toDouble() : double.tryParse('$v') ?? 0;
+
+  static ComplaintLink _link(Map<String, dynamic> j) {
+    ComplaintParty? party(Object? v) {
+      final m = BossJson.map(v);
+      if (m.isEmpty) return null;
+      return ComplaintParty(id: BossJson.integer(m['id']), name: BossJson.text(m['name']));
+    }
+
+    return ComplaintLink(
+      type: BossJson.text(j['type']),
+      id: BossJson.integer(j['id']),
+      code: BossJson.text(j['code']),
+      title: BossJson.text(j['title']),
+      fields: [
+        for (final f in BossJson.mapList(j['fields']))
+          (BossJson.text(f['label']), BossJson.text(f['value'])),
+      ],
+      items: [
+        for (final i in BossJson.mapList(j['items']))
+          ComplaintLinkItem(
+            name: BossJson.text(i['name']),
+            quantity: BossJson.integer(i['quantity']),
+            price: _number(i['price']),
+          ),
+      ],
+      description: BossJson.text(j['description']),
+      providerId: BossJson.optionalInteger(j['providerId']),
+      providerName: BossJson.text(j['providerName']),
+      providerSuspended: j['providerSuspended'] == true,
+      merchants: [
+        for (final m in BossJson.mapList(j['merchants']))
+          ComplaintParty(id: BossJson.integer(m['id']), name: BossJson.text(m['name'])),
+      ],
+      captain: party(j['captain']),
+      amount: _number(j['amount']),
     );
   }
 }
