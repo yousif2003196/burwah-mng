@@ -46,8 +46,15 @@ abstract final class BossJson {
     return false;
   }
 
-  static DateTime? date(Object? value) =>
-      value == null ? null : DateTime.tryParse('$value')?.toLocal();
+  /// تواريخ السيرفر UTC وبتيجي أحيانًا من غير `Z`، فبنعتبرها UTC صراحةً
+  /// (وإلا تظهر متأخرة ساعتين بتوقيت مصر).
+  static DateTime? date(Object? value) {
+    final raw = text(value);
+    if (raw.isEmpty) return null;
+    final hasZone =
+        raw.endsWith('Z') || RegExp(r'[+-]\d{2}:?\d{2}$').hasMatch(raw);
+    return DateTime.tryParse(hasZone ? raw : '${raw}Z')?.toLocal();
+  }
 
   static BossStatus status(Object? value) {
     final raw = text(value);

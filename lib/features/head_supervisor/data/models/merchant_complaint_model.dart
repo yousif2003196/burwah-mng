@@ -18,7 +18,9 @@ class MerchantComplaintSummaryModel extends MerchantComplaintSummary {
     return MerchantComplaintSummaryModel(
       id: id,
       code: code.isEmpty ? '#$id' : code,
-      title: BossJson.text(json['title']),
+      title: BossJson.text(json['title']).isNotEmpty
+          ? BossJson.text(json['title'])
+          : BossJson.text(json['subject']),
       description: BossJson.text(json['description']),
       complainant: BossJson.text(json['complainant']),
       status: BossJson.status(json['status']),

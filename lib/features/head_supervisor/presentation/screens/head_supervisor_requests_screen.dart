@@ -16,6 +16,7 @@ import 'package:barwah_app/features/head_supervisor/presentation/utils/head_supe
 import 'package:barwah_app/features/head_supervisor/presentation/widgets/common/boss_state_views.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_provider_escalations_panel.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_service_escalations_panel.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_supervisor_escalations_panel.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_used_complaint_escalations_panel.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/widgets/requests/boss_operation_card.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/widgets/requests/boss_requests_governance_footer.dart';
@@ -119,6 +120,8 @@ class _RequestsViewState extends State<_RequestsView> {
                   const SizedBox(height: 12),
                 ],
                 if (AuthSession.isSignedIn) ...[
+                  const HeadSupervisorEscalationsPanel(),
+                  const SizedBox(height: 12),
                   const HeadServiceEscalationsPanel(),
                   const SizedBox(height: 12),
                   const HeadProviderEscalationsPanel(),

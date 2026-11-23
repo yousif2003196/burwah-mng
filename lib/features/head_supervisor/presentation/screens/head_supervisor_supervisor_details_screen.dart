@@ -9,6 +9,7 @@ import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervi
 import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_supervisor_add_supervisor_sheet.dart';
 import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_audit_record.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/utils/head_supervisor_text.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/utils/supervisor_log_pdf_exporter.dart';
 import 'package:barwah_app/core/widgets/scroll_fx.dart';
 import 'package:barwah_app/core/widgets/motion_icon.dart';
 
@@ -25,6 +26,12 @@ class HeadSupervisorSupervisorDetailsScreen extends StatefulWidget {
   final String city;
   final String marketScope;
 
+  /// إجراءات قائمة المشرفين نفسها، بتتنفذ من جوه الصفحة (null في الوضع المحلي القديم).
+  final Future<void> Function()? onToggleSuspension;
+  final Future<void> Function()? onEditPermissions;
+  final Future<void> Function()? onMessage;
+  final Future<void> Function()? onRequestDeletion;
+
   const HeadSupervisorSupervisorDetailsScreen({
     super.key,
     required this.supervisorId,
@@ -38,6 +45,10 @@ class HeadSupervisorSupervisorDetailsScreen extends StatefulWidget {
     this.area = '',
     this.city = '',
     this.marketScope = '',
+    this.onToggleSuspension,
+    this.onEditPermissions,
+    this.onMessage,
+    this.onRequestDeletion,
   });
 
   @override
@@ -74,10 +85,15 @@ class _HeadSupervisorSupervisorDetailsScreenState
         : sl<HeadSupervisorApiDataSource>().getSupervisorAccount(id);
   }
 
+  /// عدد سطور السجل المطلوبة من السيرفر؛ "تحميل المزيد" بيزوّده (الحد 500).
+  int _take = 100;
+  static const _maxTake = 500;
+
   Future<List<HeadSupervisorAuditRecord>> _loadRecords() async {
     final serverId = _serverId;
     if (serverId != null) {
-      return sl<HeadSupervisorApiDataSource>().getSupervisorActivity(serverId);
+      return sl<HeadSupervisorApiDataSource>()
+          .getSupervisorActivity(serverId, take: _take);
     }
     final records = await HeadSupervisorAuditStore().getRecent(limit: 1000);
     return records
@@ -95,6 +111,59 @@ class _HeadSupervisorSupervisorDetailsScreenState
         _accountFuture = _loadAccount();
       });
     }
+  }
+
+  bool _exporting = false;
+
+  /// يصدّر السجل الظاهر (بعد الفلتر والبحث) كملف PDF عربي.
+  Future<void> _exportPdf(List<_Activity> activities) async {
+    if (_exporting) return;
+    setState(() => _exporting = true);
+    try {
+      final filterLabel = switch (_filter) {
+        'supervisor_decision' => 'قرارات المشرف',
+        'head_action' => 'إجراءات رئيس المشرفين',
+        'broadcast' => 'التوجيهات',
+        _ => 'السجل الكامل',
+      };
+      await SupervisorLogPdfExporter.share(
+        supervisorName: widget.name,
+        supervisorId: widget.supervisorId,
+        department: widget.department,
+        filterLabel: _searchQuery.trim().isEmpty
+            ? filterLabel
+            : '$filterLabel — بحث: ${_searchQuery.trim()}',
+        rows: [
+          for (final activity in activities)
+            SupervisorLogPdfRow(
+              time: activity.time,
+              category: activity.category,
+              title: activity.title,
+              details: activity.description,
+            ),
+        ],
+      );
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'supervisor log pdf',
+      ));
+      if (mounted) {
+        _notice(headSupervisorText(context,
+            arabic: 'تعذر تجهيز ملف PDF. تأكد من الاتصال بالإنترنت وحاول مرة أخرى.',
+            english: 'Could not prepare the PDF. Check your connection and try again.'));
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  String _statusFor(HeadSupervisorAccountInfo? info) {
+    if (info == null) return widget.status;
+    if (info.deletionPending) return 'طلب حذف عند الأدمن';
+    if (info.frozen) return 'معلق مؤقتاً';
+    return 'نشط ميدانياً';
   }
 
   void _notice(String message) {
@@ -224,45 +293,36 @@ class _HeadSupervisorSupervisorDetailsScreenState
     bool applyFilter = true,
   }) {
     final activities = records.map((record) {
-      final icon = switch (record.kind) {
-        'supervisor_management' => Icons.manage_accounts_outlined,
-        'request' => Icons.assignment_outlined,
-        'complaint' => Icons.report_outlined,
-        'broadcast' => Icons.campaign_outlined,
-        _ => Icons.history_outlined,
-      };
+      final group = _groupOf(record.kind);
+      final icon = record.opensAd
+          ? Icons.campaign_outlined
+          : switch (group) {
+              'head_action' => Icons.manage_accounts_outlined,
+              'broadcast' => Icons.forward_to_inbox_outlined,
+              _ => Icons.fact_check_outlined,
+            };
       final occurredAt = record.occurredAt.toLocal();
       final formattedDate =
           '${occurredAt.year}-${occurredAt.month.toString().padLeft(2, '0')}-${occurredAt.day.toString().padLeft(2, '0')} ${occurredAt.hour.toString().padLeft(2, '0')}:${occurredAt.minute.toString().padLeft(2, '0')}';
       return _Activity(
-        id: record.id.length > 12
-            ? '…${record.id.substring(record.id.length - 8)}'
-            : record.id,
+        id: record.opensAd
+            ? '#AD-${record.refId}'
+            : record.id.length > 12
+                ? '…${record.id.substring(record.id.length - 8)}'
+                : record.id,
         category: record.department,
         title: record.title,
         description: record.details,
         status: 'مسجل',
         time: formattedDate,
         icon: icon,
-        kind: record.kind,
+        kind: group,
+        adId: record.opensAd ? record.refId : null,
       );
     }).toList(growable: false);
-    final filtered = !applyFilter ? activities : switch (_filter) {
-      'supervisor_management' => activities
-          .where((item) => item.kind == 'supervisor_management')
-          .toList(),
-      'request' => activities.where((item) => item.kind == 'request').toList(),
-      'complaint' =>
-        activities.where((item) => item.kind == 'complaint').toList(),
-      'other' => activities
-          .where((item) => !{
-                'supervisor_management',
-                'request',
-                'complaint',
-              }.contains(item.kind))
-          .toList(),
-      _ => activities,
-    };
+    final filtered = !applyFilter || _filter == 'all'
+        ? activities
+        : activities.where((item) => item.kind == _filter).toList();
     final query = _searchQuery.trim().toLowerCase();
     if (query.isEmpty) return filtered;
     return filtered
@@ -274,6 +334,64 @@ class _HeadSupervisorSupervisorDetailsScreenState
               item.status,
             ].any((value) => value.toLowerCase().contains(query)))
         .toList();
+  }
+
+  /// تصنيف موحد للسجل لكل الأقسام (سيرفر أو سجل محلي قديم).
+  static String _groupOf(String kind) => switch (kind) {
+        'head_action' || 'supervisor_management' => 'head_action',
+        'broadcast' => 'broadcast',
+        _ => 'supervisor_decision',
+      };
+
+  Future<void> _loadMore() async {
+    if (_take >= _maxTake) return;
+    setState(() {
+      _take = (_take + 100).clamp(100, _maxTake);
+      _recordsFuture = _loadRecords();
+    });
+  }
+
+  /// ينفّذ إجراء من إجراءات القائمة ثم يحدّث الحساب والسجل.
+  Future<void> _runListAction(Future<void> Function()? action) async {
+    if (action == null || _accountBusy) return;
+    await action();
+    if (mounted) _refreshRecords();
+  }
+
+  /// معاينة الإعلان المرتبط بقرار المشرف (قراءة بس).
+  Future<void> _openAd(int adId) async {
+    final future = sl<HeadSupervisorApiDataSource>().getAdPreview(adId);
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => FutureBuilder<HeadSupervisorAdPreview>(
+        future: future,
+        builder: (sheetContext, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const SizedBox(
+                height: 220, child: Center(child: CircularProgressIndicator()));
+          }
+          final ad = snapshot.data;
+          if (snapshot.hasError || ad == null) {
+            final error = snapshot.error;
+            return SizedBox(
+              height: 200,
+              child: Center(
+                child: Text(
+                    error is HeadSupervisorApiRejection
+                        ? error.message
+                        : headSupervisorText(sheetContext,
+                            arabic: 'تعذر تحميل الإعلان #$adId.',
+                            english: 'Could not load ad #$adId.'),
+                    style: TextStyle(color: AppColors.textSecondary)),
+              ),
+            );
+          }
+          return _AdPreviewSheet(ad: ad);
+        },
+      ),
+    );
   }
 
   @override
@@ -295,11 +413,13 @@ class _HeadSupervisorSupervisorDetailsScreenState
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 22),
         children: [
-          ScrollFx(child: _ProfileCard(
+          FutureBuilder<HeadSupervisorAccountInfo>(
+            future: _accountFuture,
+            builder: (context, account) => ScrollFx(child: _ProfileCard(
             name: widget.name,
             id: widget.supervisorId,
             department: widget.department,
-            status: widget.status,
+            status: _statusFor(account.data),
             avatar: widget.avatar,
             color: widget.avatarColor,
             email: widget.email,
@@ -308,18 +428,53 @@ class _HeadSupervisorSupervisorDetailsScreenState
             city: widget.city,
             marketScope: widget.marketScope,
           )),
+          ),
+          const SizedBox(height: 12),
+          FutureBuilder<HeadSupervisorAccountInfo>(
+            future: _accountFuture,
+            builder: (context, account) => _SupervisorActionsCard(
+              suspended: account.data?.frozen ?? widget.status.contains('معلق'),
+              deletionPending: account.data?.deletionPending ?? false,
+              busy: _accountBusy,
+              onToggleSuspension: widget.onToggleSuspension == null
+                  ? null
+                  : () => _runListAction(widget.onToggleSuspension),
+              onEditPermissions: widget.onEditPermissions == null
+                  ? null
+                  : () => _runListAction(widget.onEditPermissions),
+              onMessage: widget.onMessage == null
+                  ? null
+                  : () => _runListAction(widget.onMessage),
+              onRequestDeletion: widget.onRequestDeletion == null
+                  ? null
+                  : () => _runListAction(widget.onRequestDeletion),
+            ),
+          ),
           if (_accountFuture != null) ...[
             const SizedBox(height: 12),
             FutureBuilder<HeadSupervisorAccountInfo>(
               future: _accountFuture,
-              builder: (context, snapshot) => _AccountControlCard(
-                info: snapshot.data,
-                loading: snapshot.connectionState != ConnectionState.done,
-                failed: snapshot.hasError,
-                busy: _accountBusy,
-                onResetPassword: _resetPassword,
-                onEndSessions: _endSessions,
-              ),
+              builder: (context, snapshot) {
+                final info = snapshot.data;
+                return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  if (info != null && (info.frozen || info.handlesAds)) ...[
+                    _AccessStateCard(info: info),
+                    const SizedBox(height: 12),
+                  ],
+                  if (info != null) ...[
+                    _PerformanceCard(info: info),
+                    const SizedBox(height: 12),
+                  ],
+                  _AccountControlCard(
+                    info: info,
+                    loading: snapshot.connectionState != ConnectionState.done,
+                    failed: snapshot.hasError,
+                    busy: _accountBusy,
+                    onResetPassword: _resetPassword,
+                    onEndSessions: _endSessions,
+                  ),
+                ]);
+              },
             ),
           ],
           const SizedBox(height: 16),
@@ -353,12 +508,30 @@ class _HeadSupervisorSupervisorDetailsScreenState
                         arabic: 'تحديث', english: 'Refresh'),
                         style: const TextStyle(fontSize: 10)),
                   ),
+                  TextButton.icon(
+                    onPressed: _exporting
+                        ? null
+                        : () => _exportPdf(allActivities),
+                    icon: _exporting
+                        ? const SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : const MotionIcon(Icons.picture_as_pdf_outlined,
+                            size: 16),
+                    label: Text(
+                        headSupervisorText(context,
+                            arabic: 'تصدير PDF', english: 'Export PDF'),
+                        style: const TextStyle(fontSize: 10)),
+                  ),
                   const Spacer(),
                   Text(headSupervisorText(context,
                       arabic: 'المؤشرات والإجراءات المسجلة',
                       english: 'Recorded metrics and actions'),
                       style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.ink)),
                 ]),
+                // في وضع السيرفر المؤشرات الحقيقية في كارت "الأداء" فوق.
+                if (_serverId == null) ...[
                 const SizedBox(height: 8),
                 _MainMetricCard(count: total),
                 const SizedBox(height: 9),
@@ -367,6 +540,7 @@ class _HeadSupervisorSupervisorDetailsScreenState
                   const SizedBox(width: 9),
                   Expanded(child: _SmallMetricCard(value: '${total - managementActions}', label: headSupervisorText(context, arabic: 'إجراءات أخرى', english: 'Other actions'), helper: headSupervisorText(context, arabic: 'مرتبطة بمعرّف هذا المشرف', english: 'Linked to this supervisor ID'), icon: Icons.history_outlined)),
                 ]),
+                ],
                 const SizedBox(height: 17),
                 Row(children: [
                   const Spacer(),
@@ -432,9 +606,24 @@ class _HeadSupervisorSupervisorDetailsScreenState
                         style: TextStyle(color: AppColors.textSecondary)),
                   ),
                 for (final activity in allActivities) ...[
-                  _ActivityCard(activity: activity, onDetails: () => _showActivityDetails(activity)),
+                  _ActivityCard(
+                    activity: activity,
+                    onDetails: () => _showActivityDetails(activity),
+                    onOpenAd: activity.adId == null || _serverId == null
+                        ? null
+                        : () => _openAd(activity.adId!),
+                  ),
                   const SizedBox(height: 10),
                 ],
+                if (_serverId != null && records.length >= _take && _take < _maxTake)
+                  Center(
+                    child: TextButton.icon(
+                      onPressed: _loadMore,
+                      icon: const MotionIcon(Icons.expand_more, size: 18),
+                      label: Text(headSupervisorText(context,
+                          arabic: 'تحميل إجراءات أقدم', english: 'Load older actions')),
+                    ),
+                  ),
               ]);
             },
           ),
@@ -496,9 +685,9 @@ class _ProfileCard extends StatelessWidget {
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
               Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: Text(name, softWrap: true, textAlign: TextAlign.right, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.ink))), const SizedBox(width: 6), _CountBadge(label: id)]),
               const SizedBox(height: 4),
-              SizedBox(width: double.infinity, child: Text(headSupervisorText(context, arabic: '$department • التقييم العام', english: '$department • Overall rating'), textAlign: TextAlign.right, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 9, color: AppColors.textSecondary))),
+              SizedBox(width: double.infinity, child: Text(headSupervisorText(context, arabic: department, english: department), textAlign: TextAlign.right, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 9, color: AppColors.textSecondary))),
               const SizedBox(height: 5),
-              Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: AppColors.infoLight, borderRadius: BorderRadius.circular(12)), child: Text('(${status == 'نشط ميدانياً' ? headSupervisorText(context, arabic: '● نشط ميدانياً (متصل الآن)', english: '● Active in field (online now)') : _activityText(context, status)})', style: TextStyle(fontSize: 8, color: AppColors.infoDark))),
+              Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: AppColors.infoLight, borderRadius: BorderRadius.circular(12)), child: Text('● ${status == 'نشط ميدانياً' ? headSupervisorText(context, arabic: 'نشط', english: 'Active') : _activityText(context, status)}', style: TextStyle(fontSize: 8, color: AppColors.infoDark))),
             ])),
             const SizedBox(width: 8),
             CircleAvatar(radius: 26, backgroundColor: color, child: Text(avatar, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
@@ -593,7 +782,10 @@ class _Activity {
   final String time;
   final IconData icon;
   final String kind;
-  const _Activity({required this.id, required this.category, required this.title, required this.description, required this.status, required this.time, required this.icon, required this.kind});
+
+  /// رقم الإعلان لو السطر قرار على إعلان.
+  final int? adId;
+  const _Activity({required this.id, required this.category, required this.title, required this.description, required this.status, required this.time, required this.icon, required this.kind, this.adId});
 }
 
 class _ActivityFilters extends StatelessWidget {
@@ -605,10 +797,9 @@ class _ActivityFilters extends StatelessWidget {
   Widget build(BuildContext context) {
     final filters = <(String, String, String, int)>[
       ('all', 'الكل', 'All', activities.length),
-      ('supervisor_management', 'إدارة المشرفين', 'Supervisor management', activities.where((item) => item.kind == 'supervisor_management').length),
-      ('request', 'الطلبات', 'Requests', activities.where((item) => item.kind == 'request').length),
-      ('complaint', 'الشكاوى', 'Complaints', activities.where((item) => item.kind == 'complaint').length),
-      ('other', 'أخرى', 'Other', activities.where((item) => !{'supervisor_management', 'request', 'complaint'}.contains(item.kind)).length),
+      ('supervisor_decision', 'قرارات المشرف', 'Supervisor decisions', activities.where((item) => item.kind == 'supervisor_decision').length),
+      ('head_action', 'إجراءات رئيس المشرفين', 'Head supervisor actions', activities.where((item) => item.kind == 'head_action').length),
+      ('broadcast', 'التوجيهات', 'Directions', activities.where((item) => item.kind == 'broadcast').length),
     ];
     return SingleChildScrollView(scrollDirection: Axis.horizontal, reverse: true, child: Row(children: [for (final filter in filters) Padding(padding: const EdgeInsets.only(left: 5), child: ChoiceChip(label: CountText('${headSupervisorText(context, arabic: filter.$2, english: filter.$3)} ${filter.$4}', style: const TextStyle(fontSize: 9)), selected: selected == filter.$1, onSelected: (_) => onChanged(filter.$1), selectedColor: AppColors.primaryDark, backgroundColor: AppColors.surface, labelStyle: TextStyle(color: selected == filter.$1 ? Colors.white : AppColors.textSecondary), side: BorderSide.none, visualDensity: VisualDensity.compact))]));
   }
@@ -617,7 +808,8 @@ class _ActivityFilters extends StatelessWidget {
 class _ActivityCard extends StatelessWidget {
   final _Activity activity;
   final VoidCallback onDetails;
-  const _ActivityCard({required this.activity, required this.onDetails});
+  final VoidCallback? onOpenAd;
+  const _ActivityCard({required this.activity, required this.onDetails, this.onOpenAd});
   @override
   Widget build(BuildContext context) {
     final isDone = activity.status == 'مسجل';
@@ -638,6 +830,10 @@ class _ActivityCard extends StatelessWidget {
       const SizedBox(height: 10),
       Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7), decoration: BoxDecoration(color: AppColors.surfaceLight, borderRadius: BorderRadius.circular(10)), child: Row(children: [
         TextButton.icon(onPressed: onDetails, icon: const MotionIcon(Icons.chevron_left, size: 14), label: Text(headSupervisorText(context, arabic: 'التفاصيل', english: 'Details'), style: const TextStyle(fontSize: 9)), style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap)),
+        if (onOpenAd != null) ...[
+          const SizedBox(width: 10),
+          TextButton.icon(onPressed: onOpenAd, icon: const MotionIcon(Icons.open_in_new, size: 13), label: Text(headSupervisorText(context, arabic: 'فتح الإعلان', english: 'Open ad'), style: const TextStyle(fontSize: 9)), style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap)),
+        ],
         const Spacer(),
         MotionIcon(Icons.access_time, size: 12, color: AppColors.textSecondary),
         const SizedBox(width: 4),
@@ -795,5 +991,292 @@ class _Chip extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
         ),
         child: Text(text, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: color)),
+      );
+}
+
+String _shortDateTime(DateTime? value) {
+  if (value == null) return '—';
+  final local = value.toLocal();
+  String two(int v) => v.toString().padLeft(2, '0');
+  return '${two(local.day)}/${two(local.month)}/${local.year} ${two(local.hour)}:${two(local.minute)}';
+}
+
+/// إجراءات رئيس المشرفين على الحساب من جوه صفحة المشرف.
+class _SupervisorActionsCard extends StatelessWidget {
+  final bool suspended;
+  final bool deletionPending;
+  final bool busy;
+  final VoidCallback? onToggleSuspension;
+  final VoidCallback? onEditPermissions;
+  final VoidCallback? onMessage;
+  final VoidCallback? onRequestDeletion;
+
+  const _SupervisorActionsCard({
+    required this.suspended,
+    required this.deletionPending,
+    required this.busy,
+    required this.onToggleSuspension,
+    required this.onEditPermissions,
+    required this.onMessage,
+    required this.onRequestDeletion,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (onToggleSuspension == null &&
+        onEditPermissions == null &&
+        onMessage == null &&
+        onRequestDeletion == null) {
+      return const SizedBox.shrink();
+    }
+    Widget action(IconData icon, String ar, String en, VoidCallback? onTap,
+            {Color? color}) =>
+        Expanded(
+          child: OutlinedButton(
+            onPressed: busy ? null : onTap,
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+              foregroundColor: color ?? AppColors.ink,
+              side: BorderSide(color: AppColors.cardBorder),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              MotionIcon(icon, size: 18, color: onTap == null ? AppColors.textMuted : (color ?? AppColors.infoDark)),
+              const SizedBox(height: 4),
+              Text(headSupervisorText(context, arabic: ar, english: en),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600)),
+            ]),
+          ),
+        );
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.cardBorder)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text(headSupervisorText(context, arabic: 'إجراءات على المشرف', english: 'Supervisor actions'),
+            textAlign: TextAlign.right,
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.ink)),
+        const SizedBox(height: 10),
+        Row(children: [
+          action(
+            suspended ? Icons.play_circle_outline : Icons.pause_circle_outline,
+            suspended ? 'إعادة تفعيل' : 'تعليق',
+            suspended ? 'Reactivate' : 'Suspend',
+            onToggleSuspension,
+            color: suspended ? AppColors.successDark : AppColors.warningDark,
+          ),
+          const SizedBox(width: 6),
+          action(Icons.admin_panel_settings_outlined, 'الصلاحيات', 'Access', onEditPermissions),
+          const SizedBox(width: 6),
+          action(Icons.forward_to_inbox_outlined, 'توجيه مباشر', 'Direction',
+              suspended || deletionPending ? null : onMessage),
+          const SizedBox(width: 6),
+          action(
+            Icons.delete_outline,
+            deletionPending ? 'طلب الحذف مرفوع' : 'طلب حذف',
+            deletionPending ? 'Deletion requested' : 'Request deletion',
+            deletionPending ? null : onRequestDeletion,
+            color: AppColors.danger,
+          ),
+        ]),
+      ]),
+    );
+  }
+}
+
+/// صلاحيات الإعلانات وحالة التعليق كما هي على السيرفر.
+class _AccessStateCard extends StatelessWidget {
+  final HeadSupervisorAccountInfo info;
+  const _AccessStateCard({required this.info});
+
+  @override
+  Widget build(BuildContext context) {
+    final reasonAt = info.suspensionNote.indexOf('السبب:');
+    final reason = reasonAt >= 0
+        ? info.suspensionNote.substring(reasonAt + 'السبب:'.length).trim()
+        : info.suspensionNote;
+    Widget line(IconData icon, String text, Color color) => Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Row(children: [
+            Expanded(child: Text(text, textAlign: TextAlign.right, style: TextStyle(fontSize: 11, height: 1.5, color: color))),
+            const SizedBox(width: 6),
+            MotionIcon(icon, size: 15, color: color),
+          ]),
+        );
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.cardBorder)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text(headSupervisorText(context, arabic: 'الصلاحيات والحالة', english: 'Access and status'),
+            textAlign: TextAlign.right,
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.ink)),
+        if (info.frozen) ...[
+          line(
+            Icons.pause_circle_outline,
+            info.suspendedUntil == null
+                ? headSupervisorText(context, arabic: 'معلّق لحين انتهاء التحقيق (لازم يتفك يدويًا)', english: 'Suspended until the investigation ends (manual reactivation)')
+                : headSupervisorText(context,
+                    arabic: 'معلّق حتى ${_shortDateTime(info.suspendedUntil)} ويرجع نشط تلقائيًا',
+                    english: 'Suspended until ${_shortDateTime(info.suspendedUntil)}, then reactivated automatically'),
+            AppColors.warningDark,
+          ),
+          if (reason.isNotEmpty)
+            line(Icons.notes_outlined, headSupervisorText(context, arabic: 'السبب: $reason', english: 'Reason: $reason'), AppColors.textSecondary),
+        ],
+        if (info.handlesAds) ...[
+          line(
+            info.canReviewAds ? Icons.check_circle_outline : Icons.block,
+            info.canReviewAds
+                ? headSupervisorText(context, arabic: 'مراجعة الإعلانات (قبول/رفض/تعديل): مسموحة', english: 'Ad review: allowed')
+                : headSupervisorText(context, arabic: 'مراجعة الإعلانات (قبول/رفض/تعديل): موقوفة', english: 'Ad review: disabled'),
+            info.canReviewAds ? AppColors.successDark : AppColors.dangerDark,
+          ),
+          line(
+            info.canHideAds ? Icons.check_circle_outline : Icons.block,
+            info.canHideAds
+                ? headSupervisorText(context, arabic: 'إخفاء وتعليق الإعلانات: مسموح', english: 'Hiding ads: allowed')
+                : headSupervisorText(context, arabic: 'إخفاء وتعليق الإعلانات: موقوف', english: 'Hiding ads: disabled'),
+            info.canHideAds ? AppColors.successDark : AppColors.dangerDark,
+          ),
+        ],
+      ]),
+    );
+  }
+}
+
+/// مؤشرات أداء المشرف الحقيقية من السيرفر.
+class _PerformanceCard extends StatelessWidget {
+  final HeadSupervisorAccountInfo info;
+  const _PerformanceCard({required this.info});
+
+  @override
+  Widget build(BuildContext context) {
+    final avg = info.avgReviewMinutes;
+    final avgText = avg == null
+        ? '—'
+        : avg >= 60
+            ? headSupervisorText(context, arabic: '${(avg / 60).toStringAsFixed(1)} ساعة', english: '${(avg / 60).toStringAsFixed(1)} h')
+            : headSupervisorText(context, arabic: '${avg.round()} دقيقة', english: '${avg.round()} min');
+    final tiles = <(String, String, String, IconData)>[
+      ('${info.decisionsLast7Days}', 'قرارات آخر 7 أيام', 'Decisions, last 7 days', Icons.today_outlined),
+      ('${info.decisionsLast30Days}', 'قرارات آخر 30 يوم', 'Decisions, last 30 days', Icons.calendar_month_outlined),
+      if (info.handlesAds) ...[
+        (info.approvalRate == null ? '—' : '${info.approvalRate}%', 'نسبة القبول', 'Approval rate', Icons.thumb_up_alt_outlined),
+        (avgText, 'متوسط وقت المراجعة', 'Avg. review time', Icons.timer_outlined),
+      ],
+    ];
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.cardBorder)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text(headSupervisorText(context, arabic: 'الأداء', english: 'Performance'),
+            textAlign: TextAlign.right,
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.ink)),
+        const SizedBox(height: 10),
+        Wrap(spacing: 8, runSpacing: 8, alignment: WrapAlignment.end, children: [
+          for (final tile in tiles)
+            SizedBox(
+              width: (MediaQuery.sizeOf(context).width - 32 - 24 - 8) / 2,
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: AppColors.surfaceLight, borderRadius: BorderRadius.circular(12)),
+                child: Row(children: [
+                  MotionIcon(tile.$4, size: 18, color: AppColors.infoDark),
+                  const Spacer(),
+                  Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    CountText(tile.$1, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.ink)),
+                    Text(headSupervisorText(context, arabic: tile.$2, english: tile.$3), style: TextStyle(fontSize: 9, color: AppColors.textSecondary)),
+                  ]),
+                ]),
+              ),
+            ),
+        ]),
+        if (info.handlesAds) ...[
+          const SizedBox(height: 8),
+          Text(
+              headSupervisorText(context,
+                  arabic: 'على كل قراراته: ${info.approved} قبول • ${info.rejected} رفض من ${info.adDecisions} قرار إعلان',
+                  english: 'All time: ${info.approved} approved • ${info.rejected} rejected of ${info.adDecisions} ad decisions'),
+              textAlign: TextAlign.right,
+              style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+        ],
+      ]),
+    );
+  }
+}
+
+/// معاينة إعلان من سجل المشرف (رئيس المشرفين يراجع القرار، من غير تعديل).
+class _AdPreviewSheet extends StatelessWidget {
+  final HeadSupervisorAdPreview ad;
+  const _AdPreviewSheet({required this.ad});
+
+  String _statusAr(String status) => switch (status) {
+        'Approved' => 'مقبول ومنشور',
+        'Rejected' => 'مرفوض',
+        'Suspended' => 'معلّق',
+        'Pending' => 'قيد المراجعة',
+        _ => status,
+      };
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * .8),
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+            children: [
+              if (ad.imageUrls.isNotEmpty)
+                SizedBox(
+                  height: 170,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    reverse: true,
+                    itemCount: ad.imageUrls.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (_, index) => ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(
+                        ad.imageUrls[index],
+                        width: 220,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          width: 220,
+                          color: AppColors.surfaceLight,
+                          child: MotionIcon(Icons.broken_image_outlined, color: AppColors.textMuted),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 12),
+              Text(ad.title, textAlign: TextAlign.right, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.ink)),
+              const SizedBox(height: 6),
+              Text('#AD-${ad.id} • ${_statusAr(ad.status)} • ${ad.price.toStringAsFixed(ad.price % 1 == 0 ? 0 : 2)} ج.م',
+                  textAlign: TextAlign.right, style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+              const SizedBox(height: 4),
+              Text(headSupervisorText(context, arabic: 'البائع: ${ad.sellerName} • نُشر ${_shortDateTime(ad.createdAt)}', english: 'Seller: ${ad.sellerName} • Posted ${_shortDateTime(ad.createdAt)}'),
+                  textAlign: TextAlign.right, style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+              if (ad.description.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(ad.description, textAlign: TextAlign.right, style: TextStyle(fontSize: 12, height: 1.6, color: AppColors.textPrimary)),
+              ],
+              if (ad.reviewNote.isNotEmpty || ad.reviewedAt != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: AppColors.infoLight, borderRadius: BorderRadius.circular(12)),
+                  child: Text(
+                      headSupervisorText(context,
+                          arabic: 'ملاحظة المراجعة: ${ad.reviewNote.isEmpty ? '—' : ad.reviewNote}\nآخر قرار: ${_shortDateTime(ad.reviewedAt)}',
+                          english: 'Review note: ${ad.reviewNote.isEmpty ? '—' : ad.reviewNote}\nLast decision: ${_shortDateTime(ad.reviewedAt)}'),
+                      textAlign: TextAlign.right,
+                      style: TextStyle(fontSize: 11, height: 1.5, color: AppColors.infoDark)),
+                ),
+              ],
+            ],
+          ),
+        ),
       );
 }

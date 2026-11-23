@@ -64,6 +64,8 @@ class HeadSupervisorRecord {
     String? city,
     String? marketScope,
     String? accountId,
+    bool? reviewAds,
+    bool? hideAds,
   }) {
     final nextSuspended = suspended ?? this.suspended;
     final nextDepartment = department ?? this.department;
@@ -79,8 +81,8 @@ class HeadSupervisorRecord {
       suspended: nextSuspended,
       email: email,
       phone: phone,
-      reviewAds: reviewAds,
-      hideAds: hideAds,
+      reviewAds: reviewAds ?? this.reviewAds,
+      hideAds: hideAds ?? this.hideAds,
       suspensionDuration: suspensionDuration ?? this.suspensionDuration,
       suspensionReason: suspensionReason ?? this.suspensionReason,
       deletionPending: deletionPending ?? this.deletionPending,
@@ -97,7 +99,10 @@ class HeadSupervisorRecord {
 
   static String accountForDepartment(String department) {
     if (department.contains('خدمات')) return 'services';
-    if (department.contains('منتجات')) return 'products';
+    // "إعلانات جديدة" = قسم المنتجات الجديدة (مش المستعمل).
+    if (department.contains('منتجات') || department.contains('إعلانات جديدة')) {
+      return 'products';
+    }
     if (department.contains('مالية')) return 'finance';
     if (department.contains('وصلني') || department.contains('إعلانات') || department.contains('مستعملة')) {
       return 'wasalny';

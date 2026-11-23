@@ -16,6 +16,7 @@ import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervi
 import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_supervisor_details_screen.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/utils/head_supervisor_text.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_supervisor_add_supervisor_sheet.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_supervisor_broadcast_sheet.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_supervisor_delete_supervisor_sheet.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_supervisor_edit_permissions_sheet.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_supervisor_suspend_supervisor_sheet.dart';
@@ -203,6 +204,29 @@ class _HeadSupervisorSupervisorsScreenState
         _ => department,
       };
 
+  /// توجيه مباشر لمشرف واحد: إشعار حقيقي يوصله ويتسجل في سجل نشاطه.
+  Future<void> _messageSupervisor(HeadSupervisorRecord supervisor) async {
+    if (supervisor.suspended || supervisor.deletionPending) {
+      _showNotice(headSupervisorText(context,
+          arabic: 'الحساب ${supervisor.suspended ? 'معلّق' : 'عليه طلب حذف'}، والتوجيه يوصل للمشرفين النشطين فقط.',
+          english: 'Directions reach active supervisors only.'));
+      return;
+    }
+    final sent = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) =>
+          HeadSupervisorBroadcastSheet(initialSupervisorId: supervisor.id),
+    );
+    if (sent == true && mounted) {
+      _showNotice(headSupervisorText(context,
+          arabic: 'تم إرسال التوجيه إلى ${supervisor.name}.',
+          english: 'Direction sent to ${supervisor.name}.'));
+    }
+  }
+
   void _showNotice(String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -256,10 +280,28 @@ class _HeadSupervisorSupervisorsScreenState
           phone: supervisor.phone,
           area: supervisor.area,
           city: supervisor.city,
-          marketScope: supervisor.marketScope,
+          // "فئة المتاجر" اتشالت لأن السيرفر مش بيستخدمها.
+          marketScope: '',
+          // نفس إجراءات القائمة، على آخر نسخة من المشرف وقت الضغط.
+          onToggleSuspension: () => _withCurrent(supervisor.id, _changeStatus),
+          onEditPermissions: () => _withCurrent(supervisor.id, _editPermissions),
+          onMessage: () => _withCurrent(supervisor.id, _messageSupervisor),
+          onRequestDeletion: () => _withCurrent(supervisor.id, _requestDeletion),
         ),
       ),
     );
+  }
+
+  Future<void> _withCurrent(
+    String id,
+    Future<void> Function(HeadSupervisorRecord supervisor) action,
+  ) async {
+    final current = _supervisors.where((item) => item.id == id).firstOrNull;
+    if (current == null) {
+      _showNotice('المشرف مش موجود في القائمة الحالية، حدّث الصفحة.');
+      return;
+    }
+    await action(current);
   }
 
   Future<void> _addSupervisor() async {
@@ -427,7 +469,8 @@ class _HeadSupervisorSupervisorsScreenState
         department: supervisor.department,
         area: supervisor.area,
         city: supervisor.city,
-        marketScope: supervisor.marketScope,
+        reviewAds: supervisor.reviewAds,
+        hideAds: supervisor.hideAds,
         avatar: supervisor.avatar,
         avatarColor: supervisor.color,
       ),
@@ -441,7 +484,8 @@ class _HeadSupervisorSupervisorsScreenState
           accountId:
               HeadSupervisorRecord.accountForDepartment(permissions.department),
           geographicScope: '${permissions.area}/${permissions.city}',
-          specialtyCategory: permissions.marketScope,
+          canReviewAds: permissions.reviewAds,
+          canHideAds: permissions.hideAds,
         ),
         'تعذر حفظ الصلاحيات على السيرفر.',
       );
@@ -450,14 +494,14 @@ class _HeadSupervisorSupervisorsScreenState
     final previousDepartment = supervisor.department;
     final previousArea = supervisor.area;
     final previousCity = supervisor.city;
-    final previousMarketScope = supervisor.marketScope;
     setState(() {
       final index = _supervisors.indexOf(supervisor);
       _supervisors[index] = supervisor.copyWith(
         department: permissions.department,
         area: permissions.area,
         city: permissions.city,
-        marketScope: permissions.marketScope,
+        reviewAds: permissions.reviewAds,
+        hideAds: permissions.hideAds,
       );
     });
     if (!await _saveRoster()) return;
@@ -467,7 +511,8 @@ class _HeadSupervisorSupervisorsScreenState
       details: 'القسم: $previousDepartment ← ${permissions.department}. '
           'النطاق الجغرافي: $previousArea/$previousCity ← '
           '${permissions.area}/${permissions.city}. '
-          'نطاق السوق: $previousMarketScope ← ${permissions.marketScope}.',
+          'مراجعة الإعلانات: ${permissions.reviewAds ? 'مسموحة' : 'موقوفة'}. '
+          'إخفاء الإعلانات: ${permissions.hideAds ? 'مسموح' : 'موقوف'}.',
     );
     if (_api != null) await _loadSupervisors();
     if (audited) {
@@ -557,6 +602,8 @@ class _HeadSupervisorSupervisorsScreenState
       );
     });
     if (!await _saveRoster()) return;
+    // السيرفر بيحسب "معلق حتى ..." من المدة.
+    if (_api != null) await _loadSupervisors();
     final audited = await _recordManagementAction(
       supervisor: _supervisors.firstWhere((item) => item.id == supervisor.id),
       title: 'تعليق مشرف',
@@ -627,7 +674,7 @@ class _HeadSupervisorSupervisorsScreenState
         for (final supervisor in supervisors) ...[
           _SupervisorCard(
             supervisor: supervisor,
-            onComment: () => _showNotice('فتح محادثة ${supervisor.name}'),
+            onComment: () => _messageSupervisor(supervisor),
             onFullRecord: () => _openDetails(supervisor),
             onPermissions: () => _editPermissions(supervisor),
             onDelete: () => _requestDeletion(supervisor),
@@ -944,7 +991,7 @@ class _SupervisorCard extends StatelessWidget {
                 const SizedBox(width: 7),
                 Expanded(
                   child: Text(
-                      '${supervisor.area} • ${supervisor.city} • ${supervisor.marketScope}',
+                      '${supervisor.area} • ${supervisor.city}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -954,6 +1001,52 @@ class _SupervisorCard extends StatelessWidget {
                 ),
               ]),
             ),
+            if (supervisor.metric.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceLight,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(children: [
+                  MotionIcon(Icons.insights_outlined,
+                      size: 17, color: AppColors.infoDark),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: Text(
+                        [
+                          supervisor.metric,
+                          if (supervisor.score.isNotEmpty) supervisor.score,
+                        ].join(' • '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w600)),
+                  ),
+                ]),
+              ),
+            ],
+            if ((supervisor.accountId == 'products' ||
+                    supervisor.accountId == 'wasalny') &&
+                (!supervisor.reviewAds || !supervisor.hideAds)) ...[
+              const SizedBox(height: 8),
+              Text(
+                  headSupervisorText(context,
+                      arabic: [
+                        if (!supervisor.reviewAds) 'مراجعة الإعلانات موقوفة',
+                        if (!supervisor.hideAds) 'إخفاء الإعلانات موقوف',
+                      ].join(' • '),
+                      english: [
+                        if (!supervisor.reviewAds) 'Ad review disabled',
+                        if (!supervisor.hideAds) 'Ad hiding disabled',
+                      ].join(' • ')),
+                  style: TextStyle(
+                      fontSize: 12, color: AppColors.warningDark)),
+            ],
             if (supervisor.deletionPending) ...[
               const SizedBox(height: 8),
               Text(
@@ -1119,9 +1212,8 @@ class _GovernanceNote extends StatelessWidget {
               children: [
                 Text(
                     headSupervisorText(context,
-                        arabic: 'حوكمة الإدارة والترخيص الرقابي',
-                        english:
-                            'Management governance and regulatory licensing'),
+                        arabic: 'صلاحيات رئيس المشرفين',
+                        english: 'Head supervisor powers'),
                     style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
@@ -1130,9 +1222,9 @@ class _GovernanceNote extends StatelessWidget {
                 Text(
                     headSupervisorText(context,
                         arabic:
-                            'صلاحيات الحذف النهائي وإلغاء ترخيص المشرفين تتطلب موافقة مالك التطبيق والمدير العام بموجب لائحة الحوكمة الإدارية رقم 14.',
+                            'الإضافة والتعليق والصلاحيات وإنهاء الجلسات تتنفذ فورًا وتتسجل في سجل المشرف. حذف المشرف نهائيًا بيتبعت للأدمن ومش بيتنفذ إلا بعد موافقته.',
                         english:
-                            'Permanent deletion and supervisor license revocation require approval from the app owner and general manager under Administrative Governance Regulation No. 14.'),
+                            'Adding, suspending, permissions and ending sessions apply immediately and are logged on the supervisor\'s record. Permanent deletion goes to the admin and only happens after approval.'),
                     style: TextStyle(
                         fontSize: 12,
                         height: 1.5,

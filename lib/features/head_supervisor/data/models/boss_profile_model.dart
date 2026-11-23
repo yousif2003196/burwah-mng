@@ -33,10 +33,11 @@ class BossProfileModel extends BossProfile {
       availableForWithdrawal: BossJson.number(json['availableForWithdrawal']),
       lockedBalance: BossJson.number(json['lockedBalance']),
       complianceMetrics: BossComplianceMetrics(
-        approvedInterventions:
-            BossJson.integer(metrics['approvedInterventions']),
-        governanceScore: BossJson.text(metrics['governanceScore']),
         managedSupervisors: BossJson.integer(metrics['managedSupervisors']),
+        activeSupervisors: BossJson.integer(metrics['activeSupervisors']),
+        decisionsLast30Days: BossJson.integer(metrics['decisionsLast30Days']),
+        openComplaints: BossJson.integer(metrics['openComplaints']),
+        openDisputes: BossJson.integer(metrics['openDisputes']),
       ),
       recentAuditLogs: [
         for (final row in BossJson.mapList(json['recentAuditLogs']))
@@ -50,9 +51,8 @@ class BossProfileModel extends BossProfile {
           ),
       ],
       securitySettings: BossSecuritySettings(
-        twoFactorEnabled: BossJson.boolean(security['twoFactorEnabled']),
         activeSessionsCount: BossJson.integer(security['activeSessionsCount']),
-        urgentAlertsEnabled: BossJson.boolean(security['urgentAlertsEnabled']),
+        lastPasswordChange: BossJson.date(security['lastPasswordChange']),
       ),
     );
   }

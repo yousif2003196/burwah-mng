@@ -56,8 +56,8 @@ class _HeadSupervisorAddSupervisorSheetState
   final _phone = TextEditingController();
   final _password = TextEditingController();
   String _department = 'تجار ومتاجر';
-  bool _reviewAds = false;
-  bool _hideAds = false;
+  bool _reviewAds = true;
+  bool _hideAds = true;
 
   @override
   void dispose() {

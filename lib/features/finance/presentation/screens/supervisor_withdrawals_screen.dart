@@ -23,6 +23,7 @@ import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
 import 'package:barwah_app/l10n/app_localizations.dart';
 import 'package:barwah_app/core/widgets/motion_icon.dart';
 import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/features/finance/data/datasources/finance_server_withdrawals_api.dart';
 
 class SupervisorWithdrawalsScreen extends StatefulWidget {
   const SupervisorWithdrawalsScreen({super.key});
@@ -183,18 +184,27 @@ class _SupervisorWithdrawalsScreenState
       if (!mounted) return;
       if (result.isLeft()) {
         setState(() => _processingRequestId = null);
+        // طلبات السيرفر ترجع رسالة الباك إند (مثل: تمت مراجعته من قبل).
+        final serverMessage = FinanceServerWithdrawalsApi.isServerId(request.id)
+            ? result.fold((failure) => failure.message, (_) => '')
+            : '';
         AppSnackBar.showError(
           context,
-          AppLocalizations.of(context)!.financeRequestDecisionFailed,
+          serverMessage.isNotEmpty
+              ? serverMessage
+              : AppLocalizations.of(context)!.financeRequestDecisionFailed,
         );
         return;
       }
 
-      await _publishDecision(
-        request,
-        decisionStatus: decisionStatus,
-        reason: reason,
-      );
+      // السيرفر بيبلّغ رئيس المشرفين بنفسه، وقراره نهائي (مش محتاج الأدمن).
+      if (!FinanceServerWithdrawalsApi.isServerId(request.id)) {
+        await _publishDecision(
+          request,
+          decisionStatus: decisionStatus,
+          reason: reason,
+        );
+      }
       setState(() => _processingRequestId = null);
       await _loadData();
       if (mounted) AppSnackBar.showSuccess(context, successMessage);

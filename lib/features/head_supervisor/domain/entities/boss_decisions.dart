@@ -8,12 +8,13 @@ enum ReevaluateActionType {
   const ReevaluateActionType(this.apiValue);
 }
 
-/// قيم `resolutionType` في `disputes/{id}/resolve`.
+/// قيم `resolutionType` في `disputes/{orderId}/resolve` (نزاعات التوصيل).
 enum DisputeResolutionType {
-  fullRefund('full_refund'),
-  partialRefund('partial_refund'),
-  rejectClaim('reject_claim'),
-  legalTransfer('legal_transfer');
+  /// الطلب اتسلّم: يتصرف للكابتن نصيبه ويتقفل بلاغ العميل.
+  payCaptain('pay_captain'),
+
+  /// الطلب ما اتسلّمش: الكابتن ما ياخدش، والعميل يسترد اللي دفعه إلكترونيًا.
+  notDelivered('not_delivered');
 
   final String apiValue;
   const DisputeResolutionType(this.apiValue);

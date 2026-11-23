@@ -146,7 +146,6 @@ class BossSupervisorRemoteDataSource {
         'amount': request.amount,
         'payoutMethod': request.payoutMethod,
         'destinationAccount': request.destinationAccount,
-        'otpCode': request.otpCode,
       },
     );
     final body = _envelope(response.data);

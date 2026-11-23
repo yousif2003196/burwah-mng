@@ -108,8 +108,8 @@ class ComplaintAutomatedAuditPanel extends StatelessWidget {
             const Spacer(),
             Text(
                 headSupervisorText(context,
-                    arabic: 'الفحص الآلي ومطابقة اللائحة',
-                    english: 'Automated audit and policy check'),
+                    arabic: 'الإعلان محل الشكوى وسجل الإجراءات',
+                    english: 'The ad and the action history'),
                 textAlign: TextAlign.right,
                 style: TextStyle(
                     fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.ink)),
@@ -118,7 +118,7 @@ class ComplaintAutomatedAuditPanel extends StatelessWidget {
           ComplaintInfoRow(
             icon: Icons.verified_outlined,
             label: headSupervisorText(context,
-                arabic: 'السجل التجاري', english: 'Commercial license'),
+                arabic: 'الإعلان وحالته', english: 'Ad and status'),
             value: audit.commercialLicenseStatus.isEmpty
                 ? '—'
                 : audit.commercialLicenseStatus,
@@ -129,13 +129,14 @@ class ComplaintAutomatedAuditPanel extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                  color: AppColors.warningLight,
+                  color: AppColors.surfaceLight,
                   borderRadius: BorderRadius.circular(11),
-                  border: Border.all(color: AppColors.warning)),
+                  border: Border.all(color: AppColors.cardBorder)),
+              // سجل الإجراءات على الشكوى، سطر لكل إجراء بتاريخه.
               child: Text(audit.protocolAlert,
                   textAlign: TextAlign.right,
                   style: TextStyle(
-                      fontSize: 9, height: 1.5, color: AppColors.warningDark)),
+                      fontSize: 10, height: 1.6, color: AppColors.textPrimary)),
             ),
           ],
         ]),

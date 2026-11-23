@@ -1,15 +1,24 @@
 import 'package:barwah_app/features/head_supervisor/domain/entities/boss_status.dart';
 
+/// مؤشرات حقيقية من السيرفر.
 class BossComplianceMetrics {
-  final int approvedInterventions;
-  final String governanceScore;
   final int managedSupervisors;
+  final int activeSupervisors;
+
+  /// إجراءات رئيس المشرفين نفسه في آخر 30 يوم.
+  final int decisionsLast30Days;
+  final int openComplaints;
+  final int openDisputes;
 
   const BossComplianceMetrics({
-    required this.approvedInterventions,
-    required this.governanceScore,
     required this.managedSupervisors,
+    required this.activeSupervisors,
+    required this.decisionsLast30Days,
+    required this.openComplaints,
+    required this.openDisputes,
   });
+
+  int get waitingForDecision => openComplaints + openDisputes;
 }
 
 class BossAuditLog {
@@ -31,14 +40,13 @@ class BossAuditLog {
 }
 
 class BossSecuritySettings {
-  final bool twoFactorEnabled;
+  /// عدد الأجهزة الداخلة على الحساب فعلًا.
   final int activeSessionsCount;
-  final bool urgentAlertsEnabled;
+  final DateTime? lastPasswordChange;
 
   const BossSecuritySettings({
-    required this.twoFactorEnabled,
     required this.activeSessionsCount,
-    required this.urgentAlertsEnabled,
+    required this.lastPasswordChange,
   });
 }
 

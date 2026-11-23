@@ -46,12 +46,8 @@ class _ComplaintDetailsView extends StatelessWidget {
   ) async {
     final result = await showSummonSupervisorSheet(context, details);
     if (result == null || !context.mounted) return;
-    // TODO(backend): الرد يرجع chatSessionId، لكن لا يوجد endpoint/شاشة
-    // لفتح محادثة BossOfSupervisor بهذا المعرّف. نعرض المعرّف فقط حاليًا.
-    final session = result.chatSessionId.isEmpty
-        ? ''
-        : ' (${result.chatSessionId})';
-    Navigator.of(context).pop('${result.message}$session');
+    // الاستدعاء بيوصل للمشرف إشعار ويتسجل في سجله وسجل الشكوى.
+    Navigator.of(context).pop(result.message);
   }
 
   Future<void> _unban(

@@ -59,9 +59,10 @@ class HeadSupervisorPermissionsDraft {
   final String department;
   final String area;
   final String city;
-  final String marketScope;
+  final bool reviewAds;
+  final bool hideAds;
 
-  const HeadSupervisorPermissionsDraft({required this.department, required this.area, required this.city, required this.marketScope});
+  const HeadSupervisorPermissionsDraft({required this.department, required this.area, required this.city, required this.reviewAds, required this.hideAds});
 }
 
 class HeadSupervisorEditPermissionsSheet extends StatefulWidget {
@@ -70,7 +71,8 @@ class HeadSupervisorEditPermissionsSheet extends StatefulWidget {
   final String department;
   final String area;
   final String city;
-  final String marketScope;
+  final bool reviewAds;
+  final bool hideAds;
   final String avatar;
   final Color avatarColor;
 
@@ -81,7 +83,8 @@ class HeadSupervisorEditPermissionsSheet extends StatefulWidget {
     required this.department,
     required this.area,
     required this.city,
-    required this.marketScope,
+    required this.reviewAds,
+    required this.hideAds,
     required this.avatar,
     required this.avatarColor,
   });
@@ -129,14 +132,14 @@ class _HeadSupervisorEditPermissionsSheetState
     'البحر الأحمر': ['الغردقة', 'رأس غارب', 'سفاجا', 'القصير', 'مرسى علم'],
     'الوادي الجديد': ['الخارجة', 'الداخلة', 'الفرافرة', 'باريس'],
   };
-  static const _markets = ['متاجر الإلكترونيات والأجهزة المعتمدة', 'متاجر السيارات والمركبات', 'إعلانات الخدمات والعروض', 'جميع المتاجر المعتمدة'];
 
   late String _department = _departmentFromName(widget.department);
   late String _governorate = _governorates.contains(widget.area) ? widget.area : _governorates.first;
   late String _city = (_citiesByGovernorate[widget.area] ?? _citiesByGovernorate[_governorates.first]!).contains(widget.city)
       ? widget.city
       : (_citiesByGovernorate[widget.area] ?? _citiesByGovernorate[_governorates.first]!).first;
-  late String _marketScope = _markets.contains(widget.marketScope) ? widget.marketScope : _markets.first;
+  late bool _reviewAds = widget.reviewAds;
+  late bool _hideAds = widget.hideAds;
 
   String _departmentFromName(String value) {
     if (value.contains('منتج') || value.contains('إعلان')) return 'إعلانات جديدة';
@@ -149,7 +152,8 @@ class _HeadSupervisorEditPermissionsSheetState
         department: _department,
         area: _governorate,
         city: _city,
-        marketScope: _marketScope,
+        reviewAds: _reviewAds,
+        hideAds: _hideAds,
       ));
 
   @override
@@ -178,11 +182,28 @@ class _HeadSupervisorEditPermissionsSheetState
                 const SizedBox(height: 8),
                 _DropdownField(label: headSupervisorText(context, arabic: 'المدينة', english: 'City'), value: _city, options: _citiesByGovernorate[_governorate]!, icon: Icons.location_city_outlined, helper: headSupervisorText(context, arabic: 'المدن المتاحة داخل محافظة $_governorate', english: 'Available cities in $_governorate'), onChanged: (value) => setState(() => _city = value)),
                 const SizedBox(height: 8),
-                _DropdownField(label: headSupervisorText(context, arabic: 'فئة المتاجر المحددة للاختصاص', english: 'Store category scope'), value: _marketScope, options: _markets, icon: Icons.store_mall_directory_outlined, helper: headSupervisorText(context, arabic: 'اختر الفئة التي سيشرف عليها الحساب', english: 'Select the category assigned to this account'), onChanged: (value) => setState(() => _marketScope = value)),
                 const SizedBox(height: 17),
                 Row(children: [Text(headSupervisorText(context, arabic: 'مطلوب للاعتماد', english: 'Required'), style: TextStyle(fontSize: 8, color: AppColors.textSecondary)), const Spacer(), Text(headSupervisorText(context, arabic: 'القسم الإشرافي المكلف به *', english: 'Assigned department *'), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.ink)), MotionIcon(Icons.account_tree_outlined, size: 15, color: AppColors.infoDark)]),
                 const SizedBox(height: 8),
                 _DepartmentGrid(selected: _department, onChanged: (value) => setState(() => _department = value)),
+                if (_department == 'إعلانات جديدة' || _department == 'مستعملة ووصلي') ...[
+                  const SizedBox(height: 14),
+                  Row(mainAxisAlignment: MainAxisAlignment.end, children: [Text(headSupervisorText(context, arabic: 'صلاحيات الإعلانات', english: 'Ad permissions'), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.ink)), const SizedBox(width: 5), MotionIcon(Icons.verified_outlined, size: 15, color: AppColors.infoDark)]),
+                  const SizedBox(height: 8),
+                  _AdPermissionSwitch(
+                    title: headSupervisorText(context, arabic: 'مراجعة الإعلانات (قبول / رفض / تعديل)', english: 'Review ads (approve / reject / edit)'),
+                    subtitle: headSupervisorText(context, arabic: 'لو اتقفلت، السيرفر يرفض أي قرار مراجعة من الحساب ده', english: 'When off, the server refuses any review decision from this account'),
+                    value: _reviewAds,
+                    onChanged: (value) => setState(() => _reviewAds = value),
+                  ),
+                  const SizedBox(height: 6),
+                  _AdPermissionSwitch(
+                    title: headSupervisorText(context, arabic: 'إخفاء وتعليق الإعلانات', english: 'Hide or suspend ads'),
+                    subtitle: headSupervisorText(context, arabic: 'لو اتقفلت، المشرف ميقدرش يخفي أو يعلّق أو يرجّع إعلان', english: 'When off, the supervisor cannot hide, suspend, or restore ads'),
+                    value: _hideAds,
+                    onChanged: (value) => setState(() => _hideAds = value),
+                  ),
+                ],
                 const SizedBox(height: 14),
                 const _SecurityWarning(),
                 const SizedBox(height: 12),
@@ -294,4 +315,27 @@ class _SecurityWarning extends StatelessWidget {
         const SizedBox(width: 8),
         CircleAvatar(radius: 15, backgroundColor: AppColors.dangerBorder, child: MotionIcon(Icons.shield_outlined, size: 16, color: AppColors.dangerDark)),
       ]));
+}
+
+class _AdPermissionSwitch extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  const _AdPermissionSwitch({required this.title, required this.subtitle, required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.cardBorder)),
+        child: Row(children: [
+          Switch(value: value, onChanged: onChanged, activeTrackColor: AppColors.primaryDark, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
+          const SizedBox(width: 5),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text(title, textAlign: TextAlign.right, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.ink)),
+            Text(subtitle, textAlign: TextAlign.right, style: TextStyle(fontSize: 8, color: AppColors.textSecondary)),
+          ])),
+        ]),
+      );
 }

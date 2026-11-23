@@ -56,6 +56,7 @@ import 'package:barwah_app/features/auth/domain/usecases/restore_session_usecase
 import 'package:barwah_app/features/auth/presentation/controllers/auth_cubit.dart';
 import 'package:barwah_app/features/finance/data/datasources/finance_mock_data_source.dart';
 import 'package:barwah_app/features/finance/data/datasources/finance_remote_data_source.dart';
+import 'package:barwah_app/features/finance/data/datasources/finance_server_withdrawals_api.dart';
 import 'package:barwah_app/features/finance/data/repositories/finance_repository_impl.dart';
 import 'package:barwah_app/features/finance/domain/repositories/finance_repository.dart';
 import 'package:barwah_app/features/finance/domain/usecases/approve_bank_link_request_usecase.dart';
@@ -82,6 +83,7 @@ import 'package:barwah_app/features/finance/domain/usecases/submit_expense_reque
 import 'package:barwah_app/features/finance/domain/usecases/update_expense_request_status_usecase.dart';
 import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_api_data_source.dart';
 import 'package:barwah_app/features/head_supervisor/data/datasources/market_branches_api_data_source.dart';
+import 'package:barwah_app/features/head_supervisor/data/datasources/supervisor_escalations_api.dart';
 import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_roster_store.dart';
 import 'package:barwah_app/features/merchants/data/datasources/merchants_data_source.dart';
 import 'package:barwah_app/features/merchants/data/datasources/merchants_api_data_source.dart';
@@ -165,6 +167,11 @@ Future<void> initDependencies() async {
     ),
   );
   // فروع سوق برواح (api/BrowahBranches).
+  sl.registerLazySingleton<SupervisorEscalationsApi>(
+    () => SupervisorEscalationsApi(
+      apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'),
+    ),
+  );
   sl.registerLazySingleton<MarketBranchesApiDataSource>(
     () => MarketBranchesApiDataSource(
       apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'),
@@ -223,8 +230,16 @@ Future<void> initDependencies() async {
   );
 
   // Repositories
+  sl.registerLazySingleton<FinanceServerWithdrawalsApi>(
+    () => FinanceServerWithdrawalsApi(
+      apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'),
+    ),
+  );
   sl.registerLazySingleton<FinanceRepository>(
-    () => FinanceRepositoryImpl(remoteDataSource: sl()),
+    () => FinanceRepositoryImpl(
+      remoteDataSource: sl(),
+      serverWithdrawals: sl<FinanceServerWithdrawalsApi>(),
+    ),
   );
 
   // Use Cases
@@ -399,7 +414,13 @@ void _registerBossOfSupervisor() {
     () => BossWalletCubit(getWallet: sl(), requestPayout: sl()),
   );
   sl.registerFactory(
-    () => BossOverviewCubit(getOperations: sl(), getComplaints: sl()),
+    () => BossOverviewCubit(
+      getServiceEscalations: sl(),
+      getProviderEscalations: sl(),
+      getUsedComplaintEscalations: sl(),
+      getComplaints: sl(),
+      escalations: sl<SupervisorEscalationsApi>(),
+    ),
   );
 
   // التصعيدات الواردة من أقسام الخدمات والمستعمل.

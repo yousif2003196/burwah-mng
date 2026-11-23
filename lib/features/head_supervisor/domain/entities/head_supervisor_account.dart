@@ -113,6 +113,15 @@ class HeadSupervisorAccountInfo {
     this.lastActivity,
     this.lastPasswordChange,
     this.createdAt,
+    this.suspendedUntil,
+    this.suspensionNote = '',
+    this.canReviewAds = true,
+    this.canHideAds = true,
+    this.role = '',
+    this.decisionsLast7Days = 0,
+    this.decisionsLast30Days = 0,
+    this.approvalRate,
+    this.avgReviewMinutes,
   });
 
   final int activeSessions;
@@ -125,6 +134,53 @@ class HeadSupervisorAccountInfo {
   final DateTime? lastActivity;
   final DateTime? lastPasswordChange;
   final DateTime? createdAt;
+
+  /// نهاية التعليق؛ null مع [frozen] = تعليق لحين انتهاء التحقيق.
+  final DateTime? suspendedUntil;
+  final String suspensionNote;
+  final bool canReviewAds;
+  final bool canHideAds;
+
+  /// دور الحساب في السيرفر (SupervisorForAd ...).
+  final String role;
+  final int decisionsLast7Days;
+  final int decisionsLast30Days;
+
+  /// نسبة القبول من قرارات الإعلانات (null لو مفيش قرارات).
+  final int? approvalRate;
+
+  /// متوسط دقائق مراجعة الإعلان في آخر 30 يوم.
+  final double? avgReviewMinutes;
+
+  bool get handlesAds =>
+      role == 'SupervisorForAd' || role == 'SupervisorUsed';
+}
+
+/// معاينة إعلان (قراءة بس) من سجل المشرف.
+class HeadSupervisorAdPreview {
+  const HeadSupervisorAdPreview({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.price,
+    required this.status,
+    required this.sellerName,
+    required this.reviewNote,
+    required this.imageUrls,
+    this.createdAt,
+    this.reviewedAt,
+  });
+
+  final int id;
+  final String title;
+  final String description;
+  final double price;
+  final String status;
+  final String sellerName;
+  final String reviewNote;
+  final List<String> imageUrls;
+  final DateTime? createdAt;
+  final DateTime? reviewedAt;
 }
 
 /// طلب حذف مشرف معلق عند الأدمن (`deletion-requests`).
@@ -155,4 +211,34 @@ class HeadSupervisorApiRejection implements Exception {
 
   @override
   String toString() => message;
+}
+
+/// يوم في اتجاه قرارات الأقسام (لوحة "نظرة عامة").
+class HeadSupervisorTrendDay {
+  const HeadSupervisorTrendDay({
+    required this.date,
+    required this.merchant,
+    required this.wasalny,
+    required this.products,
+    required this.services,
+  });
+
+  final DateTime date;
+  final int merchant;
+  final int wasalny;
+  final int products;
+  final int services;
+}
+
+/// مؤشرات لوحة رئيس المشرفين من `dashboard-overview`.
+class HeadSupervisorDashboard {
+  const HeadSupervisorDashboard({
+    required this.todayActions,
+    required this.activeSupervisors,
+    required this.trend,
+  });
+
+  final int todayActions;
+  final int activeSupervisors;
+  final List<HeadSupervisorTrendDay> trend;
 }

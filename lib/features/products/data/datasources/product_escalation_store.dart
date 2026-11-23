@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/features/head_supervisor/data/datasources/supervisor_escalations_api.dart';
+
 import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_supervisor_request_decision_sheet.dart';
 import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
 import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
@@ -174,6 +177,19 @@ class ProductEscalationStore {
     if (existing != null && !existing.canEscalateAgain) {
       throw StateError('This item already has an open escalation.');
     }
+    // السيرفر أولًا: التصعيد يوصل لرئيس المشرفين على أي جهاز ويوصله إشعار.
+    if (SupervisorEscalationsApi.supervisorCanUse) {
+      try {
+        await sl<SupervisorEscalationsApi>().create(
+          kind: kind.name,
+          refKey: refId,
+          title: '${kind.labelAr}: $title — $subject',
+          reason: clean,
+        );
+      } on SupervisorEscalationRejection catch (rejection) {
+        throw StateError(rejection.message);
+      }
+    }
     final rounds = (existing?.rounds ?? 0) + 1;
     final now = DateTime.now();
     final base = '$eventPrefix${kind.name}-$refId';
@@ -206,9 +222,53 @@ class ProductEscalationStore {
     await _save(all);
   }
 
-  /// Applies head decisions (events addressed to `products`).
+  /// قرارات رئيس المشرفين من السيرفر على تصعيدات المشرف ده.
+  Future<bool> _syncServerDecisions(Map<String, ProductEscalation> all) async {
+    if (!SupervisorEscalationsApi.supervisorCanUse) return false;
+    final List<SupervisorEscalationRecord> rows;
+    try {
+      rows = await sl<SupervisorEscalationsApi>().mine();
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+          exception: error, stack: stackTrace, library: 'product escalations sync'));
+      return false;
+    }
+    var changed = false;
+    for (final row in rows.where((r) => !r.pending)) {
+      final kind = ProductEscalationKind.values.where((k) => k.name == row.kind).firstOrNull;
+      if (kind == null) continue;
+      final e = all[ProductEscalation.keyOf(kind, row.refKey)];
+      final decisionId = 'srv-${row.id}';
+      if (e == null ||
+          e.status != ProductEscalationStatus.pendingHead ||
+          e.lastDecisionEventId == decisionId) {
+        continue;
+      }
+      final status = switch (row.decision) {
+        'escalate_admin' => ProductEscalationStatus.escalatedToAdmin,
+        'return' => ProductEscalationStatus.returned,
+        _ => ProductEscalationStatus.decided,
+      };
+      all[e.key] = e.copyWith(
+        status: status,
+        lastDecisionEventId: decisionId,
+        timeline: [
+          ...e.timeline,
+          ProductEscalationNote(
+            row.decidedAt ?? DateTime.now(),
+            'قرار رئيس المشرفين (${row.statusText}): ${row.decisionNote}',
+          ),
+        ],
+      );
+      changed = true;
+    }
+    return changed;
+  }
+
+  /// Applies head decisions (server first, then local events addressed to `products`).
   Future<Map<String, ProductEscalation>> refresh() async {
     final all = await load();
+    if (await _syncServerDecisions(all)) await _save(all);
     final waiting = all.values
         .where((e) => e.status == ProductEscalationStatus.pendingHead)
         .toList();

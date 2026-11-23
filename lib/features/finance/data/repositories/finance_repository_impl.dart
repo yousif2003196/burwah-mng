@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:barwah_app/core/errors/failures.dart';
 import 'package:barwah_app/features/finance/data/datasources/finance_audit_store.dart';
 import 'package:barwah_app/features/finance/data/datasources/finance_remote_data_source.dart';
+import 'package:barwah_app/features/finance/data/datasources/finance_server_withdrawals_api.dart';
 import 'package:barwah_app/features/finance/domain/entities/bank_account_edit_request_entity.dart';
 import 'package:barwah_app/features/finance/domain/entities/bank_account_entity.dart';
 import 'package:barwah_app/features/finance/domain/entities/bank_link_request_entity.dart';
@@ -18,7 +19,13 @@ import 'package:barwah_app/features/finance/domain/repositories/finance_reposito
 class FinanceRepositoryImpl implements FinanceRepository {
   final FinanceRemoteDataSource remoteDataSource;
 
-  FinanceRepositoryImpl({required this.remoteDataSource});
+  /// طلبات سحب رئيس المشرفين الحقيقية من السيرفر (تُدمج مع باقي الطلبات).
+  final FinanceServerWithdrawalsApi? serverWithdrawals;
+
+  FinanceRepositoryImpl({required this.remoteDataSource, this.serverWithdrawals});
+
+  bool get _serverReady =>
+      serverWithdrawals != null && FinanceServerWithdrawalsApi.canUse;
 
   Future<void> _recordAudit({
     required String actionKey,
@@ -314,7 +321,18 @@ class FinanceRepositoryImpl implements FinanceRepository {
       getSupervisorWithdrawals() async {
     try {
       final result = await remoteDataSource.getSupervisorWithdrawals();
-      return Right(result);
+      if (!_serverReady) return Right(result);
+      try {
+        final server = await serverWithdrawals!.pendingHeadSupervisorWithdrawals();
+        return Right([...server, ...result]);
+      } catch (error, stackTrace) {
+        FlutterError.reportError(FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'finance server withdrawals',
+        ));
+        return Right(result);
+      }
     } catch (e) {
       return const Left(ServerFailure());
     }
@@ -631,6 +649,23 @@ class FinanceRepositoryImpl implements FinanceRepository {
 
   @override
   Future<Either<Failure, void>> approveWithdrawal(String requestId) async {
+    final serverId = FinanceServerWithdrawalsApi.serverIdOf(requestId);
+    if (serverId != null) {
+      try {
+        await serverWithdrawals!.approve(serverId);
+        await _recordAudit(
+          actionKey: 'withdrawal_approved',
+          titleAr: 'اعتماد طلب سحب رئيس المشرفين',
+          titleEn: 'Head supervisor withdrawal approved',
+          reference: requestId,
+        );
+        return const Right(null);
+      } on StateError catch (error) {
+        return Left(ServerFailure(error.message));
+      } catch (error) {
+        return Left(ServerFailure(error.toString()));
+      }
+    }
     try {
       await remoteDataSource.approveWithdrawal(requestId);
       await _recordAudit(
@@ -650,6 +685,25 @@ class FinanceRepositoryImpl implements FinanceRepository {
     String requestId,
     String reason,
   ) async {
+    final serverId = FinanceServerWithdrawalsApi.serverIdOf(requestId);
+    if (serverId != null) {
+      try {
+        await serverWithdrawals!.reject(serverId, reason);
+        await _recordAudit(
+          actionKey: 'withdrawal_rejected',
+          titleAr: 'رفض طلب سحب رئيس المشرفين',
+          titleEn: 'Head supervisor withdrawal rejected',
+          reference: requestId,
+          detailsAr: reason,
+          detailsEn: reason,
+        );
+        return const Right(null);
+      } on StateError catch (error) {
+        return Left(ServerFailure(error.message));
+      } catch (error) {
+        return Left(ServerFailure(error.toString()));
+      }
+    }
     try {
       await remoteDataSource.rejectWithdrawal(requestId, reason);
       await _recordAudit(
@@ -673,6 +727,10 @@ class FinanceRepositoryImpl implements FinanceRepository {
   @override
   Future<Either<Failure, void>> freezeWithdrawal(
       String requestId, String reason) async {
+    if (FinanceServerWithdrawalsApi.isServerId(requestId)) {
+      return const Left(ServerFailure(
+          'طلبات سحب رئيس المشرفين تُعتمد أو تُرفض فقط، ولا يمكن تعليقها.'));
+    }
     try {
       await remoteDataSource.freezeWithdrawal(requestId, reason);
       await _recordAudit(

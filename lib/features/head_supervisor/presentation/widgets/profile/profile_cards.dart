@@ -8,10 +8,11 @@ import 'package:barwah_app/core/widgets/motion_icon.dart';
 import 'package:barwah_app/features/head_supervisor/domain/entities/boss_profile.dart';
 import 'package:barwah_app/features/head_supervisor/domain/entities/boss_status.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/utils/boss_formatters.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/utils/head_supervisor_text.dart';
 
-/// نصوص الملف الشخصي تُعرض بالعربية (نفس سلوك الشاشة الأصلي).
+/// نصوص الملف الشخصي بلغة التطبيق الحالية.
 String profileText(BuildContext context, String arabic, String english) =>
-    arabic;
+    headSupervisorText(context, arabic: arabic, english: english);
 
 class ProfileSessionBanner extends StatelessWidget {
   final String badgeCode;
@@ -112,23 +113,23 @@ class ProfileCard extends StatelessWidget {
             ]),
           ),
           const SizedBox(height: 10),
-          Text(profileText(context, 'الصلاحيات التنفيذية السيادية:', 'Executive authorities:'),
+          Text(profileText(context, 'صلاحيات الحساب:', 'Account powers:'),
               textAlign: TextAlign.right,
               style: TextStyle(fontSize: 8, color: AppColors.textSecondary)),
           const SizedBox(height: 6),
           Wrap(alignment: WrapAlignment.end, spacing: 5, runSpacing: 5, children: [
             ProfilePermissionChip(
-                text: profileText(context, 'فك الحظر والإلغاء (Override)',
-                    'Override restrictions'),
-                icon: Icons.history),
+                text: profileText(context, 'إدارة المشرفين وصلاحياتهم',
+                    'Manage supervisors and access'),
+                icon: Icons.manage_accounts_outlined),
             ProfilePermissionChip(
-                text: profileText(context, 'التحقيق الإداري الإلزامي',
-                    'Mandatory administrative investigation'),
-                icon: Icons.policy_outlined),
+                text: profileText(context, 'قرارات الشكاوى والنزاعات',
+                    'Complaint and dispute decisions'),
+                icon: Icons.gavel_outlined),
             ProfilePermissionChip(
-                text: profileText(context, 'التدخل المالي المشروط',
-                    'Conditional financial intervention'),
-                icon: Icons.account_balance_outlined),
+                text: profileText(context, 'إعلانات VIP وفروع سوق برواح',
+                    'VIP ads and market branches'),
+                icon: Icons.storefront_outlined),
           ]),
         ]),
       );
@@ -185,10 +186,10 @@ class ProfileWalletCard extends StatelessWidget {
           const SizedBox(height: 14),
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             ProfileWalletAmount(
-                label: profileText(context, 'رصيد مقفل', 'Locked balance'),
+                label: profileText(context, 'قيد مراجعة المالية', 'Pending with Finance'),
                 value: bossMoney(profile.lockedBalance, showDecimals: true)),
             ProfileWalletAmount(
-                label: profileText(context, 'جاهز للصرف الفوري', 'Available to withdraw'),
+                label: profileText(context, 'متاح للسحب', 'Available to withdraw'),
                 value: bossMoney(profile.availableForWithdrawal, showDecimals: true)),
           ]),
           const SizedBox(height: 16),
@@ -221,22 +222,23 @@ class ProfileMetricsRow extends StatelessWidget {
   Widget build(BuildContext context) => Row(children: [
         Expanded(
             child: ProfileMetricCard(
-                value: '${metrics.managedSupervisors}',
-                label: profileText(context, 'مشرفاً تحت الإدارة', 'Supervisors managed'),
+                value: '${metrics.activeSupervisors}/${metrics.managedSupervisors}',
+                label: profileText(context, 'مشرف نشط', 'Active supervisors'),
                 icon: Icons.groups_outlined)),
         const SizedBox(width: 8),
         Expanded(
             child: ProfileMetricCard(
-                value: metrics.governanceScore.isEmpty ? '—' : metrics.governanceScore,
-                label: profileText(context, 'معيار الحوكمة', 'Governance score'),
-                icon: Icons.verified_outlined,
+                value: '${metrics.decisionsLast30Days}',
+                label: profileText(context, 'إجراءاتك آخر 30 يوم', 'Your actions, 30 days'),
+                icon: Icons.task_alt_outlined,
                 valueColor: AppColors.infoDark)),
         const SizedBox(width: 8),
         Expanded(
             child: ProfileMetricCard(
-                value: '${metrics.approvedInterventions}',
-                label: profileText(context, 'تدخل رقابي معتمد', 'Approved interventions'),
-                icon: Icons.gavel_outlined)),
+                value: '${metrics.waitingForDecision}',
+                label: profileText(context, 'شكاوى ونزاعات مفتوحة', 'Open complaints & disputes'),
+                icon: Icons.gavel_outlined,
+                valueColor: metrics.waitingForDecision > 0 ? AppColors.dangerDark : null)),
       ]);
 }
 
@@ -250,7 +252,7 @@ class ProfileAuditCard extends StatelessWidget {
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(children: [
             const Spacer(),
-            Text(profileText(context, 'السجل الرقابي والإداري الأخير', 'Recent oversight log'),
+            Text(profileText(context, 'آخر إجراءاتك', 'Your recent actions'),
                 style: TextStyle(
                     fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.ink)),
             const SizedBox(width: 6),
@@ -262,8 +264,8 @@ class ProfileAuditCard extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Text(
-                  profileText(context, 'لا توجد قرارات رقابية مسجلة بعد.',
-                      'No oversight decisions recorded yet.'),
+                  profileText(context, 'لسه مفيش إجراءات مسجلة باسمك.',
+                      'No actions recorded under your account yet.'),
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
             )
@@ -272,8 +274,7 @@ class ProfileAuditCard extends StatelessWidget {
               ProfileAuditEntryTile(log: log),
               const SizedBox(height: 7),
             ],
-            if (logs.length > 4)
-              SizedBox(
+            SizedBox(
                 height: 34,
                 child: TextButton.icon(
                   onPressed: onViewAll,
@@ -281,8 +282,8 @@ class ProfileAuditCard extends StatelessWidget {
                   label: Text(
                       profileText(
                           context,
-                          'عرض كامل السجل الإداري والقرارات (${logs.length} قرار)',
-                          'View all administrative decisions (${logs.length})'),
+                          'عرض كل إجراءاتك',
+                          'View all your actions'),
                       style: const TextStyle(
                           fontSize: 9, fontWeight: FontWeight.bold)),
                   style: TextButton.styleFrom(
@@ -299,43 +300,62 @@ class ProfileAuditCard extends StatelessWidget {
 
 class ProfileSecurityCard extends StatelessWidget {
   final BossSecuritySettings settings;
-  const ProfileSecurityCard({super.key, required this.settings});
+  final bool busy;
+  final VoidCallback onChangePassword;
+  final VoidCallback onEndOtherSessions;
+  const ProfileSecurityCard({
+    super.key,
+    required this.settings,
+    required this.busy,
+    required this.onChangePassword,
+    required this.onEndOtherSessions,
+  });
 
   @override
   Widget build(BuildContext context) {
-    String onOff(bool value) => value
-        ? profileText(context, 'مفعلة', 'Enabled')
-        : profileText(context, 'غير مفعلة', 'Disabled');
+    final changed = settings.lastPasswordChange;
+    final changedText = changed == null
+        ? '—'
+        : '${changed.day.toString().padLeft(2, '0')}/${changed.month.toString().padLeft(2, '0')}/${changed.year}';
+    Widget action(String ar, String en, IconData icon, VoidCallback onTap) => Expanded(
+          child: OutlinedButton.icon(
+            onPressed: busy ? null : onTap,
+            icon: MotionIcon(icon, size: 15),
+            label: Text(profileText(context, ar, en), style: const TextStyle(fontSize: 10)),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              side: BorderSide(color: AppColors.cardBorder),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
+            ),
+          ),
+        );
     return ProfileWhiteCard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text(profileText(context, 'الأمان وصلاحيات النظام', 'Security & System Access'),
+        Text(profileText(context, 'الأمان', 'Security'),
             textAlign: TextAlign.right,
             style: TextStyle(
                 fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.ink)),
         const SizedBox(height: 10),
         ProfileSecurityRow(
-            icon: Icons.shield_outlined,
-            title: profileText(context, 'المصادقة الثنائية (2FA)',
-                'Two-factor authentication (2FA)'),
-            subtitle: profileText(context, 'حماية إضافية لتسجيل الدخول',
-                'Extra sign-in protection'),
-            status: onOff(settings.twoFactorEnabled)),
-        const SizedBox(height: 7),
-        ProfileSecurityRow(
             icon: Icons.devices_outlined,
-            title: profileText(context, 'الجلسات المفتوحة والمصرحة',
-                'Active authorized sessions'),
-            subtitle: profileText(context, 'عدد الأجهزة المتصلة بالحساب حالياً',
-                'Devices currently signed in'),
+            title: profileText(context, 'الأجهزة الداخلة على حسابك',
+                'Devices signed in'),
+            subtitle: profileText(context, 'كل جهاز عامل دخول دلوقتي، ومنهم الجهاز ده',
+                'Every device signed in now, including this one'),
             status: '${settings.activeSessionsCount}'),
         const SizedBox(height: 7),
         ProfileSecurityRow(
-            icon: Icons.campaign_outlined,
-            title: profileText(context, 'إشعارات البلاغات العاجلة',
-                'Urgent report notifications'),
-            subtitle: profileText(context, 'تنبيهات فورية عند التجاوز الرقابي',
-                'Instant alerts for oversight violations'),
-            status: onOff(settings.urgentAlertsEnabled)),
+            icon: Icons.password_outlined,
+            title: profileText(context, 'آخر تغيير لكلمة المرور', 'Last password change'),
+            subtitle: profileText(context, 'تغيير كلمة المرور بيخرّج الأجهزة التانية',
+                'Changing it signs out your other devices'),
+            status: changedText),
+        const SizedBox(height: 10),
+        Row(children: [
+          action('خروج من باقي الأجهزة', 'Sign out other devices', Icons.logout, onEndOtherSessions),
+          const SizedBox(width: 8),
+          action('تغيير كلمة المرور', 'Change password', Icons.lock_reset_outlined, onChangePassword),
+        ]),
       ]),
     );
   }

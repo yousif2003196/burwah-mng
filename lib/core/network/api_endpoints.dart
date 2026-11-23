@@ -214,8 +214,27 @@ class ApiEndpoints {
   static String bossComplaintUnbanAndInvestigate(int id) =>
       '$_boss/complaints/$id/unban-and-investigate';
   static const bossProfile = '$_boss/profile';
+
+  /// حساب رئيس المشرفين نفسه.
+  static const bossMe = '$_boss/me';
+  static const bossMyActivity = '$_boss/me/activity';
+  static const bossChangeMyPassword = '$_boss/me/change-password';
+  static const bossEndMyOtherSessions = '$_boss/me/end-other-sessions';
+
+  /// إشعار لمستخدمين تطبيق اليوزر (audience = all / customers / merchants / captains).
+  static const bossBroadcastUsers = '$_boss/broadcast-users';
+  static const bossBroadcastUsersCount = '$_boss/broadcast-users/count';
+
+  // تصعيدات المشرفين لرئيس المشرفين (منتجات، تجار، شكاوى خدمات)
+  static const supervisorEscalations = 'api/SupervisorEscalations';
+  static const mySupervisorEscalations = 'api/SupervisorEscalations/mine';
+  static String decideSupervisorEscalation(int id) =>
+      'api/SupervisorEscalations/$id/decide';
   static const bossWallet = '$_boss/wallet';
   static const bossWalletPayout = '$_boss/wallet/payout';
+
+  /// تعميم/توجيه من رئيس المشرفين للمشرفين (إشعار فوري + سجل).
+  static const bossBroadcast = '$_boss/broadcast';
 
   // فروع سوق برواح — رئيس المشرفين يديرها والأدمن يعتمد حذفها
   static const _branches = 'api/BrowahBranches';
@@ -228,4 +247,12 @@ class ApiEndpoints {
 
   /// محافظات ومدن مصر (نفس قائمة تطبيق اليوزر).
   static const egyptPlaces = 'api/Places/Egypt';
+
+  // طلبات سحب المحافظ — المشرف المالي (Accountant) والأدمن يعتمدونها
+  static const _walletAdmin = 'api/Wallet/Admin';
+  static const walletAdminWithdrawals = '$_walletAdmin/Withdrawals';
+  static String walletAdminWithdrawalApprove(int id) =>
+      '$_walletAdmin/Withdrawals/$id/Approve';
+  static String walletAdminWithdrawalReject(int id) =>
+      '$_walletAdmin/Withdrawals/$id/Reject';
 }

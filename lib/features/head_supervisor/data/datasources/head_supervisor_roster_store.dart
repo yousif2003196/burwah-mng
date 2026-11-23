@@ -86,8 +86,8 @@ class HeadSupervisorRosterStore {
     return merged;
   }
 
-  /// القسم والنطاق والتعليق وطلب الحذف من السيرفر؛ سبب التعليق وتفاصيل
-  /// طلب الحذف ونطاق السوق من آخر نسخة محلية.
+  /// القسم والنطاق والتعليق وصلاحيات الإعلانات ونشاط المشرف من السيرفر؛
+  /// تفاصيل طلب الحذف من آخر نسخة محلية.
   static HeadSupervisorRecord _merge(
     HeadSupervisorRecord server,
     HeadSupervisorRecord? local,
@@ -98,17 +98,25 @@ class HeadSupervisorRosterStore {
       name: server.name,
       department: server.department,
       status: server.status,
-      metric: local.metric,
-      score: local.score,
+      metric: server.metric,
+      score: server.score,
       avatar: server.avatar,
       color: server.color,
       suspended: server.suspended,
       email: server.email.isEmpty ? local.email : server.email,
       phone: server.phone.isEmpty ? local.phone : server.phone,
-      reviewAds: local.reviewAds,
-      hideAds: local.hideAds,
-      suspensionDuration: server.suspended ? local.suspensionDuration : '',
-      suspensionReason: server.suspended ? local.suspensionReason : '',
+      reviewAds: server.reviewAds,
+      hideAds: server.hideAds,
+      suspensionDuration: !server.suspended
+          ? ''
+          : server.suspensionDuration.isNotEmpty
+              ? server.suspensionDuration
+              : local.suspensionDuration,
+      suspensionReason: !server.suspended
+          ? ''
+          : server.suspensionReason.isNotEmpty
+              ? server.suspensionReason
+              : local.suspensionReason,
       deletionPending: server.deletionPending,
       deletionRequestId: server.deletionPending ? local.deletionRequestId : '',
       deletionReason: server.deletionPending ? local.deletionReason : '',

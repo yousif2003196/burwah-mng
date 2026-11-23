@@ -41,28 +41,16 @@ class _HeadSupervisorInterventionScreenState
 
   static const List<_ResolutionOption> _options = [
     (
-      DisputeResolutionType.fullRefund,
-      'إرجاع السلعة للبائع واسترداد كامل المبلغ للمشتري',
-      'إرجاع السلعة واسترداد كامل المبلغ للمشتري.',
-      'حسم النزاع بسبب عدم مطابقة السلعة للمواصفات المعلنة وثبوت قصور الإفصاح.',
+      DisputeResolutionType.notDelivered,
+      'الطلب ما وصلش للعميل',
+      'الكابتن ما ياخدش نصيبه، والعميل يسترد اللي دفعه إلكترونيًا في محفظته (الكاش ما اتدفعش أصلًا).',
+      'ثبت إن الطلب ما اتسلّمش للعميل.',
     ),
     (
-      DisputeResolutionType.partialRefund,
-      'إلزام البائع بتعويض جزئي واستلام السلعة',
-      'إلزام البائع بتعويض جزئي للمشتري مع إتمام استلام السلعة.',
-      'تعويض جزئي عن العيب المثبت مع إتمام الصفقة بموافقة المشتري.',
-    ),
-    (
-      DisputeResolutionType.rejectClaim,
-      'رفض طلب الإرجاع وإلزام المشتري بالاستلام',
-      'رفض طلب الإرجاع وإلزام المشتري بالاستلام وفق شروط الصفقة.',
-      'رفض الإرجاع بعد مطابقة تقرير الفحص لشروط الاستلام المعلنة.',
-    ),
-    (
-      DisputeResolutionType.legalTransfer,
-      'إحالة الملف للشؤون القانونية',
-      'إحالة الملف للشؤون القانونية وتجميد الحسابات.',
-      'إحالة الملف للتحقيق النظامي وحفظ كافة الأدلة والمراسلات.',
+      DisputeResolutionType.payCaptain,
+      'الطلب وصل — اعتماد التوصيل',
+      'يتصرف للكابتن نصيبه، وبلاغ العميل يتقفل برسالة إن الطلب اتسلّم.',
+      'ثبت إن الطلب اتسلّم للعميل.',
     ),
   ];
 
@@ -167,7 +155,7 @@ class _HeadSupervisorInterventionScreenState
               title: option.$2,
               detail: option.$3,
               selected: _resolution == option.$1,
-              warning: option.$1 == DisputeResolutionType.legalTransfer,
+              warning: option.$1 == DisputeResolutionType.notDelivered,
               onTap: _sending ? null : () => _select(option),
             ),
             const SizedBox(height: 8),

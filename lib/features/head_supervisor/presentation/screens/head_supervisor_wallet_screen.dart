@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'package:barwah_app/core/di/injection_container.dart';
@@ -16,7 +15,7 @@ import 'package:barwah_app/features/head_supervisor/presentation/widgets/wallet/
 
 /// محفظة رئيس المشرفين:
 /// - `GET api/BossOfSupervisor/wallet` للرصيد والسجل
-/// - `POST api/BossOfSupervisor/wallet/payout` للصرف الفوري (SARIE)
+/// - `POST api/BossOfSupervisor/wallet/payout` طلب سحب يوافق عليه المشرف المالي
 class HeadSupervisorWalletScreen extends StatelessWidget {
   const HeadSupervisorWalletScreen({super.key});
 
@@ -87,7 +86,6 @@ class _WalletBody extends StatefulWidget {
 class _WalletBodyState extends State<_WalletBody> {
   final _amount = TextEditingController();
   final _destination = TextEditingController();
-  final _otp = TextEditingController();
   String? _method;
   bool _submitting = false;
 
@@ -111,7 +109,6 @@ class _WalletBodyState extends State<_WalletBody> {
   void dispose() {
     _amount.dispose();
     _destination.dispose();
-    _otp.dispose();
     super.dispose();
   }
 
@@ -139,12 +136,12 @@ class _WalletBodyState extends State<_WalletBody> {
     }
     if (amount < wallet.minimumWithdrawal) {
       return headSupervisorText(context,
-          arabic: 'الحد الأدنى للسحب الفوري ${bossMoney(wallet.minimumWithdrawal)}',
+          arabic: 'الحد الأدنى لطلب السحب ${bossMoney(wallet.minimumWithdrawal)}',
           english: 'The minimum withdrawal is ${bossMoney(wallet.minimumWithdrawal)}');
     }
     if (amount > wallet.availableForWithdrawal) {
       return headSupervisorText(context,
-          arabic: 'الرصيد المتاح غير كافٍ لإتمام طلب الصرف الفوري',
+          arabic: 'الرصيد المتاح غير كافٍ لطلب السحب',
           english: 'The available balance is not enough for this withdrawal');
     }
     if (_method == null) {
@@ -157,10 +154,6 @@ class _WalletBodyState extends State<_WalletBody> {
           arabic: 'أدخل رقم الحساب أو المحفظة المستلمة.',
           english: 'Enter the destination account.');
     }
-    if (_otp.text.trim().isEmpty) {
-      return headSupervisorText(context,
-          arabic: 'أدخل رمز التحقق (OTP).', english: 'Enter the OTP code.');
-    }
     return null;
   }
 
@@ -172,25 +165,21 @@ class _WalletBodyState extends State<_WalletBody> {
       return;
     }
     setState(() => _submitting = true);
-    // TODO(backend): الـ payout يتطلب otpCode، لكن لا يوجد endpoint لطلب
-    // إرسال الرمز. المستخدم يُدخل الرمز يدويًا حتى يوفّر الباك إند endpoint.
     final outcome = await context.read<BossWalletCubit>().payout(
           BossPayoutRequest(
             amount: _amountValue,
             payoutMethod: _method!,
             destinationAccount: _destination.text.replaceAll(' ', ''),
-            otpCode: _otp.text.trim(),
           ),
         );
     if (!mounted) return;
     setState(() => _submitting = false);
     if (outcome.success) {
       _amount.clear();
-      _otp.clear();
       _show(outcome.message.isEmpty
           ? headSupervisorText(context,
-              arabic: 'تم تأكيد طلب السحب والتحويل الفوري بنجاح',
-              english: 'The withdrawal was confirmed')
+              arabic: 'تم إرسال طلب السحب للمشرف المالي، وسيصلك إشعار بالقرار',
+              english: 'Your withdrawal was sent to Finance for approval')
           : outcome.message);
     } else {
       _show(outcome.message);
@@ -210,7 +199,7 @@ class _WalletBodyState extends State<_WalletBody> {
           ScrollFx(
             child: WalletSectionTitle(
               title: headSupervisorText(context,
-                  arabic: 'طلب صرف وتحويل فوري', english: 'Instant withdrawal'),
+                  arabic: 'طلب سحب من المحفظة', english: 'Withdrawal request'),
               trailing: headSupervisorText(context,
                   arabic: 'الحد الأدنى: ${bossMoney(wallet.minimumWithdrawal)}',
                   english: 'Minimum: ${bossMoney(wallet.minimumWithdrawal)}'),
@@ -247,24 +236,12 @@ class _WalletBodyState extends State<_WalletBody> {
             controller: _destination,
             enabled: !_submitting,
             label: headSupervisorText(context,
-                arabic: 'رقم الحساب / الآيبان / المحفظة المستلمة',
-                english: 'Destination account / IBAN / wallet'),
-            hint: 'SA44 8000 0001 0000 0000 5521',
+                arabic: 'رقم الحساب / عنوان إنستا باي / رقم المحفظة',
+                english: 'Account number / InstaPay address / wallet number'),
+            hint: _method == 'cash' ? '01xxxxxxxxx' : '',
             icon: _method == null
                 ? Icons.account_balance_outlined
                 : payoutMethodIcon(_method!),
-          ),
-          const SizedBox(height: 10),
-          WalletInputField(
-            controller: _otp,
-            enabled: !_submitting,
-            label: headSupervisorText(context,
-                arabic: 'رمز التحقق (OTP)', english: 'Verification code (OTP)'),
-            hint: '••••••',
-            icon: Icons.password_outlined,
-            keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            maxLength: 8,
           ),
           const SizedBox(height: 12),
           const ScrollFx(child: WalletSecurityNotice()),
@@ -285,8 +262,8 @@ class _WalletBodyState extends State<_WalletBody> {
                     ? headSupervisorText(context,
                         arabic: 'جارٍ إرسال الطلب...', english: 'Sending request...')
                     : headSupervisorText(context,
-                        arabic: 'تأكيد طلب السحب والتحويل الفوري',
-                        english: 'Confirm instant withdrawal'),
+                        arabic: 'إرسال طلب السحب للمشرف المالي',
+                        english: 'Send withdrawal request to Finance'),
                 style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
               ),
               style: FilledButton.styleFrom(

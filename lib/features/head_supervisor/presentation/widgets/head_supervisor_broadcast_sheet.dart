@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
+import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_api_data_source.dart';
 import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_audit_store.dart';
 import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_roster_store.dart';
+import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_account.dart';
 import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_audit_record.dart';
 import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_record.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/utils/head_supervisor_text.dart';
@@ -11,7 +14,10 @@ import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
 import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class HeadSupervisorBroadcastSheet extends StatefulWidget {
-  const HeadSupervisorBroadcastSheet({super.key});
+  const HeadSupervisorBroadcastSheet({super.key, this.initialSupervisorId});
+
+  /// لو اتحدد، الشيت يفتح على "مشرف محدد" ومختار عليه المشرف ده (زرار مراسلة المشرف).
+  final String? initialSupervisorId;
 
   @override
   State<HeadSupervisorBroadcastSheet> createState() =>
@@ -24,8 +30,8 @@ class _HeadSupervisorBroadcastSheetState
   final _eventStore = LocalEventStore();
   final _rosterStore = HeadSupervisorRosterStore();
   List<HeadSupervisorRecord> _activeSupervisors = const [];
-  bool _sendToAll = true;
-  String? _selectedSupervisorId;
+  late bool _sendToAll = widget.initialSupervisorId == null;
+  late String? _selectedSupervisorId = widget.initialSupervisorId;
   bool _sending = false;
   bool _loadingRecipients = true;
   String? _error;
@@ -114,6 +120,48 @@ class _HeadSupervisorBroadcastSheetState
         .join('، ');
     final eventBaseId = 'head-broadcast-${sentAt.microsecondsSinceEpoch}';
     final accountIds = recipients.map((item) => item.accountId).toSet();
+
+    // السيرفر: إشعار حقيقي يوصل لموبايل كل مشرف ويتسجل في سجل نشاطه.
+    if (HeadSupervisorApiDataSource.canUse) {
+      try {
+        final ids = _sendToAll
+            ? null
+            : [
+                for (final item in recipients)
+                  if (HeadSupervisorApiDataSource.numberFrom(item.id) != null)
+                    HeadSupervisorApiDataSource.numberFrom(item.id)!,
+              ];
+        if (ids != null && ids.isEmpty) {
+          throw HeadSupervisorApiRejection(headSupervisorText(context,
+              arabic: 'المشرف المختار غير مسجل على السيرفر.',
+              english: 'The selected supervisor is not on the server.'));
+        }
+        await sl<HeadSupervisorApiDataSource>()
+            .broadcast(message, supervisorIds: ids);
+        if (!mounted) return;
+        Navigator.of(context).pop(true);
+      } on HeadSupervisorApiRejection catch (rejection) {
+        if (!mounted) return;
+        setState(() {
+          _sending = false;
+          _error = rejection.message;
+        });
+      } catch (error, stackTrace) {
+        FlutterError.reportError(FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'head supervisor broadcast',
+        ));
+        if (!mounted) return;
+        setState(() {
+          _sending = false;
+          _error = headSupervisorText(context,
+              arabic: 'تعذر إرسال التعميم للسيرفر. حاول مرة أخرى.',
+              english: 'Could not send the notice to the server. Try again.');
+        });
+      }
+      return;
+    }
 
     try {
       await _eventStore.publishAll([

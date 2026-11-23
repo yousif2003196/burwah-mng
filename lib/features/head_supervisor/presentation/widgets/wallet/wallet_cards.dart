@@ -11,14 +11,14 @@ import 'package:barwah_app/features/head_supervisor/presentation/utils/head_supe
 
 /// بطاقات شاشة محفظة رئيس المشرفين.
 
-/// اسم طريقة الصرف كما يرسلها الخادم (`bank` / `instapay` / `wallet`).
+/// اسم طريقة الاستلام كما يرسلها الخادم (`bank` / `instapay` / `cash`).
 String payoutMethodLabel(BuildContext context, String method) =>
     switch (method.toLowerCase()) {
-      'bank' => headSupervisorText(context, arabic: 'حساب بنكي', english: 'Bank account'),
+      'bank' => headSupervisorText(context, arabic: 'تحويل بنكي', english: 'Bank transfer'),
       'instapay' =>
-        headSupervisorText(context, arabic: 'إنستاباي (IPA)', english: 'Instapay (IPA)'),
-      'wallet' =>
-        headSupervisorText(context, arabic: 'محفظة ذكية', english: 'Digital wallet'),
+        headSupervisorText(context, arabic: 'إنستا باي', english: 'InstaPay'),
+      'cash' || 'wallet' =>
+        headSupervisorText(context, arabic: 'محفظة كاش', english: 'Cash wallet'),
       _ => method,
     };
 
@@ -71,14 +71,14 @@ class WalletSummaryCard extends StatelessWidget {
             Expanded(
                 child: WalletBalanceTile(
                     label: headSupervisorText(context,
-                        arabic: 'الرصيد المقفل', english: 'Locked balance'),
+                        arabic: 'قيد مراجعة المالية', english: 'Pending with Finance'),
                     value: bossMoney(wallet.lockedBalance, showDecimals: true),
                     icon: Icons.hourglass_top)),
             const SizedBox(width: 8),
             Expanded(
                 child: WalletBalanceTile(
                     label: headSupervisorText(context,
-                        arabic: 'المتاح للسحب الفوري',
+                        arabic: 'المتاح للسحب',
                         english: 'Available for withdrawal'),
                     value: bossMoney(wallet.availableForWithdrawal,
                         showDecimals: true),
@@ -296,17 +296,17 @@ class WalletSecurityNotice extends StatelessWidget {
             child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
               Text(
                   headSupervisorText(context,
-                      arabic: 'التحقق والحوكمة الإدارية المشددة',
-                      english: 'Verification and administrative governance'),
+                      arabic: 'السحب بموافقة المشرف المالي',
+                      english: 'Withdrawals need Finance approval'),
                   style: TextStyle(
                       fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.ink)),
               const SizedBox(height: 5),
               Text(
                   headSupervisorText(context,
                       arabic:
-                          'لا تُنفّذ الحوالة إلا بعد إدخال رمز التحقق (OTP) المرسل إلى جوال رئيس المشرفين المعتمد.',
+                          'المبلغ يُحجز من رصيدك فور إرسال الطلب، ويحوّله المشرف المالي بعد الموافقة. لو اترفض الطلب يرجع المبلغ لمحفظتك.',
                       english:
-                          'The transfer runs only after you enter the one-time code (OTP) sent to the approved Head Supervisor phone.'),
+                          'The amount is held from your balance when you send the request and Finance transfers it after approval. A rejected request returns the amount to your wallet.'),
                   textAlign: TextAlign.right,
                   style: TextStyle(
                       fontSize: 10, height: 1.5, color: AppColors.infoDark)),

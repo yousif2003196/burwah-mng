@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/features/head_supervisor/data/datasources/supervisor_escalations_api.dart';
+
 import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_supervisor_request_decision_sheet.dart';
 import 'package:barwah_app/features/merchants/data/datasources/merchant_supervisor_local_store.dart';
 import 'package:barwah_app/features/merchants/domain/entities/merchant_issue.dart';
@@ -112,6 +115,20 @@ class MerchantIssueStore {
     if (!issue.canEscalateToHead) {
       throw StateError('This issue cannot be escalated in its current state.');
     }
+    // السيرفر أولًا: التصعيد يوصل لرئيس المشرفين على أي جهاز ويوصله إشعار.
+    if (SupervisorEscalationsApi.supervisorCanUse) {
+      try {
+        await sl<SupervisorEscalationsApi>().create(
+          kind: issue.type.name,
+          refKey: issue.id,
+          title: '${issue.type.labelAr}: ${_clean(issue.title)}'
+              '${issue.merchantName.isEmpty ? '' : ' — التاجر: ${_clean(issue.merchantName)}'}',
+          reason: '$cleanReason (الأولوية: ${issue.priority.labelAr})',
+        );
+      } on SupervisorEscalationRejection catch (rejection) {
+        throw StateError(rejection.message);
+      }
+    }
     final now = DateTime.now();
     final ref = issue.merchantRef.isEmpty ? '' : ' (${issue.merchantRef})';
     await _events.publish(LocalEvent(
@@ -160,6 +177,7 @@ class MerchantIssueStore {
     if (issues.every((i) => i.status != MerchantIssueStatus.escalatedToHead)) {
       return false;
     }
+    if (await _syncServerDecisions(issues)) return true;
     final events = await _events.getEvents('merchant');
     var changed = false;
     final updated = <MerchantIssue>[];
@@ -192,6 +210,52 @@ class MerchantIssueStore {
           MerchantIssueNote(
             at: match.createdAt,
             text: match.messageAr.isEmpty ? match.titleAr : match.messageAr,
+          ),
+        ],
+      ));
+      changed = true;
+    }
+    if (changed) await _save(updated);
+    return changed;
+  }
+
+  /// قرارات رئيس المشرفين من السيرفر. ترجع true لو اتغير حاجة (واتحفظت).
+  Future<bool> _syncServerDecisions(List<MerchantIssue> issues) async {
+    if (!SupervisorEscalationsApi.supervisorCanUse) return false;
+    final List<SupervisorEscalationRecord> rows;
+    try {
+      rows = await sl<SupervisorEscalationsApi>().mine();
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+          exception: error, stack: stackTrace, library: 'merchant escalations sync'));
+      return false;
+    }
+    final decided = {
+      for (final row in rows.where((r) => !r.pending)) row.refKey: row,
+    };
+    var changed = false;
+    final updated = <MerchantIssue>[];
+    for (final issue in issues) {
+      final row = decided[issue.id];
+      final decisionId = row == null ? '' : 'srv-${row.id}';
+      if (row == null ||
+          issue.status != MerchantIssueStatus.escalatedToHead ||
+          issue.lastDecisionEventId == decisionId) {
+        updated.add(issue);
+        continue;
+      }
+      updated.add(issue.copyWith(
+        status: switch (row.decision) {
+          'escalate_admin' => MerchantIssueStatus.escalatedToAdmin,
+          'return' => MerchantIssueStatus.returned,
+          _ => MerchantIssueStatus.resolved,
+        },
+        lastDecisionEventId: decisionId,
+        timeline: [
+          ...issue.timeline,
+          MerchantIssueNote(
+            at: row.decidedAt ?? DateTime.now(),
+            text: 'قرار رئيس المشرفين (${row.statusText}): ${row.decisionNote}',
           ),
         ],
       ));

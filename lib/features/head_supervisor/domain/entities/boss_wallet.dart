@@ -39,18 +39,16 @@ class BossWallet {
   });
 }
 
-/// جسم طلب `wallet/payout`.
+/// جسم طلب `wallet/payout`: طلب سحب يروح للمشرف المالي للموافقة.
 class BossPayoutRequest {
   final double amount;
   final String payoutMethod;
   final String destinationAccount;
-  final String otpCode;
 
   const BossPayoutRequest({
     required this.amount,
     required this.payoutMethod,
     required this.destinationAccount,
-    required this.otpCode,
   });
 }
 

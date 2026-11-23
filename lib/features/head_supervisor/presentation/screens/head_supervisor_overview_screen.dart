@@ -4,9 +4,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_api_data_source.dart';
 import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_audit_store.dart';
 import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_roster_store.dart';
-import 'package:barwah_app/features/head_supervisor/domain/entities/boss_operation.dart';
+import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_account.dart';
 import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_audit_record.dart';
 import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_record.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/controllers/boss_load_state.dart';
@@ -73,6 +74,7 @@ class _HeadSupervisorOverviewScreenState
   }
 
   Future<_OverviewData> _load() async {
+    if (HeadSupervisorApiDataSource.canUse) return _loadFromServer();
     final results = await Future.wait<Object>([
       _events.getEvents('head'),
       _roster.getAll(),
@@ -125,6 +127,42 @@ class _HeadSupervisorOverviewScreenState
     );
   }
 
+  /// كل مؤشرات اللوحة من السيرفر: قرارات المشرفين الفعلية بدل الأحداث المحلية.
+  Future<_OverviewData> _loadFromServer() async {
+    final results = await Future.wait<Object>([
+      sl<HeadSupervisorApiDataSource>().getDashboard(),
+      _roster.getAll(),
+    ]);
+    final dashboard = results[0] as HeadSupervisorDashboard;
+    final supervisors = results[1] as List<HeadSupervisorRecord>;
+    final today = DateTime.now();
+    final trend = dashboard.trend.isNotEmpty
+        ? dashboard.trend
+        : [
+            for (var index = 0; index < 7; index++)
+              HeadSupervisorTrendDay(
+                date: DateTime(today.year, today.month, today.day - 6 + index),
+                merchant: 0,
+                wasalny: 0,
+                products: 0,
+                services: 0,
+              ),
+          ];
+    final days = [for (final day in trend) day.date];
+    return _OverviewData(
+      activeSupervisors: dashboard.activeSupervisors,
+      supervisors: supervisors,
+      todayActions: dashboard.todayActions,
+      trendDays: days,
+      workflowTrends: {
+        'التجار': [for (final day in trend) day.merchant],
+        'وصلني': [for (final day in trend) day.wasalny],
+        'المنتجات': [for (final day in trend) day.products],
+        'الخدمات': [for (final day in trend) day.services],
+      },
+    );
+  }
+
   void _open(BuildContext context, Widget page) {
     Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (routeContext) => Scaffold(
@@ -169,7 +207,7 @@ class _HeadSupervisorOverviewScreenState
 
   Widget _buildBody(BuildContext context, BossOverviewState api) {
     final apiData = api is BossLoaded<BossOverviewSnapshot> ? api.data : null;
-    final pendingRequests = apiData?.totalOperations ?? 0;
+    final pendingRequests = apiData?.pendingDecisions ?? 0;
     final openComplaints = apiData?.openComplaints ?? 0;
     return ColoredBox(
         color: AppColors.scaffold,
@@ -220,8 +258,11 @@ class _HeadSupervisorOverviewScreenState
                 ScrollFx(child: _PendingWorkPanel(
                   state: api,
                   onRetry: _api.load,
-                  onOpen: () => _open(
-                      context, const HeadSupervisorRequestsScreen()),
+                  onOpen: (item) => _open(
+                      context,
+                      item.kind == BossDecisionKind.merchantComplaint
+                          ? const HeadSupervisorComplaintsScreen()
+                          : const HeadSupervisorRequestsScreen()),
                 )),
                 const SizedBox(height: 12),
                 ScrollFx(child: Row(children: [
@@ -266,8 +307,6 @@ class _HeadSupervisorOverviewScreenState
                   onShowAll: () => _open(
                       context, const HeadSupervisorSupervisorsScreen()),
                 )),
-                const SizedBox(height: 12),
-                ScrollFx(child: const _FinanceNoticeCard()),
               ],
             );
           },
@@ -565,8 +604,8 @@ class _WorkflowChart extends StatelessWidget {
                   color: AppColors.ink)),
           const SizedBox(height: 3),
           Text(headSupervisorText(context,
-              arabic: 'عدد الطلبات المسجلة يومياً • آخر 7 أيام',
-              english: 'Daily recorded requests • Last 7 days'),
+              arabic: 'قرارات وإجراءات المشرفين يومياً • آخر 7 أيام',
+              english: 'Daily supervisor decisions • Last 7 days'),
               style: TextStyle(
                   fontSize: 11, color: AppColors.textSecondary)),
           const SizedBox(height: 12),
@@ -716,7 +755,7 @@ class _WorkflowChartPainter extends CustomPainter {
 class _PendingWorkPanel extends StatelessWidget {
   final BossOverviewState state;
   final VoidCallback onRetry;
-  final VoidCallback onOpen;
+  final ValueChanged<BossDecisionItem> onOpen;
 
   const _PendingWorkPanel({
     required this.state,
@@ -751,7 +790,7 @@ class _PendingWorkPanel extends StatelessWidget {
               ),
             ]),
           ),
-        BossLoaded(:final data) when data.latestOperations.isEmpty => Padding(
+        BossLoaded(:final data) when data.latestItems.isEmpty => Padding(
             padding: const EdgeInsets.symmetric(vertical: 22),
             child: Column(children: [
               MotionIcon(Icons.task_alt_rounded,
@@ -759,46 +798,92 @@ class _PendingWorkPanel extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                   headSupervisorText(context,
-                      arabic: 'لا توجد طلبات معلقة تحتاج إلى مراجعتك.',
-                      english:
-                          'There are no pending requests that need your review.'),
+                      arabic: data.failedSources > 0
+                          ? 'لا توجد عناصر معلقة فيما تم تحميله، وتعذر تحميل بعض الأقسام.'
+                          : 'لا توجد تصعيدات أو شكاوى تنتظر قرارك.',
+                      english: data.failedSources > 0
+                          ? 'Nothing pending in what loaded; some departments failed to load.'
+                          : 'No escalations or complaints are waiting for you.'),
                   textAlign: TextAlign.center,
                   style:
                       TextStyle(fontSize: 13, color: AppColors.textSecondary)),
             ]),
           ),
         BossLoaded(:final data) => Column(children: [
-            for (var i = 0; i < data.latestOperations.length; i++) ...[
+            for (var i = 0; i < data.latestItems.length; i++) ...[
               if (i > 0) Divider(height: 1, color: AppColors.cardBorder),
-              _PendingOperationRow(
-                operation: data.latestOperations[i],
-                onTap: onOpen,
+              _PendingDecisionRow(
+                item: data.latestItems[i],
+                onTap: () => onOpen(data.latestItems[i]),
               ),
             ],
+            if (data.pendingDecisions > data.latestItems.length ||
+                data.failedSources > 0)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Text(
+                    data.failedSources > 0
+                        ? headSupervisorText(context,
+                            arabic: 'تعذر تحميل بعض الأقسام — اسحب للتحديث.',
+                            english: 'Some departments failed to load — pull to refresh.')
+                        : headSupervisorText(context,
+                            arabic: '+${data.pendingDecisions - data.latestItems.length} عنصر آخر في "كل الطلبات" و"الشكاوى"',
+                            english: '+${data.pendingDecisions - data.latestItems.length} more in requests and complaints'),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+              ),
           ]),
       },
     );
   }
 }
 
-class _PendingOperationRow extends StatelessWidget {
-  final BossOperation operation;
+class _PendingDecisionRow extends StatelessWidget {
+  final BossDecisionItem item;
   final VoidCallback onTap;
 
-  const _PendingOperationRow({required this.operation, required this.onTap});
+  const _PendingDecisionRow({required this.item, required this.onTap});
 
-  Color get _tint => switch (operation.type) {
-        BossOperationType.ad => AppColors.info,
-        BossOperationType.dispute => AppColors.warning,
-        BossOperationType.unknown => AppColors.textSecondary,
+  (Color, IconData, String, String) get _look => switch (item.kind) {
+        BossDecisionKind.serviceRequest => (
+            AppColors.warning,
+            Icons.home_repair_service_outlined,
+            'طلب خدمة مُحال',
+            'Escalated service request',
+          ),
+        BossDecisionKind.provider => (
+            AppColors.danger,
+            Icons.engineering_outlined,
+            'مقدم خدمة مرفوع',
+            'Escalated provider',
+          ),
+        BossDecisionKind.usedComplaint => (
+            AppColors.info,
+            Icons.inventory_2_outlined,
+            'شكوى مستعمل مصعّدة',
+            'Escalated used-item complaint',
+          ),
+        BossDecisionKind.supervisorEscalation => (
+            AppColors.warningDark,
+            Icons.trending_up,
+            'تصعيد من مشرف',
+            'Supervisor escalation',
+          ),
+        BossDecisionKind.merchantComplaint => (
+            AppColors.primaryDark,
+            Icons.report_gmailerrorred_outlined,
+            'شكوى مفتوحة',
+            'Open complaint',
+          ),
       };
 
   @override
   Widget build(BuildContext context) {
-    final tint = _tint;
+    final (tint, icon, kindAr, kindEn) = _look;
     final subtitle = [
-      if (operation.category.isNotEmpty) operation.category,
-      bossElapsed(context, operation.createdAt),
+      headSupervisorText(context, arabic: kindAr, english: kindEn),
+      if (item.subtitle.isNotEmpty) item.subtitle,
+      if (item.createdAt != null) bossElapsed(context, item.createdAt),
     ].join(' • ');
     return InkWell(
       onTap: onTap,
@@ -812,22 +897,14 @@ class _PendingOperationRow extends StatelessWidget {
               color: tint.withValues(alpha: 0.16),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: MotionIcon(
-                operation.type == BossOperationType.dispute
-                    ? Icons.gavel_outlined
-                    : Icons.assignment_outlined,
-                size: 18,
-                color: tint),
+            child: MotionIcon(icon, size: 18, color: tint),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                    operation.title.isEmpty
-                        ? operation.trackingNumber
-                        : operation.title,
+                Text(item.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -928,73 +1005,4 @@ class _SupervisorStrip extends StatelessWidget {
       ]),
     );
   }
-}
-
-class _FinanceNoticeCard extends StatelessWidget {
-  const _FinanceNoticeCard();
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-            color: AppColors.surfaceLight,
-            borderRadius: BorderRadius.circular(20)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(children: [
-              MotionIcon(Icons.lock_outline,
-                  size: 14, color: AppColors.textSecondary),
-              const SizedBox(width: 5),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                    color: AppColors.cardBorder,
-                    borderRadius: BorderRadius.circular(10)),
-                child: Text('غير متاح لرئيس المشرفين',
-                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-              ),
-              const Spacer(),
-              Text('القسم المالي والتحصيل',
-                  style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary)),
-            ]),
-            const SizedBox(height: 5),
-            Text('صلاحيات حصرية للإدارة المالية',
-                textAlign: TextAlign.right,
-                style: TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                  color: AppColors.surfaceHighlight,
-                  borderRadius: BorderRadius.circular(10)),
-              child: Text(
-                'الاطلاع على الأرصدة البنكية، طلبات سحب الأرباح، وحسابات التسوية المالية يقع خارج نطاق الإشراف التشغيلي، ويقتصر حصرياً على مجلس الإدارة المالية العليا ومكتب المدير العام لضمان بروتوكولات الحوكمة المعتمدة.',
-                textAlign: TextAlign.right,
-                style: TextStyle(
-                    fontSize: 12, height: 1.6, color: AppColors.textSecondary),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(children: [
-              Text('البروتوكول رقم 402',
-                  style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text('نظام التشفير وحجب الصلاحيات: نشط ومقيد',
-                    textAlign: TextAlign.end,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-              ),
-              SizedBox(width: 4),
-              MotionIcon(Icons.shield_outlined, size: 12, color: AppColors.textSecondary),
-            ]),
-          ],
-        ),
-      );
 }
