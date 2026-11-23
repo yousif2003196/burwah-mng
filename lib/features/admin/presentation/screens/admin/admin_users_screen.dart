@@ -395,6 +395,8 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     }
   }
 
+  static String _onOff(bool value) => value ? 'مسموح' : 'ممنوع';
+
   Future<void> _editSupervisor(HeadSupervisorRecord item) async {
     final draft = await showModalBottomSheet<HeadSupervisorPermissionsDraft>(
       context: context,
@@ -407,7 +409,8 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
         department: item.department,
         area: item.area,
         city: item.city,
-        marketScope: item.marketScope,
+        reviewAds: item.reviewAds,
+        hideAds: item.hideAds,
         avatar: item.avatar,
         avatarColor: item.color,
       ),
@@ -422,7 +425,8 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
         department: draft.department,
         area: draft.area,
         city: draft.city,
-        marketScope: draft.marketScope,
+        reviewAds: draft.reviewAds,
+        hideAds: draft.hideAds,
       );
       await roster.saveAll(all);
       final now = DateTime.now();
@@ -433,7 +437,8 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
         title: 'تعديل صلاحيات مشرف بقرار الأدمن',
         details: 'المنفذ: الأدمن. القسم: ${item.department} ← ${draft.department}. '
             'النطاق: ${item.area}/${item.city} ← ${draft.area}/${draft.city}. '
-            'السوق: ${item.marketScope} ← ${draft.marketScope}.',
+            'مراجعة الإعلانات: ${_onOff(item.reviewAds)} ← ${_onOff(draft.reviewAds)}. '
+            'إخفاء الإعلانات: ${_onOff(item.hideAds)} ← ${_onOff(draft.hideAds)}.',
         department: draft.department,
         occurredAt: now,
       ));
@@ -569,7 +574,11 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
               if (item.email.isNotEmpty) line(Icons.alternate_email, item.email),
               if (item.phone.isNotEmpty) line(Icons.phone_outlined, item.phone),
               line(Icons.place_outlined, '${item.city} • ${item.area}'),
-              line(Icons.storefront_outlined, item.marketScope),
+              line(
+                  Icons.fact_check_outlined,
+                  adminText(sheetContext,
+                      ar: 'مراجعة الإعلانات: ${_onOff(item.reviewAds)} • الإخفاء: ${_onOff(item.hideAds)}',
+                      en: 'Review ads: ${item.reviewAds ? 'on' : 'off'} • Hide ads: ${item.hideAds ? 'on' : 'off'}')),
               if (item.deletionPending)
                 line(Icons.delete_outline,
                     adminText(sheetContext,
