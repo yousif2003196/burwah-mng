@@ -107,7 +107,10 @@ class _ProductComplaint {
 }
 
 class ProductSupervisorComplaintsScreen extends StatefulWidget {
-  const ProductSupervisorComplaintsScreen({super.key});
+  const ProductSupervisorComplaintsScreen({super.key, this.embedded = false});
+
+  /// جوه تبويب "الشكاوى" (من غير شريط علوي خاص، ومسافة تحت للشريط السفلي).
+  final bool embedded;
 
   @override
   State<ProductSupervisorComplaintsScreen> createState() =>
@@ -554,10 +557,12 @@ class _ProductSupervisorComplaintsScreenState
     return Directionality(
       textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
       child: Scaffold(
-        backgroundColor: AppColors.scaffold,
-        appBar: AppBar(
-          title: Text(_copy(isArabic, 'شكاوى العملاء', 'Customer complaints')),
-        ),
+        backgroundColor: widget.embedded ? Colors.transparent : AppColors.scaffold,
+        appBar: widget.embedded
+            ? null
+            : AppBar(
+                title: Text(_copy(isArabic, 'شكاوى العملاء', 'Customer complaints')),
+              ),
         body: _isLoading
             ? const Center(child: CircularProgressIndicator())
             : _loadError != null
@@ -575,7 +580,7 @@ class _ProductSupervisorComplaintsScreenState
                   onRefresh: _loadRemote,
                   child: ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.all(16),
+                    padding: EdgeInsets.fromLTRB(16, 16, 16, widget.embedded ? 120 : 16),
                     children: [
                       TextField(
                         controller: _searchController,

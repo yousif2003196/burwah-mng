@@ -100,6 +100,42 @@ class _ServicesSupervisorProfileScreenState
     });
   }
 
+  /// قيمة نصية من بيانات الحساب على السيرفر (null لو فاضية).
+  String? _setting(String key) {
+    final t = '${_settings?[key] ?? ''}'.trim();
+    return t.isEmpty || t == 'null' ? null : t;
+  }
+
+  bool get _available => _settings?['isAvailableForFieldWork'] != false;
+  bool get _pushEnabled => _settings?['pushNotificationsEnabled'] != false;
+  bool _savingPush = false;
+
+  /// تشغيل / إيقاف إشعارات الحساب على السيرفر.
+  Future<void> _togglePush(bool value) async {
+    if (_savingPush) return;
+    final previous = _settings;
+    setState(() {
+      _savingPush = true;
+      _settings = {...?_settings, 'pushNotificationsEnabled': value};
+    });
+    try {
+      await sl<ApiConsumer>(instanceName: 'berwah')
+          .dio
+          .patch<Object>(ApiEndpoints.accountUpdatePreferences, data: {'pushNotificationsEnabled': value});
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(value ? 'الإشعارات اتفعّلت' : 'الإشعارات اتوقفت')));
+    } on Object {
+      if (!mounted) return;
+      setState(() => _settings = previous);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text('تعذر تحديث الإشعارات، حاول تاني')));
+    }
+    if (mounted) setState(() => _savingPush = false);
+  }
+
   String _metric(String key, {String suffix = ''}) {
     final v = _overview?[key];
     if (v is! num) return '—';
@@ -257,10 +293,13 @@ class _ServicesSupervisorProfileScreenState
     final rows = <(IconData, String, String)>[
       (Icons.person_outline, 'الاسم', text(s['fullName'] ?? AuthSession.name)),
       (Icons.badge_outlined, 'المسمّى', text(s['roleTitle'])),
+      (Icons.tag, 'كود الحساب', text(s['code'])),
+      (Icons.phone_outlined, 'الموبايل', text(s['phone'])),
+      (Icons.alternate_email, 'البريد الإلكتروني', text(s['email'])),
       (Icons.place_outlined, 'المنطقة', text(s['region'])),
       (Icons.engineering_outlined, 'متاح للعمل الميداني',
           s['isAvailableForFieldWork'] == false ? 'لا' : 'نعم'),
-      (Icons.task_alt, 'المهام المنجزة', text(s['completedTasksCount'])),
+      (Icons.task_alt, 'قراراتي على الخدمات', text(s['completedTasksCount'])),
     ];
     showModalBottomSheet<void>(
       context: context,
@@ -427,7 +466,7 @@ class _ServicesSupervisorProfileScreenState
           ),
           const SizedBox(height: 16),
           Text(
-            l10n.servicesProfileFooter,
+            isArabic ? 'بوابة إدارة الخدمات · برواح' : 'Services management portal · Berwah',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: AppColors.textMuted,
@@ -471,11 +510,19 @@ class _ServicesSupervisorProfileScreenState
                   color: AppColors.surfaceHighlight,
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: MotionIcon(
-                  Icons.person,
-                  color: AppColors.ink,
-                  size: 36,
-                ),
+                clipBehavior: Clip.antiAlias,
+                child: _setting('profileImageUrl') == null
+                    ? MotionIcon(
+                        Icons.person,
+                        color: AppColors.ink,
+                        size: 36,
+                      )
+                    : Image.network(
+                        _setting('profileImageUrl')!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stack) =>
+                            MotionIcon(Icons.person, color: AppColors.ink, size: 36),
+                      ),
               ),
               const SizedBox(width: 11),
               Expanded(
@@ -499,7 +546,9 @@ class _ServicesSupervisorProfileScreenState
                     const SizedBox(height: 4),
                     _InfoBadge(
                       icon: Icons.verified_user_outlined,
-                      label: l10n.servicesProfileIdentity,
+                      label: AuthSession.isSignedIn
+                          ? (_setting('roleTitle') ?? 'مشرف الخدمات')
+                          : l10n.servicesProfileIdentity,
                     ),
                   ],
                 ),
@@ -521,7 +570,19 @@ class _ServicesSupervisorProfileScreenState
               ),
             ),
           ),
-          if (_savedPhone?.isNotEmpty == true) ...[
+          if (AuthSession.isSignedIn && (_setting('phone') != null || _setting('email') != null)) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: Text(
+                [_setting('phone'), _setting('email')].whereType<String>().join(' • '),
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 10,
+                ),
+              ),
+            ),
+          ] else if (_savedPhone?.isNotEmpty == true) ...[
             const SizedBox(height: 8),
             Align(
               alignment: AlignmentDirectional.centerEnd,
@@ -543,11 +604,16 @@ class _ServicesSupervisorProfileScreenState
             ),
             child: Row(
               children: [
-                MotionIcon(Icons.circle, color: AppColors.success, size: 10),
+                MotionIcon(Icons.circle,
+                    color: !AuthSession.isSignedIn || _available ? AppColors.success : AppColors.textMuted, size: 10),
                 const SizedBox(width: 7),
                 Expanded(
                   child: Text(
-                    l10n.servicesProfileAvailability,
+                    !AuthSession.isSignedIn
+                        ? l10n.servicesProfileAvailability
+                        : _available
+                            ? 'متاح للعمل'
+                            : 'غير متاح حالياً',
                     style: TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 10,
@@ -557,7 +623,9 @@ class _ServicesSupervisorProfileScreenState
                 ),
                 _InfoBadge(
                   icon: Icons.shield_outlined,
-                  label: l10n.servicesSupervisorBadgeCode,
+                  label: AuthSession.isSignedIn
+                      ? (_setting('code') == null ? '—' : '#${_setting('code')}')
+                      : l10n.servicesSupervisorBadgeCode,
                 ),
               ],
             ),
@@ -574,7 +642,7 @@ class _ServicesSupervisorProfileScreenState
         icon: Icons.task_alt,
         label: l10n.servicesProfileCompletedTasks,
         value: _metric('reviewedTotal'),
-        detail: l10n.servicesProfileFieldTasks,
+        detail: isAr ? 'قرار على الطلبات والمزودين' : 'decisions on requests & providers',
         color: AppColors.info,
       ),
       _ProfileMetric(
@@ -774,26 +842,15 @@ class _ServicesSupervisorProfileScreenState
               onTap: _showMyAccess,
             ),
           ],
-          const Divider(height: 1, indent: 14, endIndent: 14),
-          _AdministrationRow(
-            icon: Icons.badge_outlined,
-            title: l10n.servicesProfileDelegationTitle,
-            subtitle: l10n.servicesProfileDelegationDetail,
-            trailing: l10n.servicesProfileActive,
-            onTap: () => _showInformation(
-              context,
-              l10n.servicesProfileDelegationTitle,
-              l10n.servicesProfileDelegationDetail,
+          if (AuthSession.isSignedIn) ...[
+            const Divider(height: 1, indent: 14, endIndent: 14),
+            _NotificationsRow(
+              enabled: _pushEnabled,
+              loaded: _settings != null,
+              saving: _savingPush,
+              onChanged: _togglePush,
             ),
-          ),
-          const Divider(height: 1, indent: 14, endIndent: 14),
-          _AdministrationRow(
-            icon: Icons.notifications_active_outlined,
-            title: l10n.servicesProfileNotificationsTitle,
-            subtitle: l10n.servicesProfileNotificationsDetail,
-            trailing: l10n.servicesProfileEnabled,
-            onTap: () => _openAccountSettings(l10n),
-          ),
+          ],
           const Divider(height: 1, indent: 14, endIndent: 14),
           _AdministrationRow(
             icon: Icons.history_edu_outlined,
@@ -820,22 +877,6 @@ class _ServicesSupervisorProfileScreenState
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 12),
             child: ServicesEscalationsEntry(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showInformation(BuildContext context, String title, String detail) {
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Text(detail),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(AppLocalizations.of(context)!.productConfirmAction),
           ),
         ],
       ),
@@ -1009,6 +1050,70 @@ class _InfoBadge extends StatelessWidget {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// إشعارات الحساب (حالتها الحقيقية على السيرفر وتتغير من هنا).
+class _NotificationsRow extends StatelessWidget {
+  final bool enabled;
+  final bool loaded;
+  final bool saving;
+  final ValueChanged<bool> onChanged;
+
+  const _NotificationsRow({
+    required this.enabled,
+    required this.loaded,
+    required this.saving,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.surfaceLight,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: MotionIcon(
+              enabled ? Icons.notifications_active_outlined : Icons.notifications_off_outlined,
+              color: AppColors.ink,
+              size: 19,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'الإشعارات',
+                  style: TextStyle(color: AppColors.textPrimary, fontSize: 11, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  !loaded
+                      ? 'جاري التحميل...'
+                      : enabled
+                          ? 'مفعّلة: بيوصلك إشعار بالطلبات والشكاوى والقرارات'
+                          : 'متوقفة: مش هيوصلك إشعارات على الموبايل',
+                  style: TextStyle(color: enabled ? AppColors.success : AppColors.textMuted, fontSize: 9),
+                ),
+              ],
+            ),
+          ),
+          if (saving)
+            const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
+          else
+            Switch.adaptive(value: enabled, onChanged: loaded ? onChanged : null),
         ],
       ),
     );

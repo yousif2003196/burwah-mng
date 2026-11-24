@@ -54,6 +54,7 @@ class ApiEndpoints {
   static const adReports = '$_supervisorForAd/reports';
   static const accountChangePassword = 'api/Account/ChangePassword';
   static const accountSettings = 'api/Account/Settings';
+  static const accountUpdatePreferences = 'api/Account/UpdatePreferences';
   static const adAuditLog = '$_supervisorForAd/audit-log';
 
   // التجار — SupervisorForMerchant (مطاعم / بقالة / أكل بيتي)
@@ -109,6 +110,18 @@ class ApiEndpoints {
       '$_supervisorForSr/provider-professional-profile/$providerId';
   static String serviceProviderState(int providerId) =>
       '$_supervisorForSr/provider-state/$providerId';
+
+  // طلبات مقدمي الخدمة الجدد (البطاقة + سيلفي + الخدمات).
+  static const serviceProviderApplications =
+      '$_supervisorForSr/provider-applications';
+  static const serviceProviderApplicationsPendingCount =
+      '$_supervisorForSr/provider-applications/pending-count';
+  static String serviceProviderApplication(int id) =>
+      '$_supervisorForSr/provider-applications/$id';
+  static String serviceProviderApplicationDecision(int id) =>
+      '$_supervisorForSr/provider-applications/$id/decision';
+  static String serviceProviderApplicationReopen(int id) =>
+      '$_supervisorForSr/provider-applications/$id/reopen';
   static String serviceReassign(int requestId) =>
       '$_supervisorForSr/reassign/$requestId';
 

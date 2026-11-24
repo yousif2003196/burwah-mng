@@ -9,6 +9,7 @@ import 'package:barwah_app/core/widgets/edge_swipe_opener.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/features/finance/presentation/widgets/finance_navigation.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_complaints_screen.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_more_screen.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_overview_screen.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_profile_screen.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_requests_screen.dart';
@@ -37,6 +38,8 @@ class _HeadSupervisorTabsShellState extends State<HeadSupervisorTabsShell> {
     HeadSupervisorSupervisorsScreen(),
     HeadSupervisorRequestsScreen(),
     HeadSupervisorComplaintsScreen(),
+    // أدوات الإدارة والإشعارات العامة (اتنقلت من البروفايل).
+    HeadSupervisorMoreScreen(),
   ];
   int _currentIndex = 0;
   bool _barsVisible = true;
@@ -82,12 +85,14 @@ class _HeadSupervisorTabsShellState extends State<HeadSupervisorTabsShell> {
       headSupervisorText(context, arabic: 'المشرفون', english: 'Supervisors'),
       headSupervisorText(context, arabic: 'كل الطلبات', english: 'All requests'),
       headSupervisorText(context, arabic: 'الشكاوى', english: 'Complaints'),
+      headSupervisorText(context, arabic: 'المزيد', english: 'More'),
     ];
     final navItems = [
       FinanceNavigationItem(icon: Icons.dashboard_outlined, label: titles[0]),
       FinanceNavigationItem(icon: Icons.people_outline, label: titles[1]),
       FinanceNavigationItem(icon: Icons.assignment_outlined, label: titles[2]),
       FinanceNavigationItem(icon: Icons.shield_outlined, label: titles[3]),
+      FinanceNavigationItem(icon: Icons.more_horiz, label: titles[4]),
     ];
 
     return Scaffold(

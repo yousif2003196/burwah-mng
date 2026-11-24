@@ -8,9 +8,6 @@ import 'package:barwah_app/core/widgets/scroll_fx.dart';
 import 'package:barwah_app/features/head_supervisor/domain/entities/boss_profile.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/controllers/boss_load_state.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/controllers/boss_profile_cubit.dart';
-import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_market_branches_screen.dart';
-import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_radius_settings_screen.dart';
-import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_vip_screen.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_wallet_screen.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/widgets/common/boss_state_views.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/widgets/profile/profile_cards.dart';
@@ -18,8 +15,6 @@ import 'package:barwah_app/features/head_supervisor/data/datasources/head_superv
 import 'package:barwah_app/features/head_supervisor/data/models/boss_json.dart';
 import 'package:barwah_app/features/head_supervisor/domain/entities/head_supervisor_account.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_supervisor_add_supervisor_sheet.dart';
-import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_supervisor_broadcast_sheet.dart';
-import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_supervisor_user_broadcast_sheet.dart';
 import 'package:barwah_app/features/messaging/presentation/screens/server_notifications_screen.dart';
 
 /// الملف الشخصي والسجل الرقابي: `GET api/BossOfSupervisor/profile`.
@@ -279,33 +274,6 @@ class _ProfileBodyState extends State<_ProfileBody> {
         fallback: profileText(context, 'تم.', 'Done.'));
   }
 
-  Future<void> _showSupervisorBroadcast(BuildContext context) async {
-    final sent = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => const HeadSupervisorBroadcastSheet(),
-    );
-    if (sent == true && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(profileText(context, 'تم إرسال التعميم للمشرفين.', 'Notice sent to supervisors.'))));
-    }
-  }
-
-  Future<void> _showUserBroadcast(BuildContext context) async {
-    final message = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => const HeadSupervisorUserBroadcastSheet(),
-    );
-    if (message != null && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-    }
-  }
-
   Future<void> _showWallet(BuildContext context) async {
     final cubit = context.read<BossProfileCubit>();
     await Navigator.of(context).push<void>(
@@ -411,62 +379,7 @@ class _ProfileBodyState extends State<_ProfileBody> {
           child: ProfileWalletCard(
               profile: profile, onOpen: () => _showWallet(context)),
         ),
-        const SizedBox(height: 10),
-        ScrollFx(
-          child: _ManagementEntry(
-            icon: Icons.workspace_premium_outlined,
-            title: profileText(context, 'إعلانات VIP والبنرات', 'VIP ads & banners'),
-            subtitle: profileText(context, 'حدد عدد إعلانات VIP في البنر وأدر بنرات القسم',
-                'Set the VIP banner limit and manage banners'),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => const HeadSupervisorVipScreen()),
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        ScrollFx(
-          child: _ManagementEntry(
-            icon: Icons.storefront_outlined,
-            title: profileText(context, 'فروع سوق برواح', 'Barwah market branches'),
-            subtitle: profileText(context, 'أضف الفروع وحساباتها وعدّلها أو اطلب حذفها',
-                'Add, edit and remove market branches'),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => const HeadSupervisorMarketBranchesScreen()),
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        ScrollFx(
-          child: _ManagementEntry(
-            icon: Icons.radar_outlined,
-            title: profileText(context, 'إعدادات النطاقات', 'Delivery ranges'),
-            subtitle: profileText(context, 'نطاق التجار، ونطاق الكباتن، ونطاق الدراجة الهوائية',
-                'Store range, captains range and bicycle range'),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => const HeadSupervisorRadiusSettingsScreen()),
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        ScrollFx(
-          child: _ManagementEntry(
-            icon: Icons.campaign_outlined,
-            title: profileText(context, 'إشعار لكل المشرفين', 'Notify all supervisors'),
-            subtitle: profileText(context, 'تعميم يوصل لكل المشرفين النشطين أو لمشرف واحد',
-                'A notice to every active supervisor or to one'),
-            onTap: () => _showSupervisorBroadcast(context),
-          ),
-        ),
-        const SizedBox(height: 10),
-        ScrollFx(
-          child: _ManagementEntry(
-            icon: Icons.notifications_active_outlined,
-            title: profileText(context, 'إشعار لمستخدمين التطبيق', 'Notify app users'),
-            subtitle: profileText(context, 'لكل المستخدمين أو العملاء أو التجار أو الكباتن',
-                'Everyone, customers, merchants or captains'),
-            onTap: () => _showUserBroadcast(context),
-          ),
-        ),
+        // إعلانات VIP، الفروع، النطاقات، والإشعارات العامة اتنقلوا لتبويب "المزيد".
         const SizedBox(height: 18),
         ScrollFx(
           child: ProfileSectionHeading(
@@ -517,52 +430,4 @@ class _ProfileBodyState extends State<_ProfileBody> {
       ],
     );
   }
-}
-
-/// مدخل لشاشة إدارية من الملف الشخصي (إعلانات VIP، فروع سوق برواح).
-class _ManagementEntry extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  const _ManagementEntry({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) => Material(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(14),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
-            decoration: BoxDecoration(
-              border: Border.all(color: AppColors.surfaceHighlight),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Row(children: [
-              MotionIcon(icon, color: AppColors.infoDark, size: 21),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                  Text(title,
-                      style: TextStyle(
-                          fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.ink)),
-                  Text(subtitle,
-                      textAlign: TextAlign.right,
-                      style: TextStyle(fontSize: 8, color: AppColors.textSecondary)),
-                ]),
-              ),
-              const SizedBox(width: 7),
-              MotionIcon(Icons.arrow_back_ios_new, size: 13, color: AppColors.textSecondary),
-            ]),
-          ),
-        ),
-      );
 }

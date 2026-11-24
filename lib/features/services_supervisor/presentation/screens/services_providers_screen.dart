@@ -6,6 +6,10 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
+import 'package:barwah_app/core/network/api_endpoints.dart';
+import 'package:barwah_app/core/network/api_consumer.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/features/messaging/presentation/screens/ad_owner_chat_screen.dart';
 import 'package:barwah_app/features/products/presentation/widgets/product_head_escalation.dart' show askProductEscalationReason;
 import 'package:barwah_app/features/services_supervisor/data/datasources/service_provider_catalog.dart';
@@ -13,6 +17,7 @@ import 'package:barwah_app/features/services_supervisor/data/datasources/service
 import 'package:barwah_app/features/services_supervisor/data/datasources/services_escalation_store.dart';
 import 'package:barwah_app/features/services_supervisor/data/datasources/services_provider_state_store.dart';
 import 'package:barwah_app/features/services_supervisor/domain/entities/service_provider.dart';
+import 'package:barwah_app/features/services_supervisor/presentation/screens/provider_applications_screen.dart';
 import 'package:barwah_app/l10n/app_localizations.dart';
 import 'package:barwah_app/core/widgets/scroll_fx.dart';
 import 'package:barwah_app/core/widgets/motion_icon.dart';
@@ -86,6 +91,17 @@ class _ServicesProvidersScreenState extends State<ServicesProvidersScreen> {
       children: [
         ScrollFx(child: _buildHeader(l10n)),
         const SizedBox(height: 14),
+        if (AuthSession.isSignedIn) ...[
+          ScrollFx(
+            child: ProviderApplicationsEntry(
+              // قبول مزود جديد بيضيفه للقايمة.
+              onChanged: () => ServicesProviderApiDataSource.refreshCatalog().then((_) {
+                if (mounted) setState(() {});
+              }),
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
         ScrollFx(child: _buildSummary(l10n)),
         const SizedBox(height: 14),
         ScrollFx(child: _buildSearch(l10n)),
@@ -573,7 +589,8 @@ class _ProviderManagementPanelState extends State<_ProviderManagementPanel> {
   }
 }
 
-class _ProviderProfileScreen extends StatelessWidget {
+/// ملف مقدم الخدمة كامل من السيرفر: كل بياناته، أرقامه الفعلية، المستندات اللي رفعها، وآخر شغله.
+class _ProviderProfileScreen extends StatefulWidget {
   final ServiceProvider provider;
   final bool isArabic;
 
@@ -583,12 +600,113 @@ class _ProviderProfileScreen extends StatelessWidget {
   });
 
   @override
+  State<_ProviderProfileScreen> createState() => _ProviderProfileScreenState();
+}
+
+class _ProviderProfileScreenState extends State<_ProviderProfileScreen> {
+  Map<String, dynamic>? _data;
+  bool _loading = AuthSession.isSignedIn;
+  String? _error;
+
+  ServiceProvider get provider => widget.provider;
+  bool get isArabic => widget.isArabic;
+
+  @override
+  void initState() {
+    super.initState();
+    if (AuthSession.isSignedIn) _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final response = await sl<ApiConsumer>(instanceName: 'berwah').get<Object>(
+        ApiEndpoints.serviceProviderProfile(ServicesProviderApiDataSource.idOf(provider.id)),
+      );
+      final body = response.data;
+      final data = body is Map ? body['data'] : null;
+      if (data is! Map) throw const FormatException('bad provider profile');
+      if (!mounted) return;
+      setState(() {
+        _data = Map<String, dynamic>.from(data);
+        _loading = false;
+        _error = null;
+      });
+    } on Object {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'تعذر تحميل ملف المزود. اسحب للتحديث.';
+      });
+    }
+  }
+
+  // ───────── قراءة البيانات ─────────
+
+  String? _s(String key) {
+    final v = _data?[key];
+    if (v == null) return null;
+    final t = '$v'.trim();
+    return t.isEmpty || t == 'null' ? null : t;
+  }
+
+  num? _n(String key) => _data?[key] is num ? _data![key] as num : null;
+
+  static DateTime? _date(Object? raw) {
+    final t = '${raw ?? ''}'.trim();
+    if (t.isEmpty || t == 'null') return null;
+    final zoned = t.endsWith('Z') || RegExp(r'[+-]\d\d:?\d\d$').hasMatch(t);
+    return DateTime.tryParse(zoned ? t : '${t}Z')?.toLocal();
+  }
+
+  static String _day(DateTime? d) => d == null
+      ? '—'
+      : '${d.year}/${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')}';
+
+  static String _num(num? v, {int digits = 1}) {
+    if (v == null) return '—';
+    return v % 1 == 0 ? v.toInt().toString() : v.toStringAsFixed(digits);
+  }
+
+  String get _name => _s('fullName') ?? (isArabic ? provider.nameAr : provider.nameEn);
+  String? get _phone => _s('phone') ?? (provider.phone.trim().isEmpty ? null : provider.phone);
+  bool get _available => _data == null ? provider.available : _data!['isAvailable'] != false;
+  bool get _verified => _data == null ? provider.verified : _data!['isVerified'] == true;
+
+  @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final name = isArabic ? provider.nameAr : provider.nameEn;
-    final trade = isArabic ? provider.tradeAr : provider.tradeEn;
-    final city = isArabic ? provider.cityAr : provider.cityEn;
-    final feature = isArabic ? provider.featureAr : provider.featureEn;
+    final tasks = (_data?['recentTasks'] as List?)?.whereType<Map>().toList() ?? const [];
+    final documents = (_data?['documents'] as List?)?.whereType<Map>().toList() ?? const [];
+    final subCategories = (_data?['subCategories'] as List?)?.map((e) => '$e').where((e) => e.trim().isNotEmpty).toList() ?? const <String>[];
+
+    final info = <_ProfileRow?>[
+      _row(Icons.badge_outlined, 'الاسم بالكامل', _s('fullName')),
+      _row(Icons.translate, 'الاسم بالإنجليزي', _s('nameEn')),
+      _row(Icons.storefront_outlined, 'اسم النشاط', _s('businessName')),
+      _row(Icons.category_outlined, 'نوع النشاط', _s('businessType')),
+      _row(Icons.home_repair_service_outlined, 'نوع الخدمة', _s('typeOfService') ?? _s('serviceName')),
+      _row(Icons.tune, 'التخصصات المسجلة', subCategories.isEmpty ? null : subCategories.join('، ')),
+      _row(Icons.history_edu_outlined, 'الخبرة السابقة', _s('previousExperience')),
+      _row(Icons.description_outlined, 'وصف النشاط', _s('businessDescription')),
+      _row(Icons.phone_outlined, 'رقم الموبايل',
+          _phone == null ? null : (_data?['hidePhoneNumber'] == true ? '$_phone (مخفي عن العملاء)' : _phone)),
+      _row(Icons.alternate_email, 'البريد الإلكتروني', _s('email')),
+      _row(Icons.business_outlined, 'السجل التجاري', _s('commercialRegister')),
+      _row(Icons.event_available_outlined, 'تاريخ الانضمام', _data == null ? null : _day(_date(_data!['joinedAt']))),
+    ].whereType<_ProfileRow>().toList();
+
+    final location = <_ProfileRow?>[
+      _row(Icons.map_outlined, 'المحافظة', _s('governorate')),
+      _row(Icons.location_city_outlined, 'المدينة', _s('city')),
+      _row(Icons.location_on_outlined, 'العنوان', _s('address')),
+    ].whereType<_ProfileRow>().toList();
+
+    final vehicle = <_ProfileRow?>[
+      _row(Icons.two_wheeler_outlined, 'نوع المركبة', _s('vehicleType')),
+      _row(Icons.pin_outlined, 'رقم اللوحة', _s('vehiclePlateNumber')),
+      _row(Icons.event_outlined, 'انتهاء رخصة القيادة',
+          _data?['drivingLicenseExpiry'] == null ? null : _day(_date(_data!['drivingLicenseExpiry']))),
+    ].whereType<_ProfileRow>().toList();
 
     return Scaffold(
       backgroundColor: AppColors.scaffold,
@@ -600,64 +718,120 @@ class _ProviderProfileScreen extends StatelessWidget {
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        children: [
-          ScrollFx(child: _buildAvailability(l10n)),
-          const SizedBox(height: 12),
-          ScrollFx(child: _ProviderManagementPanel(provider: provider, isArabic: isArabic)),
-          const SizedBox(height: 12),
-          ScrollFx(child: _buildIdentity(context, l10n, name)),
-          const SizedBox(height: 18),
-          ScrollFx(child: _buildSectionTitle(l10n.servicesProvidersCompletedTasks)),
-          const SizedBox(height: 10),
-          ScrollFx(child: _buildMetrics(l10n)),
-          const SizedBox(height: 20),
-          ScrollFx(child: _buildSectionTitle(l10n.servicesProviderProfileCertifications)),
-          const SizedBox(height: 10),
-          ScrollFx(child: _buildCertifications(l10n)),
-          const SizedBox(height: 20),
-          ScrollFx(child: _buildSectionTitle(l10n.servicesProviderProfileSpecialties)),
-          const SizedBox(height: 10),
-          ScrollFx(child: _buildSpecialties(l10n, trade, feature, city)),
-          const SizedBox(height: 20),
-          ScrollFx(child: _buildSectionTitle(l10n.servicesProviderProfileRecentTasks)),
-          const SizedBox(height: 10),
-          for (var index = 0; index < 3; index++) ...[
-            _RecentTaskCard(
-              title: trade,
-              details: l10n.servicesProviderProfileTaskDetail,
-              rating: provider.rating,
-              index: index,
-            ),
-            const SizedBox(height: 9),
+      body: BrandRefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          children: [
+            ScrollFx(child: _buildAvailability(l10n)),
+            const SizedBox(height: 12),
+            ScrollFx(child: _ProviderManagementPanel(provider: provider, isArabic: isArabic)),
+            const SizedBox(height: 12),
+            ScrollFx(child: _buildIdentity(context, l10n)),
+            if (_loading) ...[
+              const SizedBox(height: 30),
+              const Center(child: CircularProgressIndicator()),
+            ] else if (_error != null) ...[
+              const SizedBox(height: 20),
+              Center(child: Text(_error!, style: TextStyle(color: AppColors.textSecondary, fontSize: 12))),
+            ],
+            if (_data != null) ...[
+              const SizedBox(height: 18),
+              ScrollFx(child: _buildSectionTitle('الأداء')),
+              const SizedBox(height: 10),
+              ScrollFx(child: _buildMetrics()),
+              if (info.isNotEmpty) ...[
+                const SizedBox(height: 20),
+                ScrollFx(child: _buildSectionTitle('بيانات المزود')),
+                const SizedBox(height: 10),
+                ScrollFx(child: _ProfilePanel(children: info)),
+              ],
+              if (location.isNotEmpty) ...[
+                const SizedBox(height: 20),
+                ScrollFx(child: _buildSectionTitle('الموقع')),
+                const SizedBox(height: 10),
+                ScrollFx(
+                  child: _ProfilePanel(children: [
+                    ...location,
+                    if (_n('latitude') != null && _n('longitude') != null)
+                      Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: TextButton.icon(
+                          onPressed: _openMap,
+                          icon: const MotionIcon(Icons.map_outlined, size: 17),
+                          label: const Text('فتح الموقع على الخريطة'),
+                        ),
+                      ),
+                  ]),
+                ),
+              ],
+              if (vehicle.isNotEmpty) ...[
+                const SizedBox(height: 20),
+                ScrollFx(child: _buildSectionTitle('المركبة')),
+                const SizedBox(height: 10),
+                ScrollFx(child: _ProfilePanel(children: vehicle)),
+              ],
+              if (documents.isNotEmpty) ...[
+                const SizedBox(height: 20),
+                ScrollFx(child: _buildSectionTitle('المستندات المرفوعة')),
+                const SizedBox(height: 10),
+                ScrollFx(child: _buildDocuments(documents)),
+              ],
+              const SizedBox(height: 20),
+              ScrollFx(child: _buildSectionTitle(l10n.servicesProviderProfileRecentTasks)),
+              const SizedBox(height: 10),
+              if (tasks.isEmpty)
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceLight,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'لسه مفيش مهام اتسندت للمزود ده.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                  ),
+                )
+              else
+                for (final t in tasks) ...[
+                  ScrollFx(child: _TaskTile(task: Map<String, dynamic>.from(t))),
+                  const SizedBox(height: 9),
+                ],
+            ],
           ],
-          ScrollFx(child: Container(
-            padding: const EdgeInsets.all(11),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceLight,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              l10n.servicesProvidersSampleProfileNotice,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 10,
-              ),
-            ),
-          )),
-        ],
+        ),
       ),
     );
   }
 
+  _ProfileRow? _row(IconData icon, String label, String? value) =>
+      value == null ? null : _ProfileRow(icon: icon, label: label, value: value);
+
+  Future<void> _openMap() async {
+    final lat = _n('latitude');
+    final lng = _n('longitude');
+    if (lat == null || lng == null) return;
+    await launchUrl(
+      Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng'),
+      mode: LaunchMode.externalApplication,
+    );
+  }
+
   Widget _buildAvailability(AppLocalizations l10n) {
-    final statusLabel = provider.available
-        ? l10n.servicesProvidersAvailable
-        : l10n.servicesProvidersBusy;
-    final statusColor =
-        provider.available ? AppColors.successDark : AppColors.warning;
+    final suspended = _data?['isSuspended'] == true || _data?['isFrozen'] == true;
+    final reason = _s('suspendReason');
+    final statusLabel = suspended
+        ? (reason == null ? 'موقوف من الإدارة' : 'موقوف: $reason')
+        : _available
+            ? l10n.servicesProvidersAvailable
+            : l10n.servicesProvidersBusy;
+    final statusColor = suspended
+        ? AppColors.dangerDark
+        : _available
+            ? AppColors.successDark
+            : AppColors.warning;
 
     return Row(
       children: [
@@ -674,20 +848,19 @@ class _ProviderProfileScreen extends StatelessWidget {
           ),
         ),
         _ProfileBadge(
-          label: provider.featured
-              ? l10n.servicesProviderProfileFeatured
-              : l10n.servicesProviderProfileVerified,
-          icon: Icons.verified,
+          label: _verified ? l10n.servicesProviderProfileVerified : l10n.servicesProviderProfileNeedsReview,
+          icon: _verified ? Icons.verified : Icons.pending_outlined,
         ),
       ],
     );
   }
 
-  Widget _buildIdentity(
-    BuildContext context,
-    AppLocalizations l10n,
-    String name,
-  ) {
+  Widget _buildIdentity(BuildContext context, AppLocalizations l10n) {
+    final image = _s('profileImageUrl');
+    final subtitle = [
+      _s('businessName'),
+      _s('businessType'),
+    ].whereType<String>().join(' • ');
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -699,23 +872,38 @@ class _ProviderProfileScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              _ProviderIcon(icon: provider.icon),
+              image == null
+                  ? _ProviderIcon(icon: provider.icon)
+                  : ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: Image.network(
+                        image,
+                        width: 52,
+                        height: 52,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stack) => _ProviderIcon(icon: provider.icon),
+                      ),
+                    ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      name,
+                      _name,
                       style: TextStyle(
                         color: AppColors.ink,
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
+                    if (subtitle.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(subtitle, style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                    ],
                     const SizedBox(height: 4),
                     Text(
-                      '${l10n.servicesProviderProfileRegistryNumber} #${provider.id}',
+                      '${l10n.servicesProviderProfileRegistryNumber} #${ServicesProviderApiDataSource.idOf(provider.id)}',
                       style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 10,
@@ -726,39 +914,12 @@ class _ProviderProfileScreen extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(11),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceLight,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                MotionIcon(
-                  Icons.verified_user_outlined,
-                  color: AppColors.info,
-                  size: 18,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    l10n.servicesProviderProfileVerified,
-                    style: TextStyle(
-                      color: AppColors.ink,
-                      fontSize: 11,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
           const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: () => _callProvider(context, l10n),
+                  onPressed: _phone == null ? null : () => _callProvider(context, l10n),
                   icon: const MotionIcon(Icons.call_outlined, size: 17),
                   label: Text(l10n.servicesProviderProfileCall),
                 ),
@@ -773,7 +934,7 @@ class _ProviderProfileScreen extends StatelessWidget {
                         adId: 0,
                         openPath:
                             'api/SupervisorForSR/providers/${ServicesProviderApiDataSource.idOf(provider.id)}/chat',
-                        title: name,
+                        title: _name,
                         subtitle: isArabic ? 'مقدم خدمة' : 'Service provider',
                       ),
                     ),
@@ -793,9 +954,10 @@ class _ProviderProfileScreen extends StatelessWidget {
     BuildContext context,
     AppLocalizations l10n,
   ) async {
+    final phone = _phone;
+    if (phone == null) return;
     try {
-      final launched =
-          await launchUrl(Uri(scheme: 'tel', path: provider.phone));
+      final launched = await launchUrl(Uri(scheme: 'tel', path: phone));
       if (!launched && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(l10n.servicesProviderProfileCallUnavailable)),
@@ -810,7 +972,8 @@ class _ProviderProfileScreen extends StatelessWidget {
     }
   }
 
-  Widget _buildMetrics(AppLocalizations l10n) {
+  Widget _buildMetrics() {
+    final rated = _n('ratedTasks') ?? 0;
     return GridView.count(
       crossAxisCount: 2,
       crossAxisSpacing: 10,
@@ -821,83 +984,125 @@ class _ProviderProfileScreen extends StatelessWidget {
       children: [
         _ProviderMetric(
           icon: Icons.task_alt_outlined,
-          label: l10n.servicesProvidersCompletedTasks,
-          value: provider.taskCount,
-          detail: l10n.servicesProviderProfileCompletedTasksDetail,
+          label: 'مهام مكتملة',
+          value: _num(_n('completedTasks')),
+          detail: 'شغالة دلوقتي: ${_num(_n('activeTasks'))}',
         ),
         _ProviderMetric(
           icon: Icons.star_outline_rounded,
-          label: l10n.servicesProvidersRating,
-          value: provider.rating,
-          detail: l10n.servicesProviderProfileRatingDetail,
+          label: 'التقييم',
+          value: (_n('rating') ?? 0) > 0 ? _num(_n('rating')) : '—',
+          detail: rated > 0 ? 'من $rated تقييم' : 'لسه مفيش تقييمات',
         ),
         _ProviderMetric(
-          icon: Icons.speed_outlined,
-          label: l10n.servicesProvidersCommitment(provider.completionRate),
-          value: provider.completionRate,
-          detail: l10n.servicesProviderProfileCommitmentDetail,
+          icon: Icons.local_offer_outlined,
+          label: 'العروض المقدمة',
+          value: _num(_n('offersCount')),
+          detail: 'اتقبل منها ${_num(_n('acceptedOffers'))} • سحب ${_num(_n('withdrawnOffers'))}',
+        ),
+        _ProviderMetric(
+          icon: Icons.percent,
+          label: 'نسبة القبول',
+          value: _n('acceptanceRate') == null ? '—' : '${_num(_n('acceptanceRate'))}%',
+          detail: _n('completionRate') == null ? 'من عروضه' : 'إتمام ${_num(_n('completionRate'))}% من المقبول',
         ),
         _ProviderMetric(
           icon: Icons.access_time,
-          label: l10n.servicesProviderProfileResponseTime,
-          value: provider.responseTime,
-          detail: l10n.servicesProviderProfileMinutes,
+          label: 'سرعة الرد',
+          value: _num(_n('responseMinutes')),
+          detail: 'دقيقة في المتوسط لحد ما يقدم عرض',
+        ),
+        _ProviderMetric(
+          icon: Icons.payments_outlined,
+          label: 'إجمالي الشغل المكتمل',
+          value: _num(_n('totalEarned'), digits: 0),
+          detail: 'جنيه (قيمة العروض المكتملة)',
+        ),
+        _ProviderMetric(
+          icon: Icons.report_gmailerrorred_outlined,
+          label: 'شكاوى على طلباته',
+          value: _num(_n('complaints')),
+          detail: 'كل الشكاوى المربوطة بمهامه',
+        ),
+        _ProviderMetric(
+          icon: Icons.event_available_outlined,
+          label: 'منضم من',
+          value: _day(_date(_data?['joinedAt'])),
+          detail: 'تاريخ التسجيل',
         ),
       ],
     );
   }
 
-  Widget _buildCertifications(AppLocalizations l10n) {
-    return _ProfilePanel(
+  Widget _buildDocuments(List<Map> documents) {
+    return GridView.count(
+      crossAxisCount: 3,
+      crossAxisSpacing: 8,
+      mainAxisSpacing: 8,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      childAspectRatio: 0.85,
       children: [
-        _ProfileRow(
-          icon: Icons.business_outlined,
-          label: l10n.servicesProvidersCommercialRegister,
-          value: provider.verified
-              ? l10n.servicesProviderProfileVerified
-              : l10n.servicesProviderProfileNeedsReview,
-        ),
-        _ProfileRow(
-          icon: Icons.workspace_premium_outlined,
-          label: l10n.servicesProvidersLicense,
-          value: provider.verified
-              ? l10n.servicesProviderProfileVerified
-              : l10n.servicesProviderProfileNeedsReview,
-        ),
+        for (final d in documents)
+          InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => _openDocument(_label(d), '${d['url']}'),
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.cardBorder),
+              ),
+              padding: const EdgeInsets.all(6),
+              child: Column(
+                children: [
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        '${d['url']}',
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stack) => Center(
+                          child: MotionIcon(Icons.broken_image_outlined, color: AppColors.textSecondary),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    _label(d),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 10, color: AppColors.ink, fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+          ),
       ],
     );
   }
 
-  Widget _buildSpecialties(
-    AppLocalizations l10n,
-    String trade,
-    String feature,
-    String city,
-  ) {
-    return _ProfilePanel(
-      children: [
-        _ProfileRow(
-          icon: Icons.home_repair_service_outlined,
-          label: l10n.servicesProvidersSpecialty,
-          value: trade,
+  static String _label(Map d) => (d['label'] ?? '').toString();
+
+  void _openDocument(String label, String url) {
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          title: Text(label, style: const TextStyle(fontSize: 15)),
         ),
-        _ProfileRow(
-          icon: Icons.tune,
-          label: l10n.servicesProvidersRegisteredSkills,
-          value: feature,
+        body: Center(
+          child: InteractiveViewer(
+            maxScale: 5,
+            child: Image.network(url, fit: BoxFit.contain),
+          ),
         ),
-        _ProfileRow(
-          icon: Icons.location_on_outlined,
-          label: l10n.servicesProvidersCoverage,
-          value: city,
-        ),
-        _ProfileRow(
-          icon: Icons.groups_outlined,
-          label: l10n.servicesProviderProfileFieldTeam,
-          value: l10n.servicesProviderProfileApprovedTeam,
-        ),
-      ],
-    );
+      ),
+    ));
   }
 
   Widget _buildSectionTitle(String title) {
@@ -910,6 +1115,122 @@ class _ProviderProfileScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+/// مهمة فعلية من شغل المزود (من السيرفر).
+class _TaskTile extends StatelessWidget {
+  const _TaskTile({required this.task});
+
+  final Map<String, dynamic> task;
+
+  String? _s(String key) {
+    final t = '${task[key] ?? ''}'.trim();
+    return t.isEmpty || t == 'null' ? null : t;
+  }
+
+  (String, Color) get _status => switch (_s('status')) {
+        'Completed' => ('مكتملة', AppColors.successDark),
+        'InProgress' => ('جاري التنفيذ', AppColors.infoDark),
+        'Approved' => ('معتمدة', AppColors.infoDark),
+        'Cancelled' => ('ملغية', AppColors.textSecondary),
+        'Suspended' => ('معلّقة', AppColors.warningDark),
+        'Escalated' => ('مصعّدة', AppColors.dangerDark),
+        _ => ('قيد المراجعة', AppColors.warningDark),
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = _status;
+    final rating = task['rating'] is num ? (task['rating'] as num).toInt() : null;
+    final when = _ProviderProfileScreenState._date(task['completedAt'] ?? task['createdAt']);
+    final place = [_s('governorate'), _s('city')].whereType<String>().join(' • ');
+    final price = task['price'] is num ? (task['price'] as num) : null;
+    final service = _s('service') ?? 'طلب خدمة';
+    final taskId = task['id'];
+    final title = '$service • #SRV-$taskId';
+    final review = _s('review');
+    final description = _s('description');
+    final customer = _s('customer');
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(color: AppColors.ink, fontSize: 12.5, fontWeight: FontWeight.bold),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(99),
+                ),
+                child: Text(label, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+          if (description != null) ...[
+            const SizedBox(height: 5),
+            Text(description,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.5)),
+          ],
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 12,
+            runSpacing: 4,
+            children: [
+              if (customer != null) _meta(Icons.person_outline, customer),
+              if (place.isNotEmpty) _meta(Icons.location_on_outlined, place),
+              if (price != null) _meta(Icons.payments_outlined, '${price % 1 == 0 ? price.toInt() : price} ج'),
+              if (when != null)
+                _meta(Icons.event_outlined,
+                    '${when.year}/${when.month.toString().padLeft(2, '0')}/${when.day.toString().padLeft(2, '0')}'),
+            ],
+          ),
+          if (rating != null) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                for (var i = 1; i <= 5; i++)
+                  Icon(i <= rating ? Icons.star_rounded : Icons.star_outline_rounded,
+                      size: 15, color: AppColors.warning),
+                if (review != null) ...[
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text('«$review»',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: AppColors.ink, fontSize: 11)),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _meta(IconData icon, String text) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: AppColors.textSecondary),
+          const SizedBox(width: 3),
+          Text(text, style: TextStyle(color: AppColors.textSecondary, fontSize: 10.5)),
+        ],
+      );
 }
 
 class _ProviderMetric extends StatelessWidget {
@@ -1023,97 +1344,6 @@ class _ProfileBadge extends StatelessWidget {
               fontSize: 9,
               fontWeight: FontWeight.w600,
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _RecentTaskCard extends StatelessWidget {
-  final String title;
-  final String details;
-  final String rating;
-  final int index;
-
-  const _RecentTaskCard({
-    required this.title,
-    required this.details,
-    required this.rating,
-    required this.index,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-
-    return Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: AppColors.cardBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    color: AppColors.ink,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              _ProfileBadge(
-                label: l10n.servicesProviderProfileTaskCompleted,
-                icon: Icons.check_circle_outline,
-              ),
-            ],
-          ),
-          const SizedBox(height: 7),
-          Text(
-            '#SRV-${3042 - index}',
-            style: TextStyle(
-              color: AppColors.info,
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            details,
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 10,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              MotionIcon(Icons.star, color: AppColors.info, size: 14),
-              const SizedBox(width: 4),
-              Text(
-                rating,
-                style: TextStyle(
-                  color: AppColors.ink,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                l10n.servicesProviderProfileTaskRecord,
-                style: TextStyle(
-                  color: AppColors.info,
-                  fontSize: 9,
-                ),
-              ),
-            ],
           ),
         ],
       ),

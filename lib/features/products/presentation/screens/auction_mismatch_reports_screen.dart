@@ -8,7 +8,10 @@ import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
 /// بلاغات المزادات: الفائز بلّغ إن المنتج غير مطابق للإعلان. المشرف يراجع شات الصفقة
 /// ويؤكد البلاغ (يتجمد حساب البائع ويرجع تأمين الفائز) أو يتجاهله.
 class AuctionMismatchReportsScreen extends StatefulWidget {
-  const AuctionMismatchReportsScreen({super.key, this.openAuctionId});
+  const AuctionMismatchReportsScreen({super.key, this.openAuctionId, this.embedded = false});
+
+  /// جوه تبويب "الشكاوى" (من غير شريط علوي خاص، ومسافة تحت للشريط السفلي).
+  final bool embedded;
 
   /// من الإشعار: يفتح تفاصيل البلاغ ده أول ما الشاشة تتحمل.
   final int? openAuctionId;
@@ -242,12 +245,14 @@ class _AuctionMismatchReportsScreenState
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: AppColors.scaffold,
-        appBar: AppBar(
-          backgroundColor: AppColors.surface,
-          foregroundColor: AppColors.ink,
-          title: const Text('بلاغات المزادات'),
-        ),
+        backgroundColor: widget.embedded ? Colors.transparent : AppColors.scaffold,
+        appBar: widget.embedded
+            ? null
+            : AppBar(
+                backgroundColor: AppColors.surface,
+                foregroundColor: AppColors.ink,
+                title: const Text('بلاغات المزادات'),
+              ),
         body: Column(
           children: [
             Padding(
@@ -295,7 +300,7 @@ class _AuctionMismatchReportsScreenState
                                   Center(child: Text('لا توجد بلاغات هنا')),
                                 ])
                               : ListView.separated(
-                                  padding: const EdgeInsets.all(16),
+                                  padding: EdgeInsets.fromLTRB(16, 16, 16, widget.embedded ? 120 : 16),
                                   itemCount: _reports.length,
                                   separatorBuilder: (_, __) =>
                                       const SizedBox(height: 10),

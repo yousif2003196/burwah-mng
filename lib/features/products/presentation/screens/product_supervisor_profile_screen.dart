@@ -16,12 +16,10 @@ import 'package:barwah_app/features/products/presentation/controllers/product_re
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/features/products/domain/entities/product_supervisor_audit_entry.dart';
 import 'package:barwah_app/features/products/domain/repositories/product_supervisor_audit_repository.dart';
-import 'package:barwah_app/features/products/presentation/screens/auction_mismatch_reports_screen.dart';
+import 'package:barwah_app/features/products/presentation/screens/product_reports_screen.dart';
 import 'package:barwah_app/features/products/presentation/screens/product_supervisor_audit_screen.dart';
 import 'package:barwah_app/features/products/presentation/screens/product_supervisor_chats_screen.dart';
-import 'package:barwah_app/features/products/presentation/screens/product_supervisor_complaints_screen.dart';
 import 'package:barwah_app/features/products/presentation/screens/product_supervisor_support_screen.dart';
-import 'package:barwah_app/features/products/presentation/widgets/product_escalations_entry.dart';
 import 'package:barwah_app/features/services_supervisor/presentation/screens/services_supervisor_wallet_screen.dart';
 import 'package:barwah_app/l10n/app_localizations.dart';
 import 'package:barwah_app/core/widgets/scroll_fx.dart';
@@ -1447,22 +1445,22 @@ class _ProductSupervisorProfileScreenState
               ),
             ),
           ),
+          // مشرف المنتجات: الشكاوى والتصعيدات وبلاغات المزادات بقوا تبويب "الشكاوى"،
+          // والتقارير اتنقلت هنا مكانهم.
           if (widget.showGenericComplaintsShortcut)
             _operationLink(
-              icon: Icons.report_gmailerrorred_outlined,
-              title: 'شكاوى العملاء',
-              subtitle: 'مراجعة الشكاوى ومتابعة الإجراءات والتواصل مع العملاء',
-              onTap: () => _openPage(const ProductSupervisorComplaintsScreen()),
-            ),
-          if (widget.showGenericComplaintsShortcut)
-            const ProductEscalationsEntry(),
-          if (AuthSession.backendRole == 'SupervisorForAd' ||
-              AuthSession.backendRole == 'BossOfSupervisor')
-            _operationLink(
-              icon: Icons.gavel_outlined,
-              title: 'بلاغات المزادات',
-              subtitle: 'مراجعة بلاغ "المنتج غير مطابق" وتأكيده أو تجاهله',
-              onTap: () => _openPage(const AuctionMismatchReportsScreen()),
+              icon: Icons.bar_chart_outlined,
+              title: 'التقارير',
+              subtitle: 'أداؤك وأداء القسم حسب الفترة وتصدير البيانات',
+              onTap: () => _openPage(Scaffold(
+                backgroundColor: AppColors.scaffold,
+                appBar: AppBar(
+                  backgroundColor: AppColors.surface,
+                  foregroundColor: AppColors.ink,
+                  title: const Text('التقارير'),
+                ),
+                body: const ProductReportsScreen(),
+              )),
             ),
           _operationLink(
             icon: Icons.chat_outlined,

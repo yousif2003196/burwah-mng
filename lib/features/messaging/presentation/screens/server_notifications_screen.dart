@@ -18,6 +18,7 @@ import 'package:barwah_app/features/products/presentation/screens/product_superv
 import 'package:barwah_app/features/services_supervisor/presentation/screens/services_complaints_screen.dart';
 import 'package:barwah_app/features/services_supervisor/presentation/screens/services_requests_review_screen.dart';
 import 'package:barwah_app/features/services_supervisor/presentation/screens/services_escalations_screen.dart';
+import 'package:barwah_app/features/services_supervisor/presentation/screens/provider_applications_screen.dart';
 import 'package:barwah_app/features/wasalny_supervisor/presentation/controllers/wasalny_complaints_cubit.dart';
 import 'package:barwah_app/features/wasalny_supervisor/presentation/screens/wasalny_complaints_screen.dart';
 import 'package:barwah_app/features/wasalny_supervisor/presentation/screens/wasalny_requests_screen.dart';
@@ -153,6 +154,8 @@ class _ServerNotificationsScreenState extends State<ServerNotificationsScreen> {
       return const ServicesEscalationsScreen();
     }
     switch (n.type) {
+      case 'provider_application':
+        return const ProviderApplicationsScreen();
       case 'service_review':
         return const ServicesRequestsReviewScreen();
       case 'service_escalation':
@@ -183,7 +186,7 @@ class _ServerNotificationsScreenState extends State<ServerNotificationsScreen> {
     }
     final target = _targetFor(n);
     if (target == null) return;
-    if (target is WasalnyRequestDetailsScreen || target is ServicesEscalationsScreen) {
+    if (target is WasalnyRequestDetailsScreen || target is ServicesEscalationsScreen || target is ProviderApplicationsScreen) {
       // شاشة الطلب ليها شريطها العلوي.
       Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => target));
       return;

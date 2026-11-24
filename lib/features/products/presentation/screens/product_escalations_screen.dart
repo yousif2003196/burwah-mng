@@ -15,7 +15,10 @@ String _fmt(DateTime d) {
 /// Everything the products supervisor sent to the head, with the head's
 /// decisions. Escalation path: supervisor -> head -> admin (head's call).
 class ProductEscalationsScreen extends StatefulWidget {
-  const ProductEscalationsScreen({super.key});
+  const ProductEscalationsScreen({super.key, this.embedded = false});
+
+  /// جوه تبويب "الشكاوى" (من غير شريط علوي خاص، ومسافة تحت للشريط السفلي).
+  final bool embedded;
 
   @override
   State<ProductEscalationsScreen> createState() =>
@@ -87,8 +90,8 @@ class _ProductEscalationsScreenState extends State<ProductEscalationsScreen> {
     return Directionality(
       textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
       child: Scaffold(
-        backgroundColor: AppColors.scaffold,
-        appBar: AppBar(title: const Text('التصعيدات')),
+        backgroundColor: widget.embedded ? Colors.transparent : AppColors.scaffold,
+        appBar: widget.embedded ? null : AppBar(title: const Text('التصعيدات')),
         body: _loading
             ? const Center(child: CircularProgressIndicator())
             : _error != null
@@ -97,7 +100,7 @@ class _ProductEscalationsScreenState extends State<ProductEscalationsScreen> {
                   onRefresh: _load,
                   child: ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.all(16),
+                    padding: EdgeInsets.fromLTRB(16, 16, 16, widget.embedded ? 120 : 16),
                     children: [
                       ScrollFx(child: Container(
                         padding: const EdgeInsets.all(12),

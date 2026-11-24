@@ -15,7 +15,7 @@ import 'package:barwah_app/features/messaging/presentation/screens/account_conve
 import 'package:barwah_app/features/products/presentation/controllers/product_review_cubit.dart';
 import 'package:barwah_app/features/products/presentation/screens/product_ads_review_screen.dart';
 import 'package:barwah_app/features/products/presentation/screens/product_promotions_screen.dart';
-import 'package:barwah_app/features/products/presentation/screens/product_reports_screen.dart';
+import 'package:barwah_app/features/products/presentation/screens/product_complaints_hub_screen.dart';
 import 'package:barwah_app/features/products/presentation/screens/product_supervisor_notifications_screen.dart';
 import 'package:barwah_app/features/products/presentation/screens/product_supervisor_profile_screen.dart';
 import 'package:barwah_app/l10n/app_localizations.dart';
@@ -53,6 +53,13 @@ class _ProductSupervisorTabsShellState
     super.initState();
     LocalEventStore.revision.addListener(_loadUnreadNotifications);
     _loadUnreadNotifications();
+    // عدّاد تبويب الشكاوى (شكاوى مفتوحة + تصعيدات رجعت + بلاغات مزادات بانتظار القرار).
+    ProductComplaintsCounts.current.addListener(_onCounts);
+    ProductComplaintsCounts.refresh();
+  }
+
+  void _onCounts() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _loadUnreadNotifications() async {
@@ -74,6 +81,7 @@ class _ProductSupervisorTabsShellState
   @override
   void dispose() {
     LocalEventStore.revision.removeListener(_loadUnreadNotifications);
+    ProductComplaintsCounts.current.removeListener(_onCounts);
     _pageController.dispose();
     super.dispose();
   }
@@ -107,9 +115,11 @@ class _ProductSupervisorTabsShellState
         icon: Icons.person_outline,
         label: l10n.productAccountTab,
       ),
+      // التقارير اتنقلت للبروفايل، والشكاوى خدت مكانها.
       FinanceNavigationItem(
-        icon: Icons.bar_chart_outlined,
-        label: l10n.productReportsTab,
+        icon: Icons.report_gmailerrorred_outlined,
+        label: 'الشكاوى',
+        badgeCount: ProductComplaintsCounts.current.value.total,
       ),
       FinanceNavigationItem(
         icon: Icons.workspace_premium_outlined,
@@ -122,13 +132,13 @@ class _ProductSupervisorTabsShellState
     ];
     final titles = [
       l10n.productAccountTab,
-      l10n.productReportsTab,
+      'الشكاوى',
       l10n.productSubscriptionsTab,
       l10n.productReviewTab,
     ];
     final pages = [
       ProductSupervisorProfileScreen(onLogout: widget.onLogout),
-      const ProductReportsScreen(),
+      const ProductComplaintsHubScreen(),
       const ProductPromotionsScreen(),
       BlocProvider(
         create: (_) => sl<ProductReviewCubit>()..loadReviews(),
