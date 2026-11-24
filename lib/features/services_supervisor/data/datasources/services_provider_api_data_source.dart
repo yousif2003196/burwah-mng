@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'package:barwah_app/features/services_supervisor/data/datasources/services_provider_state_store.dart';
+
 import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/network/api_consumer.dart';
 import 'package:barwah_app/core/network/api_endpoints.dart';
@@ -11,6 +13,9 @@ import 'package:barwah_app/features/services_supervisor/domain/entities/service_
 /// وإعادة الإسناد `reassign/{id}`.
 class ServicesProviderApiDataSource {
   ServicesProviderApiDataSource._();
+
+  /// حالة كل مزود (إيقاف/توثيق وسبب الإيقاف) كما على السيرفر، بعد آخر تحميل.
+  static final Map<String, ServicesProviderState> serverStates = {};
 
   static ServiceProviderCategory _categoryFor(String trade) {
     if (trade.contains('كهرب')) return ServiceProviderCategory.electrical;
@@ -76,6 +81,19 @@ class ServicesProviderApiDataSource {
       serviceProviders
         ..clear()
         ..addAll(list);
+      serverStates
+        ..clear()
+        ..addAll({
+          for (final item in data)
+            if (item is Map<String, dynamic>)
+              'PRO-${item['id']}': ServicesProviderState(
+                id: 'PRO-${item['id']}',
+                available: item['isAvailable'] != false,
+                verified: item['isVerified'] == true,
+                suspended: item['isSuspended'] == true,
+                reason: (item['suspendReason'] as String?)?.trim(),
+              ),
+        });
     } catch (error) {
       debugPrint('Providers directory load failed: $error');
       serviceProviders.clear();

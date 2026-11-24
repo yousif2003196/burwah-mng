@@ -12,6 +12,8 @@ import 'package:barwah_app/features/finance/presentation/widgets/finance_navigat
 import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
 import 'package:barwah_app/features/messaging/presentation/screens/account_conversations_screen.dart';
 import 'package:barwah_app/features/messaging/presentation/screens/local_event_inbox_screen.dart';
+import 'package:barwah_app/features/messaging/presentation/screens/server_notifications_screen.dart';
+import 'package:barwah_app/core/auth/auth_session.dart';
 import 'package:barwah_app/features/services_supervisor/presentation/screens/services_complaints_screen.dart';
 import 'package:barwah_app/features/services_supervisor/presentation/screens/services_providers_screen.dart';
 import 'package:barwah_app/features/services_supervisor/presentation/screens/services_requests_review_screen.dart';
@@ -59,6 +61,11 @@ class _ServicesSupervisorTabsShellState
   }
 
   Future<void> _refreshUnreadNotifications() async {
+    // الحساب الحقيقي: العدّاد من إشعارات السيرفر (RealtimeHub) بس.
+    if (AuthSession.isSignedIn) {
+      if (_unreadNotifications != 0 && mounted) setState(() => _unreadNotifications = 0);
+      return;
+    }
     try {
       final events = await LocalEventStore().getEvents('services');
       if (!mounted) return;
@@ -228,10 +235,7 @@ class _ServicesSupervisorTabsShellState
           controller: _pageController,
           onOpen: () => showSidePanel<void>(
             context,
-            (_) => LocalEventInboxScreen(
-              recipient: 'services',
-              title: l10n.servicesNotificationsTitle,
-            ),
+            (_) => _noticesScreen(l10n),
           ).then((_) => _refreshUnreadNotifications()),
           child: PageView(
           controller: _pageController,
@@ -245,33 +249,30 @@ class _ServicesSupervisorTabsShellState
         ),
         ),
       ),
-      bottomNavigationBar: AnimatedContainer(
-        duration: const Duration(milliseconds: 260),
-        curve: Curves.easeInOut,
-        height: _isBarsVisible ? FinanceBottomNavigationBar.heightOf(context) : 0,
-        child: SingleChildScrollView(
-          physics: const NeverScrollableScrollPhysics(),
-          child: AnimatedOpacity(
-            duration: const Duration(milliseconds: 200),
-            opacity: _isBarsVisible ? 1 : 0,
-            child: FinanceBottomNavigationBar(
+      bottomNavigationBar: HidingBottomBar(
+        // بيستخبى بالتزحلق لتحت (ارتفاعه ثابت)، فالصفحة مش بتتقاس من الأول وإنت بتسحب.
+        visible: _isBarsVisible,
+        child: FinanceBottomNavigationBar(
               currentIndex: _currentIndex,
               onTap: _selectPage,
               items: navItems,
             ),
-          ),
-        ),
       ),
     );
   }
 
+  /// الحساب الحقيقي: إشعارات السيرفر؛ المحلية للوضع التجريبي بس.
+  Widget _noticesScreen(AppLocalizations l10n) => AuthSession.isSignedIn
+      ? ServerNotificationsScreen(title: l10n.servicesNotificationsTitle)
+      : LocalEventInboxScreen(
+          recipient: 'services',
+          title: l10n.servicesNotificationsTitle,
+        );
+
   void _showNotices(BuildContext context, AppLocalizations l10n) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => LocalEventInboxScreen(
-          recipient: 'services',
-          title: l10n.servicesNotificationsTitle,
-        ),
+        builder: (_) => _noticesScreen(l10n),
       ),
     ).then((_) => _refreshUnreadNotifications());
   }

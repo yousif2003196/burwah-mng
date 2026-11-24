@@ -14,7 +14,7 @@ import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/network/api_consumer.dart';
 import 'package:barwah_app/core/realtime/realtime_hub.dart';
 import 'package:barwah_app/features/support/data/datasources/support_inbox_api_data_source.dart';
-import 'package:barwah_app/features/merchants/presentation/screens/merchant_conversation_screen.dart';
+import 'package:barwah_app/features/messaging/presentation/screens/ad_owner_chat_screen.dart';
 import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
 import 'package:barwah_app/features/products/presentation/widgets/product_head_escalation.dart' show askProductEscalationReason;
 import 'package:barwah_app/features/services_supervisor/data/datasources/services_activity_log.dart';
@@ -41,6 +41,9 @@ class _ServiceComplaint {
   final List<String> photoUrls;
   String action;
   bool escalated = false;
+
+  /// وقت تقديم الشكوى على السيرفر (مهلة الرد بتتحسب منه).
+  DateTime? createdAt;
 
   _ServiceComplaint({
     required this.id,
@@ -90,15 +93,17 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
         c.status == _ComplaintStatus.waiting) {
       return false;
     }
-    final seen = _firstSeen[c.id];
+    final seen = c.createdAt ?? _firstSeen[c.id];
     return seen != null && now.difference(seen) > const Duration(hours: 24);
   }
 
   Future<void> _loadEscalations() async {
     try {
       final escalations = await _escalationStore.refresh();
-      final firstSeen =
-          await _escalationStore.firstSeen(_complaints.map((c) => c.id));
+      // الحساب الحقيقي: المهلة من تاريخ الشكوى على السيرفر، مش من أول ظهور على الجهاز.
+      final firstSeen = _remote
+          ? const <String, DateTime>{}
+          : await _escalationStore.firstSeen(_complaints.map((c) => c.id));
       if (!mounted) return;
       setState(() {
         _escalations = escalations;
@@ -156,7 +161,7 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
                 providerPhone: '',
                 photoUrls: const [],
                 action: '',
-              )));
+              )..createdAt = t.createdAt));
         _isLoadingActions = false;
       });
       await _loadEscalations();
@@ -594,7 +599,7 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
           l10n: l10n,
           isArabic: isArabic,
           onCall: (phone) => _callParty(phone, l10n),
-          onChat: (name) => _openPartyChat(name),
+          onChat: (name) => _openPartyChat(complaint, name),
           onResolve: () => _resolveComplaint(complaint, l10n),
         ),
       ),
@@ -787,26 +792,30 @@ class _ServicesComplaintsScreenState extends State<ServicesComplaintsScreen> {
     if (!opened && mounted) _showMessage(l10n.servicesContactUnavailable);
   }
 
-  void _openPartyChat(String name) {
+  /// محادثة حقيقية على السيرفر مع صاحب الشكوى أو مقدم الخدمة.
+  void _openPartyChat(_ServiceComplaint complaint, String name) {
+    final ticketId = int.tryParse(complaint.id.replaceAll(RegExp(r'[^0-9]'), ''));
+    if (ticketId == null) return;
+    final toProvider = name == complaint.provider && name != complaint.client;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => MerchantConversationScreen(conversationTitle: name),
+        builder: (_) => AdOwnerChatScreen(
+          adId: 0,
+          openPath: 'api/SupervisorForSR/complaints/$ticketId/chat',
+          withRole: toProvider ? 'provider' : 'customer',
+          title: name,
+          subtitle: 'شكوى #CMP-$ticketId',
+        ),
       ),
     );
   }
 
+  /// المتابعة: محادثة حقيقية مع صاحب الشكوى (ومنها يقدر يكلم المزود من التفاصيل).
   void _openPartiesConversation(
     _ServiceComplaint complaint,
     AppLocalizations l10n,
   ) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => MerchantConversationScreen(
-          conversationTitle: l10n.servicesComplaintGroupChatTitle(complaint.id),
-          conversationParticipants: [complaint.client, complaint.provider],
-        ),
-      ),
-    );
+    _openPartyChat(complaint, complaint.client);
   }
 }
 

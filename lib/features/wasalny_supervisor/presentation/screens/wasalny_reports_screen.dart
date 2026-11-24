@@ -197,8 +197,16 @@ class _WasalnyReportsScreenState extends State<WasalnyReportsScreen> {
                       detail: ar ? 'في الفترة المحددة' : 'In the selected period',
                     )),
                     ScrollFx(child: _ReportMetric(
+                      icon: Icons.timer_outlined,
+                      label: ar ? 'متوسط وقت مراجعتي' : 'My average review time',
+                      value: _minutes(_d('myAverageReviewMinutes'), ar),
+                      detail: ar
+                          ? 'من فتحي للعنصر لحد قراري • آخر 30 يوم (${_n('myMeasuredDecisions')} قرار)'
+                          : 'From opening the item to my decision • last 30 days (${_n('myMeasuredDecisions')})',
+                    )),
+                    ScrollFx(child: _ReportMetric(
                       icon: Icons.speed_outlined,
-                      label: ar ? 'متوسط وقت المراجعة' : 'Average review time',
+                      label: ar ? 'متوسط القسم' : 'Department average',
                       value: _minutes(_d('averageMinutes'), ar),
                       detail: ar ? 'من وصول الإعلان حتى القرار' : 'From submission to decision',
                     )),

@@ -84,7 +84,22 @@ class MotionIcon extends StatefulWidget {
   final bool loop;
 
   /// عدد الأيقونات المتحركة المسموح به في آن واحد.
-  static const int _maxRunning = 16;
+  static const int _maxRunning = 6;
+
+  /// آخر لحظة اتعمل فيها سكرول في أي مكان في التطبيق: الأيقونات بتأجّل حركتها
+  /// طول ما المستخدم بيسحب، علشان السحب ياخد كل وقت الرسم.
+  static DateTime _lastScroll = DateTime.fromMillisecondsSinceEpoch(0);
+
+  static bool get _scrolling =>
+      DateTime.now().difference(_lastScroll) < const Duration(milliseconds: 450);
+
+  /// يتنادى من أعلى التطبيق على أي ScrollNotification (مابيوقفش الإشعار).
+  static bool onScrollNotification(ScrollNotification notification) {
+    if (notification is ScrollUpdateNotification || notification is ScrollStartNotification) {
+      _lastScroll = DateTime.now();
+    }
+    return false;
+  }
   static int _running = 0;
   static final math.Random _random = math.Random();
 
@@ -142,7 +157,7 @@ class _MotionIconState extends State<MotionIcon>
       _scheduled = false;
       return;
     }
-    if (!_tabOn || !_tickerOn || MotionIcon._running >= MotionIcon._maxRunning) {
+    if (!_tabOn || !_tickerOn || MotionIcon._scrolling || MotionIcon._running >= MotionIcon._maxRunning) {
       _next(const Duration(milliseconds: 700));
       return;
     }

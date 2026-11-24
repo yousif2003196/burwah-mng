@@ -6,7 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
-import 'package:barwah_app/features/merchants/presentation/screens/merchant_conversation_screen.dart';
+import 'package:barwah_app/features/messaging/presentation/screens/ad_owner_chat_screen.dart';
 import 'package:barwah_app/features/products/presentation/widgets/product_head_escalation.dart' show askProductEscalationReason;
 import 'package:barwah_app/features/services_supervisor/data/datasources/service_provider_catalog.dart';
 import 'package:barwah_app/features/services_supervisor/data/datasources/services_activity_log.dart';
@@ -766,10 +766,16 @@ class _ProviderProfileScreen extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: OutlinedButton.icon(
+                  // محادثة حقيقية على السيرفر مع مقدم الخدمة.
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
-                      builder: (_) =>
-                          MerchantConversationScreen(conversationTitle: name),
+                      builder: (_) => AdOwnerChatScreen(
+                        adId: 0,
+                        openPath:
+                            'api/SupervisorForSR/providers/${ServicesProviderApiDataSource.idOf(provider.id)}/chat',
+                        title: name,
+                        subtitle: isArabic ? 'مقدم خدمة' : 'Service provider',
+                      ),
                     ),
                   ),
                   icon: const MotionIcon(Icons.chat_outlined, size: 17),

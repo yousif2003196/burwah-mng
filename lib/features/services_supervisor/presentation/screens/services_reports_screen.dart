@@ -28,6 +28,8 @@ class ServicesReportMetrics {
   final int complaintsEscalated;
   final int compensations;
   final double? averageMinutes;
+  final double? myAverageMinutes;
+  final int myMeasuredDecisions;
   final int previousReviewed;
   final double? changePercent;
   final int pending;
@@ -51,6 +53,8 @@ class ServicesReportMetrics {
     required this.complaintsEscalated,
     required this.compensations,
     required this.averageMinutes,
+    this.myAverageMinutes,
+    this.myMeasuredDecisions = 0,
     required this.previousReviewed,
     required this.changePercent,
     required this.pending,
@@ -78,6 +82,8 @@ class ServicesReportMetrics {
       complaintsEscalated: i('complaintsEscalated'),
       compensations: i('compensations'),
       averageMinutes: (j['averageMinutes'] as num?)?.toDouble(),
+      myAverageMinutes: (j['myAverageReviewMinutes'] as num?)?.toDouble(),
+      myMeasuredDecisions: i('myMeasuredDecisions'),
       previousReviewed: i('previousReviewed'),
       changePercent: (j['changePercent'] as num?)?.toDouble(),
       pending: i('pending'),
@@ -111,7 +117,11 @@ class ServicesReportLog {
         title: '${j['title'] ?? ''}',
         reason: '${j['reason'] ?? ''}',
         supervisor: '${j['supervisorName'] ?? ''}',
-        at: DateTime.tryParse('${j['at'] ?? ''}')?.toLocal() ?? DateTime.now(),
+        // تواريخ السيرفر UTC من غير "Z".
+        at: DateTime.tryParse(() {
+              final t = '${j['at'] ?? ''}'.trim();
+              return t.isEmpty || t.endsWith('Z') || RegExp(r'[+-]\d\d:?\d\d$').hasMatch(t) ? t : '${t}Z';
+            }())?.toLocal() ?? DateTime.now(),
       );
 }
 
@@ -211,7 +221,8 @@ class _ServicesReportsScreenState extends State<ServicesReportsScreen> {
         ('نسبة الرفض', m.reviewed == 0 ? '—' : _pct(m.rejectionRate)),
         ('طلبات معتمدة', '${m.approved}'),
         ('طلبات مرفوضة', '${m.rejected}'),
-        ('متوسط زمن المراجعة', _minutes(m.averageMinutes)),
+        ('متوسط زمن مراجعتي (من الفتح للقرار)', '${_minutes(m.myAverageMinutes)}${m.myMeasuredDecisions > 0 ? ' • ${m.myMeasuredDecisions} قرار' : ''}'),
+        ('متوسط زمن المراجعة (القسم)', _minutes(m.averageMinutes)),
         ('طلبات معلقة', '${m.suspended}'),
         ('طلبات أُحيلت للرئيس', '${m.escalated}'),
         ('طلبات أعادها الرئيس', '${m.returned}'),

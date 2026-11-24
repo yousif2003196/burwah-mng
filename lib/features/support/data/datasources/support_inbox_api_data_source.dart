@@ -45,7 +45,13 @@ class SupportInboxTicket {
       phoneNumber: s('phoneNumber'),
       title: s('title'),
       description: s('description'),
-      createdAt: DateTime.tryParse(s('createdAt'))?.toLocal() ?? DateTime.now(),
+      // تواريخ السيرفر UTC من غير "Z".
+      createdAt: DateTime.tryParse(
+                  s('createdAt').isEmpty || s('createdAt').endsWith('Z') || RegExp(r'[+-]\d\d:?\d\d$').hasMatch(s('createdAt'))
+                      ? s('createdAt')
+                      : '${s('createdAt')}Z')
+              ?.toLocal() ??
+          DateTime.now(),
       serviceRequestNumber: s('serviceRequestNumber'),
       providerName: s('providerName'),
       price: (json['price'] as num?)?.toDouble(),

@@ -388,7 +388,9 @@ class _ProductSupervisorProfileScreenState
         title: 'متوسط وقت المراجعة',
         value: _averageValue(avg),
         unit: _averageUnit(avg),
-        detail: avg == null ? 'لا توجد قرارات بعد' : 'من الإرسال حتى القرار',
+        detail: avg == null
+            ? 'بيتحسب من فتحك للعنصر لحد قرارك'
+            : 'من فتحك للعنصر لحد قرارك (${n('measuredDecisions')} قرار)',
         icon: Icons.bolt,
         color: AppColors.info,
       ),
@@ -1199,7 +1201,10 @@ class _ProductSupervisorProfileScreenState
           Align(
             alignment: AlignmentDirectional.centerEnd,
             child: TextButton(
-              onPressed: () => _openPage(const ProductSupervisorAuditScreen()),
+              // مشرف وصلني: سجله هو بس من السيرفر.
+              onPressed: () => _openPage(ProductSupervisorAuditScreen(
+                actionKeyPrefix: _isWasalny ? 'used_' : null,
+              )),
               child: Text(
                 ar ? 'عرض السجل كامل' : 'View full log',
                 style: const TextStyle(fontSize: 11),

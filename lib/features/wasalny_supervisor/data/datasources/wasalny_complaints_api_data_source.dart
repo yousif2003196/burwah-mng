@@ -11,21 +11,29 @@ class WasalnyComplaintsApiDataSource implements WasalnyComplaintsDataSource {
 
   final ApiConsumer apiConsumer;
 
+  static const _pageSize = 100;
+  static const _maxPages = 10;
+
+  /// كل الشكاوى صفحة ورا صفحة (مش أول 100 بس).
   @override
   Future<List<WasalnyComplaintModel>> getComplaints() async {
-    final response = await apiConsumer.get<Object>(
-      ApiEndpoints.usedComplaints,
-      queryParameters: {'page': 1, 'pageSize': 100},
-    );
-    final body = response.data;
-    final data = body is Map ? body['data'] : null;
-    if (data is! List) {
-      throw const FormatException('The complaints response must hold a list.');
+    final result = <WasalnyComplaintModel>[];
+    for (var page = 1; page <= _maxPages; page++) {
+      final response = await apiConsumer.get<Object>(
+        ApiEndpoints.usedComplaints,
+        queryParameters: {'page': page, 'pageSize': _pageSize},
+      );
+      final body = response.data;
+      final data = body is Map ? body['data'] : null;
+      if (data is! List) {
+        throw const FormatException('The complaints response must hold a list.');
+      }
+      for (final row in data) {
+        if (row is Map<String, dynamic>) result.add(_fromRow(row));
+      }
+      if (data.length < _pageSize) break;
     }
-    return [
-      for (final row in data)
-        if (row is Map<String, dynamic>) _fromRow(row),
-    ];
+    return result;
   }
 
   @override
@@ -86,14 +94,30 @@ class WasalnyComplaintsApiDataSource implements WasalnyComplaintsDataSource {
     final title = _text(row['title']).isNotEmpty ? _text(row['title']) : id;
     final description = _text(row['description']);
     final item = _text(row['itemTitle']);
-    final created =
-        DateTime.tryParse(_text(row['createdAt']))?.toLocal() ?? DateTime.now();
+    final created = _utc(row['createdAt']) ?? DateTime.now();
     final price = (row['itemPrice'] as num?)?.toDouble() ?? 0;
     final escalated = row['escalated'] == true;
     final closed = _text(row['status']) == 'Closed';
-    final note = escalated
-        ? _text(row['escalationReason'])
-        : _text(row['resolutionNote']);
+    // قرار رئيس المشرفين على آخر تصعيد: returned / resolved / admin.
+    final headDecision = _text(row['headDecision']);
+    final headNote = _text(row['headNote']);
+    final String note;
+    if (headDecision.isNotEmpty && headNote.isNotEmpty) {
+      note = 'رد رئيس المشرفين: $headNote';
+    } else if (escalated) {
+      note = _text(row['escalationReason']);
+    } else {
+      note = _text(row['resolutionNote']);
+    }
+    final status = closed
+        ? WasalnyComplaintStatus.resolved
+        : headDecision == 'admin'
+        ? WasalnyComplaintStatus.escalatedToAdmin
+        : escalated
+        ? WasalnyComplaintStatus.escalatedToChief
+        : headDecision == 'returned'
+        ? WasalnyComplaintStatus.returnedByHead
+        : WasalnyComplaintStatus.underReview;
     final buyer = _text(row['buyerName']);
     final seller = _text(row['sellerName']);
     return WasalnyComplaintModel(
@@ -104,11 +128,7 @@ class WasalnyComplaintsApiDataSource implements WasalnyComplaintsDataSource {
       descriptionEn: description.isEmpty ? title : description,
       timeAgoAr: _ago(created, true),
       timeAgoEn: _ago(created, false),
-      status: closed
-          ? WasalnyComplaintStatus.resolved
-          : escalated
-          ? WasalnyComplaintStatus.escalatedToChief
-          : WasalnyComplaintStatus.underReview,
+      status: status,
       dealCode: id,
       itemTitleAr: item.isEmpty ? title : item,
       itemTitleEn: item.isEmpty ? title : item,
@@ -124,6 +144,14 @@ class WasalnyComplaintsApiDataSource implements WasalnyComplaintsDataSource {
       sellerPhone: _text(row['sellerPhone']),
       buyerPhone: _text(row['buyerPhone']),
     );
+  }
+
+  /// تواريخ السيرفر UTC من غير "Z".
+  static DateTime? _utc(Object? raw) {
+    final text = raw == null ? '' : '$raw'.trim();
+    if (text.isEmpty || text == 'null') return null;
+    final hasZone = text.endsWith('Z') || RegExp(r'[+-]\d\d:?\d\d$').hasMatch(text);
+    return DateTime.tryParse(hasZone ? text : '${text}Z')?.toLocal();
   }
 
   static String _ago(DateTime at, bool ar) {

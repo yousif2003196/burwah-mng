@@ -240,6 +240,8 @@ class ApiEndpoints {
   /// إشعار لمستخدمين تطبيق اليوزر (audience = all / customers / merchants / captains).
   static const bossBroadcastUsers = '$_boss/broadcast-users';
   static const bossBroadcastUsersCount = '$_boss/broadcast-users/count';
+  /// GET / PUT: نطاق التجار ونطاقات الكباتن (الدراجة لوحدها).
+  static const bossRadiusSettings = '$_boss/radius-settings';
 
   // تصعيدات المشرفين لرئيس المشرفين (منتجات، تجار، شكاوى خدمات)
   static const supervisorEscalations = 'api/SupervisorEscalations';

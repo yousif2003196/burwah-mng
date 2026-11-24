@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -28,7 +30,6 @@ import 'package:barwah_app/features/wasalny_supervisor/presentation/screens/wasa
 import 'package:barwah_app/features/wasalny_supervisor/presentation/screens/wasalny_reports_screen.dart';
 import 'package:barwah_app/features/wasalny_supervisor/presentation/screens/wasalny_requests_screen.dart';
 import 'package:barwah_app/features/wasalny_supervisor/presentation/screens/wasalny_supervisor_notifications_screen.dart';
-import 'package:barwah_app/features/wasalny_supervisor/presentation/widgets/wasalny_escalations_entry.dart';
 import 'package:barwah_app/l10n/app_localizations.dart';
 import 'package:barwah_app/core/widgets/motion_icon.dart';
 
@@ -51,13 +52,20 @@ class WasalnySupervisorTabsShell extends StatefulWidget {
 
 class _WasalnySupervisorTabsShellState
     extends State<WasalnySupervisorTabsShell> {
-  late final PageController _pageController = PageController(initialPage: 3);
+  // التبويبات: البروفايل · طلبات وصلني · الشكاوى · الترويج · المراجعة.
+  static const _reviewTab = 4;
+  late final PageController _pageController = PageController(initialPage: _reviewTab);
+
+  /// الشكاوى والتصعيدات: تبويب أساسي بعدّاد للي محتاج قرار.
+  late final WasalnyComplaintsCubit _complaintsCubit =
+      sl<WasalnyComplaintsCubit>()..loadComplaints();
+  StreamSubscription<dynamic>? _noticesSub;
   late final WasalnyAdsRepositoryImpl _repository = WasalnyAdsRepositoryImpl(
     dataSource: WasalnyAdsApiDataSource(
       apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'),
     ),
   );
-  int _currentIndex = 3;
+  int _currentIndex = _reviewTab;
   int _unreadNotifications = 0;
   bool _isBarsVisible = true;
   // الشريط العلوي له حالة مستقلة: لا يرجع بالسحب لأعلى، فقط عند أول الصفحة.
@@ -67,6 +75,8 @@ class _WasalnySupervisorTabsShellState
   void initState() {
     super.initState();
     LocalEventStore.revision.addListener(_refreshUnreadNotifications);
+    // أي إشعار جديد (شكوى جديدة / قرار من رئيس المشرفين) بيحدّث الشكاوى وعدّادها.
+    _noticesSub = RealtimeHub.instance.notifications.listen((_) => _complaintsCubit.refresh());
     RealtimeHub.instance.unread.addListener(_refreshUnreadNotifications);
     _refreshUnreadNotifications();
   }
@@ -108,6 +118,8 @@ class _WasalnySupervisorTabsShellState
   void dispose() {
     LocalEventStore.revision.removeListener(_refreshUnreadNotifications);
     RealtimeHub.instance.unread.removeListener(_refreshUnreadNotifications);
+    _noticesSub?.cancel();
+    _complaintsCubit.close();
     _pageController.dispose();
     super.dispose();
   }
@@ -135,6 +147,18 @@ class _WasalnySupervisorTabsShellState
 
   @override
   Widget build(BuildContext context) {
+    return BlocBuilder<WasalnyComplaintsCubit, WasalnyComplaintsState>(
+      bloc: _complaintsCubit,
+      builder: (context, complaintsState) {
+        final needsAction = complaintsState is WasalnyComplaintsLoaded
+            ? complaintsState.complaints.where(WasalnyComplaintsScreen.needsAction).length
+            : 0;
+        return _buildShell(context, needsAction);
+      },
+    );
+  }
+
+  Widget _buildShell(BuildContext context, int complaintsNeedingAction) {
     final l10n = AppLocalizations.of(context)!;
     final navItems = [
       FinanceNavigationItem(
@@ -144,6 +168,11 @@ class _WasalnySupervisorTabsShellState
       FinanceNavigationItem(
         icon: Icons.receipt_long_outlined,
         label: l10n.wasalnyRequestsTab,
+      ),
+      FinanceNavigationItem(
+        icon: Icons.report_gmailerrorred_outlined,
+        label: 'الشكاوى',
+        badgeCount: complaintsNeedingAction,
       ),
       FinanceNavigationItem(
         icon: Icons.workspace_premium_outlined,
@@ -162,17 +191,6 @@ class _WasalnySupervisorTabsShellState
         showGenericComplaintsShortcut: false,
         conversationsAccountId: 'wasalny',
         additionalOperations: [
-          const WasalnyEscalationsEntry(),
-          _AccountShortcut(
-            icon: Icons.report_gmailerrorred_outlined,
-            title: l10n.wasalnyAccountFollowComplaint,
-            onTap: () => _openPage(
-              BlocProvider(
-                create: (_) => sl<WasalnyComplaintsCubit>()..loadComplaints(),
-                child: const WasalnyComplaintsScreen(),
-              ),
-            ),
-          ),
           _AccountShortcut(
             icon: Icons.bar_chart_outlined,
             title: l10n.productReportsTab,
@@ -181,6 +199,10 @@ class _WasalnySupervisorTabsShellState
         ],
       ),
       const WasalnyRequestsScreen(),
+      BlocProvider.value(
+        value: _complaintsCubit,
+        child: const WasalnyComplaintsScreen(embedded: true),
+      ),
       const ProductPromotionsScreen(isWasalny: true),
       BlocProvider(
         create: (_) => WasalnyAdsCubit(
@@ -205,7 +227,7 @@ class _WasalnySupervisorTabsShellState
                 additionalActions: [
                     if (widget.onSwitchSection != null)
                       SwitchSectionButton(onPressed: widget.onSwitchSection!),
-                    if (_currentIndex == 3) ...[
+                    if (_currentIndex == _reviewTab) ...[
                         IconButton(
                           tooltip: l10n.productChatsTitle,
                           onPressed: () =>
@@ -291,22 +313,14 @@ class _WasalnySupervisorTabsShellState
         ),
         ),
       ),
-      bottomNavigationBar: AnimatedContainer(
-        duration: const Duration(milliseconds: 260),
-        curve: Curves.easeInOut,
-        height: _isBarsVisible ? FinanceBottomNavigationBar.heightOf(context) : 0,
-        child: SingleChildScrollView(
-          physics: const NeverScrollableScrollPhysics(),
-          child: AnimatedOpacity(
-            duration: const Duration(milliseconds: 200),
-            opacity: _isBarsVisible ? 1 : 0,
-            child: FinanceBottomNavigationBar(
+      bottomNavigationBar: HidingBottomBar(
+        // بيستخبى بالتزحلق لتحت (ارتفاعه ثابت)، فالصفحة مش بتتقاس من الأول وإنت بتسحب.
+        visible: _isBarsVisible,
+        child: FinanceBottomNavigationBar(
               currentIndex: _currentIndex,
               onTap: _selectPage,
               items: navItems,
             ),
-          ),
-        ),
       ),
     );
   }

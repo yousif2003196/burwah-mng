@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'package:barwah_app/features/wasalny_supervisor/domain/entities/wasalny_ad.dart';
@@ -51,6 +52,9 @@ class WasalnyAdsCubit extends Cubit<WasalnyAdsState> {
     }
   }
 
+  /// رسالة السيرفر لآخر قرار فشل (لو موجودة).
+  String? lastError;
+
   Future<bool> decide({
     required String id,
     required WasalnyAdStatus status,
@@ -58,6 +62,7 @@ class WasalnyAdsCubit extends Cubit<WasalnyAdsState> {
   }) async {
     final current = state;
     if (current is! WasalnyAdsLoaded) return false;
+    lastError = null;
     try {
       final updated = await updateAdStatus(
         id: id,
@@ -71,8 +76,11 @@ class WasalnyAdsCubit extends Cubit<WasalnyAdsState> {
       );
       return true;
     } catch (error) {
-      emit(WasalnyAdsLoadFailure(error));
+      // القائمة تفضل زي ما هي، وبنعرض سبب الرفض من السيرفر.
+      final body = error is DioException ? error.response?.data : null;
+      final message = body is Map ? '${body['message'] ?? ''}'.trim() : '';
+      lastError = message.isEmpty ? null : message;
       return false;
     }
   }
-}
+}

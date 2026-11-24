@@ -7,7 +7,13 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
-import 'package:barwah_app/features/merchants/presentation/screens/merchant_conversation_screen.dart';
+import 'package:intl/intl.dart';
+
+import 'package:barwah_app/core/auth/review_timer.dart';
+import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/features/head_supervisor/data/datasources/supervisor_escalations_api.dart';
+import 'package:barwah_app/features/wasalny_supervisor/presentation/screens/wasalny_requests_screen.dart';
+import 'package:barwah_app/features/messaging/presentation/screens/ad_owner_chat_screen.dart';
 import 'package:barwah_app/features/wasalny_supervisor/domain/entities/wasalny_complaint.dart';
 import 'package:barwah_app/features/wasalny_supervisor/presentation/controllers/wasalny_complaints_cubit.dart';
 import 'package:barwah_app/l10n/app_localizations.dart';
@@ -15,10 +21,22 @@ import 'package:barwah_app/core/widgets/scroll_fx.dart';
 import 'package:barwah_app/core/widgets/motion_icon.dart';
 
 class WasalnyComplaintsScreen extends StatefulWidget {
-  /// One of: all, follow, head.
+  /// One of: follow (تحتاج قرارك), head (عند الرئيس), done (اتحسمت), all, mine (تصعيداتي).
   final String initialFilter;
 
-  const WasalnyComplaintsScreen({super.key, this.initialFilter = 'all'});
+  /// جوه تبويب في الشريط السفلي: من غير شريط علوي خاص بيها.
+  final bool embedded;
+
+  const WasalnyComplaintsScreen({
+    super.key,
+    this.initialFilter = 'follow',
+    this.embedded = false,
+  });
+
+  /// الشكاوى اللي محتاجة قرار من المشرف (جديدة أو رجعت من رئيس المشرفين).
+  static bool needsAction(WasalnyComplaint c) =>
+      c.status == WasalnyComplaintStatus.underReview ||
+      c.status == WasalnyComplaintStatus.returnedByHead;
 
   @override
   State<WasalnyComplaintsScreen> createState() =>
@@ -28,14 +46,105 @@ class WasalnyComplaintsScreen extends StatefulWidget {
 class _WasalnyComplaintsScreenState extends State<WasalnyComplaintsScreen> {
   late String _filter = widget.initialFilter;
 
-  bool _matches(WasalnyComplaint c, WasalnyComplaintsLoaded state) {
-    return switch (_filter) {
-      'follow' => c.status == WasalnyComplaintStatus.underReview ||
-          c.status == WasalnyComplaintStatus.returnedByHead,
+  // تصعيداتي (شكاوى + طلبات وصلني) من السيرفر.
+  List<SupervisorEscalationRecord> _mine = const [];
+  bool _mineLoading = false;
+  bool _mineFailed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMine();
+  }
+
+  Future<void> _loadMine() async {
+    if (!SupervisorEscalationsApi.supervisorCanUse) return;
+    setState(() {
+      _mineLoading = true;
+      _mineFailed = false;
+    });
+    try {
+      final items = await sl<SupervisorEscalationsApi>().mine();
+      if (!mounted) return;
+      setState(() {
+        _mine = items;
+        _mineLoading = false;
+      });
+    } on Object {
+      if (!mounted) return;
+      setState(() {
+        _mineLoading = false;
+        _mineFailed = true;
+      });
+    }
+  }
+
+  Future<void> _refresh() async {
+    await Future.wait([
+      context.read<WasalnyComplaintsCubit>().refresh(),
+      _loadMine(),
+    ]);
+  }
+
+  bool _matches(WasalnyComplaint c) => _inFilter(_filter, c);
+
+  static bool _inFilter(String filter, WasalnyComplaint c) {
+    return switch (filter) {
+      'follow' => WasalnyComplaintsScreen.needsAction(c),
       'head' => c.status == WasalnyComplaintStatus.escalatedToChief ||
           c.status == WasalnyComplaintStatus.escalatedToAdmin,
+      'done' => c.status == WasalnyComplaintStatus.resolved ||
+          c.status == WasalnyComplaintStatus.actionTakenBlocked,
       _ => true,
     };
+  }
+
+  void _openComplaint(WasalnyComplaint complaint, bool isArabic) {
+    // وقت المراجعة بيبدأ من فتح الشكوى.
+    ReviewTimer.open('ticket', complaint.id);
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => BlocProvider.value(
+          value: context.read<WasalnyComplaintsCubit>(),
+          child: _WasalnyComplaintDetailsScreen(
+            complaint: complaint,
+            isArabic: isArabic,
+          ),
+        ),
+      ),
+    ).then((_) {
+      if (mounted) _loadMine();
+    });
+  }
+
+  static String _digits(String text) => text.replaceAll(RegExp(r'[^0-9]'), '');
+
+  void _openEscalation(
+    SupervisorEscalationRecord e,
+    List<WasalnyComplaint> complaints,
+    bool isArabic,
+  ) {
+    final number = _digits(e.refKey);
+    if (number.isEmpty) return;
+    if (e.refKey.startsWith('REQ-')) {
+      Navigator.of(context)
+          .push<bool>(MaterialPageRoute<bool>(
+            builder: (_) => WasalnyRequestDetailsScreen(requestId: int.parse(number)),
+          ))
+          .then((_) {
+        if (mounted) _loadMine();
+      });
+      return;
+    }
+    for (final c in complaints) {
+      if (_digits(c.id) == number) {
+        _openComplaint(c, isArabic);
+        return;
+      }
+    }
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(isArabic ? 'الشكوى دي مش موجودة في القائمة الحالية' : 'This complaint is not in the list'),
+    ));
   }
 
   @override
@@ -43,101 +152,258 @@ class _WasalnyComplaintsScreenState extends State<WasalnyComplaintsScreen> {
     final l10n = AppLocalizations.of(context)!;
     final isArabic = l10n.localeName.startsWith('ar');
 
-    return Directionality(
-      textDirection: isArabic ? ui.TextDirection.rtl : ui.TextDirection.ltr,
-      child: Scaffold(
-        backgroundColor: AppColors.scaffold,
-        appBar: AppBar(
-          backgroundColor: AppColors.surface,
-          foregroundColor: AppColors.ink,
-          title: Text(l10n.wasalnyAccountFollowComplaint),
-        ),
-        body: BlocBuilder<WasalnyComplaintsCubit, WasalnyComplaintsState>(
-          builder: (context, state) {
-            if (state is WasalnyComplaintsLoading) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (state is WasalnyComplaintsLoadFailure) {
-              return _LoadFailure(
-                message: l10n.wasalnyComplaintsLoadError,
-                onRetry: context.read<WasalnyComplaintsCubit>().loadComplaints,
-              );
-            }
-            if (state is! WasalnyComplaintsLoaded) {
-              return const SizedBox.shrink();
-            }
-            if (state.complaints.isEmpty) {
-              return BrandRefreshIndicator(
-                onRefresh: context.read<WasalnyComplaintsCubit>().refresh,
-                child: ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  children: [
-                    SizedBox(height: MediaQuery.sizeOf(context).height * .3),
-                    Center(child: Text(l10n.wasalnyRequestsEmpty)),
-                  ],
-                ),
-              );
-            }
+    final body = BlocBuilder<WasalnyComplaintsCubit, WasalnyComplaintsState>(
+      builder: (context, state) {
+        if (state is WasalnyComplaintsLoading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (state is WasalnyComplaintsLoadFailure) {
+          return _LoadFailure(
+            message: l10n.wasalnyComplaintsLoadError,
+            onRetry: context.read<WasalnyComplaintsCubit>().loadComplaints,
+          );
+        }
+        if (state is! WasalnyComplaintsLoaded) {
+          return const SizedBox.shrink();
+        }
+        final all = state.complaints;
+        int count(String f) => switch (f) {
+              'mine' => _mine.where((e) => e.status != 1).length,
+              'all' => all.length,
+              _ => all.where((c) => _inFilter(f, c)).length,
+            };
+        final filters = [
+          ('follow', isArabic ? 'تحتاج قرارك' : 'Needs you'),
+          ('head', isArabic ? 'عند الرئيس' : 'With head'),
+          ('mine', isArabic ? 'تصعيداتي' : 'My escalations'),
+          ('done', isArabic ? 'اتحسمت' : 'Resolved'),
+          ('all', isArabic ? 'الكل' : 'All'),
+        ];
 
-            return BrandRefreshIndicator(
-              onRefresh: context.read<WasalnyComplaintsCubit>().refresh,
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+        final children = <Widget>[
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
               children: [
-                Text(
-                  l10n.wasalnyComplaintsListIntro,
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 13,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      for (final f in [
-                        ('all', isArabic ? 'الكل' : 'All'),
-                        ('follow', isArabic ? 'تحتاج متابعة' : 'Needs follow-up'),
-                        ('head', isArabic ? 'عند الرئيس' : 'With head'),
-                      ])
-                        Padding(
-                          padding: const EdgeInsetsDirectional.only(end: 6),
-                          child: ChoiceChip(
-                            label: Text(f.$2),
-                            selected: _filter == f.$1,
-                            onSelected: (_) => setState(() => _filter = f.$1),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 10),
-                for (final complaint
-                    in state.complaints.where((c) => _matches(c, state)))
+                for (final f in filters)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: _ComplaintListTile(
-                      complaint: complaint,
-                      isArabic: isArabic,
-                      l10n: l10n,
-                      onTap: () => Navigator.of(context).push<void>(
-                        MaterialPageRoute<void>(
-                          builder: (_) => BlocProvider.value(
-                            value: context.read<WasalnyComplaintsCubit>(),
-                            child: _WasalnyComplaintDetailsScreen(
-                              complaint: complaint,
-                              isArabic: isArabic,
-                            ),
-                          ),
-                        ),
-                      ),
+                    padding: const EdgeInsetsDirectional.only(end: 6),
+                    child: ChoiceChip(
+                      label: Text(count(f.$1) > 0 ? '${f.$2} (${count(f.$1)})' : f.$2),
+                      selected: _filter == f.$1,
+                      onSelected: (_) => setState(() => _filter = f.$1),
                     ),
                   ),
               ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ];
+
+        if (_filter == 'mine') {
+          if (_mineLoading && _mine.isEmpty) {
+            children.add(const Padding(
+              padding: EdgeInsets.all(32),
+              child: Center(child: CircularProgressIndicator()),
             ));
-          },
+          } else if (_mineFailed && _mine.isEmpty) {
+            children.add(_LoadFailure(
+              message: isArabic ? 'تعذر تحميل تصعيداتك' : 'Could not load your escalations',
+              onRetry: _loadMine,
+            ));
+          } else if (_mine.isEmpty) {
+            children.add(_EmptyNote(
+              text: isArabic
+                  ? 'لسه ما صعّدتش حاجة لرئيس المشرفين'
+                  : 'You have not escalated anything yet',
+            ));
+          } else {
+            for (final e in _mine) {
+              children.add(Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _MyEscalationCard(
+                  record: e,
+                  isArabic: isArabic,
+                  onTap: () => _openEscalation(e, all, isArabic),
+                ),
+              ));
+            }
+          }
+        } else {
+          final shown = all.where(_matches).toList();
+          if (shown.isEmpty) {
+            children.add(_EmptyNote(
+              text: switch (_filter) {
+                'follow' => isArabic ? 'مفيش شكاوى محتاجة قرارك دلوقتي' : 'Nothing needs you right now',
+                'head' => isArabic ? 'مفيش شكاوى عند رئيس المشرفين' : 'Nothing is with the head',
+                'done' => isArabic ? 'مفيش شكاوى اتحسمت' : 'No resolved complaints',
+                _ => l10n.wasalnyRequestsEmpty,
+              },
+            ));
+          }
+          for (final complaint in shown) {
+            children.add(Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _ComplaintListTile(
+                complaint: complaint,
+                isArabic: isArabic,
+                l10n: l10n,
+                onTap: () => _openComplaint(complaint, isArabic),
+              ),
+            ));
+          }
+        }
+
+        return BrandRefreshIndicator(
+          onRefresh: _refresh,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.fromLTRB(16, 16, 16, widget.embedded ? 120 : 28),
+            children: children,
+          ),
+        );
+      },
+    );
+
+    return Directionality(
+      textDirection: isArabic ? ui.TextDirection.rtl : ui.TextDirection.ltr,
+      child: widget.embedded
+          ? body
+          : Scaffold(
+              backgroundColor: AppColors.scaffold,
+              appBar: AppBar(
+                backgroundColor: AppColors.surface,
+                foregroundColor: AppColors.ink,
+                title: Text(l10n.wasalnyAccountFollowComplaint),
+              ),
+              body: body,
+            ),
+    );
+  }
+}
+
+class _EmptyNote extends StatelessWidget {
+  const _EmptyNote({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 48),
+        child: Column(
+          children: [
+            Icon(Icons.inbox_outlined, size: 44, color: AppColors.textMuted),
+            const SizedBox(height: 10),
+            Text(
+              text,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ],
+        ),
+      );
+}
+
+/// كارت تصعيد من تصعيداتي: نوعه وحالته وقرار رئيس المشرفين.
+class _MyEscalationCard extends StatelessWidget {
+  const _MyEscalationCard({
+    required this.record,
+    required this.isArabic,
+    required this.onTap,
+  });
+
+  final SupervisorEscalationRecord record;
+  final bool isArabic;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final (Color color, String label) = switch (record.status) {
+      0 => (AppColors.warningDark, isArabic ? 'عند رئيس المشرفين' : 'With the head'),
+      1 => (AppColors.successDark, isArabic ? 'اتحسم' : 'Resolved'),
+      2 => (AppColors.info, isArabic ? 'رجع لك' : 'Returned to you'),
+      3 => (AppColors.danger, isArabic ? 'اترفع للأدمن' : 'Raised to admin'),
+      _ => (AppColors.textSecondary, record.statusText),
+    };
+    final isRequest = record.refKey.startsWith('REQ-');
+    final at = record.decidedAt ?? record.createdAt;
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.cardBorder),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    isRequest ? Icons.receipt_long_outlined : Icons.report_gmailerrorred_outlined,
+                    size: 18,
+                    color: AppColors.textSecondary,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${isRequest ? (isArabic ? 'طلب وصلني' : 'Wasalny request') : (isArabic ? 'شكوى' : 'Complaint')} • #${record.refKey}',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, fontWeight: FontWeight.w700),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                record.title,
+                style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+              if (record.reason.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  '${isArabic ? 'سبب التصعيد' : 'Reason'}: ${record.reason}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                ),
+              ],
+              if (record.decisionNote.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '${isArabic ? 'رد رئيس المشرفين' : 'Head\'s note'}: ${record.decisionNote}',
+                    style: TextStyle(color: AppColors.textPrimary, fontSize: 12),
+                  ),
+                ),
+              ],
+              if (at != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  DateFormat('yyyy/MM/dd HH:mm').format(at),
+                  textDirection: ui.TextDirection.ltr,
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 10.5),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
@@ -448,10 +714,10 @@ class _WasalnyComplaintDetailsScreen extends StatelessWidget {
                     : () => _openComplaintChat(
                           context,
                           currentComplaint,
-                          sellerName,
-                          buyerName,
+                          withRole: 'seller',
+                          name: sellerName,
                         ),
-                onCall: sellerName == null
+                onCall: sellerName == null || currentComplaint.sellerPhone.trim().isEmpty
                     ? null
                     : () => _callParty(
                           context,
@@ -470,10 +736,12 @@ class _WasalnyComplaintDetailsScreen extends StatelessWidget {
                   onChat: () => _openComplaintChat(
                     context,
                     currentComplaint,
-                    sellerName ?? l10n.wasalnyComplaintPartyUnavailable,
-                    buyerName,
+                    withRole: 'buyer',
+                    name: buyerName,
                   ),
-                  onCall: () => _callParty(
+                  onCall: currentComplaint.buyerPhone.trim().isEmpty
+                      ? null
+                      : () => _callParty(
                     context,
                     currentComplaint.buyerPhone,
                     l10n,
@@ -519,21 +787,24 @@ class _WasalnyComplaintDetailsScreen extends StatelessWidget {
     );
   }
 
+  /// محادثة حقيقية على السيرفر مع البائع أو المشتري بخصوص الشكوى.
   void _openComplaintChat(
     BuildContext context,
-    WasalnyComplaint complaint,
-    String sellerName,
-    String? buyerName,
-  ) {
+    WasalnyComplaint complaint, {
+    required String withRole,
+    required String name,
+  }) {
+    final ticketId = int.tryParse(complaint.id.replaceAll(RegExp(r'[^0-9]'), ''));
+    if (ticketId == null) return;
     Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
-        builder: (_) => MerchantConversationScreen(
-          conversationTitle: AppLocalizations.of(context)!
+        builder: (_) => AdOwnerChatScreen(
+          adId: 0,
+          complaintId: ticketId,
+          withRole: withRole,
+          title: name,
+          subtitle: AppLocalizations.of(context)!
               .wasalnyComplaintReferenceWithId(complaint.id),
-          conversationParticipants: [
-            sellerName,
-            if (buyerName != null) buyerName,
-          ],
         ),
       ),
     );

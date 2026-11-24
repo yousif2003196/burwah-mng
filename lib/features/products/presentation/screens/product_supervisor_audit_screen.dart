@@ -43,6 +43,8 @@ class _ProductSupervisorAuditScreenState
       return ProductSupervisorAuditApiDataSource.fetch(
         sl<ApiConsumer>(instanceName: 'berwah'),
         path: ApiEndpoints.usedAuditLog,
+        // المشرف نفسه يشوف إجراءاته هو؛ رئيس المشرفين/الأدمن يشوفوا الكل.
+        mine: AuthSession.backendRole == 'SupervisorUsed',
       );
     }
     return sl<ProductSupervisorAuditRepository>().getEntries();

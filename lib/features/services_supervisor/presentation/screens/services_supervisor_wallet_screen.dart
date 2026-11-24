@@ -43,12 +43,8 @@ class _ServicesSupervisorWalletScreenState
     if (!AuthSession.isSignedIn) return;
     try {
       final response = await sl<ApiConsumer>(instanceName: 'berwah')
-          .get<Object>(switch (widget.owner) {
-            SupervisorWalletOwner.wasalny => ApiEndpoints.usedAdvancedWallet,
-            SupervisorWalletOwner.services => ApiEndpoints.serviceAdvancedWallet,
-            // مشرف المنتجات والتجار: محفظة الحساب العادية على السيرفر.
-            _ => ApiEndpoints.walletSummary,
-          });
+          // كل المشرفين: محفظة الحساب على السيرفر (هي اللي السحب بيتخصم منها).
+          .get<Object>(ApiEndpoints.walletSummary);
       final body = response.data;
       final data = body is Map ? (body['data'] ?? body) : null;
       final balance = data is Map ? data['balance'] : null;
@@ -76,7 +72,9 @@ class _ServicesSupervisorWalletScreenState
   bool get _serverWallet =>
       AuthSession.isSignedIn &&
       (widget.owner == SupervisorWalletOwner.product ||
-          widget.owner == SupervisorWalletOwner.merchant);
+          widget.owner == SupervisorWalletOwner.merchant ||
+          widget.owner == SupervisorWalletOwner.wasalny ||
+          widget.owner == SupervisorWalletOwner.services);
 
   _WalletPayoutMethod _selectedMethod = _WalletPayoutMethod.instapay;
   FinancialOperationType _operationType = FinancialOperationType.withdrawal;

@@ -229,17 +229,10 @@ class _HeadSupervisorTabsShellState extends State<HeadSupervisorTabsShell> {
         ),
         ),
       ),
-      bottomNavigationBar: AnimatedContainer(
-        duration: const Duration(milliseconds: 260),
-        height: _barsVisible ? FinanceBottomNavigationBar.heightOf(context) : 0,
-        child: SingleChildScrollView(
-          physics: const NeverScrollableScrollPhysics(),
-          child: AnimatedOpacity(
-            duration: const Duration(milliseconds: 200),
-            opacity: _barsVisible ? 1 : 0,
-            child: FinanceBottomNavigationBar(currentIndex: _currentIndex, onTap: _selectPage, items: navItems),
-          ),
-        ),
+      bottomNavigationBar: HidingBottomBar(
+        // بيستخبى بالتزحلق لتحت (ارتفاعه ثابت)، فالصفحة مش بتتقاس من الأول وإنت بتسحب.
+        visible: _barsVisible,
+        child: FinanceBottomNavigationBar(currentIndex: _currentIndex, onTap: _selectPage, items: navItems),
       ),
     );
   }

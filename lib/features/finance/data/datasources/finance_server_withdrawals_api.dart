@@ -30,10 +30,10 @@ class FinanceServerWithdrawalsApi {
   Future<List<WithdrawalRequestEntity>> pendingHeadSupervisorWithdrawals() async {
     final response = await apiConsumer.get<Object>(
       ApiEndpoints.walletAdminWithdrawals,
-      // رئيس المشرفين ومشرفي المنتجات والتجار (محافظهم على السيرفر).
+      // رئيس المشرفين ومشرفي المنتجات والتجار ووصلني (محافظهم على السيرفر).
       queryParameters: {
         'status': 0,
-        'role': 'BossOfSupervisor,SupervisorForAd,SupervisorForMerchant',
+        'role': 'BossOfSupervisor,SupervisorForAd,SupervisorForMerchant,SupervisorUsed,SupervisorForServices',
       },
     );
     final body = _map(response.data);
@@ -66,6 +66,8 @@ class FinanceServerWithdrawalsApi {
     final roleName = switch ('${row['role'] ?? ''}') {
       'SupervisorForAd' => 'مشرف المنتجات الجديدة',
       'SupervisorForMerchant' => 'مشرف التجار',
+      'SupervisorUsed' => 'مشرف وصلني',
+      'SupervisorForServices' => 'مشرف الخدمات',
       _ => 'رئيس المشرفين',
     };
     return WithdrawalRequestEntity(

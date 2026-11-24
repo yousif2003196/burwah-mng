@@ -138,8 +138,10 @@ class _RenderScrollFx extends RenderProxyBox {
     return false;
   }
 
+  // من غير طبقة منفصلة لكل كارت: التأثير بقى تحريك وتصغير على الـ canvas بس
+  // (من غير شفافية)، فمفيش saveLayer ولا طبقات زيادة وإنت بتسحب.
   @override
-  bool get alwaysNeedsCompositing => _enabled && _position != null;
+  bool get alwaysNeedsCompositing => false;
 
   @override
   void attach(PipelineOwner owner) {
@@ -269,8 +271,13 @@ class _RenderScrollFx extends RenderProxyBox {
       context.paintChild(c, offset);
       return;
     }
-    final a = (alpha * 255).round().clamp(0, 255);
-    if (a == 0) return;
+    // الشفافية اتشالت (كانت أغلى حاجة في الرسم)؛ الدخول/الخروج بالتحريك والتصغير.
+    if (alpha <= 0.001 && enter <= 0.001) {
+      // لسه تحت الحافة خالص: يترسم عادي من غير تأثير.
+      _fxActive = false;
+      context.paintChild(c, offset);
+      return;
+    }
 
     // المفصلة: أعلى العنصر للدخول، أسفله للخروج.
     final pivotY = out > (1 - enter) ? h : 0.0;
@@ -280,14 +287,12 @@ class _RenderScrollFx extends RenderProxyBox {
       ..translateByDouble(-w / 2, -pivotY, 0, 1);
     _matrix = m;
 
-    context.pushOpacity(offset, a, (PaintingContext ctx, Offset off) {
-      ctx.pushTransform(
-        needsCompositing,
-        off,
-        m,
-        (PaintingContext inner, Offset o) => inner.paintChild(c, o),
-      );
-    });
+    context.pushTransform(
+      needsCompositing,
+      offset,
+      m,
+      (PaintingContext inner, Offset o) => inner.paintChild(c, o),
+    );
   }
 }
 

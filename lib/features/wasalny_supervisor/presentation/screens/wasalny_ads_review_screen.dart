@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 
+import 'package:barwah_app/core/auth/review_timer.dart';
 import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
@@ -268,6 +269,8 @@ class _WasalnyAdsReviewScreenState extends State<WasalnyAdsReviewScreen> {
     bool isArabic,
     AppLocalizations l10n,
   ) {
+    // وقت المراجعة بيبدأ من فتح الإعلان.
+    ReviewTimer.open('ad', ad.id);
     return Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) => WasalnyAdDetailsScreen(
@@ -293,12 +296,14 @@ class _WasalnyAdsReviewScreenState extends State<WasalnyAdsReviewScreen> {
     AppLocalizations l10n, {
     String? note,
   }) async {
-    final success = await context.read<WasalnyAdsCubit>().decide(
+    final cubit = context.read<WasalnyAdsCubit>();
+    final success = await cubit.decide(
           id: ad.id,
           status: status,
           decisionNote: note,
         );
     if (!mounted) return false;
+    final serverError = cubit.lastError;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -311,7 +316,7 @@ class _WasalnyAdsReviewScreenState extends State<WasalnyAdsReviewScreen> {
                   WasalnyAdStatus.editRequested => l10n.wasalnyAdsEditRequested,
                   _ => l10n.wasalnyAdsUpdated,
                 }
-              : l10n.wasalnyAdsUpdateError,
+              : (serverError ?? l10n.wasalnyAdsUpdateError),
         ),
       ),
     );

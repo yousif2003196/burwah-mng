@@ -62,8 +62,8 @@ class WasalnyComplaint {
     this.actionNoteEn,
     this.isAdViolation = false,
     this.isBlocked = false,
-    this.sellerPhone = '050 000 1042',
-    this.buyerPhone = '050 000 2042',
+    this.sellerPhone = '',
+    this.buyerPhone = '',
   });
 
   WasalnyComplaint copyWith({

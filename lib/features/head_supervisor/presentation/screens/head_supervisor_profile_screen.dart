@@ -9,6 +9,7 @@ import 'package:barwah_app/features/head_supervisor/domain/entities/boss_profile
 import 'package:barwah_app/features/head_supervisor/presentation/controllers/boss_load_state.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/controllers/boss_profile_cubit.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_market_branches_screen.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_radius_settings_screen.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_vip_screen.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_wallet_screen.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/widgets/common/boss_state_views.dart';
@@ -431,6 +432,18 @@ class _ProfileBodyState extends State<_ProfileBody> {
                 'Add, edit and remove market branches'),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(builder: (_) => const HeadSupervisorMarketBranchesScreen()),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        ScrollFx(
+          child: _ManagementEntry(
+            icon: Icons.radar_outlined,
+            title: profileText(context, 'إعدادات النطاقات', 'Delivery ranges'),
+            subtitle: profileText(context, 'نطاق التجار، ونطاق الكباتن، ونطاق الدراجة الهوائية',
+                'Store range, captains range and bicycle range'),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const HeadSupervisorRadiusSettingsScreen()),
             ),
           ),
         ),

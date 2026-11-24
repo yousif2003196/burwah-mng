@@ -7,6 +7,7 @@ import 'package:barwah_app/core/auth/auth_session.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/network/api_consumer.dart';
 import 'package:barwah_app/core/network/api_endpoints.dart';
+import 'package:barwah_app/features/head_supervisor/data/datasources/supervisor_escalations_api.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_supervisor_request_decision_sheet.dart';
 import 'package:barwah_app/features/services_supervisor/data/datasources/services_activity_log.dart';
 import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
@@ -349,7 +350,56 @@ class ServicesEscalationStore {
         ],
       );
     }
+    await _applyUnified(all);
     return all;
+  }
+
+  /// تصعيدات الشكاوى بتتحسم من لوحة التصعيدات الموحّدة عند رئيس المشرفين:
+  /// حالتها وقراره وملاحظته بتيجي من هناك.
+  Future<void> _applyUnified(Map<String, ServicesEscalation> all) async {
+    if (!SupervisorEscalationsApi.supervisorCanUse) return;
+    final List<SupervisorEscalationRecord> mine;
+    try {
+      mine = await sl<SupervisorEscalationsApi>().mine();
+    } on Object catch (error) {
+      debugPrint('Unified escalations unavailable: $error');
+      return;
+    }
+    // الأقدم الأول علشان آخر تصعيد لكل شكوى يكسب.
+    final sorted = [...mine]..sort((a, b) =>
+        (a.createdAt ?? DateTime(2000)).compareTo(b.createdAt ?? DateTime(2000)));
+    for (final r in sorted) {
+      if (!r.refKey.startsWith('TCK-')) continue;
+      final refId = _numberOf(r.refKey).toString();
+      final key = ServicesEscalation.keyOf(ServicesEscalationKind.complaint, refId);
+      final status = switch (r.status) {
+        1 => ServicesEscalationStatus.decided,
+        2 => ServicesEscalationStatus.returned,
+        3 => ServicesEscalationStatus.escalatedToAdmin,
+        _ => ServicesEscalationStatus.pendingHead,
+      };
+      final at = r.createdAt ?? DateTime.now();
+      final existing = all[key];
+      final timeline = <ServicesEscalationNote>[
+        ...?existing?.timeline,
+        if (existing == null) ServicesEscalationNote(at, 'تم الرفع لرئيس المشرفين — ${r.reason}'),
+        if (status != ServicesEscalationStatus.pendingHead)
+          ServicesEscalationNote(
+            r.decidedAt ?? at,
+            r.decisionNote.isEmpty ? status.labelAr : '${status.labelAr} — ${r.decisionNote}',
+          ),
+      ];
+      all[key] = ServicesEscalation(
+        kind: ServicesEscalationKind.complaint,
+        refId: refId,
+        title: r.title.isEmpty ? (existing?.title ?? r.refKey) : r.title,
+        status: status,
+        reason: r.reason,
+        escalatedAt: at,
+        rounds: existing?.rounds ?? 1,
+        timeline: timeline,
+      );
+    }
   }
 
   /// Applies head decisions (server audit trail, or local events when offline).

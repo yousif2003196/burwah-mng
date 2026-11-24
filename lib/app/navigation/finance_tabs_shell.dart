@@ -269,21 +269,13 @@ class _FinanceTabsShellState extends State<FinanceTabsShell> {
         ),
       ),
       // شريط BottomNavigationBar متجاوب يختفي بسلاسة عند التمرير لأسفل ويعود عند الصعود
-      bottomNavigationBar: AnimatedContainer(
-        duration: const Duration(milliseconds: 260),
-        curve: Curves.easeInOut,
-        height: _isBarsVisible ? FinanceBottomNavigationBar.heightOf(context) : 0,
-        child: SingleChildScrollView(
-          physics: const NeverScrollableScrollPhysics(),
-          child: AnimatedOpacity(
-            duration: const Duration(milliseconds: 200),
-            opacity: _isBarsVisible ? 1.0 : 0.0,
-            child: FinanceBottomNavigationBar(
+      bottomNavigationBar: HidingBottomBar(
+        // بيستخبى بالتزحلق لتحت (ارتفاعه ثابت)، فالصفحة مش بتتقاس من الأول وإنت بتسحب.
+        visible: _isBarsVisible,
+        child: FinanceBottomNavigationBar(
               currentIndex: _currentIndex,
               onTap: _selectPage,
             ),
-          ),
-        ),
       ),
     );
   }

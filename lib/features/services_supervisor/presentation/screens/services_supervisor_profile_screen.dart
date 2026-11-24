@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -46,6 +47,8 @@ class _ServicesSupervisorProfileScreenState
   String? _remoteRegion;
   double? _balance;
   double? _dues;
+  Map<String, dynamic>? _settings;
+  Map<String, dynamic>? _report;
   List<ServicesActivityEntry> _mine = const [];
 
   @override
@@ -55,11 +58,11 @@ class _ServicesSupervisorProfileScreenState
     _loadRemote();
   }
 
-  Future<Map<String, dynamic>?> _getData(String path) async {
+  Future<Map<String, dynamic>?> _getData(String path, {bool unwrapped = false}) async {
     try {
       final response = await sl<ApiConsumer>(instanceName: 'berwah').get<Object>(path);
       final body = response.data;
-      final data = body is Map<String, dynamic> ? body['data'] : null;
+      final data = body is Map<String, dynamic> ? (unwrapped ? body : body['data']) : null;
       return data is Map<String, dynamic> ? data : null;
     } on Object catch (error) {
       debugPrint('Services profile data unavailable ($path): $error');
@@ -72,10 +75,13 @@ class _ServicesSupervisorProfileScreenState
     final results = await Future.wait<Object?>([
       _getData(ApiEndpoints.serviceProfileOverview),
       _getData(ApiEndpoints.serviceAccountSettings),
-      _getData(ApiEndpoints.serviceAdvancedWallet),
+      // محفظة الحساب على السيرفر (هي اللي السحب بيتخصم منها).
+      _getData(ApiEndpoints.walletSummary, unwrapped: true),
       ServicesActivityLog.fetchRemote(mine: true, pageSize: 5)
           .then<Object?>((v) => v)
           .catchError((Object _) => const <ServicesActivityEntry>[]),
+      // متوسطي الشخصي: من فتحي للعنصر لحد قراري.
+      _getData('${ApiEndpoints.serviceReports}?period=month'),
     ]);
     if (!mounted) return;
     final settings = results[1] as Map<String, dynamic>?;
@@ -89,6 +95,8 @@ class _ServicesSupervisorProfileScreenState
       _balance = (wallet?['balance'] as num?)?.toDouble();
       _dues = (wallet?['totalDues'] as num?)?.toDouble();
       _mine = results[3] as List<ServicesActivityEntry>;
+      _settings = settings;
+      _report = results[4] as Map<String, dynamic>?;
     });
   }
 
@@ -175,6 +183,8 @@ class _ServicesSupervisorProfileScreenState
   }
 
   Future<void> _loadSavedProfile() async {
+    // الحساب الحقيقي: البيانات من السيرفر بس (مفيش نسخة محفوظة على الجهاز).
+    if (AuthSession.isSignedIn) return;
     try {
       final preferences = await SharedPreferences.getInstance();
       final encoded = preferences.getString(_accountStorageKey);
@@ -212,6 +222,10 @@ class _ServicesSupervisorProfileScreenState
   }
 
   Future<void> _openAccountSettings(AppLocalizations l10n) async {
+    if (AuthSession.isSignedIn) {
+      _showAccountInfo();
+      return;
+    }
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) => Scaffold(
@@ -223,6 +237,124 @@ class _ServicesSupervisorProfileScreenState
       ),
     );
     if (mounted) await _loadSavedProfile();
+  }
+
+  static bool isArabicName(AppLocalizations l10n) => l10n.localeName.startsWith('ar');
+
+  String _myAverage() {
+    final v = _report?['myAverageReviewMinutes'];
+    if (v is! num) return '—';
+    return v < 10 ? v.toStringAsFixed(1) : v.round().toString();
+  }
+
+  /// بيانات الحساب من السيرفر للعرض بس (التعديل من رئيس المشرفين/الإدارة).
+  void _showAccountInfo() {
+    final s = _settings ?? const <String, dynamic>{};
+    String text(Object? v) {
+      final t = '${v ?? ''}'.trim();
+      return t.isEmpty || t == 'null' ? '—' : t;
+    }
+    final rows = <(IconData, String, String)>[
+      (Icons.person_outline, 'الاسم', text(s['fullName'] ?? AuthSession.name)),
+      (Icons.badge_outlined, 'المسمّى', text(s['roleTitle'])),
+      (Icons.place_outlined, 'المنطقة', text(s['region'])),
+      (Icons.engineering_outlined, 'متاح للعمل الميداني',
+          s['isAvailableForFieldWork'] == false ? 'لا' : 'نعم'),
+      (Icons.task_alt, 'المهام المنجزة', text(s['completedTasksCount'])),
+    ];
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('بيانات الحساب',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.ink)),
+                const SizedBox(height: 4),
+                Text('للعرض بس — لو فيه تعديل كلّم رئيس المشرفين.',
+                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                const SizedBox(height: 12),
+                for (final r in rows)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Row(children: [
+                      Icon(r.$1, size: 18, color: AppColors.textSecondary),
+                      const SizedBox(width: 10),
+                      Text(r.$2, style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                      const Spacer(),
+                      Flexible(
+                        child: Text(r.$3,
+                            textAlign: TextAlign.end,
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.ink)),
+                      ),
+                    ]),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// صلاحياتي كما حددها رئيس المشرفين (من السيرفر).
+  Future<void> _showMyAccess() async {
+    Map<String, dynamic>? data;
+    String? error;
+    try {
+      final response = await sl<ApiConsumer>(instanceName: 'berwah').get<Object>(ApiEndpoints.adMyAccess);
+      final body = response.data;
+      final raw = body is Map ? body['data'] : null;
+      if (raw is Map) data = Map<String, dynamic>.from(raw);
+    } on DioException {
+      error = 'تعذر تحميل صلاحياتك. حاول تاني.';
+    }
+    if (!mounted) return;
+    Widget line(bool allowed, String text) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          child: Row(children: [
+            Icon(allowed ? Icons.check_circle_outline : Icons.block,
+                size: 18, color: allowed ? AppColors.successDark : AppColors.dangerDark),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text('$text: ${allowed ? 'مسموح' : 'موقوف من رئيس المشرفين'}',
+                  style: TextStyle(fontSize: 13, color: AppColors.ink)),
+            ),
+          ]),
+        );
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('صلاحياتي',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.ink)),
+                const SizedBox(height: 10),
+                if (error != null)
+                  Text(error, style: TextStyle(color: AppColors.dangerDark))
+                else if (data != null) ...[
+                  line(data['canReviewAds'] != false, 'مراجعة طلبات الخدمة (اعتماد/رفض/تعديل/إعادة إسناد)'),
+                  line(data['canHideAds'] != false, 'تعليق الطلبات وإيقاف مقدمي الخدمة'),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -351,7 +483,9 @@ class _ServicesSupervisorProfileScreenState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _savedName?.isNotEmpty == true
+                      AuthSession.isSignedIn
+                          ? (_remoteName ?? AuthSession.name)
+                          : _savedName?.isNotEmpty == true
                           ? _savedName!
                           : (_remoteName ?? l10n.servicesProfileName),
                       maxLines: 2,
@@ -376,7 +510,9 @@ class _ServicesSupervisorProfileScreenState
           Align(
             alignment: AlignmentDirectional.centerEnd,
             child: Text(
-              _savedCoverage?.isNotEmpty == true
+              AuthSession.isSignedIn
+                  ? (_remoteRegion ?? (isArabicName(l10n) ? 'المنطقة غير محددة' : 'No region set'))
+                  : _savedCoverage?.isNotEmpty == true
                   ? _savedCoverage!
                   : (_remoteRegion ?? l10n.servicesProfileCoverage),
               style: TextStyle(
@@ -451,8 +587,10 @@ class _ServicesSupervisorProfileScreenState
       _ProfileMetric(
         icon: Icons.access_time,
         label: isAr ? 'متوسط زمن المراجعة' : 'Avg. review time',
-        value: _metric('averageMinutes'),
-        detail: isAr ? 'دقيقة (آخر 30 يومًا)' : 'min (last 30 days)',
+        value: _myAverage(),
+        detail: isAr
+            ? 'دقيقة من فتحك للعنصر لحد قرارك (${_report?['myMeasuredDecisions'] ?? 0} قرار)'
+            : 'min from opening to your decision',
         color: AppColors.info,
       ),
       _ProfileMetric(
@@ -621,10 +759,21 @@ class _ServicesSupervisorProfileScreenState
         children: [
           _AdministrationRow(
             icon: Icons.manage_accounts_outlined,
-            title: l10n.servicesAccountEditProfile,
-            subtitle: l10n.servicesAccountLocalOnly,
+            title: AuthSession.isSignedIn ? 'بيانات الحساب' : l10n.servicesAccountEditProfile,
+            subtitle: AuthSession.isSignedIn
+                ? 'بياناتك كما على السيرفر (عرض فقط)'
+                : l10n.servicesAccountLocalOnly,
             onTap: () => _openAccountSettings(l10n),
           ),
+          if (AuthSession.isSignedIn) ...[
+            const Divider(height: 1, indent: 14, endIndent: 14),
+            _AdministrationRow(
+              icon: Icons.admin_panel_settings_outlined,
+              title: 'صلاحياتي',
+              subtitle: 'الصلاحيات اللي حددها لك رئيس المشرفين',
+              onTap: _showMyAccess,
+            ),
+          ],
           const Divider(height: 1, indent: 14, endIndent: 14),
           _AdministrationRow(
             icon: Icons.badge_outlined,

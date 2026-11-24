@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:barwah_app/core/auth/auth_session.dart';
+import 'package:barwah_app/core/realtime/realtime_hub.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
 import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
@@ -13,6 +15,23 @@ class UnreadEventsDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // الحساب الحقيقي: الإشعارات غير المقروءة من السيرفر.
+    if (AuthSession.isSignedIn) {
+      return ValueListenableBuilder<int>(
+        valueListenable: RealtimeHub.instance.unread,
+        builder: (context, unread, _) => unread == 0
+            ? const SizedBox.shrink()
+            : Container(
+                width: 13,
+                height: 13,
+                decoration: BoxDecoration(
+                  color: AppColors.danger,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.surface, width: 2),
+                ),
+              ),
+      );
+    }
     return ValueListenableBuilder<int>(
       valueListenable: LocalEventStore.revision,
       builder: (context, revision, _) => FutureBuilder<List<LocalEvent>>(

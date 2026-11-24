@@ -48,6 +48,8 @@ class AdOwnerChatScreen extends StatefulWidget {
     required this.adId,
     this.adTitle = '',
     this.requestId,
+    this.complaintId,
+    this.openPath,
     this.withRole = 'buyer',
     this.conversationId,
     this.title,
@@ -60,6 +62,12 @@ class AdOwnerChatScreen extends StatefulWidget {
   /// When set, the chat is the used-goods supervisor's chat about this Wasalny
   /// request with its buyer or seller ([withRole]) instead of the ad owner's.
   final int? requestId;
+
+  /// When set, the used-goods supervisor's chat about this complaint (ticket) with its buyer or seller ([withRole]).
+  final int? complaintId;
+
+  /// Any server endpoint that opens a supervisor chat (POST, body {'with': [withRole]}) and returns {id, closed}.
+  final String? openPath;
   final String withRole;
 
   /// A conversation that already exists (from the chats list): it is opened as it is, nothing is created.
@@ -132,7 +140,16 @@ class _AdOwnerChatScreenState extends State<AdOwnerChatScreen> {
       if (widget.conversationId != null) {
         _conversationId = widget.conversationId;
       } else {
-        final r = requestId != null
+        final complaintId = widget.complaintId;
+        final openPath = widget.openPath;
+        final r = openPath != null
+            ? await _api.post<Object>(openPath, data: {'with': widget.withRole})
+            : complaintId != null
+            ? await _api.post<Object>(
+                'api/SupervisorUsed/complaints/$complaintId/chat',
+                data: {'with': widget.withRole},
+              )
+            : requestId != null
             ? await _api.post<Object>(
                 'api/WasalnyRequest/supervisor/$requestId/chat',
                 data: {'with': widget.withRole},
@@ -155,10 +172,13 @@ class _AdOwnerChatScreenState extends State<AdOwnerChatScreen> {
       _poll = Timer.periodic(const Duration(seconds: 10), (_) => _fetch());
       if (mounted) setState(() => _loading = false);
     } catch (e) {
+      // رسالة السيرفر لو موجودة (مثلًا: صاحب الشكوى مش مسجل في التطبيق).
+      final body = e is DioException ? e.response?.data : null;
+      final message = body is Map ? '${body['message'] ?? ''}'.trim() : '';
       if (mounted) {
         setState(() {
           _loading = false;
-          _error = 'تعذر فتح المحادثة';
+          _error = message.isEmpty ? 'تعذر فتح المحادثة' : message;
         });
       }
     }

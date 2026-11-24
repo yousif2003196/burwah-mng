@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
 import 'package:barwah_app/core/auth/auth_session.dart';
@@ -16,6 +17,18 @@ import 'package:barwah_app/features/products/presentation/screens/auction_mismat
 import 'package:barwah_app/features/products/presentation/screens/product_supervisor_complaints_screen.dart';
 import 'package:barwah_app/features/services_supervisor/presentation/screens/services_complaints_screen.dart';
 import 'package:barwah_app/features/services_supervisor/presentation/screens/services_requests_review_screen.dart';
+import 'package:barwah_app/features/services_supervisor/presentation/screens/services_escalations_screen.dart';
+import 'package:barwah_app/features/wasalny_supervisor/presentation/controllers/wasalny_complaints_cubit.dart';
+import 'package:barwah_app/features/wasalny_supervisor/presentation/screens/wasalny_complaints_screen.dart';
+import 'package:barwah_app/features/wasalny_supervisor/presentation/screens/wasalny_requests_screen.dart';
+
+/// تواريخ السيرفر UTC من غير "Z".
+DateTime? _utc(Object? raw) {
+  final text = '${raw ?? ''}'.trim();
+  if (text.isEmpty || text == 'null') return null;
+  final hasZone = text.endsWith('Z') || RegExp(r'[+-]\d\d:?\d\d$').hasMatch(text);
+  return DateTime.tryParse(hasZone ? text : '${text}Z')?.toLocal();
+}
 
 class _ServerNotice {
   const _ServerNotice({
@@ -37,8 +50,7 @@ class _ServerNotice {
         message: '${j['message'] ?? ''}',
         type: '${j['type'] ?? 'other'}',
         refId: (j['refId'] as num?)?.toInt(),
-        createdAt:
-            DateTime.tryParse('${j['createdAt']}')?.toLocal() ?? DateTime.now(),
+        createdAt: _utc(j['createdAt']) ?? DateTime.now(),
       );
 }
 
@@ -111,8 +123,35 @@ class _ServerNotificationsScreenState extends State<ServerNotificationsScreen> {
     return 'منذ ${d.inDays} يوم';
   }
 
+  /// مشرف وصلني: الشكاوى وقرارات رئيس المشرفين بتفتح الشكاوى، وطلبات وصلني بتفتح الطلب.
+  Widget? _wasalnyTarget(_ServerNotice n) {
+    Widget complaints(String filter) => BlocProvider(
+          create: (_) => sl<WasalnyComplaintsCubit>()..loadComplaints(),
+          child: WasalnyComplaintsScreen(embedded: true, initialFilter: filter),
+        );
+    switch (n.type) {
+      case 'escalation_decision':
+        return complaints('mine');
+      case 'support_ticket':
+      case 'used_complaint':
+      case 'used_complaint_escalation':
+        return complaints('follow');
+      case 'wasalny_request':
+        final id = n.refId;
+        return id != null && id > 0
+            ? WasalnyRequestDetailsScreen(requestId: id)
+            : const WasalnyRequestsScreen();
+      default:
+        return null;
+    }
+  }
+
   Widget? _targetFor(_ServerNotice n) {
+    if (AuthSession.backendRole == 'SupervisorUsed') return _wasalnyTarget(n);
     final isProduct = AuthSession.backendRole == 'SupervisorForAd';
+    if (AuthSession.backendRole == 'SupervisorForServices' && n.type == 'escalation_decision') {
+      return const ServicesEscalationsScreen();
+    }
     switch (n.type) {
       case 'service_review':
         return const ServicesRequestsReviewScreen();
@@ -144,6 +183,11 @@ class _ServerNotificationsScreenState extends State<ServerNotificationsScreen> {
     }
     final target = _targetFor(n);
     if (target == null) return;
+    if (target is WasalnyRequestDetailsScreen || target is ServicesEscalationsScreen) {
+      // شاشة الطلب ليها شريطها العلوي.
+      Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => target));
+      return;
+    }
     Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (_) => Scaffold(
         backgroundColor: AppColors.scaffold,

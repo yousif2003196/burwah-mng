@@ -7,6 +7,7 @@ import 'package:barwah_app/core/auth/auth_session.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/network/api_consumer.dart';
 import 'package:barwah_app/core/network/api_endpoints.dart';
+import 'package:barwah_app/features/services_supervisor/data/datasources/services_provider_api_data_source.dart';
 
 class ServicesProviderState {
   final String id;
@@ -68,7 +69,11 @@ class ServicesProviderStateStore {
   static const _key = 'services_provider_states_v1';
   static final ValueNotifier<int> revision = ValueNotifier<int>(0);
 
+  /// الحساب الحقيقي: الحالة جاية من السيرفر مع بيانات المزود (مفيش نسخة على الجهاز).
   Future<Map<String, ServicesProviderState>> load() async {
+    if (AuthSession.isSignedIn) {
+      return Map.of(ServicesProviderApiDataSource.serverStates);
+    }
     final prefs = await SharedPreferences.getInstance();
     final encoded = prefs.getString(_key);
     if (encoded == null) return {};
@@ -102,10 +107,19 @@ class ServicesProviderStateStore {
         .post<Object>(ApiEndpoints.serviceProviderState(providerId), data: body);
   }
 
+  /// بعد أي تغيير على السيرفر: نعيد تحميل المزودين وحالتهم.
+  Future<bool> _refreshFromServer() async {
+    if (!AuthSession.isSignedIn) return false;
+    await ServicesProviderApiDataSource.refreshCatalog();
+    revision.value++;
+    return true;
+  }
+
   Future<void> suspend(String id, String reason) async {
     final clean = reason.trim();
     if (clean.length < 5) throw ArgumentError('A reason is required.');
     await _remote(id, {'suspended': true, 'reason': clean});
+    if (await _refreshFromServer()) return;
     final all = await load();
     final s = all[id] ?? ServicesProviderState(id: id);
     all[id] = s.copyWith(suspended: true, available: false, reason: clean);
@@ -114,6 +128,7 @@ class ServicesProviderStateStore {
 
   Future<void> reactivate(String id) async {
     await _remote(id, {'suspended': false});
+    if (await _refreshFromServer()) return;
     final all = await load();
     final s = all[id] ?? ServicesProviderState(id: id);
     all[id] = s.copyWith(suspended: false, available: true);
@@ -122,6 +137,7 @@ class ServicesProviderStateStore {
 
   Future<void> setVerified(String id, bool verified) async {
     await _remote(id, {'verified': verified});
+    if (await _refreshFromServer()) return;
     final all = await load();
     final s = all[id] ?? ServicesProviderState(id: id);
     all[id] = s.copyWith(verified: verified);

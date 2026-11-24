@@ -80,7 +80,10 @@ class ServicesActivityLog {
               if ('${item['reason'] ?? ''}'.trim().isNotEmpty)
                 '${item['reason']}'.trim(),
             ].join(' • '),
-            at: DateTime.tryParse('${item['at'] ?? ''}')?.toLocal() ??
+            at: DateTime.tryParse(() {
+              final t = '${item['at'] ?? ''}'.trim();
+              return t.isEmpty || t.endsWith('Z') || RegExp(r'[+-]\d\d:?\d\d$').hasMatch(t) ? t : '${t}Z';
+            }())?.toLocal() ??
                 DateTime.now(),
           ),
     ];

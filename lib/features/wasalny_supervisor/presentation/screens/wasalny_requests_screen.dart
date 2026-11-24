@@ -13,6 +13,7 @@ import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/core/widgets/app_snack_bar.dart';
 import 'package:barwah_app/core/widgets/full_data_view.dart';
 import 'package:barwah_app/features/messaging/presentation/screens/ad_owner_chat_screen.dart';
+import 'package:barwah_app/features/head_supervisor/data/datasources/supervisor_escalations_api.dart';
 
 bool _isArabic(BuildContext context) =>
     Localizations.localeOf(context).languageCode == 'ar';
@@ -52,9 +53,15 @@ class _Req {
       sellerPhone = '${j['sellerPhone'] ?? ''}',
       status = '${j['status'] ?? 'underReview'}',
       reason = '${j['reason'] ?? ''}',
-      createdAt =
-          DateTime.tryParse('${j['createdAt'] ?? ''}')?.toLocal() ??
-          DateTime.now();
+      createdAt = _utc(j['createdAt']) ?? DateTime.now();
+
+  /// تواريخ السيرفر UTC من غير "Z".
+  static DateTime? _utc(Object? raw) {
+    final text = '${raw ?? ''}'.trim();
+    if (text.isEmpty || text == 'null') return null;
+    final hasZone = text.endsWith('Z') || RegExp(r'[+-]\d\d:?\d\d$').hasMatch(text);
+    return DateTime.tryParse(hasZone ? text : '${text}Z')?.toLocal();
+  }
 
   final int id;
   final int adId;
@@ -130,17 +137,24 @@ class _WasalnyRequestsScreenState extends State<WasalnyRequestsScreen> {
     }
     if (!quiet) setState(() => _loading = true);
     try {
-      final response = await _api.get<Object>(
-        ApiEndpoints.wasalnyRequests,
-        queryParameters: {'tab': _archive ? 'archive' : 'review', 'pageSize': 100},
-      );
-      final body = response.data;
-      if (body is! Map || body['data'] is! List) throw const FormatException('bad requests');
-      final counts = body['counts'];
-      final items = [
-        for (final item in body['data'] as List)
-          if (item is Map<String, dynamic>) _Req(item),
-      ];
+      // كل الطلبات صفحة ورا صفحة (مش أول 100 بس).
+      const pageSize = 200;
+      final items = <_Req>[];
+      Object? counts;
+      for (var page = 1; page <= 10; page++) {
+        final response = await _api.get<Object>(
+          ApiEndpoints.wasalnyRequests,
+          queryParameters: {'tab': _archive ? 'archive' : 'review', 'page': page, 'pageSize': pageSize},
+        );
+        final body = response.data;
+        if (body is! Map || body['data'] is! List) throw const FormatException('bad requests');
+        counts ??= body['counts'];
+        final rows = body['data'] as List;
+        for (final item in rows) {
+          if (item is Map<String, dynamic>) items.add(_Req(item));
+        }
+        if (rows.length < pageSize) break;
+      }
       if (!mounted) return;
       setState(() {
         _items = items;
@@ -587,6 +601,35 @@ class _WasalnyRequestDetailsScreenState extends State<WasalnyRequestDetailsScree
     );
   }
 
+  /// تصعيد الطلب لرئيس المشرفين بسبب (بيوصله إشعار ويظهر في "تصعيدات المشرفين").
+  Future<void> _escalate() async {
+    final ar = _isArabic(context);
+    final reason = await _askReason(ar ? 'سبب التصعيد لرئيس المشرفين' : 'Reason for escalating to the head supervisor');
+    if (reason == null || !mounted) return;
+    setState(() => _busy = true);
+    final ad = _data?['ad'];
+    final adTitle = ad is Map ? '${ad['title'] ?? ''}'.trim() : '';
+    try {
+      await sl<SupervisorEscalationsApi>().create(
+        kind: 'wasalny_request',
+        refKey: 'REQ-${widget.requestId}',
+        title: adTitle.isEmpty ? 'طلب وصلني #REQ-${widget.requestId}' : 'طلب وصلني: $adTitle',
+        reason: reason,
+      );
+      if (!mounted) return;
+      setState(() => _busy = false);
+      AppSnackBar.showSuccess(context, ar ? 'اتصعّد الطلب لرئيس المشرفين' : 'Escalated to the head supervisor');
+    } on SupervisorEscalationRejection catch (rejection) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      AppSnackBar.showError(context, rejection.message);
+    } on Object {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      AppSnackBar.showError(context, ar ? 'تعذر التصعيد، حاول مرة أخرى.' : 'Could not escalate.');
+    }
+  }
+
   Future<void> _reopen() => _decide(
     ApiEndpoints.wasalnyRequestReopen(widget.requestId),
     done: _isArabic(context) ? 'رجع الطلب لقيد المراجعة' : 'Back under review',
@@ -766,7 +809,8 @@ class _WasalnyRequestDetailsScreenState extends State<WasalnyRequestDetailsScree
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
         decoration: BoxDecoration(color: AppColors.surface, border: Border(top: BorderSide(color: AppColors.cardBorder))),
         child: underReview
-            ? Row(
+            ? Column(mainAxisSize: MainAxisSize.min, children: [
+              Row(
                 children: [
                   Expanded(child: FilledButton(onPressed: _approve, child: Text(ar ? 'اعتماد' : 'Approve'))),
                   const SizedBox(width: 8),
@@ -780,7 +824,18 @@ class _WasalnyRequestDetailsScreenState extends State<WasalnyRequestDetailsScree
                     ),
                   ),
                 ],
-              )
+              ),
+              const SizedBox(height: 6),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton.icon(
+                  onPressed: _busy ? null : _escalate,
+                  icon: const Icon(Icons.trending_up, size: 18),
+                  label: Text(ar ? 'تصعيد لرئيس المشرفين' : 'Escalate to the head supervisor'),
+                  style: TextButton.styleFrom(foregroundColor: AppColors.warningDark),
+                ),
+              ),
+            ])
             : SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(

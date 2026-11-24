@@ -187,9 +187,13 @@ class FinanceNavigationItem {
   final IconData icon;
   final String label;
 
+  /// عدد صغير فوق الأيقونة (مثلًا شكاوى محتاجة قرار). صفر = من غير شارة.
+  final int badgeCount;
+
   const FinanceNavigationItem({
     required this.icon,
     required this.label,
+    this.badgeCount = 0,
   });
 }
 
@@ -412,13 +416,42 @@ class _NavBarItem extends StatelessWidget {
                   duration: const Duration(milliseconds: 260),
                   curve: Curves.easeOutCubic,
                   offset: selected ? const Offset(0, -0.4) : Offset.zero,
-                  child: MoneyBagIcon.matches(item.icon)
-                      ? const MoneyBagIcon(size: 26)
-                      : MotionIcon(
-                          item.icon,
-                          size: 22,
-                          color: AppColors.textSecondary,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      MoneyBagIcon.matches(item.icon)
+                          ? const MoneyBagIcon(size: 26)
+                          : MotionIcon(
+                              item.icon,
+                              size: 22,
+                              color: AppColors.textSecondary,
+                            ),
+                      if (item.badgeCount > 0)
+                        PositionedDirectional(
+                          top: -5,
+                          end: -10,
+                          child: Container(
+                            constraints: const BoxConstraints(minWidth: 17),
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: AppColors.danger,
+                              borderRadius: BorderRadius.circular(99),
+                              border: Border.all(color: AppColors.surface, width: 1.5),
+                            ),
+                            child: Text(
+                              item.badgeCount > 99 ? '99+' : '${item.badgeCount}',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.bold,
+                                height: 1.3,
+                              ),
+                            ),
+                          ),
                         ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 4),
@@ -597,6 +630,32 @@ class _FinanceSwipeNavigationState extends State<FinanceSwipeNavigation> {
       },
       onHorizontalDragCancel: () => _dragDistance = 0,
       child: widget.child,
+    );
+  }
+}
+
+/// الشريط السفلي اللي بيستخبى وإنت بتسحب لتحت.
+///
+/// بيتزحلق لبرّه الشاشة بدل ما ارتفاعه يتغير: ارتفاعه في الـ Scaffold ثابت، فالصفحة
+/// ومساحاتها مش بتتقاس ولا بتتبني من الأول في كل لحظة من الحركة (ده كان سبب التهنيج).
+class HidingBottomBar extends StatelessWidget {
+  const HidingBottomBar({super.key, required this.visible, required this.child});
+
+  final bool visible;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      ignoring: !visible,
+      child: RepaintBoundary(
+        child: AnimatedSlide(
+          offset: visible ? Offset.zero : const Offset(0, 1.15),
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeInOut,
+          child: child,
+        ),
+      ),
     );
   }
 }

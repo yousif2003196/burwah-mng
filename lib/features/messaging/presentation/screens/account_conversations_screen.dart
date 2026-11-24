@@ -26,9 +26,17 @@ class AccountConversationsScreen extends StatefulWidget {
     required this.accountId,
   });
 
+  /// الحسابات الحقيقية (داخلة بالسيرفر) بتعد محادثات السيرفر بس؛ المحادثات المحلية للوضع التجريبي فقط.
   static Future<int> unreadCountFor(String accountId) async =>
-      await ConversationStore.instance.unreadCountFor(accountId) +
+      (AuthSession.isSignedIn
+          ? 0
+          : await ConversationStore.instance.unreadCountFor(accountId)) +
       (await _serverChats()).fold<int>(0, (sum, chat) => sum + chat.unread);
+
+  static Future<List<Conversation>> _local(String accountId) =>
+      AuthSession.isSignedIn
+          ? Future.value(const <Conversation>[])
+          : ConversationStore.instance.forAccount(accountId);
 
   /// The customers' chats of the signed-in account, from the server (empty when signed out or on any failure).
   static Future<List<_ServerChat>> _serverChats() async {
@@ -127,6 +135,8 @@ class _ServerChat {
         5 => arabic ? 'مزاد' : 'Auction',
         6 => arabic ? 'صفقة' : 'Deal',
         7 => arabic ? 'طلب وصلني' : 'Wasalny request',
+        8 => arabic ? 'شكوى' : 'Complaint',
+        9 => arabic ? 'مشرف' : 'Supervisor',
         _ => arabic ? 'محادثة' : 'Chat',
       };
 }
@@ -192,7 +202,7 @@ class _AccountConversationsScreenState
   @override
   void initState() {
     super.initState();
-    _conversations = ConversationStore.instance.forAccount(widget.accountId);
+    _conversations = AccountConversationsScreen._local(widget.accountId);
     _loadServer();
     // A new message from a customer puts its chat on top at once.
     _chatSub = RealtimeHub.instance.chats.listen((_) => _loadServer());
@@ -212,7 +222,7 @@ class _AccountConversationsScreenState
 
   void _reload() {
     setState(() {
-      _conversations = ConversationStore.instance.forAccount(widget.accountId);
+      _conversations = AccountConversationsScreen._local(widget.accountId);
     });
     _loadServer();
   }
@@ -388,9 +398,13 @@ class _AccountConversationsScreenState
   }
 
   Widget _filterBar() {
+    // المحادثات بين المشرفين كانت محلية (تجريبية)، فبتختفي للحسابات الحقيقية.
+    final real = AuthSession.isSignedIn;
     final labels = _isArabic
-        ? const ['الكل', 'العملاء', 'المشرفون', 'غير المقروء']
-        : const ['All', 'Customers', 'Supervisors', 'Unread'];
+        ? ['الكل', 'العملاء', if (!real) 'المشرفون', 'غير المقروء']
+        : ['All', 'Customers', if (!real) 'Supervisors', 'Unread'];
+    // رقم الفلتر الحقيقي لكل شريحة (0 الكل · 1 العملاء · 2 المشرفون · 3 غير المقروء).
+    final codes = real ? const [0, 1, 3] : const [0, 1, 2, 3];
     return Container(
       color: _navy,
       padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
@@ -433,9 +447,9 @@ class _AccountConversationsScreenState
               itemCount: labels.length,
               separatorBuilder: (_, __) => const SizedBox(width: 8),
               itemBuilder: (_, i) {
-                final on = _filter == i;
+                final on = _filter == codes[i];
                 return GestureDetector(
-                  onTap: () => setState(() => _filter = i),
+                  onTap: () => setState(() => _filter = codes[i]),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     alignment: Alignment.center,
@@ -549,6 +563,7 @@ class _AccountConversationsScreenState
           title:
               Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
           actions: [
+            if (!AuthSession.isSignedIn)
             IconButton(
               tooltip: _isArabic ? 'محادثة جديدة' : 'New conversation',
               onPressed: _startConversation,

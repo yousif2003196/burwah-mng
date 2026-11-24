@@ -8,7 +8,7 @@ import 'package:intl/intl.dart';
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/core/theme/app_palette.dart';
-import 'package:barwah_app/features/merchants/presentation/screens/merchant_conversation_screen.dart';
+import 'package:barwah_app/features/messaging/presentation/screens/ad_owner_chat_screen.dart';
 import 'package:barwah_app/features/wasalny_supervisor/domain/entities/wasalny_ad.dart';
 import 'package:barwah_app/l10n/app_localizations.dart';
 import 'package:barwah_app/core/widgets/scroll_fx.dart';
@@ -224,11 +224,16 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
     );
   }
 
+  /// محادثة حقيقية على السيرفر مع صاحب الإعلان (بتتقفل بعد القرار).
   void _openChat(BuildContext context, String seller) {
+    final adId = int.tryParse(ad.id);
+    if (adId == null) return;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => MerchantConversationScreen(
-          conversationTitle: seller,
+        builder: (_) => AdOwnerChatScreen(
+          adId: adId,
+          adTitle: isArabic ? ad.titleAr : ad.titleEn,
+          title: seller,
         ),
       ),
     );
@@ -324,6 +329,39 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
                   _openChat(context, seller);
                 },
               ),
+              if (ad.sellerPhone.trim().isNotEmpty) ...[
+                const SizedBox(height: 8),
+                ListTile(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  tileColor: AppColors.background,
+                  leading: CircleAvatar(
+                    backgroundColor: AppColors.successDark,
+                    child: const Icon(Icons.call_outlined,
+                        color: Colors.white, size: 20),
+                  ),
+                  title: Text(
+                    ad.sellerPhone,
+                    textDirection: ui.TextDirection.ltr,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                  subtitle: Text(
+                    isArabic ? 'اضغط لنسخ رقم البائع' : 'Tap to copy the number',
+                    style: TextStyle(
+                        fontSize: 11, color: AppColors.textSecondary),
+                  ),
+                  trailing: const Icon(Icons.copy_rounded, size: 16),
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: ad.sellerPhone));
+                    Navigator.of(sheetContext).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text(isArabic ? 'اتنسخ رقم البائع' : 'Number copied'),
+                    ));
+                  },
+                ),
+              ],
             ],
           ),
         ),
@@ -350,7 +388,8 @@ class WasalnyAdDetailsScreen extends StatelessWidget {
         'camera' => l10n.wasalnyCategoryCamera,
         'console' => l10n.wasalnyCategoryConsole,
         'laptop' => l10n.wasalnyCategoryLaptop,
-        _ => l10n.wasalnyCategoryBicycle,
+        'bicycle' => l10n.wasalnyCategoryBicycle,
+        _ => 'بدون تصنيف',
       };
 }
 

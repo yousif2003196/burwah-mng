@@ -4,8 +4,7 @@ import 'package:barwah_app/features/wasalny_supervisor/data/datasources/wasalny_
 import 'package:barwah_app/features/wasalny_supervisor/domain/entities/wasalny_ad.dart';
 
 /// إعلانات المستعمل الحقيقية من `api/SupervisorUsed`.
-/// السيرفر ما بيحتفظش بحالة "طُلب تعديل" لوحدها: الإعلان بيرجع Pending ومعاه
-/// سبب التعديل، فبتتعرض الحالة دي في الجلسة الحالية بس.
+/// حالة "طُلب تعديل" محفوظة على السيرفر (editRequested) فبتفضل ظاهرة بعد إعادة الفتح.
 class WasalnyAdsApiDataSource implements WasalnyAdsDataSource {
   WasalnyAdsApiDataSource({required this.apiConsumer});
 
@@ -13,8 +12,6 @@ class WasalnyAdsApiDataSource implements WasalnyAdsDataSource {
   static const _pageSize = 100;
   static const _maxPages = 5;
 
-  /// الإعلانات اللي المشرف طلب تعديلها في الجلسة دي.
-  final Set<String> _editRequested = {};
 
   static WasalnyAdStatus _statusOf(String raw) => switch (raw.toLowerCase()) {
         'approved' => WasalnyAdStatus.approved,
@@ -37,7 +34,7 @@ class WasalnyAdsApiDataSource implements WasalnyAdsDataSource {
     ];
     final note = '${j['reviewNote'] ?? ''}'.trim();
     var status = _statusOf('${j['status'] ?? ''}');
-    if (status == WasalnyAdStatus.pending && _editRequested.contains(id)) {
+    if (status == WasalnyAdStatus.pending && j['editRequested'] == true) {
       status = WasalnyAdStatus.editRequested;
     }
     return WasalnyAd(
@@ -53,15 +50,22 @@ class WasalnyAdsApiDataSource implements WasalnyAdsDataSource {
       categoryKey: 'other',
       categoryName: '${j['categoryName'] ?? ''}',
       status: status,
-      submittedAt: DateTime.tryParse('${j['createdAt']}')?.toLocal() ??
-          DateTime.now(),
+      submittedAt: _utc(j['createdAt']) ?? DateTime.now(),
       decisionNote: note.isEmpty ? null : note,
       descriptionAr: description,
       descriptionEn: description,
       photoCount: urls.length,
       imageUrls: urls,
-      sellerPhone: '',
+      sellerPhone: '${j['publisherPhone'] ?? ''}'.trim(),
     );
+  }
+
+  /// تواريخ السيرفر UTC من غير "Z".
+  static DateTime? _utc(Object? raw) {
+    final text = '${raw ?? ''}'.trim();
+    if (text.isEmpty || text == 'null') return null;
+    final hasZone = text.endsWith('Z') || RegExp(r'[+-]\d\d:?\d\d$').hasMatch(text);
+    return DateTime.tryParse(hasZone ? text : '${text}Z')?.toLocal();
   }
 
   @override
@@ -98,28 +102,23 @@ class WasalnyAdsApiDataSource implements WasalnyAdsDataSource {
           ApiEndpoints.usedApprove(adId),
           data: {'reason': reason, 'sendNotification': true},
         );
-        _editRequested.remove(id);
       case WasalnyAdStatus.rejected:
         await apiConsumer.post<Object>(
           ApiEndpoints.usedRejectWithPenalty(adId),
           data: {'reason': reason, 'sendNotification': true},
         );
-        _editRequested.remove(id);
       case WasalnyAdStatus.suspended || WasalnyAdStatus.hidden:
         await apiConsumer.post<Object>(
           ApiEndpoints.usedSuspend(adId),
           data: {'reason': reason},
         );
-        _editRequested.remove(id);
       case WasalnyAdStatus.editRequested:
         await apiConsumer.post<Object>(
           ApiEndpoints.usedRequestEdit(adId),
           data: {'reason': reason, 'sendNotification': true},
         );
-        _editRequested.add(id);
       case WasalnyAdStatus.pending:
         await apiConsumer.post<Object>(ApiEndpoints.usedRestore(adId));
-        _editRequested.remove(id);
       case WasalnyAdStatus.awaitingApproval:
         throw UnsupportedError('awaitingApproval is not a server state');
     }
@@ -133,6 +132,9 @@ class WasalnyAdsApiDataSource implements WasalnyAdsDataSource {
       ...data,
       'publisherName': (data['publisher'] is Map)
           ? (data['publisher'] as Map)['fullName']
+          : '',
+      'publisherPhone': (data['publisher'] is Map)
+          ? (data['publisher'] as Map)['phone']
           : '',
       'imageUrls': [
         for (final i in (data['images'] as List<dynamic>? ?? const []))

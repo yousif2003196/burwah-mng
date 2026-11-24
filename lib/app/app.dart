@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'package:barwah_app/core/widgets/motion_icon.dart';
 import 'package:barwah_app/app/navigation/admin_section_picker.dart';
 import 'package:barwah_app/app/navigation/admin_tabs_shell.dart';
 import 'package:barwah_app/app/navigation/finance_tabs_shell.dart';
@@ -224,9 +225,13 @@ class _BarwahAppState extends State<BarwahApp> {
 
               return RepaintBoundary(
                 key: appCaptureKey,
-                child: Directionality(
-                  textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
-                  child: child ?? const SizedBox.shrink(),
+                // الأيقونات المتحركة بتستنى لحد ما السحب يخلص.
+                child: NotificationListener<ScrollNotification>(
+                  onNotification: MotionIcon.onScrollNotification,
+                  child: Directionality(
+                    textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
+                    child: child ?? const SizedBox.shrink(),
+                  ),
                 ),
               );
             },
