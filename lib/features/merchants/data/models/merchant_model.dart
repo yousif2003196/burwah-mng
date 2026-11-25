@@ -46,6 +46,10 @@ class MerchantModel extends MerchantEntity {
     super.joinedDate,
     super.joinedDateEn,
     super.commissionPercent,
+    super.commissionFixedAmount,
+    super.commissionType = 'default',
+    super.defaultCommissionPercent,
+    super.commissionLabel,
     super.activeAdsCount,
     super.underReviewAdsCount,
     super.pendingReviewCount,
@@ -102,6 +106,12 @@ class MerchantModel extends MerchantEntity {
       joinedDate: json['joinedDate'] as String?,
       joinedDateEn: json['joinedDateEn'] as String?,
       commissionPercent: (json['commissionPercent'] as num?)?.toDouble(),
+      commissionFixedAmount:
+          (json['commissionFixedAmount'] as num?)?.toDouble(),
+      commissionType: json['commissionType'] as String? ?? 'default',
+      defaultCommissionPercent:
+          (json['defaultCommissionPercent'] as num?)?.toDouble(),
+      commissionLabel: json['commissionLabel'] as String?,
       activeAdsCount: json['activeAdsCount'] as int?,
       underReviewAdsCount: json['underReviewAdsCount'] as int?,
       pendingReviewCount: json['pendingReviewCount'] as int?,
