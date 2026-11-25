@@ -8,6 +8,8 @@ import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
 import 'package:barwah_app/core/widgets/motion_icon.dart';
 import 'package:barwah_app/core/widgets/scroll_fx.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_market_branches_screen.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_merchant_commission_screen.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_merchant_assignment_screen.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_radius_settings_screen.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_vip_screen.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_supervisor_broadcast_sheet.dart';
@@ -26,6 +28,9 @@ class HeadSupervisorMoreScreen extends StatefulWidget {
 class _HeadSupervisorMoreScreenState extends State<HeadSupervisorMoreScreen> {
   /// النطاقات الحالية من السيرفر (بتتعرض تحت كارت إعدادات النطاقات).
   String? _ranges;
+
+  /// العمولة العامة الحالية على التجار.
+  String? _commission;
 
   @override
   void initState() {
@@ -47,12 +52,22 @@ class _HeadSupervisorMoreScreenState extends State<HeadSupervisorMoreScreen> {
       setState(() {
         _ranges = profileText(
           context,
-          'التجار ${_km(data['storeServiceRadiusKm'])} كم • الكباتن ${_km(data['courierMaxTripKm'])} كم • الدراجة ${_km(data['bicycleMaxTripKm'])} كم',
-          'Stores ${_km(data['storeServiceRadiusKm'])} km • Captains ${_km(data['courierMaxTripKm'])} km • Bicycle ${_km(data['bicycleMaxTripKm'])} km',
+          'التجار ${_km(data['storeServiceRadiusKm'])} كم • الكباتن ${_km(data['courierMaxTripKm'])} كم • الدراجة ${_km(data['bicycleMaxTripKm'])} كم\nالتوصيل ${_km(data['baseDeliveryFee'])} ج لأول ${_km(data['deliveryFreeDistanceKm'])} كم + ${_km(data['deliveryPricePerExtraKm'])} ج للكيلو',
+          'Stores ${_km(data['storeServiceRadiusKm'])} km • Captains ${_km(data['courierMaxTripKm'])} km • Bicycle ${_km(data['bicycleMaxTripKm'])} km\nDelivery ${_km(data['baseDeliveryFee'])} EGP for ${_km(data['deliveryFreeDistanceKm'])} km + ${_km(data['deliveryPricePerExtraKm'])} EGP/km',
         );
       });
     } on Object {
       // الكارت بيفضل بالوصف العام لو السيرفر مش متاح.
+    }
+    try {
+      final response = await sl<ApiConsumer>(instanceName: 'berwah').get<Object>(ApiEndpoints.bossMerchantCommission);
+      final body = response.data;
+      final data = body is Map ? body['data'] : null;
+      final global = data is Map ? data['global'] : null;
+      if (global is! Map || !mounted) return;
+      setState(() => _commission = 'العامة: ${global['label'] ?? '—'}');
+    } on Object {
+      // نفس الكلام.
     }
   }
 
@@ -129,11 +144,36 @@ class _HeadSupervisorMoreScreenState extends State<HeadSupervisorMoreScreen> {
               icon: Icons.radar_outlined,
               tint: AppColors.infoDark,
               background: AppColors.infoLight,
-              title: profileText(context, 'إعدادات النطاقات', 'Delivery ranges'),
+              title: profileText(context, 'النطاقات وسعر التوصيل', 'Ranges & delivery price'),
               subtitle: _ranges ??
-                  profileText(context, 'نطاق التجار، ونطاق الكباتن، ونطاق الدراجة الهوائية',
-                      'Store range, captains range and bicycle range'),
+                  profileText(context, 'نطاقات التجار والكباتن، وسعر التوصيل والكيلو الزيادة',
+                      'Store and captain ranges, delivery price and extra km'),
               onTap: () => _open(const HeadSupervisorRadiusSettingsScreen()),
+            ),
+          ),
+          const SizedBox(height: 10),
+          ScrollFx(
+            child: _MoreEntry(
+              icon: Icons.percent_rounded,
+              tint: AppColors.successDark,
+              background: AppColors.successLight,
+              title: profileText(context, 'عمولة المنصة على التجار', 'Merchant platform commission'),
+              subtitle: _commission ??
+                  profileText(context, 'نسبة أو مبلغ ثابت من كل طلب، عامة أو خاصة لكل تاجر',
+                      'Percent or fixed amount per order, global or per merchant'),
+              onTap: () => _open(const HeadSupervisorMerchantCommissionScreen()),
+            ),
+          ),
+          const SizedBox(height: 10),
+          ScrollFx(
+            child: _MoreEntry(
+              icon: Icons.hub_outlined,
+              tint: AppColors.warningDark,
+              background: AppColors.warningLight,
+              title: profileText(context, 'توزيع التجار على المشرفين', 'Assign merchants to supervisors'),
+              subtitle: profileText(context, 'التجار اللي من غير مشرف، والموافقة على الجداد ونقل أي تاجر لمشرف تاني',
+                  'Unassigned merchants, approving new ones and moving merchants between supervisors'),
+              onTap: () => _open(const HeadSupervisorMerchantAssignmentScreen()),
             ),
           ),
           const SizedBox(height: 18),

@@ -71,6 +71,7 @@ class MerchantAdvertisementLocalStore {
   static Future<void> saveStatus({
     required String reference,
     required MerchantAdvertisementStatus status,
+    String? reason,
   }) async {
     // منتجات التجار الحقيقية (P-<id>) تتحفظ على السيرفر مش محليًا.
     if (reference.startsWith('P-')) {
@@ -79,9 +80,10 @@ class MerchantAdvertisementLocalStore {
         if (status == MerchantAdvertisementStatus.approved) {
           await MerchantsApi.showProduct(productId);
         } else {
+          // السبب اللي المشرف اختاره/كتبه هو اللي بيوصل للتاجر.
           await MerchantsApi.hideProduct(
             productId,
-            'مخالف لسياسة المنصة',
+            (reason ?? '').trim().isEmpty ? 'مخالف لسياسة المنصة' : reason!.trim(),
           );
         }
         version.value++;

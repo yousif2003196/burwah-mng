@@ -11,7 +11,8 @@ import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
 /// - نطاق خدمة كل التجار (الدايرة حوالين المحل)،
 /// - نطاق الكباتن على الدراجة الهوائية (لوحده)،
 /// - نطاق باقي وسائل التوصيل (مشترك).
-/// التغيير بيتطبّق فورًا على الكل وبيوصلهم إشعار.
+/// - سعر التوصيل: الأساسي لكل طلب، والرينج الطبيعي اللي بيغطيه، وسعر الكيلو الزيادة بعده.
+/// التغيير بيتطبّق فورًا على الكل وبيوصلهم إشعار (الطلبات القديمة بسعرها).
 class HeadSupervisorRadiusSettingsScreen extends StatefulWidget {
   const HeadSupervisorRadiusSettingsScreen({super.key});
 
@@ -21,10 +22,13 @@ class HeadSupervisorRadiusSettingsScreen extends StatefulWidget {
 }
 
 class _RadiusField {
-  _RadiusField(this.min, this.max, this.step);
+  _RadiusField(this.min, this.max, this.step, {this.unit = 'كم'});
   final double min;
   final double max;
   final double step;
+
+  /// كم / ج
+  final String unit;
   double current = 0;
   double value = 0;
   double fallback = 0;
@@ -38,6 +42,9 @@ class _HeadSupervisorRadiusSettingsScreenState
   final _store = _RadiusField(1, 100, 1);
   final _courier = _RadiusField(1, 100, 1);
   final _bicycle = _RadiusField(0.5, 30, 0.5);
+  final _baseFee = _RadiusField(5, 200, 1, unit: 'ج');
+  final _freeKm = _RadiusField(1, 50, 0.5);
+  final _perKm = _RadiusField(1, 50, 0.5, unit: 'ج');
   List<Map<String, dynamic>> _history = const [];
   bool _loading = true;
   bool _saving = false;
@@ -65,6 +72,9 @@ class _HeadSupervisorRadiusSettingsScreenState
     set(_store, 'storeServiceRadiusKm', 20);
     set(_courier, 'courierMaxTripKm', 30);
     set(_bicycle, 'bicycleMaxTripKm', 4);
+    set(_baseFee, 'baseDeliveryFee', 30);
+    set(_freeKm, 'deliveryFreeDistanceKm', 10);
+    set(_perKm, 'deliveryPricePerExtraKm', 5);
     _history = [
       for (final h in (data['history'] as List? ?? const []))
         if (h is Map) Map<String, dynamic>.from(h),
@@ -103,6 +113,10 @@ class _HeadSupervisorRadiusSettingsScreenState
         'نطاق الكباتن: ${_km(_courier.current)} ← ${_km(_courier.value)} كم (إشعار لكباتن الموتوسيكل والعربية والتوك توك)',
       if (_bicycle.changed)
         'نطاق الدراجة الهوائية: ${_km(_bicycle.current)} ← ${_km(_bicycle.value)} كم (إشعار لكباتن الدراجة)',
+      if (_baseFee.changed) 'سعر التوصيل: ${_km(_baseFee.current)} ← ${_km(_baseFee.value)} ج',
+      if (_freeKm.changed) 'الرينج الطبيعي: ${_km(_freeKm.current)} ← ${_km(_freeKm.value)} كم',
+      if (_perKm.changed) 'الكيلو الزيادة: ${_km(_perKm.current)} ← ${_km(_perKm.value)} ج',
+      if (_pricingChanged) 'إشعار لكل الكباتن بالسعر الجديد، والطلبات اللي اتعملت قبل كده بسعرها القديم.',
     ];
     if (changes.isEmpty) return;
     final ok = await showDialog<bool>(
@@ -110,7 +124,7 @@ class _HeadSupervisorRadiusSettingsScreenState
       builder: (dialogContext) => Directionality(
         textDirection: TextDirection.rtl,
         child: AlertDialog(
-          title: const Text('تأكيد تغيير النطاقات'),
+          title: const Text('تأكيد التغييرات'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -148,6 +162,9 @@ class _HeadSupervisorRadiusSettingsScreenState
           if (_store.changed) 'storeServiceRadiusKm': _store.value,
           if (_courier.changed) 'courierMaxTripKm': _courier.value,
           if (_bicycle.changed) 'bicycleMaxTripKm': _bicycle.value,
+          if (_baseFee.changed) 'baseDeliveryFee': _baseFee.value,
+          if (_freeKm.changed) 'deliveryFreeDistanceKm': _freeKm.value,
+          if (_perKm.changed) 'deliveryPricePerExtraKm': _perKm.value,
         },
       );
       final body = response.data;
@@ -159,7 +176,7 @@ class _HeadSupervisorRadiusSettingsScreenState
         _saving = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(message.isEmpty ? 'اتحفظت النطاقات' : message),
+        content: Text(message.isEmpty ? 'اتحفظت الإعدادات' : message),
       ));
     } on DioException catch (error) {
       final body = error.response?.data;
@@ -167,14 +184,24 @@ class _HeadSupervisorRadiusSettingsScreenState
       if (!mounted) return;
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(message.isEmpty ? 'تعذر حفظ النطاقات. حاول تاني.' : message),
+        content: Text(message.isEmpty ? 'تعذر حفظ الإعدادات. حاول تاني.' : message),
       ));
     }
   }
 
+  bool get _pricingChanged => _baseFee.changed || _freeKm.changed || _perKm.changed;
+
+  /// مثال على السعر بالقيم اللي على الشاشة: طلب أبعد من الرينج بـ 3 كم.
+  String get _example {
+    final km = _freeKm.value + 3;
+    final total = _baseFee.value + 3 * _perKm.value;
+    return 'مثال: طلب على بعد ${_km(km)} كم = ${_km(_baseFee.value)} + 3 × ${_km(_perKm.value)} = ${_km(total)} ج. '
+        'أي جزء من كيلو بيتحسب كيلو كامل.';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final anyChange = _store.changed || _courier.changed || _bicycle.changed;
+    final anyChange = _store.changed || _courier.changed || _bicycle.changed || _pricingChanged;
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
@@ -185,7 +212,7 @@ class _HeadSupervisorRadiusSettingsScreenState
           elevation: 0,
           centerTitle: true,
           title: const Text(
-            'إعدادات النطاقات',
+            'النطاقات وسعر التوصيل',
             style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
           ),
         ),
@@ -250,6 +277,52 @@ class _HeadSupervisorRadiusSettingsScreenState
                   detail: 'نطاق منفصل لكباتن الدراجة الهوائية بس (الرحلة كلها).',
                   onChanged: (v) => setState(() => _bicycle.value = v),
                 ),
+                const SizedBox(height: 22),
+                Text(
+                  'سعر التوصيل',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: AppColors.ink),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'بيتطبّق على الطلبات الجديدة بس، وكل الكباتن بيوصلهم إشعار بالسعر الجديد.',
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 10),
+                _RadiusCard(
+                  field: _baseFee,
+                  icon: Icons.local_shipping_outlined,
+                  title: 'سعر التوصيل لكل طلب',
+                  detail: 'السعر الأساسي اللي العميل بيدفعه على أي طلب توصيل جوه الرينج الطبيعي.',
+                  onChanged: (v) => setState(() => _baseFee.value = v),
+                ),
+                const SizedBox(height: 12),
+                _RadiusCard(
+                  field: _freeKm,
+                  icon: Icons.social_distance_outlined,
+                  title: 'الرينج الطبيعي',
+                  detail: 'المسافة بين المحل والعميل اللي السعر الأساسي بيغطيها من غير زيادة.',
+                  onChanged: (v) => setState(() => _freeKm.value = v),
+                ),
+                const SizedBox(height: 12),
+                _RadiusCard(
+                  field: _perKm,
+                  icon: Icons.add_road_outlined,
+                  title: 'سعر الكيلو الزيادة',
+                  detail: 'بيتضاف على السعر الأساسي لكل كيلو بعد الرينج الطبيعي.',
+                  onChanged: (v) => setState(() => _perKm.value = v),
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.infoLight,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    _example,
+                    style: TextStyle(fontSize: 12, height: 1.5, color: AppColors.infoDark, fontWeight: FontWeight.w600),
+                  ),
+                ),
                 const SizedBox(height: 10),
                 Text(
                   'رحلات وصلني والمطار مش بتتأثر بالإعدادات دي.',
@@ -293,6 +366,7 @@ class _RadiusCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final u = field.unit;
     final value = field.value.clamp(field.min, field.max).toDouble();
     final divisions = ((field.max - field.min) / field.step).round();
     return Container(
@@ -316,7 +390,7 @@ class _RadiusCard extends StatelessWidget {
                 ),
               ),
               Text(
-                '${_km(value)} كم',
+                '${_km(value)} $u',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.primaryDark),
               ),
             ],
@@ -335,7 +409,7 @@ class _RadiusCard extends StatelessWidget {
                   min: field.min,
                   max: field.max,
                   divisions: divisions,
-                  label: '${_km(value)} كم',
+                  label: '${_km(value)} $u',
                   onChanged: (v) => onChanged((v / field.step).round() * field.step),
                 ),
               ),
@@ -349,8 +423,8 @@ class _RadiusCard extends StatelessWidget {
             children: [
               Text(
                 field.changed
-                    ? 'الحالي ${_km(field.current)} كم ← الجديد ${_km(value)} كم'
-                    : 'الحالي ${_km(field.current)} كم',
+                    ? 'الحالي ${_km(field.current)} $u ← الجديد ${_km(value)} $u'
+                    : 'الحالي ${_km(field.current)} $u',
                 style: TextStyle(
                   fontSize: 11.5,
                   color: field.changed ? AppColors.warningDark : AppColors.textMuted,
@@ -361,7 +435,7 @@ class _RadiusCard extends StatelessWidget {
               if ((value - field.fallback).abs() > 0.01)
                 TextButton(
                   onPressed: () => onChanged(field.fallback),
-                  child: Text('الأصلي (${_km(field.fallback)} كم)'),
+                  child: Text('الأصلي (${_km(field.fallback)} $u)'),
                 ),
             ],
           ),

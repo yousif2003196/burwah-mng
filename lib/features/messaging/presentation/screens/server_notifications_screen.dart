@@ -9,8 +9,11 @@ import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/network/api_consumer.dart';
 import 'package:barwah_app/core/realtime/realtime_hub.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_merchant_assignment_screen.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_requests_screen.dart';
+import 'package:barwah_app/features/merchants/presentation/screens/ads_management_screen.dart';
 import 'package:barwah_app/features/merchants/presentation/screens/merchant_complaints_screen.dart';
+import 'package:barwah_app/features/merchants/presentation/screens/merchant_server_escalations_screen.dart';
 import 'package:barwah_app/features/merchants/presentation/screens/merchant_registration_review_screen.dart';
 import 'package:barwah_app/features/merchants/presentation/screens/merchant_withdrawals_review_screen.dart';
 import 'package:barwah_app/features/products/presentation/screens/auction_mismatch_reports_screen.dart';
@@ -153,6 +156,16 @@ class _ServerNotificationsScreenState extends State<ServerNotificationsScreen> {
     if (AuthSession.backendRole == 'SupervisorForServices' && n.type == 'escalation_decision') {
       return const ServicesEscalationsScreen();
     }
+    if (AuthSession.backendRole == 'SupervisorForMerchant' && n.type == 'escalation_decision') {
+      return const MerchantServerEscalationsScreen();
+    }
+    if (n.type == 'merchant_unassigned') {
+      return const HeadSupervisorMerchantAssignmentScreen();
+    }
+    if (AuthSession.backendRole == 'SupervisorForMerchant' && n.type == 'product_review') {
+      final id = n.refId;
+      return id == null ? const AdsManagementScreen() : MerchantProductDetailsScreen(id: id);
+    }
     switch (n.type) {
       case 'provider_application':
         return const ProviderApplicationsScreen();
@@ -186,7 +199,10 @@ class _ServerNotificationsScreenState extends State<ServerNotificationsScreen> {
     }
     final target = _targetFor(n);
     if (target == null) return;
-    if (target is WasalnyRequestDetailsScreen || target is ServicesEscalationsScreen || target is ProviderApplicationsScreen) {
+    if (target is WasalnyRequestDetailsScreen ||
+        target is ServicesEscalationsScreen ||
+        target is ProviderApplicationsScreen ||
+        target is MerchantServerEscalationsScreen) {
       // شاشة الطلب ليها شريطها العلوي.
       Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => target));
       return;

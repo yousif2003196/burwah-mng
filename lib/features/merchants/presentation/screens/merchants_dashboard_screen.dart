@@ -22,6 +22,8 @@ import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
 import 'package:barwah_app/l10n/app_localizations.dart';
 import 'package:barwah_app/core/widgets/scroll_fx.dart';
 import 'package:barwah_app/core/widgets/motion_icon.dart';
+import 'package:barwah_app/core/auth/auth_session.dart';
+import 'package:barwah_app/features/merchants/presentation/screens/merchant_server_escalations_screen.dart';
 
 class MerchantsDashboardScreen extends StatefulWidget {
   final bool showAppBar;
@@ -424,6 +426,12 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
                   children: [
                     // 1. Supervisor Welcome & Stats Header Card
                     ScrollFx(child: SupervisorHeaderCard(stats: loadedState.stats)),
+
+                    if (AuthSession.isSignedIn) ...[
+                      const SizedBox(height: 12),
+                      // 1.1 التصعيدات لرئيس المشرفين (من السيرفر).
+                      const ScrollFx(child: MerchantServerEscalationsButton()),
+                    ],
 
                     const SizedBox(height: 16),
 

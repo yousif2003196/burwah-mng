@@ -6,6 +6,11 @@ import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/core/widgets/app_snack_bar.dart';
 import 'package:barwah_app/features/merchants/data/datasources/merchant_advertisement_local_store.dart';
 import 'package:barwah_app/features/merchants/data/datasources/merchant_supervisor_local_store.dart';
+import 'package:barwah_app/features/merchants/data/datasources/merchants_api.dart';
+import 'package:barwah_app/features/merchants/presentation/screens/merchant_orders_screen.dart';
+import 'package:barwah_app/features/merchants/presentation/screens/ads_management_screen.dart';
+import 'package:barwah_app/features/messaging/presentation/screens/ad_owner_chat_screen.dart';
+import 'package:barwah_app/core/network/api_endpoints.dart';
 import 'package:barwah_app/features/merchants/domain/entities/merchant_entity.dart';
 import 'package:barwah_app/features/merchants/domain/entities/merchant_supervisor_audit_event.dart';
 import 'package:barwah_app/features/merchants/presentation/screens/merchant_conversation_screen.dart';
@@ -30,7 +35,14 @@ class MerchantDetailsScreen extends StatefulWidget {
 
 class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
   late final TextEditingController _commissionController;
+  /// قيمة العمولة الحالية: نسبة أو مبلغ ثابت حسب [_commissionType].
   late double _commissionPercent;
+
+  /// percent | fixed | default
+  late String _commissionType;
+
+  /// الاختيار في الكارت (مبلغ ثابت ولا نسبة).
+  late bool _commissionFixed;
   late bool _isSuspended;
   bool _isSavingCommission = false;
   Map<String, MerchantAdvertisementStatus> _advertisementStatuses = {};
@@ -38,10 +50,17 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
 
   MerchantEntity get merchant => widget.merchant;
 
+  /// رقم التاجر على السيرفر (null = تاجر تجريبي محلي).
+  int? get _serverId => int.tryParse(merchant.id);
+
   @override
   void initState() {
     super.initState();
-    _commissionPercent = merchant.commissionPercent ?? 5;
+    _commissionType = merchant.commissionType;
+    _commissionFixed = _commissionType == 'fixed';
+    _commissionPercent = _commissionFixed
+        ? (merchant.commissionFixedAmount ?? 0)
+        : (merchant.commissionPercent ?? merchant.defaultCommissionPercent ?? 0);
     _isSuspended = widget.isLocallySuspended ??
         (merchant.isSuspended ||
             merchant.status == MerchantStatus.temporarilySuspended);
@@ -384,18 +403,33 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
     return Row(
       children: [
         Expanded(
-          child: _actionButton(
-            l10n.merchantInfoPendingOperations,
-            Icons.pause,
-            AppColors.dangerBorder,
-            AppColors.dangerDark,
-            () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) =>
-                    MerchantPendingOperationsScreen(merchant: merchant),
-              ),
-            ),
-          ),
+          child: _serverId != null
+              ? _actionButton(
+                  'طلبات التاجر',
+                  Icons.receipt_long_outlined,
+                  AppColors.dangerBorder,
+                  AppColors.dangerDark,
+                  () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => MerchantOrdersScreen(
+                        merchantId: _serverId!,
+                        merchantName: merchant.getName(l10n.localeName.startsWith('ar')),
+                      ),
+                    ),
+                  ),
+                )
+              : _actionButton(
+                  l10n.merchantInfoPendingOperations,
+                  Icons.pause,
+                  AppColors.dangerBorder,
+                  AppColors.dangerDark,
+                  () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) =>
+                          MerchantPendingOperationsScreen(merchant: merchant),
+                    ),
+                  ),
+                ),
         ),
         const SizedBox(width: 8),
         Expanded(
@@ -420,7 +454,15 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
             Colors.white,
             () => Navigator.of(context).push(
               MaterialPageRoute<void>(
-                builder: (_) => MerchantConversationScreen(merchant: merchant),
+                // تاجر من السيرفر: محادثة حقيقية بتوصله؛ الوضع التجريبي محلي.
+                builder: (_) => _serverId != null
+                    ? AdOwnerChatScreen(
+                        adId: 0,
+                        openPath: ApiEndpoints.merchantChat(_serverId!),
+                        title: merchant.getName(l10n.localeName.startsWith('ar')),
+                        subtitle: l10n.localeName.startsWith('ar') ? 'تاجر' : 'Merchant',
+                      )
+                    : MerchantConversationScreen(merchant: merchant),
               ),
             ),
           ),
@@ -433,7 +475,7 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
     final l10n = AppLocalizations.of(context)!;
     final isArabic = l10n.localeName.startsWith('ar');
     final result =
-        await showModalBottomSheet<({String reason, String details})>(
+        await showModalBottomSheet<({String reason, String details, int? days})>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -441,17 +483,15 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
       builder: (_) => _MerchantSuspensionSheet(merchant: merchant),
     );
     if (result == null || !mounted) return;
-    final details = [
-      result.reason,
-      if (result.details.isNotEmpty) result.details,
-    ].join(' · ');
     try {
+      // السبب اللي المشرف كتبه بيوصل للتاجر، ونوع الإيقاف (لحين التصحيح / 7 أيام / قانوني) معاه.
       await MerchantSupervisorLocalStore.setMerchantSuspended(
         merchantId: merchant.id,
         merchantName: merchant.getName(isArabic),
         isSuspended: true,
-        action: l10n.merchantAuditSuspended,
-        details: details,
+        action: result.details.isEmpty ? 'مخالفة لسياسة المنصة' : result.details,
+        details: result.reason,
+        days: result.days,
       );
       if (!mounted) return;
       setState(() => _isSuspended = true);
@@ -465,7 +505,10 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
         ),
       );
       if (mounted) {
-        AppSnackBar.showError(context, l10n.merchantSuspensionSaveError);
+        AppSnackBar.showError(
+          context,
+          _serverId != null ? MerchantsApi.messageOf(error) : l10n.merchantSuspensionSaveError,
+        );
       }
     }
   }
@@ -510,7 +553,10 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
         ),
       );
       if (mounted) {
-        AppSnackBar.showError(context, l10n.merchantSuspensionSaveError);
+        AppSnackBar.showError(
+          context,
+          _serverId != null ? MerchantsApi.messageOf(error) : l10n.merchantSuspensionSaveError,
+        );
       }
     }
   }
@@ -554,193 +600,186 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
     );
   }
 
+  static String _num(double v) => v.truncateToDouble() == v ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
+
+  /// العمولة الحالية بالكلام: نسبة / مبلغ ثابت / النسبة العامة.
+  String get _commissionLabel => switch (_commissionType) {
+        'fixed' => 'مبلغ ثابت ${_num(_commissionPercent)} ج.م على كل طلب',
+        'percent' => 'نسبة ${_num(_commissionPercent)}% من كل طلب',
+        _ => 'النسبة العامة للمنصة ${_num(merchant.defaultCommissionPercent ?? _commissionPercent)}%',
+      };
+
+  /// العمولة بيحددها رئيس المشرفين بس (عامة + خاصة لكل تاجر)، هنا للعرض.
   Widget _buildSettingsCard(AppLocalizations l10n) {
+    final label = merchant.commissionLabel ??
+        (_commissionType == 'default' ? 'العمولة العامة: $_commissionLabel' : _commissionLabel);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: _cardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _sectionHeading(
-            l10n.merchantInfoFinancialSettings,
-            Icons.tune,
-            trailing: l10n.merchantInfoMerchantDashboard,
-          ),
-          const SizedBox(height: 6),
-          Text(
-            l10n.merchantInfoFinancialSettingsDescription,
-            textAlign: TextAlign.end,
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 10,
-            ),
-          ),
-          const Divider(height: 24),
+          _sectionHeading('عمولة المنصة على التاجر', Icons.payments_outlined),
+          const SizedBox(height: 10),
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: AppColors.surfaceLight,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.cardBorder),
             ),
             child: Row(
               children: [
-                MotionIcon(Icons.verified_user_outlined,
-                    color: AppColors.info, size: 18),
+                MotionIcon(Icons.check_circle_outline, color: AppColors.info, size: 18),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    l10n.merchantInfoCfoPermission,
-                    textAlign: TextAlign.end,
-                    style: TextStyle(
-                      color: AppColors.ink,
-                      fontSize: 10,
-                    ),
+                    label,
+                    style: TextStyle(color: AppColors.ink, fontSize: 12, fontWeight: FontWeight.w700),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           Row(
             children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  gradient: AppColors.blueFill,
-                  border: AppColors.blueEdge,
-                  boxShadow: AppColors.blueGlow,
-                  color: AppColors.primaryDark,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const MotionIcon(Icons.payments_outlined,
-                    color: Colors.white, size: 18),
-              ),
-              const SizedBox(width: 8),
+              MotionIcon(Icons.lock_outline, color: AppColors.textSecondary, size: 14),
+              const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  l10n.merchantInfoSalesCommission,
-                  style: TextStyle(
-                    color: AppColors.ink,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
+                  'العمولة بتتخصم من كل طلب قبل ما الفلوس تنزل محفظة التاجر، ورئيس المشرفين هو اللي بيحددها.',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.5),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ignore: unused_element
+  Widget _buildCommissionEditor(AppLocalizations l10n) {
+    final value = double.tryParse(_commissionController.text.trim()) ?? 0;
+    // على طلب بـ 100 ج.م النسبة والمبلغ الثابت بيطلعوا نفس الرقم.
+    final commission = value;
+    final keeps = (100 - commission).clamp(0, 100).toDouble();
+    Widget choice(String label, bool fixed) {
+      final selected = _commissionFixed == fixed;
+      return Expanded(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () => setState(() => _commissionFixed = fixed),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            padding: const EdgeInsets.symmetric(vertical: 9),
+            decoration: BoxDecoration(
+              color: selected ? AppColors.primaryDark : AppColors.surfaceLight,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: selected ? AppColors.primaryDark : AppColors.cardBorder),
+            ),
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: selected ? Colors.white : AppColors.textSecondary,
+                fontSize: 11.5,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: _cardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _sectionHeading('عمولة المنصة على التاجر', Icons.payments_outlined),
+          const SizedBox(height: 6),
+          Text(
+            'العمولة بتتخصم من كل طلب للتاجر: يا نسبة من قيمة اللي باعه، يا مبلغ ثابت على كل طلب.',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.5),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceLight,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                MotionIcon(Icons.check_circle_outline, color: AppColors.info, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'الحالية: $_commissionLabel',
+                    style: TextStyle(color: AppColors.ink, fontSize: 12, fontWeight: FontWeight.w700),
                   ),
                 ),
-              ),
-              CountText(
-                '${_commissionPercent.toStringAsFixed(1)}%',
-                style: TextStyle(
-                  color: AppColors.info,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                ),
-              ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              choice('نسبة مئوية (%)', false),
+              const SizedBox(width: 8),
+              choice('مبلغ ثابت (ج.م)', true),
             ],
           ),
           const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
-                child: _badge(
-                  l10n.merchantInfoFixedAmount,
-                  Colors.white,
-                  AppColors.textSecondary,
+                child: TextField(
+                  controller: _commissionController,
+                  textAlign: TextAlign.center,
+                  onChanged: (_) => setState(() {}),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+                  decoration: InputDecoration(
+                    isDense: true,
+                    labelText: _commissionFixed ? 'المبلغ على كل طلب' : 'النسبة من كل طلب',
+                    suffixText: _commissionFixed ? 'ج.م' : '%',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(9)),
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
-              Expanded(
-                child: _badge(
-                  l10n.merchantInfoPercentage,
-                  AppColors.surface,
-                  AppColors.ink,
+              FilledButton.icon(
+                onPressed: _isSavingCommission ? null : _saveCommission,
+                icon: _isSavingCommission
+                    ? const SizedBox.square(dimension: 15, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const MotionIcon(Icons.save_outlined, size: 15),
+                label: Text(l10n.merchantInfoSave),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primaryDark,
+                  textStyle: const TextStyle(fontSize: 12),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.cardBorder),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  l10n.merchantInfoAdjustCommission,
-                  textAlign: TextAlign.end,
-                  style: const TextStyle(fontSize: 11),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: _isSavingCommission ? null : _saveCommission,
-                        icon: const MotionIcon(Icons.save_outlined, size: 15),
-                        label: Text(l10n.merchantInfoSave),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.primaryDark,
-                          textStyle: const TextStyle(fontSize: 11),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    SizedBox(
-                      width: 110,
-                      child: TextField(
-                        controller: _commissionController,
-                        textAlign: TextAlign.center,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        inputFormatters: [
-                          FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-                        ],
-                        decoration: InputDecoration(
-                          isDense: true,
-                          suffixText: '%',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(9),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  l10n.merchantInfoCommissionExample,
-                  textAlign: TextAlign.end,
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 9,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  l10n.merchantInfoCommissionValue(
-                    _commissionPercent.toStringAsFixed(
-                      _commissionPercent.truncateToDouble() ==
-                              _commissionPercent
-                          ? 0
-                          : 1,
-                    ),
-                    l10n.finRequestCurrency,
-                  ),
-                  textAlign: TextAlign.end,
-                  style: TextStyle(
-                    color: AppColors.success,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                  ),
-                ),
-              ],
-            ),
+          const SizedBox(height: 10),
+          Text(
+            'مثال على طلب بـ 100 ج.م: المنصة تاخد ${_num(commission.clamp(0, 100).toDouble())} ج.م، والتاجر ياخد ${_num(keeps)} ج.م.',
+            style: TextStyle(color: AppColors.success, fontSize: 11.5, fontWeight: FontWeight.bold),
           ),
+          if (_commissionType != 'default') ...[
+            const SizedBox(height: 4),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: TextButton.icon(
+                onPressed: _isSavingCommission ? null : () => _saveCommission(resetToDefault: true),
+                icon: const Icon(Icons.restart_alt, size: 16),
+                label: Text('رجوع للنسبة العامة (${_num(merchant.defaultCommissionPercent ?? 0)}%)'),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -754,8 +793,7 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
         children: [
           _sectionHeading(
             l10n.merchantInfoVerification,
-            Icons.verified_user_outlined,
-            trailing: l10n.merchantInfoVerifiedBadge,
+            Icons.badge_outlined,
           ),
           const SizedBox(height: 14),
           _infoRow(
@@ -796,7 +834,7 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
             l10n.merchantInfoFieldAds,
             Icons.directions_car_outlined,
             trailing: l10n.merchantInfoShowAll(merchant.adsCount.toString()),
-            onTrailingTap: () => _showAllAdvertisements(l10n, isArabic),
+            onTrailingTap: () => _openProducts(l10n, isArabic),
           ),
           const SizedBox(height: 12),
           if (ads.isEmpty)
@@ -806,7 +844,9 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
             )
           else
             ...ads.map(
-              (ad) => Container(
+              (ad) => GestureDetector(
+                onTap: () => _openProduct(ad),
+                child: Container(
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
@@ -868,10 +908,31 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
                   ],
                 ),
               ),
+              ),
             ),
         ],
       ),
     );
+  }
+
+  /// كل منتجات التاجر (حقيقية من السيرفر) مع القبول والرفض والتعليق.
+  void _openProducts(AppLocalizations l10n, bool isArabic) {
+    final id = _serverId;
+    if (id == null) {
+      _showAllAdvertisements(l10n, isArabic);
+      return;
+    }
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => AdsManagementScreen(merchantId: id, merchantName: merchant.name),
+    ));
+  }
+
+  void _openProduct(MerchantAdvertisement ad) {
+    final id = int.tryParse(ad.reference.replaceFirst('P-', ''));
+    if (id == null || _serverId == null) return;
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => MerchantProductDetailsScreen(id: id),
+    ));
   }
 
   Widget _sectionHeading(
@@ -1186,38 +1247,55 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
         MerchantAdvertisementStatus.hidden => AppColors.textSecondary,
       };
 
-  Future<void> _saveCommission() async {
+  Future<void> _saveCommission({bool resetToDefault = false}) async {
     final l10n = AppLocalizations.of(context)!;
-    final updatedValue = double.tryParse(_commissionController.text);
-    if (updatedValue == null ||
-        !updatedValue.isFinite ||
-        updatedValue < 0 ||
-        updatedValue > 100) {
-      _showMessage(l10n.merchantInfoInvalidCommission);
+    final value = double.tryParse(_commissionController.text.trim());
+    if (!resetToDefault &&
+        (value == null ||
+            !value.isFinite ||
+            value < 0 ||
+            (_commissionFixed ? value > 10000 : value > 50))) {
+      _showMessage(_commissionFixed
+          ? 'المبلغ الثابت لازم يكون بين 0 و 10000 ج.م'
+          : 'النسبة لازم تكون بين 0 و 50%');
       return;
     }
+    final serverId = int.tryParse(merchant.id);
     setState(() => _isSavingCommission = true);
     try {
-      await MerchantSupervisorLocalStore.setMerchantCommission(
-        merchantId: merchant.id,
-        merchantName: merchant.getName(l10n.localeName.startsWith('ar')),
-        commissionPercent: updatedValue,
-        action: l10n.merchantAuditCommissionUpdated,
-      );
-      if (!mounted) return;
-      setState(() => _commissionPercent = updatedValue);
-      _showMessage(l10n.merchantInfoCommissionSaved);
-    } on Object catch (error, stackTrace) {
-      FlutterError.reportError(
-        FlutterErrorDetails(
-          exception: error,
-          stack: stackTrace,
-          library: 'merchant supervisor audit',
-        ),
-      );
-      if (mounted) {
-        AppSnackBar.showError(context, l10n.merchantProfileSaveError);
+      if (serverId != null) {
+        final saved = await MerchantsApi.commission(
+          serverId,
+          percent: resetToDefault || _commissionFixed ? null : value,
+          fixedAmount: resetToDefault || !_commissionFixed ? null : value,
+        );
+        if (!mounted) return;
+        setState(() {
+          _commissionType = '${saved['commissionType'] ?? (resetToDefault ? 'default' : _commissionFixed ? 'fixed' : 'percent')}';
+          _commissionFixed = _commissionType == 'fixed';
+          _commissionPercent = _commissionFixed
+              ? ((saved['commissionFixedAmount'] as num?)?.toDouble() ?? value ?? 0)
+              : ((saved['effectiveCommission'] as num?)?.toDouble() ?? value ?? 0);
+          _commissionController.text = _num(_commissionPercent);
+        });
+        MerchantSupervisorLocalStore.revision.value++;
+      } else {
+        // الوضع التجريبي (تاجر مش من السيرفر).
+        await MerchantSupervisorLocalStore.setMerchantCommission(
+          merchantId: merchant.id,
+          merchantName: merchant.getName(l10n.localeName.startsWith('ar')),
+          commissionPercent: value ?? 0,
+          action: l10n.merchantAuditCommissionUpdated,
+        );
+        if (!mounted) return;
+        setState(() {
+          _commissionType = 'percent';
+          _commissionPercent = value ?? 0;
+        });
       }
+      _showMessage(resetToDefault ? 'التاجر رجع على النسبة العامة' : l10n.merchantInfoCommissionSaved);
+    } on Object catch (error) {
+      if (mounted) _showMessage(MerchantsApi.messageOf(error));
     } finally {
       if (mounted) setState(() => _isSavingCommission = false);
     }
@@ -1340,8 +1418,6 @@ class _MerchantSuspensionSheetState extends State<_MerchantSuspensionSheet> {
                     const SizedBox(height: 12),
                     ScrollFx(child: _buildDetailsCard(l10n)),
                     const SizedBox(height: 12),
-                    ScrollFx(child: _buildAttachmentsCard(l10n)),
-                    const SizedBox(height: 12),
                     ScrollFx(child: _buildDurationCard(l10n)),
                   ],
                 ),
@@ -1414,7 +1490,7 @@ class _MerchantSuspensionSheetState extends State<_MerchantSuspensionSheet> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${l10n.crShortLabel}: ${widget.merchant.crNumber}  •  ${l10n.merchantInfoVerifiedBadge}',
+                      '${l10n.crShortLabel}: ${widget.merchant.crNumber}',
                       textAlign: TextAlign.end,
                       style: TextStyle(
                         color: AppColors.textSecondary,
@@ -1521,57 +1597,6 @@ class _MerchantSuspensionSheetState extends State<_MerchantSuspensionSheet> {
                 ),
               ),
             ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAttachmentsCard(AppLocalizations l10n) {
-    return _sheetCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _sectionHeading(l10n.merchantSuspendAttachments, Icons.attach_file),
-          const SizedBox(height: 10),
-          InkWell(
-            onTap: () => _showUnavailable(l10n),
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceLight,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.cardBorder),
-              ),
-              child: Column(
-                children: [
-                  CircleAvatar(
-                    backgroundColor: AppColors.surfaceHighlight,
-                    child: MotionIcon(Icons.upload_file_outlined,
-                        color: AppColors.ink),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    l10n.merchantSuspendUpload,
-                    style: TextStyle(
-                      color: AppColors.ink,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    l10n.merchantSuspendFileTypes,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 9,
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ),
         ],
       ),
@@ -1738,10 +1763,6 @@ class _MerchantSuspensionSheetState extends State<_MerchantSuspensionSheet> {
     );
   }
 
-  void _showUnavailable(AppLocalizations l10n) {
-    AppSnackBar.showInfo(context, l10n.merchantInfoActionUnavailable);
-  }
-
   void _confirmSuspension(AppLocalizations l10n) {
     final reasons = [
       l10n.merchantSuspendReasonCorrection,
@@ -1751,6 +1772,8 @@ class _MerchantSuspensionSheetState extends State<_MerchantSuspensionSheet> {
     Navigator.of(context).pop((
       reason: reasons[_selectedReason],
       details: _detailsController.text.trim(),
+      // التعليق المحدد بمدة بيترفع تلقائي على السيرفر بعد 7 أيام؛ الباقي لحد ما المشرف يرفعه.
+      days: _selectedReason == 1 ? 7 : null,
     ));
   }
 }

@@ -66,7 +66,7 @@ class MerchantSupervisorLocalStore {
     }
     final serverId = int.tryParse(merchantId);
     if (serverId != null) {
-      await MerchantsApi.commission(serverId, commissionPercent);
+      await MerchantsApi.commission(serverId, percent: commissionPercent);
       revision.value++;
       return;
     }
@@ -139,6 +139,7 @@ class MerchantSupervisorLocalStore {
     required bool isSuspended,
     required String action,
     required String details,
+    int? days,
   }) async {
     final serverId = int.tryParse(merchantId);
     if (serverId != null) {
@@ -147,6 +148,7 @@ class MerchantSupervisorLocalStore {
           serverId,
           violationType: action,
           description: details,
+          days: days,
         );
       } else {
         await MerchantsApi.reactivate(serverId, note: details);

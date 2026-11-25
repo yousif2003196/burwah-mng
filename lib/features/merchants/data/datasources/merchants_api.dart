@@ -85,9 +85,21 @@ class MerchantsApi {
   static Future<void> reactivate(int id, {String? note}) =>
       _api.post<Object>(ApiEndpoints.merchantReactivate(id), data: {'note': note});
 
-  /// [percent] = null يرجّع التاجر للنسبة العامة.
-  static Future<void> commission(int id, double? percent) =>
-      _api.post<Object>(ApiEndpoints.merchantCommission(id), data: {'percent': percent});
+  /// العمولة: [percent] نسبة من كل طلب، أو [fixedAmount] مبلغ ثابت على كل طلب.
+  /// الاتنين null يرجّعوا التاجر للنسبة العامة. بيرجّع العمولة بعد الحفظ.
+  static Future<Map<String, dynamic>> commission(int id, {double? percent, double? fixedAmount}) async {
+    final r = await _api.post<Object>(
+      ApiEndpoints.merchantCommission(id),
+      data: {'percent': percent, 'fixedAmount': fixedAmount},
+    );
+    return Map<String, dynamic>.from(_map(r.data)['data'] as Map? ?? const {});
+  }
+
+  /// حساب مشرف التجار الحالي: بياناته وقراراته ومتوسط وقت مراجعته.
+  static Future<Map<String, dynamic>> me() async {
+    final r = await _api.get<Object>(ApiEndpoints.merchantSupervisorMe);
+    return Map<String, dynamic>.from(_map(r.data)['data'] as Map? ?? const {});
+  }
 
   static Future<void> hideProduct(int productId, String reason) =>
       _api.post<Object>(ApiEndpoints.merchantProductHide(productId), data: {'reason': reason});

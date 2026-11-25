@@ -71,9 +71,17 @@ class ApiEndpoints {
   static String merchantOrders(int id) => '$_supervisorMerchant/merchants/$id/orders';
   static String merchantProductHide(int id) => '$_supervisorMerchant/products/$id/hide';
   static String merchantProductShow(int id) => '$_supervisorMerchant/products/$id/show';
+  // مراجعة منتجات التجار: products?status=pending|approved|rejected|suspended|all
+  static const merchantProducts = '$_supervisorMerchant/products';
+  static const merchantProductsPendingCount = '$_supervisorMerchant/products/pending-count';
+  static String merchantProduct(int id) => '$_supervisorMerchant/products/$id';
+  /// [decision]: approve | reject | suspend | reopen
+  static String merchantProductDecision(int id, String decision) => '$_supervisorMerchant/products/$id/$decision';
   static const merchantWithdrawals = '$_supervisorMerchant/withdrawals';
   static String merchantWithdrawalRecommend(int id) => '$_supervisorMerchant/withdrawals/$id/recommend';
   static const merchantEvents = '$_supervisorMerchant/events';
+  static const merchantSupervisorMe = '$_supervisorMerchant/me';
+  static String merchantChat(int id) => '$_supervisorMerchant/merchants/$id/chat';
   // طلبات الخدمات — SupervisorForSR
 
   static const _supervisorForSr = 'api/SupervisorForSR';
@@ -255,6 +263,12 @@ class ApiEndpoints {
   static const bossBroadcastUsersCount = '$_boss/broadcast-users/count';
   /// GET / PUT: نطاق التجار ونطاقات الكباتن (الدراجة لوحدها).
   static const bossRadiusSettings = '$_boss/radius-settings';
+  /// عمولة المنصة على التجار: العامة + الخاصة لكل تاجر.
+  static const bossMerchantCommission = '$_boss/merchant-commission';
+  /// توزيع التجار على مشرفي التجار (filter=unassigned|all) والموافقة على التجار الجداد اللي من غير مشرف.
+  static const bossMerchantAssignment = '$_boss/merchant-assignment';
+  static String bossAssignMerchant(int merchantId) => '$_boss/merchant-assignment/$merchantId';
+  static String bossMerchantCommissionFor(int merchantId) => '$_boss/merchant-commission/$merchantId';
 
   // تصعيدات المشرفين لرئيس المشرفين (منتجات، تجار، شكاوى خدمات)
   static const supervisorEscalations = 'api/SupervisorEscalations';

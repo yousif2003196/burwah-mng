@@ -79,6 +79,18 @@ class MerchantEntity {
   final String? joinedDate;
   final String? joinedDateEn;
   final double? commissionPercent;
+
+  /// مبلغ ثابت بالجنيه على كل طلب بدل النسبة (null = نسبة).
+  final double? commissionFixedAmount;
+
+  /// percent | fixed | default (النسبة العامة).
+  final String commissionType;
+
+  /// النسبة العامة للمنصة (لما التاجر ملوش عمولة خاصة).
+  final double? defaultCommissionPercent;
+
+  /// العمولة بالكلام زي ما السيرفر حسبها (خاصة بالتاجر أو العامة اللي حددها رئيس المشرفين).
+  final String? commissionLabel;
   final int? activeAdsCount;
   final int? underReviewAdsCount;
   final int? pendingReviewCount;
@@ -132,6 +144,10 @@ class MerchantEntity {
     this.joinedDate,
     this.joinedDateEn,
     this.commissionPercent,
+    this.commissionFixedAmount,
+    this.commissionType = 'default',
+    this.defaultCommissionPercent,
+    this.commissionLabel,
     this.activeAdsCount,
     this.underReviewAdsCount,
     this.pendingReviewCount,

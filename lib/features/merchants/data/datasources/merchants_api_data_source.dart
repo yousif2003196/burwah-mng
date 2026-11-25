@@ -60,11 +60,11 @@ class MerchantsApiDataSource implements MerchantsDataSource {
       suspendedCount: n('suspendedCount') + n('rejectedCount'),
       compliancePercentage: n('compliancePercent'),
       pendingAlertsCount: n('pendingCount') + n('pendingWithdrawalsCount'),
-      supervisorCode: 'SUP',
+      supervisorCode: '${s['supervisorCode'] ?? 'MRC'}',
       supervisorFullName: name,
       supervisorFullNameEn: name,
-      supervisionScope: 'مطاعم وبقالة وأكل بيتي',
-      supervisionScopeEn: 'Restaurants, groceries & home kitchens',
+      supervisionScope: 'كل المحلات والمطاعم على المنصة',
+      supervisionScopeEn: 'All stores and restaurants on the platform',
     );
   }
 
@@ -112,7 +112,8 @@ class MerchantsApiDataSource implements MerchantsDataSource {
       'pending' => MerchantStatus.underAudit,
       'info' => MerchantStatus.updateRequired,
       'suspended' || 'rejected' => MerchantStatus.temporarilySuspended,
-      _ => MerchantStatus.activeVerified,
+      // مفيش حاجة اسمها تاجر موثق: كل التجار فئة واحدة.
+      _ => MerchantStatus.active,
     };
     final suspended = status == 'suspended' || status == 'rejected';
 
@@ -144,7 +145,7 @@ class MerchantsApiDataSource implements MerchantsDataSource {
       _ => (
           'نشط',
           'Active',
-          Icons.verified_outlined,
+          Icons.check_circle_outline,
           AppColors.successDark
         ),
     };
@@ -157,9 +158,14 @@ class MerchantsApiDataSource implements MerchantsDataSource {
             titleEn: '${p['name'] ?? ''}',
             reference: 'P-${p['id']}',
             price: _money(p['price']),
-            status: p['isActive'] == false
-                ? MerchantAdvertisementStatus.hidden
-                : MerchantAdvertisementStatus.approved,
+            status: switch ('${p['reviewStatus'] ?? ''}') {
+              'pending' => MerchantAdvertisementStatus.underReview,
+              'rejected' => MerchantAdvertisementStatus.rejected,
+              'suspended' => MerchantAdvertisementStatus.frozen,
+              _ => p['isActive'] == false
+                  ? MerchantAdvertisementStatus.hidden
+                  : MerchantAdvertisementStatus.approved,
+            },
           ),
     ];
 
@@ -218,6 +224,10 @@ class MerchantsApiDataSource implements MerchantsDataSource {
       joinedDate: _date(j['joinedAt']),
       joinedDateEn: _date(j['joinedAt']),
       commissionPercent: (j['effectiveCommission'] as num?)?.toDouble(),
+      commissionFixedAmount: (j['commissionFixedAmount'] as num?)?.toDouble(),
+      commissionType: '${j['commissionType'] ?? 'default'}',
+      defaultCommissionPercent: (j['defaultCommission'] as num?)?.toDouble(),
+      commissionLabel: '${j['commissionLabel'] ?? ''}'.trim().isEmpty ? null : '${j['commissionLabel']}',
       activeAdsCount: active,
       underReviewAdsCount: hidden,
       pendingReviewCount: status == 'pending' ? 1 : 0,

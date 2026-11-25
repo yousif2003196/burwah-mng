@@ -95,6 +95,9 @@ class _AdOwnerChatScreenState extends State<AdOwnerChatScreen> {
   bool _closed = false;
   bool _sending = false;
   bool _hasText = false;
+
+  /// آخر رسالة من رسايلي اتقرت عند الطرف التاني (الصحّين).
+  int _readUpTo = 0;
   String? _error;
   Timer? _poll;
   StreamSubscription<RealtimeChatMessage>? _sub;
@@ -202,8 +205,7 @@ class _AdOwnerChatScreenState extends State<AdOwnerChatScreen> {
                 id: (m['id'] as num).toInt(),
                 text: '${m['text'] ?? ''}',
                 mine: m['mine'] == true,
-                at: DateTime.tryParse('${m['createdAt']}')?.toLocal() ??
-                    DateTime.now(),
+                at: _utc(m['createdAt'])?.toLocal() ?? DateTime.now(),
                 imageUrl: _str(m['imageUrl']),
                 videoUrl: _str(m['videoUrl']),
                 audioUrl: _str(m['audioUrl']),
@@ -215,9 +217,18 @@ class _AdOwnerChatScreenState extends State<AdOwnerChatScreen> {
       setState(() {
         _msgs.addAll(fresh.where((m) => !_msgs.any((x) => x.id == m.id)));
         _closed = body['closed'] == true;
+        _readUpTo = (body['readUpTo'] as num?)?.toInt() ?? _readUpTo;
       });
       if (fresh.isNotEmpty) _toEnd();
     } catch (_) {}
+  }
+
+  /// السيرفر بيبعت الوقت UTC من غير Z.
+  static DateTime? _utc(Object? raw) {
+    final t = '${raw ?? ''}'.trim();
+    if (t.isEmpty || t == 'null') return null;
+    final zoned = t.endsWith('Z') || RegExp(r'[+-]\d\d:?\d\d$').hasMatch(t);
+    return DateTime.tryParse(zoned ? t : '${t}Z');
   }
 
   String? _str(Object? v) {
@@ -354,9 +365,17 @@ class _AdOwnerChatScreenState extends State<AdOwnerChatScreen> {
                   _AttachTile(
                     icon: Icons.videocam_outlined,
                     label: 'فيديو',
-                    bg: AppColors.purple.withValues(alpha: 0.16),
-                    fg: AppColors.purple,
+                    bg: AppColors.warningLight,
+                    fg: AppColors.warningDark,
                     onTap: () => Navigator.pop(ctx, 'video'),
+                  ),
+                  const SizedBox(width: 12),
+                  _AttachTile(
+                    icon: Icons.quickreply_outlined,
+                    label: 'رد جاهز',
+                    bg: AppColors.surfaceLight,
+                    fg: AppColors.ink,
+                    onTap: () => Navigator.pop(ctx, 'reply'),
                   ),
                 ],
               ),
@@ -388,6 +407,8 @@ class _AdOwnerChatScreenState extends State<AdOwnerChatScreen> {
         await _pickImage(ImageSource.gallery);
       case 'video':
         await _pickVideo();
+      case 'reply':
+        await _openQuickReplies();
     }
   }
 
@@ -568,19 +589,23 @@ class _AdOwnerChatScreenState extends State<AdOwnerChatScreen> {
       child: Scaffold(
         backgroundColor: AppColors.surfaceMuted,
         appBar: AppBar(
-          backgroundColor: _navy,
-          foregroundColor: Colors.white,
+          backgroundColor: AppColors.surface,
+          foregroundColor: AppColors.ink,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
           titleSpacing: 0,
+          shape: Border(bottom: BorderSide(color: AppColors.cardBorder)),
           title: Row(
             children: [
               CircleAvatar(
-                radius: 20,
-                backgroundColor: AppColors.infoLight,
+                radius: 19,
+                backgroundColor: AppColors.surfaceHighlight,
                 child: Text(initial,
                     style: TextStyle(
-                        color: AppColors.infoDark,
+                        color: AppColors.ink,
                         fontWeight: FontWeight.w800,
-                        fontSize: 16)),
+                        fontSize: 15)),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -590,14 +615,44 @@ class _AdOwnerChatScreenState extends State<AdOwnerChatScreen> {
                     Text(_name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 15, fontWeight: FontWeight.w700)),
-                    if ((widget.subtitle ?? '').isNotEmpty)
-                      Text(widget.subtitle!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontSize: 11, color: Colors.white70)),
+                        style: TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.ink)),
+                    const SizedBox(height: 1),
+                    Row(
+                      children: [
+                        if (_closed)
+                          Icon(Icons.lock_outline_rounded,
+                              size: 12, color: AppColors.textMuted)
+                        else
+                          Container(
+                            width: 7,
+                            height: 7,
+                            decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: AppColors.success),
+                          ),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            [
+                              _closed ? 'مقفولة' : 'مفتوحة',
+                              if ((widget.subtitle ?? '').isNotEmpty)
+                                widget.subtitle!,
+                            ].join(' • '),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: _closed
+                                    ? AppColors.textMuted
+                                    : AppColors.successDark),
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -607,43 +662,254 @@ class _AdOwnerChatScreenState extends State<AdOwnerChatScreen> {
         body: _loading
             ? const Center(child: CircularProgressIndicator())
             : _error != null
-                ? Center(child: Text(_error!))
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.forum_outlined,
+                              size: 42, color: AppColors.textMuted),
+                          const SizedBox(height: 10),
+                          Text(_error!,
+                              textAlign: TextAlign.center,
+                              style:
+                                  TextStyle(color: AppColors.textSecondary)),
+                        ],
+                      ),
+                    ),
+                  )
                 : Column(
                     children: [
                       if (widget.adTitle.isNotEmpty) _contextCard(),
                       Expanded(
                         child: _msgs.isEmpty
-                            ? Center(
-                                child: Text(widget.conversationId != null
-                                    ? 'ابدأ المحادثة'
-                                    : 'ابدأ المحادثة مع صاحب الإعلان'))
-                            : ListView.builder(
+                            ? _emptyThread()
+                            : ListView(
                                 controller: _scroll,
-                                padding: const EdgeInsets.all(14),
-                                itemCount: _msgs.length,
-                                itemBuilder: (_, i) => _bubble(_msgs[i]),
+                                padding:
+                                    const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                                children: _threadItems(),
                               ),
                       ),
                       if (_sending) const LinearProgressIndicator(minHeight: 2),
                       if (_closed)
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(14),
-                          color: AppColors.surface,
-                          child: const SafeArea(
-                            top: false,
-                            child: Text(
-                              'تم اتخاذ قرار على الإعلان، المحادثة مقفولة',
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        )
-                      else
-                        _recording ? _recordingBar() : _composer(),
+                        _closedBar()
+                      else if (_recording)
+                        _recordingBar()
+                      else ...[
+                        _quickRepliesRow(),
+                        _composer(),
+                      ],
                     ],
                   ),
       ),
     );
+  }
+
+  Widget _emptyThread() => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceHighlight,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Icon(Icons.chat_bubble_outline_rounded,
+                    size: 30, color: AppColors.ink),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                widget.conversationId != null
+                    ? 'ابدأ المحادثة'
+                    : 'ابدأ المحادثة مع ${_name.trim().isEmpty ? 'الطرف التاني' : _name}',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14),
+              ),
+              const SizedBox(height: 4),
+              Text('اكتب رسالة أو اختار رد جاهز من تحت',
+                  style:
+                      TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+            ],
+          ),
+        ),
+      );
+
+  // ───────────────────────── thread layout ─────────────────────────
+
+  static bool _sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  static String _dayLabel(DateTime d) {
+    final now = DateTime.now();
+    if (_sameDay(d, now)) return 'النهارده';
+    if (_sameDay(d, now.subtract(const Duration(days: 1)))) return 'امبارح';
+    const days = ['الاتنين', 'التلات', 'الأربع', 'الخميس', 'الجمعة', 'السبت', 'الحد'];
+    if (now.difference(d).inDays < 7) return days[d.weekday - 1];
+    return '${d.day}/${d.month}/${d.year}';
+  }
+
+  /// فواصل الأيام + الرسايل؛ رسايل نفس الشخص ورا بعض (خلال 3 دقايق) بتتجمع.
+  List<Widget> _threadItems() {
+    final items = <Widget>[];
+    for (var i = 0; i < _msgs.length; i++) {
+      final m = _msgs[i];
+      final prev = i > 0 ? _msgs[i - 1] : null;
+      final next = i + 1 < _msgs.length ? _msgs[i + 1] : null;
+      if (prev == null || !_sameDay(prev.at, m.at)) {
+        items.add(_daySeparator(_dayLabel(m.at)));
+      }
+      final groupedWithNext = next != null &&
+          next.mine == m.mine &&
+          _sameDay(next.at, m.at) &&
+          next.at.difference(m.at).inMinutes < 3;
+      items.add(_bubble(m, tail: !groupedWithNext));
+    }
+    return items;
+  }
+
+  Widget _daySeparator(String label) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceHighlight,
+              borderRadius: BorderRadius.circular(99),
+            ),
+            child: Text(label,
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textSecondary)),
+          ),
+        ),
+      );
+
+  Widget _closedBar() => Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          border: Border(top: BorderSide(color: AppColors.cardBorder)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceLight,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(Icons.lock_outline_rounded,
+                      size: 18, color: AppColors.textSecondary),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'المحادثة اتقفلت بعد القرار. السجل متاح للقراءة بس.',
+                    style: TextStyle(
+                        fontSize: 12,
+                        height: 1.5,
+                        color: AppColors.textSecondary),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+  // ───────────────────────── quick replies ─────────────────────────
+
+  static const _quickReplies = <String>[
+    'أهلًا بيك، معاك المشرف من برواح',
+    'بنراجع الموضوع حالًا وهرجعلك',
+    'ممكن تبعت صورة أوضح؟',
+    'محتاجين بيانات أكتر عشان نكمّل',
+    'تم حل المشكلة، شكرًا لصبرك',
+    'شكرًا لتواصلك معانا',
+  ];
+
+  /// الرد الجاهز بيتكتب في الخانة عشان المشرف يعدّله لو حب قبل الإرسال.
+  void _useReply(String text) {
+    _input.text = text;
+    _input.selection = TextSelection.collapsed(offset: text.length);
+  }
+
+  Widget _quickRepliesRow() => SizedBox(
+        height: 42,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 6),
+          itemCount: _quickReplies.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 6),
+          itemBuilder: (_, i) => ActionChip(
+            label: Text(_quickReplies[i]),
+            onPressed: _sending ? null : () => _useReply(_quickReplies[i]),
+            labelStyle: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: AppColors.ink),
+            backgroundColor: AppColors.surface,
+            side: BorderSide(color: AppColors.borderMedium),
+            shape: const StadiumBorder(),
+            visualDensity: VisualDensity.compact,
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+          ),
+        ),
+      );
+
+  Future<void> _openQuickReplies() async {
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 0, 18, 8),
+                child: Text('ردود جاهزة',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary)),
+              ),
+              for (final r in _quickReplies)
+                ListTile(
+                  leading: Icon(Icons.quickreply_outlined,
+                      color: AppColors.textSecondary),
+                  title: Text(r,
+                      style: TextStyle(
+                          fontSize: 13.5, color: AppColors.textPrimary)),
+                  onTap: () => Navigator.pop(ctx, r),
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (picked != null && mounted) _useReply(picked);
   }
 
   Widget _contextCard() => Container(
@@ -661,26 +927,35 @@ class _AdOwnerChatScreenState extends State<AdOwnerChatScreen> {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: _navy.withValues(alpha: 0.08),
+                color: AppColors.surfaceHighlight,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(Icons.sell_outlined, size: 20, color: _navy),
+              child: Icon(Icons.sell_outlined, size: 20, color: AppColors.ink),
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: Text(widget.adTitle,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(widget.adTitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary)),
+                  if ((widget.subtitle ?? '').isNotEmpty)
+                    Text(widget.subtitle!,
+                        style: TextStyle(
+                            fontSize: 11, color: AppColors.textMuted)),
+                ],
+              ),
             ),
           ],
         ),
       );
 
-  Widget _bubble(_Msg m) {
+  Widget _bubble(_Msg m, {bool tail = true}) {
     final fg = m.mine ? Colors.white : AppColors.textPrimary;
     final hasMedia = m.imageUrl != null || m.videoUrl != null;
     final Widget content;
@@ -786,21 +1061,25 @@ class _AdOwnerChatScreenState extends State<AdOwnerChatScreen> {
 
     final t =
         '${m.at.hour.toString().padLeft(2, '0')}:${m.at.minute.toString().padLeft(2, '0')}';
+    final read = m.mine && m.id <= _readUpTo;
+    const r = Radius.circular(18);
+    const small = Radius.circular(5);
+    // RTL: رسايلي على اليمين، والطرف التاني على الشمال.
     return Align(
       alignment: m.mine ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
+        margin: EdgeInsets.only(bottom: tail ? 8 : 3),
         padding: EdgeInsets.fromLTRB(
-            hasMedia ? 6 : 12, hasMedia ? 6 : 9, hasMedia ? 6 : 12, 6),
+            hasMedia ? 5 : 12, hasMedia ? 5 : 8, hasMedia ? 5 : 12, 5),
         constraints:
             BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
         decoration: BoxDecoration(
           color: m.mine ? _navy : AppColors.surface,
           borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(16),
-            topRight: const Radius.circular(16),
-            bottomRight: Radius.circular(m.mine ? 4 : 16),
-            bottomLeft: Radius.circular(m.mine ? 16 : 4),
+            topLeft: r,
+            topRight: r,
+            bottomRight: m.mine && tail ? small : r,
+            bottomLeft: !m.mine && tail ? small : r,
           ),
           border: m.mine ? null : Border.all(color: AppColors.cardBorder),
         ),
@@ -809,11 +1088,26 @@ class _AdOwnerChatScreenState extends State<AdOwnerChatScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Align(alignment: AlignmentDirectional.centerStart, child: content),
-            const SizedBox(height: 3),
-            Text(t,
-                style: TextStyle(
-                    fontSize: 10,
-                    color: m.mine ? Colors.white60 : AppColors.textMuted)),
+            const SizedBox(height: 2),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: hasMedia ? 4 : 0),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(t,
+                      style: TextStyle(
+                          fontSize: 10,
+                          color: m.mine ? Colors.white70 : AppColors.textMuted)),
+                  if (m.mine) ...[
+                    const SizedBox(width: 3),
+                    // صح واحد = اتبعتت، صحّين فاتحين = اتقرت.
+                    Icon(read ? Icons.done_all_rounded : Icons.done_rounded,
+                        size: 14,
+                        color: read ? const Color(0xFF7DD3FC) : Colors.white70),
+                  ],
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -821,53 +1115,75 @@ class _AdOwnerChatScreenState extends State<AdOwnerChatScreen> {
   }
 
   Widget _composer() => Container(
-        color: AppColors.surface,
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          border: Border(top: BorderSide(color: AppColors.cardBorder)),
+        ),
         child: SafeArea(
           top: false,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                IconButton(
-                  tooltip: 'إرفاق',
-                  onPressed: _sending ? null : _openAttach,
-                  icon: Icon(Icons.attach_file_rounded,
-                      color: AppColors.textSecondary),
+                InkWell(
+                  onTap: _sending ? null : _openAttach,
+                  customBorder: const CircleBorder(),
+                  child: Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.surfaceLight,
+                    ),
+                    child: Icon(Icons.add_rounded,
+                        color: AppColors.textSecondary, semanticLabel: 'إرفاق'),
+                  ),
                 ),
+                const SizedBox(width: 8),
                 Expanded(
                   child: TextField(
                     controller: _input,
                     minLines: 1,
                     maxLines: 4,
                     textInputAction: TextInputAction.newline,
+                    style: TextStyle(color: AppColors.textPrimary, fontSize: 14),
                     decoration: InputDecoration(
                       hintText: 'اكتب رسالة...',
+                      hintStyle: TextStyle(color: AppColors.textMuted),
                       isDense: true,
                       filled: true,
                       fillColor: AppColors.surfaceMuted,
                       contentPadding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 12),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
-                        borderSide: BorderSide.none,
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(22),
+                        borderSide: BorderSide(color: AppColors.borderLight),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(22),
+                        borderSide: BorderSide(color: AppColors.borderMedium),
                       ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
-                _hasText
-                    ? IconButton.filled(
-                        style: IconButton.styleFrom(backgroundColor: _navy),
-                        onPressed: _sending ? null : _send,
-                        icon: const Icon(Icons.send_rounded),
-                      )
-                    : IconButton.filled(
-                        style: IconButton.styleFrom(backgroundColor: _navy),
-                        tooltip: 'تسجيل رسالة صوتية',
-                        onPressed: _sending ? null : _startRecording,
-                        icon: const Icon(Icons.mic_rounded),
-                      ),
+                InkWell(
+                  onTap: _sending ? null : (_hasText ? _send : _startRecording),
+                  customBorder: const CircleBorder(),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: _navy),
+                    child: Icon(
+                      _hasText ? Icons.send_rounded : Icons.mic_rounded,
+                      color: Colors.white,
+                      size: 21,
+                      semanticLabel: _hasText ? 'إرسال' : 'تسجيل رسالة صوتية',
+                    ),
+                  ),
+                ),
               ],
             ),
           ),

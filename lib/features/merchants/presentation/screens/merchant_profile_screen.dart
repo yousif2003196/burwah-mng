@@ -16,6 +16,8 @@ import 'package:barwah_app/features/services_supervisor/presentation/screens/ser
 import 'package:barwah_app/l10n/app_localizations.dart';
 import 'package:barwah_app/core/widgets/scroll_fx.dart';
 import 'package:barwah_app/core/widgets/motion_icon.dart';
+import 'package:barwah_app/core/auth/auth_session.dart';
+import 'package:barwah_app/features/merchants/presentation/screens/merchant_supervisor_account_screen.dart';
 
 class MerchantProfileScreen extends StatefulWidget {
   final VoidCallback onLogout;
@@ -157,6 +159,10 @@ class _MerchantProfileScreenState extends State<MerchantProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // الحساب الحقيقي: كل البيانات من السيرفر. الصفحة دي للوضع التجريبي بس.
+    if (AuthSession.isSignedIn) {
+      return MerchantSupervisorAccountScreen(onLogout: widget.onLogout);
+    }
     final l10n = AppLocalizations.of(context)!;
     final isArabic = l10n.localeName.startsWith('ar');
 

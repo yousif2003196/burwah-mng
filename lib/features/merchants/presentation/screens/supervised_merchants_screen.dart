@@ -392,8 +392,6 @@ class _SupervisedMerchantsContentState
                           ),
                       ],
 
-                      // Field Governance Policy Card
-                      _buildFieldGovernanceCard(context, l10n),
                     ],
                   ),
                 ),
@@ -508,7 +506,7 @@ class _SupervisedMerchantsContentState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  l10n.supervisedAreaLabel,
+                  stats.supervisionScope,
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 13,
@@ -519,7 +517,7 @@ class _SupervisedMerchantsContentState
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  l10n.supervisorFullName,
+                  stats.supervisorFullName,
                   style: TextStyle(
                     color: AppColors.textMuted,
                     fontSize: 11.5,
@@ -1163,12 +1161,14 @@ class _SupervisedMerchantsContentState
                 child: _buildMetricTile(
                   value: isSuspended
                       ? l10n.suspendedBadge
-                      : 'عمولة ${merchant.commissionPercent ?? 5.0}%',
+                      : merchant.commissionType == 'fixed'
+                          ? '${_trim(merchant.commissionFixedAmount ?? 0)} ج.م'
+                          : '${_trim(merchant.commissionPercent ?? merchant.defaultCommissionPercent ?? 0)}%',
                   label: isSuspended
                       ? 'الحالة: موقوف'
-                      : (merchant.deliveryStatus != null
-                          ? 'التسليم: ${merchant.deliveryStatus}'
-                          : l10n.deliveryStatusFieldInspection),
+                      : merchant.commissionType == 'default'
+                          ? 'العمولة العامة'
+                          : 'عمولة التاجر',
                   valueColor: isSuspended
                       ? AppColors.danger
                       : AppColors.textPrimary,
@@ -1461,6 +1461,9 @@ class _SupervisedMerchantsContentState
     );
   }
 
+  static String _trim(double v) => v == v.truncateToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
+
+  // ignore: unused_element
   Widget _buildFieldGovernanceCard(
       BuildContext context, AppLocalizations l10n) {
     return Container(

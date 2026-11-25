@@ -1,1986 +1,1137 @@
-import 'dart:convert';
-
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/di/injection_container.dart';
+import 'package:barwah_app/core/network/api_consumer.dart';
+import 'package:barwah_app/core/network/api_endpoints.dart';
+import 'package:barwah_app/core/realtime/realtime_hub.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
-import 'package:barwah_app/core/widgets/app_snack_bar.dart';
-import 'package:barwah_app/features/finance/domain/entities/withdrawal_request_entity.dart';
-import 'package:barwah_app/features/finance/domain/repositories/finance_repository.dart';
-import 'package:barwah_app/features/merchants/data/datasources/merchant_advertisement_local_store.dart';
-import 'package:barwah_app/features/merchants/data/datasources/merchant_supervisor_local_store.dart';
-import 'package:barwah_app/features/merchants/domain/entities/merchant_entity.dart';
-import 'package:barwah_app/features/merchants/presentation/screens/advertisement_review_details_screen.dart';
-import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
-import 'package:barwah_app/features/messaging/domain/entities/local_event.dart';
-import 'package:barwah_app/l10n/app_localizations.dart';
+import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
 import 'package:barwah_app/core/widgets/scroll_fx.dart';
-import 'package:barwah_app/core/widgets/motion_icon.dart';
 
-enum _AdCategory { vehicles, electronics, realEstate }
+// منتجات التجار الحقيقية من السيرفر: المنتج الجديد أو المتعدّل بيفضل مخفي عن العملاء
+// لحد ما مشرف التجار يقبله. القرارات: قبول، رفض بسبب، تعليق بسبب، وإعادة مراجعة القرار.
 
-enum _AdStatus {
-  pending,
-  awaitingFinance,
-  awaitingManagement,
-  approved,
-  rejected,
-  suspended,
+ApiConsumer get _api => sl<ApiConsumer>(instanceName: 'berwah');
+
+String _serverMessage(Object error, String fallback) {
+  if (error is DioException) {
+    final body = error.response?.data;
+    final message = body is Map ? '${body['message'] ?? ''}'.trim() : '';
+    if (message.isNotEmpty) return message;
+  }
+  return fallback;
 }
 
-enum _AdRejectionReason { price, misleading, photos, policy }
+String? _s(Object? v) {
+  final t = '${v ?? ''}'.trim();
+  return t.isEmpty || t == 'null' ? null : t;
+}
 
-class _AdRecord {
+double _d(Object? v) => v is num ? v.toDouble() : double.tryParse('${v ?? ''}') ?? 0;
+
+int _i(Object? v) => v is int ? v : int.tryParse('${v ?? ''}') ?? 0;
+
+DateTime? _date(Object? raw) {
+  final t = _s(raw);
+  if (t == null) return null;
+  final zoned = t.endsWith('Z') || RegExp(r'[+-]\d\d:?\d\d$').hasMatch(t);
+  return DateTime.tryParse(zoned ? t : '${t}Z')?.toLocal();
+}
+
+String _ago(DateTime? d) {
+  if (d == null) return '—';
+  final diff = DateTime.now().difference(d);
+  if (diff.inMinutes < 1) return 'دلوقتي';
+  if (diff.inMinutes < 60) return 'منذ ${diff.inMinutes} دقيقة';
+  if (diff.inHours < 24) return 'منذ ${diff.inHours} ساعة';
+  if (diff.inDays < 7) return 'منذ ${diff.inDays} يوم';
+  return '${d.year}/${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')}';
+}
+
+String _money(double v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
+
+/// رابط الصورة: لو السيرفر رجّع مسار نسبي بنكمّله بعنوان السيرفر.
+String? _image(Object? raw) {
+  final url = _s(raw);
+  if (url == null) return null;
+  if (url.startsWith('http')) return url;
+  final base = '${RealtimeHub.instance.baseUrl}'.replaceAll(RegExp(r'/+$'), '');
+  if (base.isEmpty || base == 'null') return url;
+  return url.startsWith('/') ? '$base$url' : '$base/$url';
+}
+
+/// منتج تاجر في قايمة المراجعة.
+class MerchantProductItem {
   final int id;
-  final _AdCategory category;
-  final IconData imageIcon;
-  final Color imageColor;
-  final int imageCount;
-  final int receivedMinutesAgo;
-  final bool hasMarketPriceBadge;
-  final bool isPremium;
-  final double premiumFee;
+  final String name;
+  final double price;
+  final double? originalPrice;
+  final int stock;
+  final String? imageUrl;
+  final String? section;
+  final int merchantId;
+  final String merchantName;
 
-  const _AdRecord({
+  /// pending | approved | rejected | suspended
+  final String status;
+  final String? reason;
+  final bool visible;
+  final DateTime? submittedAt;
+  final DateTime? reviewedAt;
+
+  const MerchantProductItem({
     required this.id,
-    required this.category,
-    required this.imageIcon,
-    required this.imageColor,
-    required this.imageCount,
-    required this.receivedMinutesAgo,
-    this.hasMarketPriceBadge = false,
-    this.isPremium = false,
-    this.premiumFee = 0,
+    required this.name,
+    required this.price,
+    this.originalPrice,
+    this.stock = 0,
+    this.imageUrl,
+    this.section,
+    required this.merchantId,
+    required this.merchantName,
+    required this.status,
+    this.reason,
+    this.visible = false,
+    this.submittedAt,
+    this.reviewedAt,
   });
+
+  factory MerchantProductItem.fromJson(Map json) => MerchantProductItem(
+        id: _i(json['id']),
+        name: _s(json['name']) ?? '—',
+        price: _d(json['price']),
+        originalPrice: json['originalPrice'] == null ? null : _d(json['originalPrice']),
+        stock: _i(json['stock']),
+        imageUrl: _image(json['imageUrl']),
+        section: _s(json['section']),
+        merchantId: _i(json['merchantId']),
+        merchantName: _s(json['merchantName']) ?? '—',
+        status: _s(json['reviewStatus']) ?? 'pending',
+        reason: _s(json['reviewReason']),
+        visible: json['visible'] == true,
+        submittedAt: _date(json['submittedAt']),
+        reviewedAt: _date(json['reviewedAt']),
+      );
 }
 
+typedef ProductCounts = ({int pending, int approved, int rejected, int suspended});
+
+abstract class MerchantProductsApi {
+  static Future<int> pendingCount() async {
+    final r = await _api.get<Object>(ApiEndpoints.merchantProductsPendingCount);
+    final body = r.data;
+    return body is Map ? _i(body['count']) : 0;
+  }
+
+  static Future<({List<MerchantProductItem> items, int total, ProductCounts counts})> list({
+    required String status,
+    String? search,
+    int? merchantId,
+    int page = 1,
+    int pageSize = 30,
+  }) async {
+    final r = await _api.get<Object>(
+      ApiEndpoints.merchantProducts,
+      queryParameters: {
+        'status': status,
+        if (search != null && search.trim().isNotEmpty) 'q': search.trim(),
+        if (merchantId != null) 'merchantId': merchantId,
+        'page': page,
+        'pageSize': pageSize,
+      },
+    );
+    final body = r.data;
+    if (body is! Map) throw const FormatException('bad products');
+    final data = body['data'];
+    final c = body['counts'] is Map ? body['counts'] as Map : const {};
+    return (
+      items: data is List ? data.whereType<Map>().map(MerchantProductItem.fromJson).toList() : <MerchantProductItem>[],
+      total: _i(body['total']),
+      counts: (
+        pending: _i(c['pending']),
+        approved: _i(c['approved']),
+        rejected: _i(c['rejected']),
+        suspended: _i(c['suspended']),
+      ),
+    );
+  }
+
+  static Future<Map<String, dynamic>> details(int id) async {
+    final r = await _api.get<Object>(ApiEndpoints.merchantProduct(id));
+    final body = r.data;
+    final data = body is Map ? body['data'] : null;
+    if (data is! Map) throw const FormatException('bad product');
+    return Map<String, dynamic>.from(data);
+  }
+
+  /// [decision]: approve | reject | suspend | reopen.
+  static Future<String> decide(int id, String decision, {String? reason}) async {
+    final r = await _api.post<Object>(
+      ApiEndpoints.merchantProductDecision(id, decision),
+      data: {if (reason != null) 'reason': reason},
+    );
+    final body = r.data;
+    return body is Map ? '${body['message'] ?? ''}' : '';
+  }
+}
+
+({String label, Color fg, Color bg, IconData icon}) _statusLook(String status) => switch (status) {
+      'approved' => (label: 'ظاهر للعملاء', fg: AppColors.successDark, bg: AppColors.successLight, icon: Icons.check_circle_outline),
+      'rejected' => (label: 'مرفوض', fg: AppColors.dangerDark, bg: AppColors.dangerLight, icon: Icons.cancel_outlined),
+      'suspended' => (label: 'معلّق', fg: AppColors.warningDark, bg: AppColors.warningLight, icon: Icons.pause_circle_outline),
+      _ => (label: 'قيد المراجعة', fg: AppColors.infoDark, bg: AppColors.infoLight, icon: Icons.hourglass_top_rounded),
+    };
+
+/// بيسأل عن القرار، وبيرجّع السبب ('' للقبول وإعادة المراجعة) أو null لو اتلغى.
+Future<String?> askProductDecision(BuildContext context, String productName, String decision, {String? status}) async {
+  if (decision == 'approve' || decision == 'reopen') {
+    final approve = decision == 'approve';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: Text(approve ? 'قبول المنتج' : 'إعادة مراجعة القرار',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+        content: Text(approve
+            ? '«$productName» هيظهر للعملاء في متجر التاجر ويوصله إشعار. متأكد؟'
+            : status == 'approved'
+                ? '«$productName» هيتشال من المتجر ويرجع لقيد المراجعة لحد قرارك الجديد.'
+                : '«$productName» هيرجع لقيد المراجعة علشان تاخد فيه قرار جديد.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialog).pop(false), child: const Text('إلغاء')),
+          FilledButton(
+            style: approve ? FilledButton.styleFrom(backgroundColor: AppColors.successDark) : null,
+            onPressed: () => Navigator.of(dialog).pop(true),
+            child: Text(approve ? 'قبول' : 'إعادة للمراجعة'),
+          ),
+        ],
+      ),
+    );
+    return ok == true ? '' : null;
+  }
+
+  final suspend = decision == 'suspend';
+  final controller = TextEditingController();
+  final presets = suspend
+      ? const ['السعر محتاج مراجعة', 'المنتج مش متوفر', 'شكوى من العملاء على المنتج', 'الصورة محتاجة تتغير']
+      : const ['الصورة مش واضحة أو مش للمنتج', 'الوصف ناقص أو مضلل', 'السعر غير منطقي', 'منتج مخالف لسياسة المنصة'];
+  final reason = await showDialog<String>(
+    context: context,
+    builder: (dialog) => StatefulBuilder(
+      builder: (dialog, setLocal) => AlertDialog(
+        title: Text(suspend ? 'تعليق المنتج' : 'رفض المنتج',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                suspend
+                    ? '«$productName» هيتشال من المتجر مؤقتًا. السبب هيوصل للتاجر، ولو عدّل المنتج هيرجع للمراجعة.'
+                    : 'السبب هيوصل للتاجر، ولو عدّل «$productName» هيرجع للمراجعة.',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final p in presets)
+                    ActionChip(
+                      label: Text(p, style: const TextStyle(fontSize: 11)),
+                      onPressed: () => setLocal(() => controller.text = p),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: controller,
+                minLines: 2,
+                maxLines: 4,
+                maxLength: 500,
+                onChanged: (_) => setLocal(() {}),
+                decoration: InputDecoration(
+                  hintText: suspend ? 'سبب التعليق' : 'سبب الرفض',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialog).pop(), child: const Text('إلغاء')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: suspend ? AppColors.warningDark : AppColors.dangerDark),
+            onPressed: controller.text.trim().isEmpty ? null : () => Navigator.of(dialog).pop(controller.text.trim()),
+            child: Text(suspend ? 'تعليق' : 'رفض'),
+          ),
+        ],
+      ),
+    ),
+  );
+  controller.dispose();
+  return reason;
+}
+
+/// بينفّذ القرار وبيرجّع true لو اتنفذ.
+Future<bool> runProductDecision(BuildContext context, int id, String name, String decision, {String? status}) async {
+  final reason = await askProductDecision(context, name, decision, status: status);
+  if (reason == null || !context.mounted) return false;
+  final messenger = ScaffoldMessenger.of(context);
+  void toast(String m) => messenger
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(m), behavior: SnackBarBehavior.floating));
+  try {
+    final message = await MerchantProductsApi.decide(id, decision, reason: reason.isEmpty ? null : reason);
+    toast(message.isEmpty ? 'تم تسجيل القرار' : message);
+    return true;
+  } on Object catch (error) {
+    toast(_serverMessage(error, 'تعذر تسجيل القرار'));
+    return false;
+  }
+}
+
+// ─────────────────────────── الصفحة ───────────────────────────
+
+/// تبويب "المنتجات" عند مشرف التجار (أو منتجات تاجر واحد لو [merchantId] متحدد).
 class AdsManagementScreen extends StatefulWidget {
-  const AdsManagementScreen({super.key});
+  const AdsManagementScreen({super.key, this.merchantId, this.merchantName});
+
+  final int? merchantId;
+  final String? merchantName;
 
   @override
   State<AdsManagementScreen> createState() => _AdsManagementScreenState();
 }
 
 class _AdsManagementScreenState extends State<AdsManagementScreen> {
-  final TextEditingController _searchController = TextEditingController();
-  final List<_AdRecord> _ads = [
-    _AdRecord(
-      id: 1,
-      category: _AdCategory.vehicles,
-      imageIcon: Icons.directions_car_filled_outlined,
-      imageColor: AppColors.infoDark,
-      imageCount: 8,
-      receivedMinutesAgo: 25,
-      hasMarketPriceBadge: true,
-      isPremium: true,
-      premiumFee: 500,
-    ),
-    _AdRecord(
-      id: 2,
-      category: _AdCategory.electronics,
-      imageIcon: Icons.smartphone,
-      imageColor: AppColors.info,
-      imageCount: 5,
-      receivedMinutesAgo: 40,
-    ),
-    _AdRecord(
-      id: 3,
-      category: _AdCategory.realEstate,
-      imageIcon: Icons.villa_outlined,
-      imageColor: AppColors.textSecondary,
-      imageCount: 14,
-      receivedMinutesAgo: 120,
-    ),
+  static const _pageSize = 30;
+  static const _tabs = [
+    ('pending', 'قيد المراجعة'),
+    ('approved', 'ظاهرة'),
+    ('suspended', 'معلّقة'),
+    ('rejected', 'مرفوضة'),
   ];
-  final Map<int, _AdStatus> _statuses = {};
-  final Map<int, ({_AdRejectionReason reason, String guidance})> _rejections =
-      {};
-  final Set<int> _hiddenAds = {};
-  bool _showArchive = false;
-  bool _isLoadingActions = true;
-  Object? _loadError;
-  String _searchQuery = '';
-  _AdCategory? _categoryFilter;
-  bool _newestFirst = true;
 
-  static const _savedActionsKey = 'merchant_supervisor_ad_actions_v1';
-  static const _deliveryFeesKey = 'merchant_ad_delivery_fees_v1';
+  late String _status = widget.merchantId != null ? 'all' : 'pending';
+  final _search = TextEditingController();
+  List<MerchantProductItem> _items = [];
+  int _total = 0;
+  int _page = 0;
+  ProductCounts _counts = (pending: 0, approved: 0, rejected: 0, suspended: 0);
+  bool _loading = false;
+  bool _loadingMore = false;
+  String? _error;
+  final Set<int> _busy = {};
+
+  bool get _single => widget.merchantId != null;
 
   @override
   void initState() {
     super.initState();
-    MerchantAdvertisementLocalStore.version.addListener(
-      _refreshSharedStatuses,
-    );
-    _loadSavedActions().then((_) => _refreshSharedStatuses());
+    _reload();
   }
 
   @override
   void dispose() {
-    MerchantAdvertisementLocalStore.version.removeListener(
-      _refreshSharedStatuses,
-    );
-    _searchController.dispose();
+    _search.dispose();
     super.dispose();
   }
 
-  Future<void> _refreshSharedStatuses() async {
-    try {
-      final statuses = await MerchantAdvertisementLocalStore.loadStatuses();
-      if (!mounted) return;
-      setState(() {
-        for (final ad in _ads) {
-          final status = statuses[_adReference(ad)];
-          if (status != null) _statuses[ad.id] = _localStatusFor(status);
-          if (status == MerchantAdvertisementStatus.hidden) {
-            _hiddenAds.add(ad.id);
-          } else {
-            _hiddenAds.remove(ad.id);
-          }
-        }
-      });
-    } catch (error, stackTrace) {
-      FlutterError.reportError(
-        FlutterErrorDetails(
-          exception: error,
-          stack: stackTrace,
-          library: 'merchant advertisement status refresh',
-        ),
-      );
-      if (mounted) {
-        _showMessage(
-          AppLocalizations.of(context)!,
-          AppLocalizations.of(context)!.adsLoadFailed,
-        );
-      }
-    }
-  }
-
-  _AdStatus _localStatusFor(MerchantAdvertisementStatus status) =>
-      switch (status) {
-        MerchantAdvertisementStatus.approved => _AdStatus.approved,
-        MerchantAdvertisementStatus.awaitingFinance =>
-          _AdStatus.awaitingFinance,
-        MerchantAdvertisementStatus.awaitingManagement =>
-          _AdStatus.awaitingManagement,
-        MerchantAdvertisementStatus.underReview => _AdStatus.pending,
-        MerchantAdvertisementStatus.rejected => _AdStatus.rejected,
-        MerchantAdvertisementStatus.frozen => _AdStatus.suspended,
-        MerchantAdvertisementStatus.hidden => _AdStatus.pending,
-      };
-
-  MerchantAdvertisementStatus _sharedStatusFor(
-    _AdStatus status, {
-    required bool hidden,
-  }) {
-    if (hidden) return MerchantAdvertisementStatus.hidden;
-    return switch (status) {
-      _AdStatus.pending => MerchantAdvertisementStatus.underReview,
-      _AdStatus.awaitingFinance => MerchantAdvertisementStatus.awaitingFinance,
-      _AdStatus.awaitingManagement =>
-        MerchantAdvertisementStatus.awaitingManagement,
-      _AdStatus.approved => MerchantAdvertisementStatus.approved,
-      _AdStatus.rejected => MerchantAdvertisementStatus.rejected,
-      _AdStatus.suspended => MerchantAdvertisementStatus.frozen,
-    };
-  }
-
-  Future<void> _loadSavedActions() async {
-    try {
-      final preferences = await SharedPreferences.getInstance();
-      final saved = preferences.getString(_savedActionsKey);
-      if (saved == null) {
-        if (mounted) setState(() => _isLoadingActions = false);
-        return;
-      }
-
-      final decoded = jsonDecode(saved);
-      if (decoded is! Map<String, dynamic>) {
-        throw const FormatException(
-          'Saved advertisement actions are invalid.',
-        );
-      }
-      final statusEntries = decoded['statuses'];
-      final hiddenEntries = decoded['hidden'];
-      final rejectionEntries = decoded['rejections'] ?? <String, dynamic>{};
-      if (statusEntries is! Map<String, dynamic> ||
-          hiddenEntries is! List ||
-          rejectionEntries is! Map<String, dynamic>) {
-        throw const FormatException(
-          'Saved advertisement action fields are invalid.',
-        );
-      }
-
-      final statuses = <int, _AdStatus>{};
-      for (final entry in statusEntries.entries) {
-        final id = int.tryParse(entry.key);
-        final statusName = entry.value;
-        if (id == null || statusName is! String) {
-          throw const FormatException(
-            'Saved advertisement status is invalid.',
-          );
-        }
-        statuses[id] = _AdStatus.values.byName(statusName);
-      }
-      final hidden = hiddenEntries.map((value) {
-        if (value is! int) {
-          throw const FormatException('Saved hidden advertisement is invalid.');
-        }
-        return value;
-      }).toSet();
-      final rejections =
-          <int, ({_AdRejectionReason reason, String guidance})>{};
-      for (final entry in rejectionEntries.entries) {
-        final id = int.tryParse(entry.key);
-        final value = entry.value;
-        if (id == null ||
-            value is! Map<String, dynamic> ||
-            value['reason'] is! String ||
-            value['guidance'] is! String) {
-          throw const FormatException(
-            'Saved advertisement rejection is invalid.',
-          );
-        }
-        rejections[id] = (
-          reason: _AdRejectionReason.values.byName(value['reason'] as String),
-          guidance: value['guidance'] as String,
-        );
-      }
-      if (!mounted) return;
-      setState(() {
-        _statuses.addAll(statuses);
-        _hiddenAds.addAll(hidden);
-        _rejections.addAll(rejections);
-        _isLoadingActions = false;
-      });
-    } catch (error, stackTrace) {
-      FlutterError.reportError(
-        FlutterErrorDetails(
-          exception: error,
-          stack: stackTrace,
-          library: 'merchant advertisement review',
-        ),
-      );
-      if (mounted) {
-        setState(() {
-          _loadError = error;
-          _isLoadingActions = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _persistActions() async {
-    final preferences = await SharedPreferences.getInstance();
-    final saved = await preferences.setString(
-      _savedActionsKey,
-      jsonEncode({
-        'statuses': _statuses.map(
-          (id, status) => MapEntry(id.toString(), status.name),
-        ),
-        'hidden': _hiddenAds.toList(),
-        'rejections': _rejections.map(
-          (id, rejection) => MapEntry(id.toString(), {
-            'reason': rejection.reason.name,
-            'guidance': rejection.guidance,
-          }),
-        ),
-      }),
-    );
-    if (!saved) throw StateError('Could not save advertisement actions.');
-  }
-
-  Future<void> _setAdState(
-    AppLocalizations l10n,
-    _AdRecord ad, {
-    _AdStatus? status,
-    bool? hidden,
-    ({_AdRejectionReason reason, String guidance})? rejection,
-  }) async {
-    final previousStatus = _statuses[ad.id];
-    final wasHidden = _hiddenAds.contains(ad.id);
-    final previousRejection = _rejections[ad.id];
+  Future<void> _reload() async {
     setState(() {
-      if (status != null) _statuses[ad.id] = status;
-      if (hidden == true) _hiddenAds.add(ad.id);
-      if (hidden == false) _hiddenAds.remove(ad.id);
-      if (rejection != null) _rejections[ad.id] = rejection;
+      _loading = true;
+      _error = null;
     });
     try {
-      await _persistActions();
-      await MerchantAdvertisementLocalStore.saveStatus(
-        reference: _adReference(ad),
-        status: _sharedStatusFor(
-          status ?? _statuses[ad.id] ?? _AdStatus.pending,
-          hidden: hidden ?? _hiddenAds.contains(ad.id),
-        ),
+      final r = await MerchantProductsApi.list(
+        status: _status,
+        search: _search.text,
+        merchantId: widget.merchantId,
+        pageSize: _pageSize,
       );
-      if (status == _AdStatus.rejected || status == _AdStatus.suspended) {
-        final isFrozen = status == _AdStatus.suspended;
-        final reason = rejection?.guidance ??
-            _rejections[ad.id]?.guidance ??
-            (isFrozen
-                ? 'تم تجميد الإعلان للمراجعة الرقابية.'
-                : 'لم يسجل المشرف سبباً إضافياً.');
-        try {
-          await LocalEventStore().publish(
-            LocalEvent(
-              id: 'head-merchant-ad-${ad.id}-${status!.name}-${DateTime.now().millisecondsSinceEpoch}',
-              recipient: 'head',
-              source: 'merchant',
-              titleAr: isFrozen
-                  ? 'قرار المشرف: تجميد إعلان تاجر'
-                  : 'قرار المشرف: رفض إعلان تاجر',
-              titleEn: isFrozen
-                  ? 'Supervisor decision: merchant ad frozen'
-                  : 'Supervisor decision: merchant ad rejected',
-              messageAr:
-                  '${_adReference(ad)}: ${_adTitle(l10n, ad)} — القرار: ${isFrozen ? 'مجمّد' : 'مرفوض'} من مشرف التجار. السبب: $reason',
-              messageEn:
-                  '${_adReference(ad)}: ${_adTitle(l10n, ad)} — Decision: ${isFrozen ? 'frozen' : 'rejected'} by the merchants supervisor. Reason: $reason',
-              createdAt: DateTime.now(),
+      if (!mounted) return;
+      setState(() {
+        _items = r.items;
+        _total = r.total;
+        _counts = r.counts;
+        _page = 1;
+        _loading = false;
+      });
+    } on Object catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = _serverMessage(error, 'تعذر تحميل المنتجات. اسحب للتحديث.');
+      });
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loading || _loadingMore || _items.length >= _total) return;
+    setState(() => _loadingMore = true);
+    try {
+      final r = await MerchantProductsApi.list(
+        status: _status,
+        search: _search.text,
+        merchantId: widget.merchantId,
+        page: _page + 1,
+        pageSize: _pageSize,
+      );
+      if (!mounted) return;
+      setState(() {
+        _items = [..._items, ...r.items];
+        _page++;
+        _total = r.total;
+        _loadingMore = false;
+      });
+    } on Object {
+      if (mounted) setState(() => _loadingMore = false);
+    }
+  }
+
+  void _select(String status) {
+    if (status == _status) return;
+    setState(() {
+      _status = status;
+      _items = [];
+    });
+    _reload();
+  }
+
+  Future<void> _decide(MerchantProductItem item, String decision) async {
+    setState(() => _busy.add(item.id));
+    final done = await runProductDecision(context, item.id, item.name, decision, status: item.status);
+    if (!mounted) return;
+    setState(() => _busy.remove(item.id));
+    if (done) await _reload();
+  }
+
+  Future<void> _open(MerchantProductItem item) async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => MerchantProductDetailsScreen(id: item.id, initial: item)),
+    );
+    if (changed == true && mounted) await _reload();
+  }
+
+  int _countOf(String status) => switch (status) {
+        'pending' => _counts.pending,
+        'approved' => _counts.approved,
+        'suspended' => _counts.suspended,
+        'rejected' => _counts.rejected,
+        _ => _counts.pending + _counts.approved + _counts.suspended + _counts.rejected,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final tabs = [if (_single) ('all', 'الكل'), ..._tabs];
+    final body = Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: TextField(
+            controller: _search,
+            textInputAction: TextInputAction.search,
+            onSubmitted: (_) => _reload(),
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: _single ? 'ابحث باسم المنتج' : 'ابحث باسم المنتج أو المتجر',
+              prefixIcon: const Icon(Icons.search_rounded, size: 20),
+              suffixIcon: _search.text.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.close_rounded, size: 18),
+                      onPressed: () {
+                        _search.clear();
+                        _reload();
+                      },
+                    ),
+              filled: true,
+              fillColor: AppColors.surface,
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.cardBorder)),
+              enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.cardBorder)),
             ),
-          );
-        } catch (error, stackTrace) {
-          FlutterError.reportError(
-            FlutterErrorDetails(
-              exception: error,
-              stack: stackTrace,
-              library: 'merchant advertisement review',
-              context: ErrorDescription('while notifying the head supervisor'),
+          ),
+        ),
+        SizedBox(
+          height: 50,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+            children: [
+              for (final t in tabs) ...[
+                _FilterChip(
+                  label: t.$2,
+                  count: _countOf(t.$1),
+                  selected: _status == t.$1,
+                  alert: t.$1 == 'pending',
+                  onTap: () => _select(t.$1),
+                ),
+                const SizedBox(width: 6),
+              ],
+            ],
+          ),
+        ),
+        Expanded(
+          child: BrandRefreshIndicator(
+            onRefresh: _reload,
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (n) {
+                if (n.metrics.pixels > n.metrics.maxScrollExtent - 300) _loadMore();
+                return false;
+              },
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: EdgeInsets.fromLTRB(16, 8, 16, _single ? 24 : 120),
+                children: [
+                  if (_status == 'pending' && _items.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Text(
+                        'المنتجات دي مش ظاهرة للعملاء لحد ما تقبلها. الأقدم الأول.',
+                        style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                      ),
+                    ),
+                  if (_loading && _items.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 80),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else if (_error != null && _items.isEmpty)
+                    _Empty(icon: Icons.cloud_off_outlined, text: _error!)
+                  else if (_items.isEmpty)
+                    _Empty(
+                      icon: _status == 'pending' ? Icons.task_alt_rounded : Icons.inventory_2_outlined,
+                      text: _status == 'pending' ? 'مفيش منتجات مستنية مراجعة دلوقتي' : 'مفيش منتجات هنا',
+                    )
+                  else ...[
+                    for (final item in _items) ...[
+                      ScrollFx(
+                        child: _ProductCard(
+                          item: item,
+                          showMerchant: !_single,
+                          busy: _busy.contains(item.id),
+                          onOpen: () => _open(item),
+                          onDecide: (d) => _decide(item, d),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+                    if (_items.length < _total)
+                      const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                      ),
+                  ],
+                ],
+              ),
             ),
-          );
-        }
-      }
-      try {
-        final resultLabel = switch (status) {
-          _AdStatus.approved => l10n.adsApprovedStatus,
-          _AdStatus.awaitingFinance => l10n.adsPremiumWaitingFinance,
-          _AdStatus.awaitingManagement => l10n.adsPremiumWaitingManagement,
-          _AdStatus.rejected => l10n.adsRejectedStatus,
-          _AdStatus.suspended => l10n.adsFrozenStatus,
-          _AdStatus.pending ||
-          null =>
-            hidden == true ? l10n.adsHiddenStatus : l10n.adsReviewHidden,
-        };
-        await MerchantSupervisorLocalStore.recordAction(
-          action: l10n.merchantAuditAdModerated,
-          subject: _adTitle(l10n, ad),
-          details: [
-            resultLabel,
-            if (rejection?.guidance.isNotEmpty ?? false) rejection!.guidance,
-          ].join(' · '),
-          merchantId: _merchantId(ad),
-        );
-      } on Object catch (error, stackTrace) {
-        FlutterError.reportError(
-          FlutterErrorDetails(
-            exception: error,
-            stack: stackTrace,
-            library: 'merchant advertisement audit',
+          ),
+        ),
+      ],
+    );
+    return Scaffold(
+      backgroundColor: AppColors.scaffold,
+      appBar: _single
+          ? AppBar(
+              backgroundColor: AppColors.surface,
+              foregroundColor: AppColors.ink,
+              title: Text('منتجات ${widget.merchantName ?? 'التاجر'}',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            )
+          : null,
+      body: body,
+    );
+  }
+}
+
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({required this.label, required this.count, required this.selected, required this.onTap, this.alert = false});
+
+  final String label;
+  final int count;
+  final bool selected;
+  final bool alert;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primaryDark : AppColors.surface,
+          borderRadius: BorderRadius.circular(99),
+          border: Border.all(color: selected ? AppColors.primaryDark : AppColors.cardBorder),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(label,
+                style: TextStyle(
+                  color: selected ? Colors.white : AppColors.textSecondary,
+                  fontSize: 12,
+                  fontWeight: selected ? FontWeight.bold : FontWeight.w600,
+                )),
+            if (count > 0) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                decoration: BoxDecoration(
+                  color: alert ? AppColors.danger : (selected ? Colors.white24 : AppColors.surfaceHighlight),
+                  borderRadius: BorderRadius.circular(99),
+                ),
+                child: Text('$count',
+                    style: TextStyle(
+                      color: alert || selected ? Colors.white : AppColors.ink,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    )),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Empty extends StatelessWidget {
+  const _Empty({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 70),
+      child: Column(
+        children: [
+          Icon(icon, size: 42, color: AppColors.textMuted),
+          const SizedBox(height: 10),
+          Text(text, textAlign: TextAlign.center, style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusPill extends StatelessWidget {
+  const _StatusPill(this.status);
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final look = _statusLook(status);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(color: look.bg, borderRadius: BorderRadius.circular(99)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(look.icon, size: 12, color: look.fg),
+          const SizedBox(width: 4),
+          Text(look.label, style: TextStyle(color: look.fg, fontSize: 11, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+}
+
+class _Thumb extends StatelessWidget {
+  const _Thumb({required this.url});
+
+  final String? url;
+
+  @override
+  Widget build(BuildContext context) {
+    final placeholder = Center(child: Icon(Icons.inventory_2_outlined, color: AppColors.textMuted, size: 28));
+    return Container(
+      width: 72,
+      height: 72,
+      decoration: BoxDecoration(color: AppColors.surfaceHighlight, borderRadius: BorderRadius.circular(12)),
+      clipBehavior: Clip.antiAlias,
+      child: url == null
+          ? placeholder
+          : Image.network(url!, fit: BoxFit.cover, errorBuilder: (context, error, stack) => placeholder),
+    );
+  }
+}
+
+/// أزرار القرار حسب حالة المنتج.
+class _Actions extends StatelessWidget {
+  const _Actions({required this.status, required this.busy, required this.onDecide});
+
+  final String status;
+  final bool busy;
+  final ValueChanged<String> onDecide;
+
+  @override
+  Widget build(BuildContext context) {
+    if (busy) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: Center(child: SizedBox.square(dimension: 22, child: CircularProgressIndicator(strokeWidth: 2))),
+      );
+    }
+    Widget filled(String label, Color color, String decision) => Expanded(
+          child: FilledButton(
+            onPressed: () => onDecide(decision),
+            style: FilledButton.styleFrom(
+              backgroundColor: color,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              padding: const EdgeInsets.symmetric(vertical: 10),
+            ),
+            child: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
           ),
         );
-        if (mounted) _showMessage(l10n, l10n.merchantAuditLoadError);
-      }
-    } catch (error, stackTrace) {
-      FlutterError.reportError(
-        FlutterErrorDetails(
-          exception: error,
-          stack: stackTrace,
-          library: 'merchant advertisement review',
+    Widget outlined(String label, Color color, String decision) => Expanded(
+          child: OutlinedButton(
+            onPressed: () => onDecide(decision),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: color,
+              side: BorderSide(color: color),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              padding: const EdgeInsets.symmetric(vertical: 10),
+            ),
+            child: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+          ),
+        );
+    final buttons = switch (status) {
+      'pending' => [
+          filled('قبول', AppColors.successDark, 'approve'),
+          outlined('تعليق', AppColors.warningDark, 'suspend'),
+          outlined('رفض', AppColors.dangerDark, 'reject'),
+        ],
+      'approved' => [
+          outlined('تعليق', AppColors.warningDark, 'suspend'),
+          outlined('رفض', AppColors.dangerDark, 'reject'),
+          outlined('إعادة مراجعة', AppColors.infoDark, 'reopen'),
+        ],
+      _ => [
+          filled('قبول', AppColors.successDark, 'approve'),
+          outlined('إعادة مراجعة', AppColors.infoDark, 'reopen'),
+        ],
+    };
+    return Row(
+      children: [
+        for (var i = 0; i < buttons.length; i++) ...[
+          if (i > 0) const SizedBox(width: 6),
+          buttons[i],
+        ],
+      ],
+    );
+  }
+}
+
+class _ProductCard extends StatelessWidget {
+  const _ProductCard({
+    required this.item,
+    required this.showMerchant,
+    required this.busy,
+    required this.onOpen,
+    required this.onDecide,
+  });
+
+  final MerchantProductItem item;
+  final bool showMerchant;
+  final bool busy;
+  final VoidCallback onOpen;
+  final ValueChanged<String> onDecide;
+
+  @override
+  Widget build(BuildContext context) {
+    final discounted = item.originalPrice != null && item.originalPrice! > item.price;
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onOpen,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.cardBorder),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _Thumb(url: item.imageUrl),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(item.name,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(color: AppColors.ink, fontSize: 14, fontWeight: FontWeight.bold)),
+                            ),
+                            const SizedBox(width: 6),
+                            _StatusPill(item.status),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        if (showMerchant)
+                          Row(
+                            children: [
+                              Icon(Icons.storefront_outlined, size: 13, color: AppColors.textSecondary),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(item.merchantName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                              ),
+                            ],
+                          ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Text('${_money(item.price)} ج.م',
+                                style: TextStyle(color: AppColors.ink, fontSize: 14, fontWeight: FontWeight.w800)),
+                            if (discounted) ...[
+                              const SizedBox(width: 6),
+                              Text('${_money(item.originalPrice!)} ج.م',
+                                  style: TextStyle(
+                                    color: AppColors.textMuted,
+                                    fontSize: 11,
+                                    decoration: TextDecoration.lineThrough,
+                                  )),
+                            ],
+                            const Spacer(),
+                            Text(
+                              item.status == 'pending' ? _ago(item.submittedAt) : _ago(item.reviewedAt ?? item.submittedAt),
+                              style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          [if (item.section != null) item.section!, 'المخزون: ${item.stock}'].join(' • '),
+                          style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              if (item.reason != null) ...[
+                const SizedBox(height: 10),
+                _ReasonBox(status: item.status, reason: item.reason!),
+              ],
+              const SizedBox(height: 10),
+              _Actions(status: item.status, busy: busy, onDecide: onDecide),
+            ],
+          ),
         ),
-      );
-      if (mounted) {
-        setState(() {
-          if (previousStatus == null) {
-            _statuses.remove(ad.id);
-          } else {
-            _statuses[ad.id] = previousStatus;
-          }
-          if (wasHidden) {
-            _hiddenAds.add(ad.id);
-          } else {
-            _hiddenAds.remove(ad.id);
-          }
-          if (previousRejection == null) {
-            _rejections.remove(ad.id);
-          } else {
-            _rejections[ad.id] = previousRejection;
-          }
-        });
-        _showMessage(l10n, l10n.adsSaveFailed);
-      }
-    }
+      ),
+    );
+  }
+}
+
+class _ReasonBox extends StatelessWidget {
+  const _ReasonBox({required this.status, required this.reason});
+
+  final String status;
+  final String reason;
+
+  @override
+  Widget build(BuildContext context) {
+    final look = _statusLook(status);
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(color: look.bg, borderRadius: BorderRadius.circular(10)),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline_rounded, size: 16, color: look.fg),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              '${status == 'suspended' ? 'سبب التعليق' : 'سبب الرفض'}: $reason',
+              style: TextStyle(color: look.fg, fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────── تفاصيل منتج ───────────────────────────
+
+class MerchantProductDetailsScreen extends StatefulWidget {
+  const MerchantProductDetailsScreen({super.key, required this.id, this.initial});
+
+  final int id;
+  final MerchantProductItem? initial;
+
+  @override
+  State<MerchantProductDetailsScreen> createState() => _MerchantProductDetailsScreenState();
+}
+
+class _MerchantProductDetailsScreenState extends State<MerchantProductDetailsScreen> {
+  Map<String, dynamic>? _data;
+  String? _error;
+  bool _busy = false;
+  bool _changed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
   }
 
-  Future<void> _approveAd(AppLocalizations l10n, _AdRecord ad) async {
-    if (_statuses[ad.id] == _AdStatus.awaitingFinance ||
-        _statuses[ad.id] == _AdStatus.awaitingManagement) {
-      _showMessage(
-        l10n,
-        _statuses[ad.id] == _AdStatus.awaitingFinance
-            ? l10n.adsPremiumWaitingFinance
-            : l10n.adsPremiumWaitingManagement,
-      );
-      return;
-    }
-    if (ad.isPremium) {
-      final requestId = 'AD-FEE-${_adReference(ad)}';
-      final requestTitle = l10n.localeName.startsWith('ar')
-          ? 'رسوم الإعلان المميز ${_adReference(ad)}'
-          : 'Premium advertisement fee - ${_adReference(ad)}';
-      final result =
-          await sl<FinanceRepository>().submitMerchantFinancialRequest(
-        beneficiaryName: _merchantName(l10n, ad),
-        requestTitle: requestTitle,
-        sourceAccount: requestId,
-        amount: ad.premiumFee,
-        operationType: FinancialOperationType.withdrawal,
-      );
-      final failure = result.fold((failure) => failure, (_) => null);
-      if (failure != null) {
-        _showMessage(l10n, failure.message);
-        return;
-      }
-      await _setAdState(l10n, ad, status: _AdStatus.awaitingFinance);
+  Future<void> _load() async {
+    try {
+      final data = await MerchantProductsApi.details(widget.id);
       if (!mounted) return;
-      _showMessage(l10n, l10n.adsPremiumWaitingFinance);
-      return;
+      setState(() {
+        _data = data;
+        _error = null;
+      });
+    } on Object catch (error) {
+      if (mounted) setState(() => _error = _serverMessage(error, 'تعذر تحميل المنتج'));
     }
-    await _setAdState(l10n, ad, status: _AdStatus.approved);
-    if (!mounted) return;
-    _showMessage(l10n, l10n.adsApprovedStatus);
   }
 
-  bool _isArchived(_AdRecord ad) =>
-      _hiddenAds.contains(ad.id) ||
-      (_statuses[ad.id] ?? _AdStatus.pending) != _AdStatus.pending;
-
-  String _merchantName(AppLocalizations l10n, _AdRecord ad) => switch (ad.id) {
-        1 => l10n.adsCarMerchant,
-        2 => l10n.adsPhoneMerchant,
-        _ => l10n.adsVillaMerchant,
-      };
-
-  String _merchantId(_AdRecord ad) => switch (ad.id) {
-        1 => 'MER-101',
-        2 => 'MER-102',
-        _ => 'MER-103',
-      };
-
-  String _merchantCategory(AppLocalizations l10n, _AdRecord ad) =>
-      switch (ad.id) {
-        1 => l10n.adsCarCategory,
-        2 => l10n.adsPhoneCategory,
-        _ => l10n.adsVillaCategory,
-      };
-
-  String _adTitle(AppLocalizations l10n, _AdRecord ad) => switch (ad.id) {
-        1 => l10n.adsCarTitle,
-        2 => l10n.adsPhoneTitle,
-        _ => l10n.adsVillaTitle,
-      };
-
-  String _adDetails(AppLocalizations l10n, _AdRecord ad) => switch (ad.id) {
-        1 => l10n.adsCarDetails,
-        2 => l10n.adsPhoneDetails,
-        _ => l10n.adsVillaDetails,
-      };
-
-  String _adPrice(AppLocalizations l10n, _AdRecord ad) => switch (ad.id) {
-        1 => l10n.adsCarPrice,
-        2 => l10n.adsPhonePrice,
-        _ => l10n.adsVillaPrice,
-      };
-
-  String _adReference(_AdRecord ad) => switch (ad.id) {
-        1 => 'AD-94820',
-        2 => 'AD-66214',
-        _ => 'AD-78011',
-      };
-
-  List<_AdRecord> _filteredAds(AppLocalizations l10n) {
-    final query = _searchQuery.trim().toLowerCase();
-    final ads = _ads.where((ad) {
-      if (_isArchived(ad) != _showArchive) return false;
-      final matchesCategory =
-          _categoryFilter == null || ad.category == _categoryFilter;
-      final matchesQuery = query.isEmpty ||
-          _adTitle(l10n, ad).toLowerCase().contains(query) ||
-          _merchantName(l10n, ad).toLowerCase().contains(query) ||
-          _adReference(ad).toLowerCase().contains(query);
-      return matchesCategory && matchesQuery;
-    }).toList();
-    ads.sort((a, b) => _newestFirst
-        ? a.receivedMinutesAgo.compareTo(b.receivedMinutesAgo)
-        : b.receivedMinutesAgo.compareTo(a.receivedMinutesAgo));
-    return ads;
+  Future<void> _decide(String decision) async {
+    final d = _data;
+    final name = _s(d?['name']) ?? widget.initial?.name ?? 'المنتج';
+    setState(() => _busy = true);
+    final done = await runProductDecision(context, widget.id, name, decision, status: _s(d?['reviewStatus']));
+    if (!mounted) return;
+    if (done) {
+      _changed = true;
+      await _load();
+    }
+    if (mounted) setState(() => _busy = false);
   }
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final ads = _filteredAds(l10n);
-
-    return Scaffold(
-      backgroundColor: AppColors.scaffold,
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        children: [
-          if (_isLoadingActions)
-            const LinearProgressIndicator()
-          else if (_loadError != null)
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Text(l10n.adsLoadFailed),
-            ),
-          ScrollFx(child: _buildSummary(l10n)),
-          const SizedBox(height: 14),
-          ScrollFx(child: _buildSearch(l10n)),
-          const SizedBox(height: 12),
-          ScrollFx(child: _buildCategoryFilters(l10n)),
-          const SizedBox(height: 12),
-          SegmentedButton<bool>(
-            segments: [
-              ButtonSegment(
-                value: false,
-                label: Text(l10n.adsReviewQueueTab),
-              ),
-              ButtonSegment(value: true, label: Text(l10n.adsArchiveTitle)),
-            ],
-            selected: {_showArchive},
-            onSelectionChanged: (selection) =>
-                setState(() => _showArchive = selection.first),
-          ),
-          const SizedBox(height: 18),
-          ScrollFx(child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  _showArchive ? l10n.adsArchiveTitle : l10n.adsPendingHeading,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: AppColors.ink,
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              _smallBadge(
-                l10n.adsUnderReviewCount,
-                AppColors.infoBorder,
-                AppColors.ink,
-              ),
-              const SizedBox(width: 8),
-              InkWell(
-                onTap: () => setState(() => _newestFirst = !_newestFirst),
-                borderRadius: BorderRadius.circular(8),
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 4, vertical: 5),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          _newestFirst
-                              ? l10n.adsRecentSort
-                              : l10n.adsOldestSort,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 3),
-                      MotionIcon(
-                        _newestFirst ? Icons.sort : Icons.swap_vert,
-                        size: 15,
-                        color: AppColors.textSecondary,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          )),
-          const SizedBox(height: 10),
-          if (ads.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 40),
-              child: Text(
-                l10n.adsNoResults,
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-            ),
-          ...ads.map((ad) => _buildAdCard(l10n, ad)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSummary(AppLocalizations l10n) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        gradient: AppColors.blueFill,
-        border: AppColors.blueEdge,
-        color: AppColors.primaryDark,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primaryDark.withValues(alpha: 0.12),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              MotionIcon(Icons.circle, color: AppColors.danger, size: 9),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  l10n.adsReviewGateway,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white, fontSize: 11),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Flexible(
+    final d = _data;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) Navigator.of(context).pop(_changed);
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.scaffold,
+        appBar: AppBar(
+          backgroundColor: AppColors.surface,
+          foregroundColor: AppColors.ink,
+          title: const Text('تفاصيل المنتج', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        ),
+        body: d == null
+            ? Center(
+                child: _error == null
+                    ? const CircularProgressIndicator()
+                    : _Empty(icon: Icons.cloud_off_outlined, text: _error!),
+              )
+            : BrandRefreshIndicator(onRefresh: _load, child: _content(d)),
+        bottomNavigationBar: d == null
+            ? null
+            : SafeArea(
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
                   decoration: BoxDecoration(
-                    gradient: AppColors.blueFill,
-                    border: AppColors.blueEdge,
-                    boxShadow: AppColors.blueGlow,
-                    color: AppColors.primaryDark,
-                    borderRadius: BorderRadius.circular(14),
+                    color: AppColors.surface,
+                    border: Border(top: BorderSide(color: AppColors.cardBorder)),
                   ),
-                  child: Text(
-                    l10n.adsUrgentDecision,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  child: _Actions(status: _s(d['reviewStatus']) ?? 'pending', busy: _busy, onDecide: _decide),
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              _summaryMetric(
-                value: '4',
-                label: l10n.adsHiddenToday,
-                icon: Icons.visibility_off_outlined,
-              ),
-              const SizedBox(width: 8),
-              _summaryMetric(
-                value: '38',
-                label: l10n.adsPendingToday,
-                icon: Icons.check_circle_outline,
-              ),
-              const SizedBox(width: 8),
-              _summaryMetric(
-                value: '12',
-                label: l10n.adsUnderReviewCount,
-                icon: Icons.fact_check_outlined,
-              ),
-            ],
-          ),
-        ],
       ),
     );
   }
 
-  Widget _summaryMetric({
-    required String value,
-    required String label,
-    required IconData icon,
-  }) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
-        decoration: BoxDecoration(
-          gradient: AppColors.blueFill,
-          border: AppColors.blueEdge,
-          boxShadow: AppColors.blueGlow,
-          color: AppColors.primaryDark,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          children: [
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.infoBorder, fontSize: 11),
-            ),
-            const SizedBox(height: 5),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                MotionIcon(icon, size: 13, color: AppColors.info),
-                const SizedBox(width: 4),
-                CountText(
-                  value,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  static String _actionLabel(String action) => switch (action) {
+        'approve_product' => 'قبول',
+        'reject_product' => 'رفض',
+        'hide_product' => 'تعليق',
+        'reopen_product' => 'إعادة مراجعة',
+        _ => action,
+      };
 
-  Widget _buildSearch(AppLocalizations l10n) {
-    return Row(
-      children: [
-        Container(
-          height: 46,
-          width: 46,
+  Widget _content(Map<String, dynamic> d) {
+    final status = _s(d['reviewStatus']) ?? 'pending';
+    final image = _image(d['imageUrl']);
+    final price = _d(d['price']);
+    final original = d['originalPrice'] == null ? null : _d(d['originalPrice']);
+    final merchant = d['merchant'] is Map ? Map<String, dynamic>.from(d['merchant'] as Map) : const <String, dynamic>{};
+    final history = d['history'] is List ? (d['history'] as List).whereType<Map>().toList() : const <Map>[];
+    final reason = _s(d['reviewReason']);
+    final reviewedAt = _date(d['reviewedAt']);
+
+    Widget card(String title, IconData icon, List<Widget> children) => Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(color: AppColors.cardBorder),
           ),
-          child: IconButton(
-            tooltip: l10n.adsSearchHint,
-            onPressed: () => _showCategoryFilters(l10n),
-            icon: MotionIcon(Icons.tune, color: AppColors.ink),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Container(
-            height: 46,
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.cardBorder),
-            ),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (value) => setState(() => _searchQuery = value),
-              decoration: InputDecoration(
-                hintText: l10n.adsSearchHint,
-                hintStyle: TextStyle(
-                  color: AppColors.textMuted,
-                  fontSize: 12,
-                ),
-                prefixIcon: MotionIcon(
-                  Icons.search,
-                  color: AppColors.textMuted,
-                  size: 19,
-                ),
-                suffixIcon: _searchQuery.isEmpty
-                    ? null
-                    : IconButton(
-                        tooltip: l10n.adsClearSearch,
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() => _searchQuery = '');
-                        },
-                        icon: const MotionIcon(Icons.close, size: 17),
-                      ),
-                border: InputBorder.none,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCategoryFilters(AppLocalizations l10n) {
-    final filters = <({String label, _AdCategory? category, int count})>[
-      (label: l10n.adsAllFilter, category: null, count: 12),
-      (label: l10n.adsVehiclesFilter, category: _AdCategory.vehicles, count: 5),
-      (
-        label: l10n.adsElectronicsFilter,
-        category: _AdCategory.electronics,
-        count: 4
-      ),
-      (
-        label: l10n.adsRealEstateFilter,
-        category: _AdCategory.realEstate,
-        count: 3
-      ),
-    ];
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (var index = 0; index < filters.length; index++) ...[
-            if (index > 0) const SizedBox(width: 8),
-            ChoiceChip(
-              label: Text('${filters[index].label} (${filters[index].count})'),
-              selected: _categoryFilter == filters[index].category,
-              onSelected: (_) =>
-                  setState(() => _categoryFilter = filters[index].category),
-              showCheckmark: false,
-              selectedColor: AppColors.primaryDark,
-              backgroundColor: AppColors.surface,
-              labelStyle: TextStyle(
-                color: _categoryFilter == filters[index].category
-                    ? Colors.white
-                    : AppColors.textSecondary,
-                fontSize: 11,
-                fontWeight: _categoryFilter == filters[index].category
-                    ? FontWeight.bold
-                    : FontWeight.normal,
-              ),
-              side: BorderSide(
-                color: _categoryFilter == filters[index].category
-                    ? AppColors.ink
-                    : AppColors.cardBorder,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAdCard(AppLocalizations l10n, _AdRecord ad) {
-    final status = _statuses[ad.id] ?? _AdStatus.pending;
-    final isHidden = _hiddenAds.contains(ad.id);
-
-    return InkWell(
-      onTap: () => _openAdDetails(l10n, ad),
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 14),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.cardBorder),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.025),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CircleAvatar(
-                  radius: 17,
-                  backgroundColor: AppColors.surfaceLight,
-                  child: MotionIcon(
-                    ad.category == _AdCategory.vehicles
-                        ? Icons.directions_car_outlined
-                        : ad.category == _AdCategory.electronics
-                            ? Icons.phone_iphone
-                            : Icons.apartment,
-                    size: 17,
-                    color: AppColors.ink,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        _merchantName(l10n, ad),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.end,
-                        style: TextStyle(
-                          color: AppColors.ink,
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        _merchantCategory(l10n, ad),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.end,
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 11,
-                        ),
-                      ),
-                      Text(
-                        _adReference(ad),
-                        style: TextStyle(
-                          color: AppColors.textMuted,
-                          fontSize: 11,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      _smallBadge(
-                        ad.isPremium ? l10n.adsPremium : l10n.adsRegular,
-                        ad.isPremium
-                            ? AppColors.warningBorder
-                            : AppColors.surfaceHighlight,
-                        ad.isPremium
-                            ? AppColors.warningDark
-                            : AppColors.textSecondary,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                _statusPill(l10n, ad, isHidden, status),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (ad.category == _AdCategory.electronics)
-              _buildProductRow(l10n, ad)
-            else
-              _buildImagePreview(l10n, ad),
-            const SizedBox(height: 10),
-            if (ad.category != _AdCategory.electronics)
-              Text(
-                _adTitle(l10n, ad),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.end,
-                style: TextStyle(
-                  color: AppColors.ink,
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            const SizedBox(height: 8),
-            Wrap(
-              alignment: WrapAlignment.end,
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                _smallBadge(
-                  '${l10n.adsLicenseVerified} ✓',
-                  AppColors.infoLight,
-                  AppColors.ink,
-                ),
-                if (ad.hasMarketPriceBadge)
-                  _smallBadge(
-                    l10n.adsMarketPriceMatched,
-                    AppColors.infoLight,
-                    AppColors.ink,
-                  ),
-                if (ad.category != _AdCategory.electronics)
-                  _smallBadge(
-                    _adDetails(l10n, ad),
-                    AppColors.surfaceLight,
-                    AppColors.textSecondary,
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                MotionIcon(Icons.location_on_outlined,
-                    size: 14, color: AppColors.textSecondary),
-                const SizedBox(width: 3),
-                Expanded(
-                  child: Text(
-                    _merchantCategory(l10n, ad).split('•').last.trim(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 11,
-                    ),
-                  ),
-                ),
-                if (ad.category != _AdCategory.electronics)
-                  Text(
-                    _adPrice(l10n, ad),
-                    style: TextStyle(
-                      color: AppColors.ink,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            _buildActionButtons(l10n, ad, isHidden, status),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _openAdDetails(AppLocalizations l10n, _AdRecord ad) async {
-    var initialDeliveryFee = 150.0;
-    try {
-      final preferences = await SharedPreferences.getInstance();
-      final encoded = preferences.getString(_deliveryFeesKey);
-      if (encoded != null) {
-        final decoded = jsonDecode(encoded);
-        if (decoded is! Map<String, dynamic>) {
-          throw const FormatException(
-              'Advertisement delivery fees are invalid.');
-        }
-        final savedFee = decoded[_adReference(ad)];
-        if (savedFee != null) {
-          if (savedFee is! num ||
-              !savedFee.toDouble().isFinite ||
-              savedFee < 0) {
-            throw const FormatException(
-                'Advertisement delivery fee is invalid.');
-          }
-          initialDeliveryFee = savedFee.toDouble();
-        }
-      }
-    } on Object catch (error, stackTrace) {
-      FlutterError.reportError(FlutterErrorDetails(
-        exception: error,
-        stack: stackTrace,
-        library: 'advertisement delivery fee',
-      ));
-      if (mounted) _showMessage(l10n, l10n.adsLoadFailed);
-      return;
-    }
-    if (!mounted) return;
-    final details = _reviewDetails(l10n, ad);
-    Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (_) => AdvertisementReviewDetailsScreen(
-          merchant: _merchantName(l10n, ad),
-          merchantCategory: _merchantCategory(l10n, ad),
-          merchantRegistrationNumber: switch (ad.id) {
-            1 => '1010482910',
-            2 => '1010764203',
-            _ => '1010332789',
-          },
-          adNumber: _adReference(ad),
-          initialDeliveryFee: initialDeliveryFee,
-          submittedAt: ad.receivedMinutesAgo >= 120
-              ? l10n.adsHoursAgo
-              : l10n.adsMinutesAgo('${ad.receivedMinutesAgo}'),
-          title: _adTitle(l10n, ad),
-          description: details.description,
-          price: _adPrice(l10n, ad),
-          photoCount: ad.imageCount,
-          imageIcon: ad.imageIcon,
-          imageColor: AppColors.adapt(ad.imageColor),
-          facts: details.facts,
-          checklist: details.checklist,
-          onApprove: () async {
-            Navigator.of(context).pop();
-            await _approveAd(l10n, ad);
-          },
-          onHide: () async {
-            Navigator.of(context).pop();
-            await _setAdState(l10n, ad, hidden: true);
-            _showMessage(l10n, l10n.adsHiddenStatus);
-          },
-          onReject: () {
-            Navigator.of(context).pop();
-            _rejectAd(l10n, ad);
-          },
-          onRequestEdit: (_) {
-            _showMessage(l10n, l10n.adsRequestEditUnavailable);
-          },
-          onFeeUpdated: (fee) => _saveDeliveryFee(l10n, ad, fee),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _saveDeliveryFee(
-    AppLocalizations l10n,
-    _AdRecord ad,
-    double fee,
-  ) async {
-    try {
-      final preferences = await SharedPreferences.getInstance();
-      final encoded = preferences.getString(_deliveryFeesKey);
-      final decoded =
-          encoded == null ? <String, dynamic>{} : jsonDecode(encoded);
-      if (decoded is! Map<String, dynamic>) {
-        throw const FormatException('Advertisement delivery fees are invalid.');
-      }
-      decoded[_adReference(ad)] = fee;
-      final saved =
-          await preferences.setString(_deliveryFeesKey, jsonEncode(decoded));
-      if (!saved) {
-        throw StateError('Could not save advertisement delivery fee.');
-      }
-      await MerchantSupervisorLocalStore.recordAction(
-        action: l10n.merchantAuditAdModerated,
-        subject: _adTitle(l10n, ad),
-        details: '${l10n.adsDeliveryTitle}: ${fee.toStringAsFixed(0)}',
-        merchantId: _merchantId(ad),
-      );
-      if (mounted) _showMessage(l10n, l10n.adsFeeUpdated);
-    } on Object catch (error, stackTrace) {
-      FlutterError.reportError(FlutterErrorDetails(
-        exception: error,
-        stack: stackTrace,
-        library: 'advertisement delivery fee save',
-      ));
-      if (mounted) _showMessage(l10n, l10n.adsSaveFailed);
-    }
-  }
-
-  ({
-    String description,
-    List<AdReviewFact> facts,
-    List<AdReviewChecklistItem> checklist,
-  }) _reviewDetails(AppLocalizations l10n, _AdRecord ad) {
-    final facts = switch (ad.category) {
-      _AdCategory.vehicles => [
-          AdReviewFact(
-            icon: Icons.speed,
-            label: l10n.adsMileage,
-            value: l10n.adsMileageValue,
-          ),
-          AdReviewFact(
-            icon: Icons.palette_outlined,
-            label: l10n.adsExteriorColor,
-            value: l10n.adsWhiteColorValue,
-          ),
-          AdReviewFact(
-            icon: Icons.verified_user_outlined,
-            label: l10n.adsAccidentRecord,
-            value: l10n.adsNoAccidentsValue,
-          ),
-          AdReviewFact(
-            icon: Icons.fact_check_outlined,
-            label: l10n.adsTransmission,
-            value: l10n.adsAutomaticValue,
-          ),
-        ],
-      _AdCategory.electronics => [
-          AdReviewFact(
-            icon: Icons.verified_user_outlined,
-            label: l10n.adsPhoneWarranty,
-            value: l10n.adsWarrantyValue,
-          ),
-          AdReviewFact(
-            icon: Icons.check_circle_outline,
-            label: l10n.adsPhoneCondition,
-            value: l10n.adsNewConditionValue,
-          ),
-          AdReviewFact(
-            icon: Icons.palette_outlined,
-            label: l10n.adsPhoneColor,
-            value: l10n.adsNaturalTitaniumValue,
-          ),
-          AdReviewFact(
-            icon: Icons.sd_storage_outlined,
-            label: l10n.adsPhoneStorage,
-            value: l10n.adsStorageValue,
-          ),
-        ],
-      _AdCategory.realEstate => [
-          AdReviewFact(
-            icon: Icons.square_foot,
-            label: l10n.adsVillaArea,
-            value: l10n.adsVillaAreaValue,
-          ),
-          AdReviewFact(
-            icon: Icons.bed_outlined,
-            label: l10n.adsVillaRooms,
-            value: l10n.adsVillaRoomsValue,
-          ),
-          AdReviewFact(
-            icon: Icons.verified_user_outlined,
-            label: l10n.adsVillaLicense,
-            value: l10n.adsVillaLicensedValue,
-          ),
-          AdReviewFact(
-            icon: Icons.location_on_outlined,
-            label: l10n.adsVillaLocation,
-            value: l10n.adsVillaLocationValue,
-          ),
-        ],
-    };
-    final description = switch (ad.category) {
-      _AdCategory.vehicles => l10n.adsVehicleDescription,
-      _AdCategory.electronics => l10n.adsPhoneDescription,
-      _AdCategory.realEstate => l10n.adsVillaDescription,
-    };
-    final checklist = [
-      AdReviewChecklistItem(
-        title: l10n.adsCheckPrice,
-        status: l10n.adsCheckPassed,
-      ),
-      AdReviewChecklistItem(
-        title: l10n.adsCheckPhotos,
-        status: l10n.adsCheckPassed,
-      ),
-      AdReviewChecklistItem(
-        title: l10n.adsCheckSpecifications,
-        status: l10n.adsCheckPassed,
-      ),
-      AdReviewChecklistItem(
-        title: l10n.adsCheckMerchantLicense,
-        status: l10n.adsCheckReminder,
-        subtitle: l10n.adsCheckExpiryReminder,
-      ),
-    ];
-    return (description: description, facts: facts, checklist: checklist);
-  }
-
-  Widget _statusPill(
-    AppLocalizations l10n,
-    _AdRecord ad,
-    bool isHidden,
-    _AdStatus status,
-  ) {
-    final label = status == _AdStatus.suspended
-        ? l10n.adsFrozenStatus
-        : status == _AdStatus.approved
-            ? l10n.adsApprovedStatus
-            : status == _AdStatus.awaitingFinance
-                ? l10n.adsPremiumWaitingFinance
-                : status == _AdStatus.awaitingManagement
-                    ? l10n.adsPremiumWaitingManagement
-                    : status == _AdStatus.rejected
-                        ? l10n.adsRejectedStatus
-                        : isHidden
-                            ? l10n.adsHiddenStatus
-                            : l10n.adsReviewHidden;
-    final color = status == _AdStatus.suspended
-        ? AppColors.warningDark
-        : status == _AdStatus.approved
-            ? AppColors.successDark
-            : status == _AdStatus.awaitingFinance ||
-                    status == _AdStatus.awaitingManagement
-                ? AppColors.info
-                : status == _AdStatus.rejected
-                    ? AppColors.danger
-                    : AppColors.textSecondary;
-    final age = ad.receivedMinutesAgo >= 120
-        ? l10n.adsHoursAgo
-        : l10n.adsMinutesAgo('${ad.receivedMinutesAgo}');
-
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 148),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceLight,
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                MotionIcon(Icons.visibility_off_outlined,
-                    size: 12, color: AppColors.textSecondary),
-                const SizedBox(width: 4),
-                Flexible(
-                  child: Text(
-                    label,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: color, fontSize: 11),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 5),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceLight,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                MotionIcon(Icons.schedule,
-                    size: 12, color: AppColors.textSecondary),
-                const SizedBox(width: 4),
-                Flexible(
-                  child: Text(
-                    age,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 11,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildImagePreview(AppLocalizations l10n, _AdRecord ad) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: SizedBox(
-        height: 170,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    AppColors.adapt(ad.imageColor).withValues(alpha: 0.65),
-                    AppColors.cardBorder,
-                    AppColors.adapt(ad.imageColor).withValues(alpha: 0.8),
-                  ],
-                ),
-              ),
-              child: MotionIcon(
-                ad.imageIcon,
-                size: 104,
-                color: Colors.white.withValues(alpha: 0.82),
-              ),
-            ),
-            Positioned(
-              top: 8,
-              right: 8,
-              child: _photoBadge(l10n, ad.imageCount),
-            ),
-            Positioned(
-              bottom: 8,
-              left: 8,
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                child: Text(
-                  _adPrice(l10n, ad),
-                  style: TextStyle(
-                    color: AppColors.ink,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProductRow(AppLocalizations l10n, _AdRecord ad) {
-    return Row(
-      children: [
-        Expanded(
-          child: Container(
-            height: 116,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [AppColors.surfaceHighlight, AppColors.infoBorder],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Stack(
-              children: [
-                Center(
-                  child: MotionIcon(
-                    Icons.phone_iphone,
-                    size: 62,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                Positioned(
-                  top: 6,
-                  right: 6,
-                  child: _photoBadge(l10n, ad.imageCount),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          flex: 2,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                _adTitle(l10n, ad),
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.end,
-                style: TextStyle(
-                  color: AppColors.ink,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
+              Row(
+                children: [
+                  Icon(icon, size: 18, color: AppColors.infoDark),
+                  const SizedBox(width: 6),
+                  Text(title, style: TextStyle(color: AppColors.ink, fontSize: 14, fontWeight: FontWeight.bold)),
+                ],
               ),
-              const SizedBox(height: 8),
-              Text(
-                _adDetails(l10n, ad),
-                textAlign: TextAlign.end,
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 11,
-                ),
+              const SizedBox(height: 10),
+              ...children,
+            ],
+          ),
+        );
+    Widget row(String label, String? value) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 120,
+                child: Text(label, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
               ),
-              const SizedBox(height: 6),
-              Text(
-                _adPrice(l10n, ad),
-                textAlign: TextAlign.end,
-                style: TextStyle(
-                  color: AppColors.ink,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 14,
-                ),
+              Expanded(
+                child: Text(value == null || value.isEmpty ? '—' : value,
+                    style: TextStyle(color: AppColors.ink, fontSize: 13, fontWeight: FontWeight.w600)),
               ),
             ],
           ),
-        ),
-      ],
-    );
-  }
+        );
+    String yes(Object? v) => v == true ? 'أيوه' : 'لأ';
 
-  Widget _photoBadge(AppLocalizations l10n, int count) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppColors.primaryDark.withValues(alpha: 0.88),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const MotionIcon(Icons.photo_camera_outlined,
-              size: 12, color: Colors.white),
-          const SizedBox(width: 4),
-          Text(
-            l10n.adsImageCount('$count'),
-            style: const TextStyle(color: Colors.white, fontSize: 11),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionButtons(
-    AppLocalizations l10n,
-    _AdRecord ad,
-    bool isHidden,
-    _AdStatus status,
-  ) {
-    if (status == _AdStatus.awaitingFinance ||
-        status == _AdStatus.awaitingManagement) {
-      return _actionButton(
-        label: status == _AdStatus.awaitingFinance
-            ? l10n.adsPremiumWaitingFinance
-            : l10n.adsPremiumWaitingManagement,
-        icon: Icons.hourglass_top,
-        background: AppColors.infoLight,
-        foreground: AppColors.info,
-        onPressed: null,
-      );
-    }
-    return Column(
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: _actionButton(
-                label: isHidden ? l10n.adsHiddenStatus : l10n.adsHideAction,
-                icon: isHidden
-                    ? Icons.visibility_outlined
-                    : Icons.visibility_off_outlined,
-                background: AppColors.surfaceLight,
-                foreground: AppColors.textSecondary,
-                onPressed: () async {
-                  await _setAdState(l10n, ad, hidden: !isHidden);
-                  _showMessage(
-                    l10n,
-                    isHidden ? l10n.adsReviewHidden : l10n.adsHiddenStatus,
-                  );
-                },
-              ),
+        GestureDetector(
+          onTap: image == null
+              ? null
+              : () => Navigator.of(context).push(MaterialPageRoute<void>(
+                    builder: (_) => Scaffold(
+                      backgroundColor: Colors.black,
+                      appBar: AppBar(backgroundColor: Colors.black, foregroundColor: Colors.white),
+                      body: Center(child: InteractiveViewer(maxScale: 5, child: Image.network(image, fit: BoxFit.contain))),
+                    ),
+                  )),
+          child: AspectRatio(
+            aspectRatio: 16 / 10,
+            child: Container(
+              decoration: BoxDecoration(color: AppColors.surfaceHighlight, borderRadius: BorderRadius.circular(18)),
+              clipBehavior: Clip.antiAlias,
+              child: image == null
+                  ? Icon(Icons.inventory_2_outlined, size: 56, color: AppColors.textMuted)
+                  : Image.network(image,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stack) =>
+                          Icon(Icons.broken_image_outlined, size: 56, color: AppColors.textMuted)),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              flex: 2,
-              child: _actionButton(
-                label: status == _AdStatus.suspended
-                    ? l10n.adsUnfreezeAction
-                    : l10n.adsFreezeAction,
-                icon: status == _AdStatus.suspended
-                    ? Icons.play_circle_outline
-                    : Icons.pause_circle_outline,
-                background: AppColors.surfaceLight,
-                foreground: AppColors.ink,
-                onPressed: () => _setAdState(
-                  l10n,
-                  ad,
-                  status: status == _AdStatus.suspended
-                      ? _AdStatus.pending
-                      : _AdStatus.suspended,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: _actionButton(
-                label: l10n.adsRejectAction,
-                icon: Icons.close,
-                background: AppColors.dangerBorder,
-                foreground: AppColors.dangerDark,
-                onPressed: () => _rejectAd(l10n, ad),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _actionButton(
-                label: status == _AdStatus.approved
-                    ? l10n.adsApprovedStatus
-                    : l10n.adsApproveAction,
-                icon: Icons.check,
-                background: AppColors.primaryDark,
-                foreground: Colors.white,
-                onPressed: () => _approveAd(l10n, ad),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _actionButton({
-    required String label,
-    required IconData icon,
-    required Color background,
-    required Color foreground,
-    required VoidCallback? onPressed,
-  }) {
-    return SizedBox(
-      height: 42,
-      child: ElevatedButton.icon(
-        onPressed: onPressed,
-        icon: MotionIcon(icon, size: 15),
-        label: Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-        ),
-        style: ElevatedButton.styleFrom(
-          elevation: 0,
-          backgroundColor: background,
-          foregroundColor: foreground,
-          padding: const EdgeInsets.symmetric(horizontal: 6),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(11),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _smallBadge(String label, Color background, Color foreground) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Text(
-        label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: foreground,
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-
-  Future<void> _showCategoryFilters(AppLocalizations l10n) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        const SizedBox(height: 12),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ListTile(
-              title: Text(l10n.adsAllFilter),
-              trailing:
-                  _categoryFilter == null ? const MotionIcon(Icons.check) : null,
-              onTap: () {
-                setState(() => _categoryFilter = null);
-                Navigator.pop(sheetContext);
-              },
+            Expanded(
+              child: Text(_s(d['name']) ?? '—',
+                  style: TextStyle(color: AppColors.ink, fontSize: 18, fontWeight: FontWeight.w800)),
             ),
-            ListTile(
-              title: Text(l10n.adsVehiclesFilter),
-              trailing: _categoryFilter == _AdCategory.vehicles
-                  ? const MotionIcon(Icons.check)
-                  : null,
-              onTap: () {
-                setState(() => _categoryFilter = _AdCategory.vehicles);
-                Navigator.pop(sheetContext);
-              },
-            ),
-            ListTile(
-              title: Text(l10n.adsElectronicsFilter),
-              trailing: _categoryFilter == _AdCategory.electronics
-                  ? const MotionIcon(Icons.check)
-                  : null,
-              onTap: () {
-                setState(() => _categoryFilter = _AdCategory.electronics);
-                Navigator.pop(sheetContext);
-              },
-            ),
-            ListTile(
-              title: Text(l10n.adsRealEstateFilter),
-              trailing: _categoryFilter == _AdCategory.realEstate
-                  ? const MotionIcon(Icons.check)
-                  : null,
-              onTap: () {
-                setState(() => _categoryFilter = _AdCategory.realEstate);
-                Navigator.pop(sheetContext);
-              },
-            ),
+            const SizedBox(width: 8),
+            _StatusPill(status),
           ],
         ),
-      ),
-    );
-  }
-
-  Future<void> _rejectAd(AppLocalizations l10n, _AdRecord ad) async {
-    _AdRejectionReason? selectedReason;
-    var guidance = '';
-    final rejection = await showModalBottomSheet<
-        ({_AdRejectionReason reason, String guidance})>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (context, setSheetState) {
-          return Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.viewInsetsOf(context).bottom,
-            ),
-            child: SafeArea(
-              top: false,
-              child: Container(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.sizeOf(context).height * 0.84,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            Text('${_money(price)} ج.م', style: TextStyle(color: AppColors.ink, fontSize: 17, fontWeight: FontWeight.w800)),
+            if (original != null && original > price) ...[
+              const SizedBox(width: 8),
+              Text('${_money(original)} ج.م',
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 13, decoration: TextDecoration.lineThrough)),
+            ],
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (reason != null) ...[
+          _ReasonBox(status: status, reason: reason),
+          const SizedBox(height: 12),
+        ],
+        card('بيانات المنتج', Icons.inventory_2_outlined, [
+          row('الوصف', _s(d['description'])),
+          row('القسم', _s(d['section'])),
+          row('المخزون', '${_i(d['stock'])}'),
+          if (_d(d['discount']) > 0) row('الخصم', '${_money(_d(d['discount']))}%'),
+          row('عرض خاص', yes(d['isSpecialOffer'])),
+          row('متاح للطلب الفوري', yes(d['isAvailableForInstantOrder'])),
+          row('ظاهر للعملاء', yes(d['visible'])),
+          row('رقم المنتج', 'P-${_i(d['id'])}'),
+        ]),
+        card('المراجعة', Icons.fact_check_outlined, [
+          row('اتبعت للمراجعة', _ago(_date(d['submittedAt']))),
+          row('آخر قرار', reviewedAt == null ? null : _ago(reviewedAt)),
+          row('أخد القرار', _s(d['reviewedBy'])),
+          row('اتطلب', '${_i(d['ordersCount'])} طلب • ${_i(d['soldQuantity'])} قطعة'),
+        ]),
+        card('التاجر', Icons.storefront_outlined, [
+          row('المتجر', _s(merchant['storeName'])),
+          row('صاحب المتجر', _s(merchant['ownerName'])),
+          row('الموبايل', _s(merchant['phone'])),
+          row('المكان', [_s(merchant['city']), _s(merchant['governorate'])].whereType<String>().join('، ')),
+          const SizedBox(height: 4),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
+              builder: (_) => AdsManagementScreen(merchantId: _i(merchant['id']), merchantName: _s(merchant['storeName'])),
+            )),
+            icon: const Icon(Icons.grid_view_rounded, size: 18),
+            label: const Text('كل منتجات التاجر'),
+          ),
+        ]),
+        if (history.isNotEmpty)
+          card('سجل القرارات', Icons.history_rounded, [
+            for (final h in history)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 5),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Flexible(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Center(
-                              child: Container(
-                                width: 42,
-                                height: 5,
-                                decoration: BoxDecoration(
-                                  color: AppColors.textMuted,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            ScrollFx(child: Row(
-                              children: [
-                                IconButton.filledTonal(
-                                  onPressed: () => Navigator.pop(sheetContext),
-                                  tooltip: l10n.adsCancelAction,
-                                  icon: const MotionIcon(Icons.close, size: 18),
-                                  style: IconButton.styleFrom(
-                                    backgroundColor: AppColors.surfaceLight,
-                                    foregroundColor: AppColors.textSecondary,
-                                  ),
-                                ),
-                                const Spacer(),
-                                Flexible(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Text(
-                                        l10n.adsRejectReasonTitle,
-                                        textAlign: TextAlign.end,
-                                        style: TextStyle(
-                                          color: AppColors.ink,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      Text(
-                                        _adTitle(l10n, ad),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        textAlign: TextAlign.end,
-                                        style: TextStyle(
-                                          color: AppColors.textSecondary,
-                                          fontSize: 11,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Container(
-                                  width: 38,
-                                  height: 38,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.dangerBorder,
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: MotionIcon(
-                                    Icons.gavel,
-                                    color: AppColors.dangerDark,
-                                    size: 19,
-                                  ),
-                                ),
-                              ],
-                            )),
-                            const SizedBox(height: 10),
-                            Text(
-                              l10n.adsRejectReasonInstructions,
-                              textAlign: TextAlign.end,
-                              style: TextStyle(
-                                color: AppColors.textSecondary,
-                                fontSize: 12,
-                                height: 1.5,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            RadioGroup<_AdRejectionReason>(
-                              groupValue: selectedReason,
-                              onChanged: (value) => setSheetState(
-                                () => selectedReason = value,
-                              ),
-                              child: Column(
-                                children: _rejectionReasons(l10n).map((option) {
-                                  final selected =
-                                      selectedReason == option.reason;
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 6),
-                                    child: Material(
-                                      color: selected
-                                          ? AppColors.dangerLight
-                                          : AppColors.surfaceLight,
-                                      borderRadius: BorderRadius.circular(12),
-                                      child: InkWell(
-                                        borderRadius: BorderRadius.circular(12),
-                                        onTap: () => setSheetState(
-                                          () => selectedReason = option.reason,
-                                        ),
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 12,
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              Radio<_AdRejectionReason>(
-                                                value: option.reason,
-                                                activeColor:
-                                                    AppColors.dangerDark,
-                                              ),
-                                              Expanded(
-                                                child: Text(
-                                                  option.label,
-                                                  textAlign: TextAlign.end,
-                                                  style: TextStyle(
-                                                    color:
-                                                        AppColors.textPrimary,
-                                                    fontSize: 13,
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              MotionIcon(
-                                                option.icon,
-                                                size: 17,
-                                                color: AppColors.textSecondary,
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                }).toList(),
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            ScrollFx(child: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    l10n.adsRejectGuidanceOptional,
-                                    textAlign: TextAlign.end,
-                                    style: TextStyle(
-                                      color: AppColors.ink,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  l10n.adsRejectGuidanceDirectLabel,
-                                  style: TextStyle(
-                                    color: AppColors.textSecondary,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ],
-                            )),
-                            const SizedBox(height: 6),
-                            TextField(
-                              key: const ValueKey('ad-rejection-guidance'),
-                              onChanged: (value) => guidance = value,
-                              maxLines: 3,
-                              maxLength: 300,
-                              textAlign: TextAlign.end,
-                              decoration: InputDecoration(
-                                hintText: l10n.adsRejectGuidanceHint,
-                                filled: true,
-                                fillColor: AppColors.surfaceLight,
-                                counterText: '',
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide.none,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                      child: SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: ElevatedButton.icon(
-                          onPressed: selectedReason == null
-                              ? null
-                              : () => Navigator.pop(
-                                    sheetContext,
-                                    (
-                                      reason: selectedReason!,
-                                      guidance: guidance.trim(),
-                                    ),
-                                  ),
-                          icon: const MotionIcon(Icons.outgoing_mail, size: 17),
-                          label: Text(l10n.adsConfirmRejectAndNotify),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.dangerDark,
-                            disabledBackgroundColor: AppColors.danger,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
+                      padding: const EdgeInsets.only(top: 5),
+                      child: Icon(Icons.circle, size: 7, color: AppColors.textMuted),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${_actionLabel('${h['action']}')} — ${'${h['note'] ?? ''}'.replaceFirst(RegExp(r'^#\d+\s*'), '')}',
+                        style: TextStyle(color: AppColors.ink, fontSize: 12),
                       ),
                     ),
+                    Text(_ago(_date(h['at'])), style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
                   ],
                 ),
               ),
-            ),
-          );
-        },
-      ),
+          ]),
+      ],
     );
-    if (rejection == null || !mounted) return;
-
-    await _setAdState(
-      l10n,
-      ad,
-      status: _AdStatus.rejected,
-      rejection: rejection,
-    );
-    if (!mounted) return;
-    _showMessage(l10n, l10n.adsRejectedStatus);
-  }
-
-  List<({String label, IconData icon, _AdRejectionReason reason})>
-      _rejectionReasons(AppLocalizations l10n) => [
-            (
-              label: l10n.adsRejectReasonPrice,
-              icon: Icons.price_change_outlined,
-              reason: _AdRejectionReason.price,
-            ),
-            (
-              label: l10n.adsRejectReasonMisleading,
-              icon: Icons.description_outlined,
-              reason: _AdRejectionReason.misleading,
-            ),
-            (
-              label: l10n.adsRejectReasonPhotos,
-              icon: Icons.image_not_supported_outlined,
-              reason: _AdRejectionReason.photos,
-            ),
-            (
-              label: l10n.adsRejectReasonPolicy,
-              icon: Icons.warning_amber_outlined,
-              reason: _AdRejectionReason.policy,
-            ),
-          ];
-
-  void _showMessage(AppLocalizations l10n, String message) {
-    AppSnackBar.showInfo(context, message);
   }
 }

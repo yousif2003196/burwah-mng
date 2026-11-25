@@ -18,6 +18,9 @@ import 'package:barwah_app/features/merchants/presentation/screens/merchants_das
 import 'package:barwah_app/features/messaging/data/datasources/local_event_store.dart';
 import 'package:barwah_app/features/messaging/presentation/screens/account_conversations_screen.dart';
 import 'package:barwah_app/features/messaging/presentation/screens/local_event_inbox_screen.dart';
+import 'package:barwah_app/features/messaging/presentation/screens/server_notifications_screen.dart';
+import 'package:barwah_app/core/auth/auth_session.dart';
+import 'package:barwah_app/core/realtime/realtime_hub.dart';
 import 'package:barwah_app/l10n/app_localizations.dart';
 
 import 'package:barwah_app/core/theme/app_colors.dart';
@@ -73,6 +76,14 @@ class _MerchantsTabsShellState extends State<MerchantsTabsShell> {
     );
   }
 
+  /// الحساب الحقيقي: إشعارات السيرفر؛ المحلية للوضع التجريبي بس.
+  Widget _noticesScreen(AppLocalizations l10n) => AuthSession.isSignedIn
+      ? ServerNotificationsScreen(title: l10n.productNotificationsTitle)
+      : LocalEventInboxScreen(
+          recipient: 'merchant',
+          title: l10n.productNotificationsTitle,
+        );
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -80,7 +91,8 @@ class _MerchantsTabsShellState extends State<MerchantsTabsShell> {
       FinanceNavigationItem(
           icon: Icons.storefront_outlined, label: l10n.navMerchants),
       FinanceNavigationItem(
-          icon: Icons.view_agenda_outlined, label: l10n.navAds),
+          icon: Icons.inventory_2_outlined,
+          label: l10n.localeName.startsWith('ar') ? 'المنتجات' : 'Products'),
       FinanceNavigationItem(
         icon: Icons.receipt_long_outlined,
         label: l10n.navFinancialRequests,
@@ -95,7 +107,7 @@ class _MerchantsTabsShellState extends State<MerchantsTabsShell> {
     ];
     final titles = [
       l10n.navMerchants,
-      l10n.navAds,
+      l10n.localeName.startsWith('ar') ? 'منتجات التجار' : 'Merchant products',
       l10n.navFinancialRequests,
       l10n.localeName.startsWith('ar') ? 'تسجيل التجار' : 'Registrations',
       l10n.navAccount,
@@ -144,21 +156,21 @@ class _MerchantsTabsShellState extends State<MerchantsTabsShell> {
                     tooltip: l10n.productNotificationsTitle,
                     onPressed: () => Navigator.of(context).push(
                       MaterialPageRoute<void>(
-                        builder: (_) => LocalEventInboxScreen(
-                          recipient: 'merchant',
-                          title: l10n.productNotificationsTitle,
-                        ),
+                        builder: (_) => _noticesScreen(l10n),
                       ),
                     ),
                     icon: ValueListenableBuilder<int>(
-                      valueListenable: LocalEventStore.revision,
-                      builder: (context, revision, _) => FutureBuilder(
-                        future: _eventStore.getEvents('merchant'),
+                      // الحساب الحقيقي: عدّاد إشعارات السيرفر اللحظي؛ المحلي للوضع التجريبي بس.
+                      valueListenable: AuthSession.isSignedIn ? RealtimeHub.instance.unread : LocalEventStore.revision,
+                      builder: (context, live, _) => FutureBuilder(
+                        future: AuthSession.isSignedIn ? null : _eventStore.getEvents('merchant'),
                         builder: (context, snapshot) {
-                          final unreadCount = snapshot.data
-                                  ?.where((event) => !event.isRead)
-                                  .length ??
-                              0;
+                          final unreadCount = AuthSession.isSignedIn
+                              ? live
+                              : snapshot.data
+                                      ?.where((event) => !event.isRead)
+                                      .length ??
+                                  0;
                           return Stack(
                             clipBehavior: Clip.none,
                             children: [
@@ -251,10 +263,7 @@ class _MerchantsTabsShellState extends State<MerchantsTabsShell> {
           controller: _pageController,
           onOpen: () => showSidePanel<void>(
             context,
-            (_) => LocalEventInboxScreen(
-              recipient: 'merchant',
-              title: l10n.productNotificationsTitle,
-            ),
+            (_) => _noticesScreen(l10n),
           ),
           child: PageView(
           controller: _pageController,

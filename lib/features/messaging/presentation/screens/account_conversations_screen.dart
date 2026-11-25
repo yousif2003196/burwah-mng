@@ -105,6 +105,8 @@ class _ServerChat {
     required this.at,
     required this.unread,
     required this.closed,
+    this.lastFromMe = false,
+    this.image,
   });
 
   final int id;
@@ -116,16 +118,44 @@ class _ServerChat {
   final int unread;
   final bool closed;
 
+  /// آخر رسالة أنا اللي باعتها (بيظهر قبلها «أنت:»).
+  final bool lastFromMe;
+  final String? image;
+
   factory _ServerChat.fromJson(Map<String, dynamic> j) => _ServerChat(
         id: (j['id'] as num).toInt(),
         kind: (j['kind'] as num?)?.toInt() ?? 0,
         refId: (j['refId'] as num?)?.toInt() ?? 0,
         name: '${j['otherName'] ?? ''}'.trim(),
         lastMessage: '${j['lastMessage'] ?? ''}',
-        at: DateTime.tryParse('${j['lastMessageAt']}')?.toLocal(),
+        at: _utc(j['lastMessageAt'])?.toLocal(),
         unread: (j['unread'] as num?)?.toInt() ?? 0,
         closed: j['closed'] == true,
+        lastFromMe: j['lastFromMe'] == true,
+        image: '${j['otherImage'] ?? ''}'.trim().isEmpty ? null : '${j['otherImage']}'.trim(),
       );
+
+  /// السيرفر بيبعت الوقت UTC من غير Z.
+  static DateTime? _utc(Object? raw) {
+    final t = '${raw ?? ''}'.trim();
+    if (t.isEmpty || t == 'null') return null;
+    final zoned = t.endsWith('Z') || RegExp(r'[+-]\d\d:?\d\d$').hasMatch(t);
+    return DateTime.tryParse(zoned ? t : '${t}Z');
+  }
+
+  /// لون وأيقونة نوع المحادثة (بيتبعوا ألوان الثيم الفاتح والداكن).
+  ({Color fg, Color bg, IconData icon}) get style => switch (kind) {
+        8 => (fg: AppColors.dangerDark, bg: AppColors.dangerLight, icon: Icons.report_problem_rounded),
+        1 => (fg: AppColors.infoDark, bg: AppColors.infoLight, icon: Icons.handyman_rounded),
+        2 => (fg: AppColors.warningDark, bg: AppColors.warningLight, icon: Icons.receipt_long_rounded),
+        3 => (fg: AppColors.warningDark, bg: AppColors.warningLight, icon: Icons.delivery_dining_rounded),
+        7 => (fg: AppColors.warningDark, bg: AppColors.warningLight, icon: Icons.directions_car_rounded),
+        4 => (fg: AppColors.successDark, bg: AppColors.successLight, icon: Icons.sell_rounded),
+        5 => (fg: AppColors.successDark, bg: AppColors.successLight, icon: Icons.gavel_rounded),
+        6 => (fg: AppColors.successDark, bg: AppColors.successLight, icon: Icons.handshake_rounded),
+        9 => (fg: AppColors.purple, bg: AppColors.surfaceHighlight, icon: Icons.support_agent_rounded),
+        _ => (fg: AppColors.ink, bg: AppColors.surfaceHighlight, icon: Icons.chat_rounded),
+      };
 
   String kindLabel(bool arabic) => switch (kind) {
         1 => arabic ? 'طلب خدمة' : 'Service',
@@ -136,7 +166,7 @@ class _ServerChat {
         6 => arabic ? 'صفقة' : 'Deal',
         7 => arabic ? 'طلب وصلني' : 'Wasalny request',
         8 => arabic ? 'شكوى' : 'Complaint',
-        9 => arabic ? 'مشرف' : 'Supervisor',
+        9 => arabic ? 'محادثة مباشرة' : 'Direct',
         _ => arabic ? 'محادثة' : 'Chat',
       };
 }
@@ -195,7 +225,8 @@ class _AccountConversationsScreenState
   List<_ServerChat> _server = const [];
   StreamSubscription<RealtimeChatMessage>? _chatSub;
   String _query = '';
-  int _filter = 0; // 0 all · 1 customers · 2 supervisors · 3 unread
+  /// all · unread · complaints · requests · ads · direct · supervisors (تجريبي)
+  String _filter = 'all';
   static Color get _navy => AppColors.primaryDark;
   bool get _isArabic => Localizations.localeOf(context).languageCode == 'ar';
 
@@ -230,149 +261,147 @@ class _AccountConversationsScreenState
   Widget _serverTile(_ServerChat chat) {
     final name =
         chat.name.isEmpty ? (_isArabic ? 'عميل' : 'Customer') : chat.name;
+    final initials = name.trim().isEmpty
+        ? '؟'
+        : name.trim().split(RegExp(r'\s+')).take(2).map((w) => w.characters.first).join();
+    final kind = chat.kindLabel(_isArabic);
+    final style = chat.style;
+    final preview = _previewIcon(chat.lastMessage);
+    final cleanLast = preview == null
+        ? chat.lastMessage
+        : chat.lastMessage.characters.skip(1).toString().trim();
     final last = chat.lastMessage.isEmpty
         ? (_isArabic ? 'ابدأ المحادثة' : 'Start the conversation')
-        : chat.lastMessage;
-    final kind = chat.kindLabel(_isArabic);
-    final preview = _previewIcon(chat.lastMessage);
-    return Material(
-      color: AppColors.surface,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () async {
-          await Navigator.of(context).push<void>(
-            MaterialPageRoute(
-              builder: (_) => AdOwnerChatScreen(
-                adId: chat.refId,
-                conversationId: chat.id,
-                title: name,
-                subtitle: kind,
-              ),
+        : '${chat.lastFromMe ? (_isArabic ? 'أنت: ' : 'You: ') : ''}$cleanLast';
+    final hot = chat.unread > 0 && !chat.closed;
+    final muted = chat.closed;
+    return InkWell(
+      onTap: () async {
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (_) => AdOwnerChatScreen(
+              adId: chat.refId,
+              conversationId: chat.id,
+              title: name,
+              subtitle: kind,
             ),
-          );
-          _reload();
-        },
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.cardBorder),
           ),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: AppColors.infoLight,
-                child: Text(
-                  name.characters.first,
-                  style: TextStyle(
-                      color: AppColors.infoDark,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 17),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontWeight: chat.unread > 0
-                                  ? FontWeight.w800
-                                  : FontWeight.w700,
-                              fontSize: 14.5,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: _navy.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(99),
-                          ),
-                          child: Text(kind,
-                              style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  color: _navy)),
-                        ),
-                        if (chat.closed) ...[
-                          const SizedBox(width: 6),
-                          Text(_isArabic ? 'مقفولة' : 'Closed',
-                              style: TextStyle(
-                                  color: AppColors.textMuted, fontSize: 10)),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        if (preview != null) ...[
-                          Icon(preview,
-                              size: 14, color: AppColors.textSecondary),
-                          const SizedBox(width: 4),
-                        ],
-                        Expanded(
-                          child: Text(
-                            last,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              color: chat.unread > 0
-                                  ? AppColors.textPrimary
-                                  : AppColors.textSecondary,
-                              fontWeight: chat.unread > 0
-                                  ? FontWeight.w600
-                                  : FontWeight.w400,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+        );
+        _reload();
+      },
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(11, 10, 11, 10),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 46,
+              height: 46,
+              child: Stack(
+                clipBehavior: Clip.none,
                 children: [
-                  Text(_timeLabel(chat.at),
-                      style: TextStyle(
-                          fontSize: 10.5, color: AppColors.textMuted)),
-                  const SizedBox(height: 6),
-                  if (chat.unread > 0)
-                    Container(
-                      constraints:
-                          const BoxConstraints(minWidth: 20, minHeight: 20),
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
-                      alignment: Alignment.center,
+                  CircleAvatar(
+                    radius: 23,
+                    backgroundColor:
+                        muted ? AppColors.surfaceLight : style.bg,
+                    backgroundImage: chat.image == null
+                        ? null
+                        : NetworkImage(chat.image!),
+                    child: chat.image != null
+                        ? null
+                        : Text(initials,
+                            style: TextStyle(
+                                color: muted ? AppColors.textMuted : style.fg,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 14)),
+                  ),
+                  PositionedDirectional(
+                    bottom: -2,
+                    end: -2,
+                    child: Container(
+                      width: 19,
+                      height: 19,
                       decoration: BoxDecoration(
-                          color: _navy,
-                          borderRadius: const BorderRadius.all(Radius.circular(99))),
-                      child: CountText('${chat.unread}',
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w800)),
-                    )
-                  else
-                    const SizedBox(height: 20),
+                        shape: BoxShape.circle,
+                        color: muted ? AppColors.textMuted : style.fg,
+                        border: Border.all(color: AppColors.surface, width: 2),
+                      ),
+                      child: Icon(muted ? Icons.lock_rounded : style.icon,
+                          size: 10, color: AppColors.surface),
+                    ),
+                  ),
                 ],
               ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontWeight: hot ? FontWeight.w800 : FontWeight.w700,
+                            fontSize: 14,
+                            color: muted
+                                ? AppColors.textSecondary
+                                : AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(_timeLabel(chat.at),
+                          style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: hot ? FontWeight.w800 : FontWeight.w500,
+                              color: hot ? AppColors.infoDark : AppColors.textMuted)),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    muted ? '${_isArabic ? 'مقفولة' : 'Closed'} • $kind' : kind,
+                    style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        color: muted ? AppColors.textMuted : style.fg),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      if (preview != null) ...[
+                        Icon(preview,
+                            size: 14,
+                            color: hot ? AppColors.textPrimary : AppColors.textSecondary),
+                        const SizedBox(width: 4),
+                      ],
+                      Expanded(
+                        child: Text(
+                          last,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: hot
+                                ? AppColors.textPrimary
+                                : AppColors.textSecondary,
+                            fontWeight: hot ? FontWeight.w600 : FontWeight.w400,
+                          ),
+                        ),
+                      ),
+                      if (chat.unread > 0) ...[
+                        const SizedBox(width: 6),
+                        _unreadPill(chat.unread),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -393,44 +422,55 @@ class _AccountConversationsScreenState
     if (sameDay) {
       return '${at.hour.toString().padLeft(2, '0')}:${at.minute.toString().padLeft(2, '0')}';
     }
-    if (now.difference(at).inDays < 2) return _isArabic ? 'أمس' : 'Yesterday';
+    if (now.difference(at).inDays < 2) return _isArabic ? 'امبارح' : 'Yesterday';
     return '${at.day}/${at.month}';
   }
 
   Widget _filterBar() {
     // المحادثات بين المشرفين كانت محلية (تجريبية)، فبتختفي للحسابات الحقيقية.
     final real = AuthSession.isSignedIn;
-    final labels = _isArabic
-        ? ['الكل', 'العملاء', if (!real) 'المشرفون', 'غير المقروء']
-        : ['All', 'Customers', if (!real) 'Supervisors', 'Unread'];
-    // رقم الفلتر الحقيقي لكل شريحة (0 الكل · 1 العملاء · 2 المشرفون · 3 غير المقروء).
-    final codes = real ? const [0, 1, 3] : const [0, 1, 2, 3];
+    int count(String f) => _server.where((c) => _matchesKey(c, f)).length;
+    final filters = <(String, String)>[
+      ('all', _isArabic ? 'الكل' : 'All'),
+      ('unread', _isArabic ? 'غير مقروء' : 'Unread'),
+      ('complaints', _isArabic ? 'شكاوى' : 'Complaints'),
+      ('requests', _isArabic ? 'طلبات' : 'Requests'),
+      ('ads', _isArabic ? 'إعلانات' : 'Ads'),
+      ('direct', _isArabic ? 'مباشرة' : 'Direct'),
+      if (!real) ('supervisors', _isArabic ? 'المشرفون' : 'Supervisors'),
+    ].where((f) =>
+        f.$1 == 'all' || f.$1 == 'unread' || f.$1 == 'supervisors' || count(f.$1) > 0);
     return Container(
-      color: _navy,
-      padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        border: Border(bottom: BorderSide(color: AppColors.cardBorder)),
+      ),
+      padding: const EdgeInsets.fromLTRB(14, 2, 14, 10),
       child: Column(
         children: [
           Container(
-            height: 44,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
+            height: 42,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(22),
+              color: AppColors.surfaceMuted,
+              borderRadius: BorderRadius.circular(13),
+              border: Border.all(color: AppColors.borderLight),
             ),
             child: Row(
               children: [
-                const Icon(Icons.search_rounded,
-                    color: Colors.white70, size: 20),
+                Icon(Icons.search_rounded,
+                    color: AppColors.textMuted, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: TextField(
                     onChanged: (v) => setState(() => _query = v),
-                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                    style: TextStyle(
+                        color: AppColors.textPrimary, fontSize: 13),
                     decoration: InputDecoration(
                       hintText: _isArabic
-                          ? 'ابحث في المحادثات'
-                          : 'Search conversations',
-                      hintStyle: const TextStyle(color: Colors.white54),
+                          ? 'ابحث بالاسم أو الرسالة'
+                          : 'Search by name or message',
+                      hintStyle: TextStyle(color: AppColors.textMuted),
                       border: InputBorder.none,
                       isDense: true,
                     ),
@@ -441,32 +481,41 @@ class _AccountConversationsScreenState
           ),
           const SizedBox(height: 10),
           SizedBox(
-            height: 34,
-            child: ListView.separated(
+            height: 32,
+            child: ListView(
               scrollDirection: Axis.horizontal,
-              itemCount: labels.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (_, i) {
-                final on = _filter == codes[i];
-                return GestureDetector(
-                  onTap: () => setState(() => _filter = codes[i]),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: on
-                          ? Colors.white
-                          : Colors.white.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(99),
-                    ),
-                    child: Text(labels[i],
-                        style: TextStyle(
-                            fontSize: 12.5,
+              children: [
+                for (final f in filters)
+                  Padding(
+                    padding: const EdgeInsetsDirectional.only(end: 6),
+                    child: GestureDetector(
+                      onTap: () => setState(() => _filter = f.$1),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 160),
+                        padding: const EdgeInsets.symmetric(horizontal: 13),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: _filter == f.$1
+                              ? _navy
+                              : AppColors.surfaceLight,
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                        child: Text(
+                          f.$1 == 'supervisors' || (f.$1 == 'all' && _server.isEmpty)
+                              ? f.$2
+                              : '${f.$2} ${f.$1 == 'all' ? _server.length : count(f.$1)}',
+                          style: TextStyle(
+                            fontSize: 12,
                             fontWeight: FontWeight.w700,
-                            color: on ? _navy : Colors.white)),
+                            color: _filter == f.$1
+                                ? Colors.white
+                                : AppColors.ink,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                );
-              },
+              ],
             ),
           ),
         ],
@@ -553,22 +602,48 @@ class _AccountConversationsScreenState
   @override
   Widget build(BuildContext context) {
     final title = _isArabic ? 'المحادثات' : 'Conversations';
+    final needReply = _server.where((c) => c.unread > 0 && !c.closed).length;
     return Directionality(
       textDirection: _isArabic ? TextDirection.rtl : TextDirection.ltr,
       child: Scaffold(
         backgroundColor: AppColors.scaffold,
         appBar: AppBar(
-          backgroundColor: _navy,
-          foregroundColor: Colors.white,
-          title:
-              Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+          backgroundColor: AppColors.surface,
+          foregroundColor: AppColors.ink,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          titleSpacing: 4,
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title,
+                  style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 17,
+                      color: AppColors.ink)),
+              Text(
+                needReply > 0
+                    ? (_isArabic
+                        ? '$needReply محتاجين رد'
+                        : '$needReply need a reply')
+                    : (_isArabic ? 'كله متردّ عليه' : 'All caught up'),
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: needReply > 0
+                        ? AppColors.warningDark
+                        : AppColors.textMuted),
+              ),
+            ],
+          ),
           actions: [
             if (!AuthSession.isSignedIn)
-            IconButton(
-              tooltip: _isArabic ? 'محادثة جديدة' : 'New conversation',
-              onPressed: _startConversation,
-              icon: const MotionIcon(Icons.add_comment_outlined),
-            ),
+              IconButton(
+                tooltip: _isArabic ? 'محادثة جديدة' : 'New conversation',
+                onPressed: _startConversation,
+                icon: const MotionIcon(Icons.add_comment_outlined),
+              ),
           ],
         ),
         body: Column(
@@ -582,42 +657,30 @@ class _AccountConversationsScreenState
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (snapshot.hasError) {
-                  return Center(
-                    child: Text(_isArabic
+                  return _emptyState(
+                    Icons.cloud_off_outlined,
+                    _isArabic
                         ? 'تعذر تحميل المحادثات.'
-                        : 'Could not load conversations.'),
+                        : 'Could not load conversations.',
                   );
                 }
                 final items = snapshot.data ?? const <Conversation>[];
                 if (items.isEmpty && _server.isEmpty) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(28),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          MotionIcon(Icons.forum_outlined,
-                              size: 48, color: AppColors.textMuted),
-                          const SizedBox(height: 12),
-                          Text(
-                            _isArabic
-                                ? 'لا توجد محادثات بعد. ابدأ محادثة مع حساب آخر.'
-                                : 'No conversations yet. Start one with another account.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: AppColors.textSecondary),
-                          ),
-                        ],
-                      ),
-                    ),
+                  return _emptyState(
+                    Icons.forum_outlined,
+                    AuthSession.isSignedIn
+                        ? (_isArabic
+                            ? 'لسه مفيش محادثات. أول ما حد يكلمك أو تفتح محادثة من طلب أو شكوى هتظهر هنا.'
+                            : 'No conversations yet. They show up here once someone messages you.')
+                        : (_isArabic
+                            ? 'لا توجد محادثات بعد. ابدأ محادثة مع حساب آخر.'
+                            : 'No conversations yet. Start one with another account.'),
                   );
                 }
                 final q = _query.trim();
                 final srv = _server
                     .where((c) =>
-                        (_filter == 0 ||
-                            _filter == 1 ||
-                            (_filter == 3 && c.unread > 0)) &&
-                        (_filter != 3 || c.unread > 0) &&
+                        _matchesFilter(c) &&
                         (q.isEmpty ||
                             c.name.contains(q) ||
                             c.lastMessage.contains(q)))
@@ -628,8 +691,12 @@ class _AccountConversationsScreenState
                         !m.readBy.contains(widget.accountId))
                     .length;
                 final loc = items.where((c) {
-                  if (_filter == 1) return false;
-                  if (_filter == 3 && localUnread(c) == 0) return false;
+                  if (_filter != 'all' &&
+                      _filter != 'supervisors' &&
+                      _filter != 'unread') {
+                    return false;
+                  }
+                  if (_filter == 'unread' && localUnread(c) == 0) return false;
                   if (q.isEmpty) return true;
                   final other = c.participants.firstWhere(
                       (id) => id != widget.accountId,
@@ -639,81 +706,40 @@ class _AccountConversationsScreenState
                           c.messages.last.body.contains(q));
                 }).toList();
                 if (srv.isEmpty && loc.isEmpty) {
-                  return Center(
-                    child: Text(_isArabic ? 'لا توجد نتائج' : 'No results',
-                        style: TextStyle(color: AppColors.textSecondary)),
-                  );
+                  return _emptyState(Icons.search_off_rounded,
+                      _isArabic ? 'لا توجد نتائج' : 'No results');
                 }
-                return ListView.separated(
-                  padding: const EdgeInsets.all(14),
-                  itemCount: srv.length + loc.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 9),
-                  itemBuilder: (context, index) {
-                    if (index < srv.length) return _serverTile(srv[index]);
-                    final conversation = loc[index - srv.length];
-                    final other = conversation.participants.firstWhere(
-                      (id) => id != widget.accountId,
-                      orElse: () => widget.accountId,
-                    );
-                    final name = chatAccountName(other, _isArabic);
-                    final latest = conversation.messages.isEmpty
-                        ? (_isArabic
-                            ? 'ابدأ المحادثة'
-                            : 'Start the conversation')
-                        : conversation.messages.last.body;
-                    final unread = conversation.messages
-                        .where((message) =>
-                            message.senderId != widget.accountId &&
-                            !message.readBy.contains(widget.accountId))
-                        .length;
-                    return Material(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(14),
-                      child: ListTile(
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
-                        leading: CircleAvatar(
-                          backgroundColor: AppColors.surfaceLight,
-                          child: MotionIcon(_accountIcon(other),
-                              color: AppColors.ink),
+                final pending =
+                    srv.where((c) => c.unread > 0 && !c.closed).toList();
+                final rest =
+                    srv.where((c) => !(c.unread > 0 && !c.closed)).toList();
+                return RefreshIndicator(
+                  onRefresh: _loadServer,
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+                    children: [
+                      if (pending.isNotEmpty) ...[
+                        _sectionLabel(
+                          _isArabic ? 'محتاجة ردك' : 'Needs your reply',
+                          Icons.schedule_rounded,
+                          AppColors.warningDark,
                         ),
-                        title: Row(
-                          children: [
-                            Expanded(
-                              child: Text(name,
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.bold)),
-                            ),
-                            if (unread > 0)
-                              CircleAvatar(
-                                radius: 11,
-                                backgroundColor: AppColors.primaryDark,
-                                child: CountText('$unread',
-                                    style: const TextStyle(
-                                        color: Colors.white, fontSize: 10)),
-                              ),
-                          ],
-                        ),
-                        subtitle: Text(
-                          '${conversation.requestId.isEmpty ? '' : '${conversation.requestId} · '}$latest',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        onTap: () async {
-                          await Navigator.of(context).push<void>(
-                            MaterialPageRoute(
-                              builder: (_) => _ConversationThreadScreen(
-                                conversationId: conversation.id,
-                                accountId: widget.accountId,
-                                title: name,
-                              ),
-                            ),
-                          );
-                          _reload();
-                        },
-                      ),
-                    );
-                  },
+                        _group([for (final c in pending) _serverTile(c)]),
+                        const SizedBox(height: 14),
+                      ],
+                      if (rest.isNotEmpty) ...[
+                        if (pending.isNotEmpty)
+                          _sectionLabel(_isArabic ? 'الأحدث' : 'Recent', null,
+                              AppColors.textMuted),
+                        _group([for (final c in rest) _serverTile(c)]),
+                      ],
+                      if (loc.isNotEmpty) ...[
+                        if (srv.isNotEmpty) const SizedBox(height: 14),
+                        _group([for (final c in loc) _localTile(c)]),
+                      ],
+                    ],
+                  ),
                 );
               },
             )),
@@ -722,6 +748,159 @@ class _AccountConversationsScreenState
       ),
     );
   }
+
+  bool _matchesFilter(_ServerChat c) => _matchesKey(c, _filter);
+
+  static bool _matchesKey(_ServerChat c, String key) => switch (key) {
+        'unread' => c.unread > 0,
+        'complaints' => c.kind == 8,
+        'requests' => const {1, 2, 3, 7}.contains(c.kind),
+        'ads' => const {4, 5, 6}.contains(c.kind),
+        'direct' => c.kind == 9,
+        'supervisors' => false,
+        _ => true,
+      };
+
+  Widget _emptyState(IconData icon, String text) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceHighlight,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: MotionIcon(icon, size: 30, color: AppColors.ink),
+              ),
+              const SizedBox(height: 12),
+              Text(text,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      color: AppColors.textSecondary, height: 1.6)),
+            ],
+          ),
+        ),
+      );
+
+  Widget _sectionLabel(String text, IconData? icon, Color color) => Padding(
+        padding: const EdgeInsets.fromLTRB(6, 0, 6, 7),
+        child: Row(
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 15, color: color),
+              const SizedBox(width: 5),
+            ],
+            Text(text,
+                style: TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w800, color: color)),
+          ],
+        ),
+      );
+
+  /// مجموعة محادثات في كارت واحد بفواصل رفيعة.
+  Widget _group(List<Widget> tiles) => Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.cardBorder),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          children: [
+            for (var i = 0; i < tiles.length; i++) ...[
+              if (i > 0)
+                Divider(
+                    height: 1,
+                    thickness: 1,
+                    indent: 66,
+                    color: AppColors.borderLight),
+              tiles[i],
+            ],
+          ],
+        ),
+      );
+
+  Widget _localTile(Conversation conversation) {
+    final other = conversation.participants.firstWhere(
+      (id) => id != widget.accountId,
+      orElse: () => widget.accountId,
+    );
+    final name = chatAccountName(other, _isArabic);
+    final latest = conversation.messages.isEmpty
+        ? (_isArabic ? 'ابدأ المحادثة' : 'Start the conversation')
+        : conversation.messages.last.body;
+    final unread = conversation.messages
+        .where((message) =>
+            message.senderId != widget.accountId &&
+            !message.readBy.contains(widget.accountId))
+        .length;
+    return InkWell(
+      onTap: () async {
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (_) => _ConversationThreadScreen(
+              conversationId: conversation.id,
+              accountId: widget.accountId,
+              title: name,
+            ),
+          ),
+        );
+        _reload();
+      },
+      child: Padding(
+        padding: const EdgeInsets.all(11),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 22,
+              backgroundColor: AppColors.surfaceLight,
+              child: MotionIcon(_accountIcon(other), color: AppColors.ink),
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(name,
+                      style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                          color: AppColors.textPrimary)),
+                  const SizedBox(height: 3),
+                  Text(
+                    '${conversation.requestId.isEmpty ? '' : '${conversation.requestId} · '}$latest',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 12.5, color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+            if (unread > 0) _unreadPill(unread),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _unreadPill(int n) => Container(
+        constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+            color: _navy,
+            borderRadius: const BorderRadius.all(Radius.circular(99))),
+        child: CountText(n > 99 ? '99+' : '$n',
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w800)),
+      );
 }
 
 class _ConversationThreadScreen extends StatefulWidget {
