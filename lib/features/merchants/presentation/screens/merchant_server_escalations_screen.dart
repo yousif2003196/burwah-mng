@@ -65,23 +65,34 @@ class _MerchantServerEscalationsScreenState extends State<MerchantServerEscalati
         _Filter.decided => r.status == 1 || r.status == 3,
       };
 
-  Future<void> _create() async {
-    final created = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
-      builder: (_) => const _NewEscalationSheet(),
-    );
-    if (created == true) {
+  Future<void> _create() => _openSheet(() => MerchantEscalationSheet.show(context));
+
+  /// رد المشرف على تصعيد رجعله: تصعيد جديد على نفس المرجع فيه ردّه وتوجيه الرئيس.
+  Future<void> _followUp(SupervisorEscalationRecord record) =>
+      _openSheet(() => MerchantEscalationSheet.show(context, followUpOf: record));
+
+  Future<void> _openSheet(Future<bool?> Function() open) async {
+    final created = await open();
+    if (created == true && mounted) {
       setState(() => _loading = true);
       await _load();
     }
   }
 
+  /// أحدث تصعيد على كل مرجع: الرد بيتعمل على الأحدث بس، والأقدم اترد عليه خلاص.
+  Map<String, int> get _latestIdByRef {
+    final latest = <String, int>{};
+    for (final r in _rows) {
+      final current = latest[r.refKey];
+      if (current == null || r.id > current) latest[r.refKey] = r.id;
+    }
+    return latest;
+  }
+
   @override
   Widget build(BuildContext context) {
     final visible = _rows.where(_match).toList();
+    final latestByRef = _latestIdByRef;
     int count(_Filter f) => _rows.where((r) => _matches(r, f)).length;
 
     return Directionality(
@@ -147,7 +158,14 @@ class _MerchantServerEscalationsScreenState extends State<MerchantServerEscalati
                       )
                     else
                       for (final r in visible) ...[
-                        ScrollFx(child: _EscalationCard(record: r)),
+                        ScrollFx(
+                          child: _EscalationCard(
+                            record: r,
+                            onFollowUp: r.returned && latestByRef[r.refKey] == r.id
+                                ? () => _followUp(r)
+                                : null,
+                          ),
+                        ),
                         const SizedBox(height: 10),
                       ],
                   ],
@@ -162,9 +180,12 @@ class _MerchantServerEscalationsScreenState extends State<MerchantServerEscalati
 }
 
 class _EscalationCard extends StatelessWidget {
-  const _EscalationCard({required this.record});
+  const _EscalationCard({required this.record, this.onFollowUp});
 
   final SupervisorEscalationRecord record;
+
+  /// موجود لو الرئيس رجّع التصعيد ولسه المشرف مردّش.
+  final VoidCallback? onFollowUp;
 
   static String _stamp(DateTime? d) {
     if (d == null) return '';
@@ -221,21 +242,86 @@ class _EscalationCard extends StatelessWidget {
               ),
             ),
           ],
+          if (onFollowUp != null) ...[
+            const SizedBox(height: 10),
+            FilledButton.icon(
+              onPressed: onFollowUp,
+              icon: const Icon(Icons.reply_outlined, size: 18),
+              label: const Text('الرد على التوجيه وإعادة التصعيد'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(42),
+                backgroundColor: AppColors.warningDark,
+              ),
+            ),
+          ] else if (record.returned) ...[
+            const SizedBox(height: 8),
+            Text('اترد على التوجيه ده في تصعيد أحدث (متابعة #${record.id}).',
+                style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+          ],
         ],
       ),
     );
   }
 }
 
-/// تصعيد جديد: النوع، والتاجر (اختياري)، والعنوان والسبب.
-class _NewEscalationSheet extends StatefulWidget {
-  const _NewEscalationSheet();
+/// تصعيد لرئيس المشرفين: جديد، أو مربوط بشكوى عميل، أو رد على تصعيد رجع.
+class MerchantEscalationSheet extends StatefulWidget {
+  const MerchantEscalationSheet({
+    super.key,
+    this.followUpOf,
+    this.ticket,
+    this.merchantId,
+  });
+
+  /// تصعيد رجّعه الرئيس والمشرف بيرد عليه (نفس المرجع والنوع).
+  final SupervisorEscalationRecord? followUpOf;
+
+  /// شكوى عميل بيتصعّد عليها (المرجع بيشيل رقم التذكرة).
+  final MerchantEscalationTicket? ticket;
+
+  /// التاجر المختار مبدئيًا.
+  final int? merchantId;
+
+  /// يرجع true لو التصعيد اتبعت.
+  static Future<bool?> show(
+    BuildContext context, {
+    SupervisorEscalationRecord? followUpOf,
+    MerchantEscalationTicket? ticket,
+    int? merchantId,
+  }) {
+    return showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (_) => MerchantEscalationSheet(
+        followUpOf: followUpOf,
+        ticket: ticket,
+        merchantId: merchantId,
+      ),
+    );
+  }
 
   @override
-  State<_NewEscalationSheet> createState() => _NewEscalationSheetState();
+  State<MerchantEscalationSheet> createState() => _MerchantEscalationSheetState();
 }
 
-class _NewEscalationSheetState extends State<_NewEscalationSheet> {
+/// بيانات الشكوى اللي التصعيد هيتربط بيها.
+class MerchantEscalationTicket {
+  const MerchantEscalationTicket({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.customerName,
+  });
+
+  final int id;
+  final String title;
+  final String description;
+  final String customerName;
+}
+
+class _MerchantEscalationSheetState extends State<MerchantEscalationSheet> {
   static const _kinds = <(String, String)>[
     ('complaint', 'شكوى عميل'),
     ('violation', 'مخالفة تاجر'),
@@ -244,20 +330,35 @@ class _NewEscalationSheetState extends State<_NewEscalationSheet> {
     ('other', 'أخرى'),
   ];
 
-  String _kind = 'complaint';
+  late String _kind;
   final _title = TextEditingController();
   final _reason = TextEditingController();
   List<Map<String, dynamic>> _merchants = const [];
-  Map<String, dynamic>? _merchant;
+  int? _merchantId;
   bool _sending = false;
   String? _error;
+
+  SupervisorEscalationRecord? get _followUp => widget.followUpOf;
+  bool get _isFollowUp => _followUp != null;
 
   @override
   void initState() {
     super.initState();
-    MerchantsApi.merchants(pageSize: 100).then((rows) {
-      if (mounted) setState(() => _merchants = rows);
-    }).catchError((Object _) {});
+    final followUp = _followUp;
+    final ticket = widget.ticket;
+    _kind = followUp?.kind ?? 'complaint';
+    _merchantId = followUp?.merchantId ?? widget.merchantId;
+    if (ticket != null) {
+      _title.text = ticket.title;
+      _reason.text = ticket.customerName.isEmpty
+          ? ''
+          : 'شكوى من ${ticket.customerName}: ${ticket.description}\n\n';
+    }
+    if (!_isFollowUp) {
+      MerchantsApi.merchants(pageSize: 100).then((rows) {
+        if (mounted) setState(() => _merchants = rows);
+      }).catchError((Object _) {});
+    }
   }
 
   @override
@@ -269,28 +370,56 @@ class _NewEscalationSheetState extends State<_NewEscalationSheet> {
 
   String _merchantName(Map<String, dynamic> m) => '${m['storeName'] ?? m['ownerName'] ?? ''}'.trim();
 
+  String _kindLabel(String kind) =>
+      _kinds.where((k) => k.$1 == kind).map((k) => k.$2).firstOrNull ?? kind;
+
+  Map<String, dynamic>? get _merchant =>
+      _merchants.where((m) => (m['id'] as num?)?.toInt() == _merchantId).firstOrNull;
+
   Future<void> _send() async {
+    final followUp = _followUp;
     final title = _title.text.trim();
     final reason = _reason.text.trim();
-    if (title.isEmpty || reason.isEmpty) {
-      setState(() => _error = 'اكتب العنوان والسبب');
+    if ((followUp == null && title.isEmpty) || reason.length < 5) {
+      setState(() => _error = followUp == null
+          ? 'اكتب العنوان والسبب (السبب 5 حروف على الأقل)'
+          : 'اكتب ردك على توجيه الرئيس (5 حروف على الأقل)');
       return;
     }
     setState(() {
       _sending = true;
       _error = null;
     });
-    final kindLabel = _kinds.firstWhere((k) => k.$1 == _kind).$2;
     final merchant = _merchant;
+    final String refKey;
+    final String fullTitle;
+    final String fullReason;
+    if (followUp != null) {
+      refKey = followUp.refKey;
+      fullTitle = 'متابعة #${followUp.id}: ${followUp.title}';
+      fullReason = 'رد المشرف: $reason'
+          '${followUp.decisionNote.isEmpty ? '' : '\nتوجيه الرئيس: ${followUp.decisionNote}'}';
+    } else {
+      refKey = SupervisorEscalationRecord.buildRefKey(
+        merchantId: _merchantId,
+        ticketId: widget.ticket?.id,
+      );
+      fullTitle = '${_kindLabel(_kind)}: $title'
+          '${merchant == null ? '' : ' — التاجر: ${_merchantName(merchant)}'}';
+      fullReason = reason;
+    }
     try {
       await sl<SupervisorEscalationsApi>().create(
         kind: _kind,
-        refKey: merchant == null ? 'MRC-GEN-${DateTime.now().millisecondsSinceEpoch}' : 'MER-${merchant['id']}',
-        title: '$kindLabel: $title${merchant == null ? '' : ' — التاجر: ${_merchantName(merchant)}'}',
-        reason: reason,
+        refKey: refKey,
+        title: fullTitle,
+        reason: fullReason,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اتصعّد لرئيس المشرفين ووصله إشعار')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(followUp == null
+              ? 'اتصعّد لرئيس المشرفين ووصله إشعار'
+              : 'ردك وصل لرئيس المشرفين')));
       Navigator.of(context).pop(true);
     } on SupervisorEscalationRejection catch (e) {
       if (mounted) setState(() {
@@ -307,6 +436,8 @@ class _NewEscalationSheetState extends State<_NewEscalationSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final followUp = _followUp;
+    final ticket = widget.ticket;
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Padding(
@@ -316,57 +447,74 @@ class _NewEscalationSheetState extends State<_NewEscalationSheet> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('تصعيد جديد لرئيس المشرفين',
+              Text(
+                  followUp != null
+                      ? 'الرد على توجيه رئيس المشرفين'
+                      : ticket != null
+                          ? 'تصعيد شكوى #TCK-${ticket.id} لرئيس المشرفين'
+                          : 'تصعيد جديد لرئيس المشرفين',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.ink)),
               const SizedBox(height: 12),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  for (final k in _kinds)
-                    ChoiceChip(
-                      label: Text(k.$2),
-                      selected: _kind == k.$1,
-                      onSelected: (_) => setState(() => _kind = k.$1),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<int?>(
-                initialValue: _merchant == null ? null : (_merchant!['id'] as num?)?.toInt(),
-                isExpanded: true,
-                decoration: InputDecoration(
-                  labelText: 'التاجر (اختياري)',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              if (followUp != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: AppColors.warningLight, borderRadius: BorderRadius.circular(12)),
+                  child: Text(
+                    '${followUp.title}\n'
+                    'توجيه الرئيس: ${followUp.decisionNote.isEmpty ? followUp.statusText : followUp.decisionNote}',
+                    style: TextStyle(fontSize: 12, height: 1.5, color: AppColors.warningDark, fontWeight: FontWeight.w700),
+                  ),
                 ),
-                items: [
-                  const DropdownMenuItem<int?>(value: null, child: Text('بدون تاجر محدد')),
-                  for (final m in _merchants)
-                    DropdownMenuItem<int?>(
-                      value: (m['id'] as num?)?.toInt(),
-                      child: Text(_merchantName(m), overflow: TextOverflow.ellipsis),
-                    ),
-                ],
-                onChanged: (id) => setState(() {
-                  _merchant = id == null ? null : _merchants.firstWhere((m) => (m['id'] as num?)?.toInt() == id);
-                }),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _title,
-                maxLength: 120,
-                decoration: InputDecoration(
-                  labelText: 'العنوان',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                const SizedBox(height: 12),
+              ] else ...[
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final k in _kinds)
+                      ChoiceChip(
+                        label: Text(k.$2),
+                        selected: _kind == k.$1,
+                        onSelected: (_) => setState(() => _kind = k.$1),
+                      ),
+                  ],
                 ),
-              ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<int?>(
+                  key: ValueKey('merchant-${_merchants.length}'),
+                  initialValue: _merchant == null ? null : _merchantId,
+                  isExpanded: true,
+                  decoration: InputDecoration(
+                    labelText: 'التاجر (اختياري)',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  items: [
+                    const DropdownMenuItem<int?>(value: null, child: Text('بدون تاجر محدد')),
+                    for (final m in _merchants)
+                      DropdownMenuItem<int?>(
+                        value: (m['id'] as num?)?.toInt(),
+                        child: Text(_merchantName(m), overflow: TextOverflow.ellipsis),
+                      ),
+                  ],
+                  onChanged: (id) => setState(() => _merchantId = id),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _title,
+                  maxLength: 120,
+                  decoration: InputDecoration(
+                    labelText: 'العنوان',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ],
               TextField(
                 controller: _reason,
                 minLines: 3,
                 maxLines: 6,
                 maxLength: 900,
                 decoration: InputDecoration(
-                  labelText: 'السبب والتفاصيل',
+                  labelText: followUp != null ? 'ردك واللي اتعمل' : 'السبب والتفاصيل',
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
@@ -380,7 +528,7 @@ class _NewEscalationSheetState extends State<_NewEscalationSheet> {
                 icon: _sending
                     ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                     : const Icon(Icons.send_outlined),
-                label: const Text('إرسال لرئيس المشرفين'),
+                label: Text(followUp != null ? 'إرسال الرد للرئيس' : 'إرسال لرئيس المشرفين'),
                 style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
               ),
             ],

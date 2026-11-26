@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
@@ -34,17 +33,12 @@ class MerchantDetailsScreen extends StatefulWidget {
 }
 
 class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
-  late final TextEditingController _commissionController;
   /// قيمة العمولة الحالية: نسبة أو مبلغ ثابت حسب [_commissionType].
   late double _commissionPercent;
 
   /// percent | fixed | default
   late String _commissionType;
-
-  /// الاختيار في الكارت (مبلغ ثابت ولا نسبة).
-  late bool _commissionFixed;
   late bool _isSuspended;
-  bool _isSavingCommission = false;
   Map<String, MerchantAdvertisementStatus> _advertisementStatuses = {};
   List<MerchantSupervisorAuditEvent> _merchantAuditEvents = const [];
 
@@ -57,16 +51,12 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
   void initState() {
     super.initState();
     _commissionType = merchant.commissionType;
-    _commissionFixed = _commissionType == 'fixed';
-    _commissionPercent = _commissionFixed
+    _commissionPercent = _commissionType == 'fixed'
         ? (merchant.commissionFixedAmount ?? 0)
         : (merchant.commissionPercent ?? merchant.defaultCommissionPercent ?? 0);
     _isSuspended = widget.isLocallySuspended ??
         (merchant.isSuspended ||
             merchant.status == MerchantStatus.temporarilySuspended);
-    _commissionController = TextEditingController(
-      text: _commissionPercent.toStringAsFixed(1),
-    );
     MerchantAdvertisementLocalStore.version.addListener(
       _refreshAdvertisementStatuses,
     );
@@ -82,7 +72,6 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
       _refreshAdvertisementStatuses,
     );
     MerchantSupervisorLocalStore.revision.removeListener(_refreshMerchantAudit);
-    _commissionController.dispose();
     super.dispose();
   }
 
@@ -112,7 +101,6 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
       if (mounted && commission != null) {
         setState(() {
           _commissionPercent = commission;
-          _commissionController.text = commission.toStringAsFixed(1);
         });
       }
     } on Object catch (error, stackTrace) {
@@ -658,133 +646,6 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
     );
   }
 
-  // ignore: unused_element
-  Widget _buildCommissionEditor(AppLocalizations l10n) {
-    final value = double.tryParse(_commissionController.text.trim()) ?? 0;
-    // على طلب بـ 100 ج.م النسبة والمبلغ الثابت بيطلعوا نفس الرقم.
-    final commission = value;
-    final keeps = (100 - commission).clamp(0, 100).toDouble();
-    Widget choice(String label, bool fixed) {
-      final selected = _commissionFixed == fixed;
-      return Expanded(
-        child: InkWell(
-          borderRadius: BorderRadius.circular(10),
-          onTap: () => setState(() => _commissionFixed = fixed),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 160),
-            padding: const EdgeInsets.symmetric(vertical: 9),
-            decoration: BoxDecoration(
-              color: selected ? AppColors.primaryDark : AppColors.surfaceLight,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: selected ? AppColors.primaryDark : AppColors.cardBorder),
-            ),
-            child: Text(
-              label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: selected ? Colors.white : AppColors.textSecondary,
-                fontSize: 11.5,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: _cardDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _sectionHeading('عمولة المنصة على التاجر', Icons.payments_outlined),
-          const SizedBox(height: 6),
-          Text(
-            'العمولة بتتخصم من كل طلب للتاجر: يا نسبة من قيمة اللي باعه، يا مبلغ ثابت على كل طلب.',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.5),
-          ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceLight,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                MotionIcon(Icons.check_circle_outline, color: AppColors.info, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'الحالية: $_commissionLabel',
-                    style: TextStyle(color: AppColors.ink, fontSize: 12, fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              choice('نسبة مئوية (%)', false),
-              const SizedBox(width: 8),
-              choice('مبلغ ثابت (ج.م)', true),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _commissionController,
-                  textAlign: TextAlign.center,
-                  onChanged: (_) => setState(() {}),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-                  decoration: InputDecoration(
-                    isDense: true,
-                    labelText: _commissionFixed ? 'المبلغ على كل طلب' : 'النسبة من كل طلب',
-                    suffixText: _commissionFixed ? 'ج.م' : '%',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(9)),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              FilledButton.icon(
-                onPressed: _isSavingCommission ? null : _saveCommission,
-                icon: _isSavingCommission
-                    ? const SizedBox.square(dimension: 15, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const MotionIcon(Icons.save_outlined, size: 15),
-                label: Text(l10n.merchantInfoSave),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.primaryDark,
-                  textStyle: const TextStyle(fontSize: 12),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            'مثال على طلب بـ 100 ج.م: المنصة تاخد ${_num(commission.clamp(0, 100).toDouble())} ج.م، والتاجر ياخد ${_num(keeps)} ج.م.',
-            style: TextStyle(color: AppColors.success, fontSize: 11.5, fontWeight: FontWeight.bold),
-          ),
-          if (_commissionType != 'default') ...[
-            const SizedBox(height: 4),
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: TextButton.icon(
-                onPressed: _isSavingCommission ? null : () => _saveCommission(resetToDefault: true),
-                icon: const Icon(Icons.restart_alt, size: 16),
-                label: Text('رجوع للنسبة العامة (${_num(merchant.defaultCommissionPercent ?? 0)}%)'),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
   Widget _buildBusinessInfoCard(AppLocalizations l10n, bool isArabic) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1246,60 +1107,6 @@ class _MerchantDetailsScreenState extends State<MerchantDetailsScreen> {
         MerchantAdvertisementStatus.frozen => AppColors.warningDark,
         MerchantAdvertisementStatus.hidden => AppColors.textSecondary,
       };
-
-  Future<void> _saveCommission({bool resetToDefault = false}) async {
-    final l10n = AppLocalizations.of(context)!;
-    final value = double.tryParse(_commissionController.text.trim());
-    if (!resetToDefault &&
-        (value == null ||
-            !value.isFinite ||
-            value < 0 ||
-            (_commissionFixed ? value > 10000 : value > 50))) {
-      _showMessage(_commissionFixed
-          ? 'المبلغ الثابت لازم يكون بين 0 و 10000 ج.م'
-          : 'النسبة لازم تكون بين 0 و 50%');
-      return;
-    }
-    final serverId = int.tryParse(merchant.id);
-    setState(() => _isSavingCommission = true);
-    try {
-      if (serverId != null) {
-        final saved = await MerchantsApi.commission(
-          serverId,
-          percent: resetToDefault || _commissionFixed ? null : value,
-          fixedAmount: resetToDefault || !_commissionFixed ? null : value,
-        );
-        if (!mounted) return;
-        setState(() {
-          _commissionType = '${saved['commissionType'] ?? (resetToDefault ? 'default' : _commissionFixed ? 'fixed' : 'percent')}';
-          _commissionFixed = _commissionType == 'fixed';
-          _commissionPercent = _commissionFixed
-              ? ((saved['commissionFixedAmount'] as num?)?.toDouble() ?? value ?? 0)
-              : ((saved['effectiveCommission'] as num?)?.toDouble() ?? value ?? 0);
-          _commissionController.text = _num(_commissionPercent);
-        });
-        MerchantSupervisorLocalStore.revision.value++;
-      } else {
-        // الوضع التجريبي (تاجر مش من السيرفر).
-        await MerchantSupervisorLocalStore.setMerchantCommission(
-          merchantId: merchant.id,
-          merchantName: merchant.getName(l10n.localeName.startsWith('ar')),
-          commissionPercent: value ?? 0,
-          action: l10n.merchantAuditCommissionUpdated,
-        );
-        if (!mounted) return;
-        setState(() {
-          _commissionType = 'percent';
-          _commissionPercent = value ?? 0;
-        });
-      }
-      _showMessage(resetToDefault ? 'التاجر رجع على النسبة العامة' : l10n.merchantInfoCommissionSaved);
-    } on Object catch (error) {
-      if (mounted) _showMessage(MerchantsApi.messageOf(error));
-    } finally {
-      if (mounted) setState(() => _isSavingCommission = false);
-    }
-  }
 
   void _showMessage(String message) {
     AppSnackBar.showInfo(context, message);

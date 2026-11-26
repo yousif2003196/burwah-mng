@@ -10,6 +10,7 @@ import 'package:barwah_app/features/head_supervisor/presentation/screens/head_su
 import 'package:barwah_app/features/head_supervisor/data/datasources/supervisor_escalations_api.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/utils/boss_formatters.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/utils/head_supervisor_text.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_merchant_case_sheet.dart';
 
 /// تصعيدات مشرفي المنتجات الجديدة والتجار وشكاوى الخدمات (`api/SupervisorEscalations`).
 /// رئيس المشرفين يحسم / يرجّع للمشرف / يرفع للأدمن، والقرار يوصل للمشرف اللي صعّد.
@@ -114,6 +115,18 @@ class _HeadSupervisorEscalationsPanelState
     await _load();
   }
 
+  /// ملف التاجر اللي اتصعّد عليه: الرئيس يشوفه ويوقفه / يفعّله ويحسم التصعيد.
+  Future<void> _openMerchant(SupervisorEscalationRecord item) async {
+    final merchantId = item.merchantId;
+    if (merchantId == null) return;
+    final changed = await showHeadMerchantCaseSheet(
+      context,
+      merchantId: merchantId,
+      escalation: item,
+    );
+    if (changed == true && mounted) await _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!SupervisorEscalationsApi.headCanUse) return const SizedBox.shrink();
@@ -170,6 +183,7 @@ class _HeadSupervisorEscalationsPanelState
               item: item,
               busy: _busyId == item.id,
               onDecide: (decision) => _decide(item, decision),
+              onOpenMerchant: item.merchantId == null ? null : () => _openMerchant(item),
             ),
             const SizedBox(height: 8),
           ],
@@ -216,6 +230,7 @@ void _openReference(BuildContext context, SupervisorEscalationRecord item) {
 }
 
 bool _canOpenReference(SupervisorEscalationRecord item) =>
+    item.merchantId == null &&
     _refNumber(item.refKey) != null &&
     ((item.department == 'products' && item.kind == 'product') ||
         (item.department == 'services' && item.kind == 'complaint'));
@@ -225,7 +240,15 @@ class _EscalationTile extends StatelessWidget {
   final bool busy;
   final ValueChanged<String> onDecide;
 
-  const _EscalationTile({required this.item, required this.busy, required this.onDecide});
+  /// موجود لو التصعيد عن تاجر (`MER-…`).
+  final VoidCallback? onOpenMerchant;
+
+  const _EscalationTile({
+    required this.item,
+    required this.busy,
+    required this.onDecide,
+    this.onOpenMerchant,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -277,6 +300,31 @@ class _EscalationTile extends StatelessWidget {
                 arabic: 'السبب: ${item.reason}', english: 'Reason: ${item.reason}'),
             textAlign: TextAlign.right,
             style: TextStyle(fontSize: 12, height: 1.5, color: AppColors.textPrimary)),
+        if (item.ticketId != null) ...[
+          const SizedBox(height: 4),
+          Text(
+              headSupervisorText(context,
+                  arabic: 'مرتبط بشكوى عميل #TCK-${item.ticketId}',
+                  english: 'Linked to complaint #TCK-${item.ticketId}'),
+              textAlign: TextAlign.right,
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.warningDark)),
+        ],
+        if (onOpenMerchant != null) ...[
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: busy ? null : onOpenMerchant,
+            icon: const MotionIcon(Icons.storefront_outlined, size: 16),
+            label: Text(
+                headSupervisorText(context,
+                    arabic: 'ملف التاجر والإجراء عليه', english: 'Merchant file & actions'),
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.infoDark,
+              minimumSize: const Size(0, 38),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          ),
+        ],
         if (_canOpenReference(item)) ...[
           const SizedBox(height: 8),
           OutlinedButton.icon(

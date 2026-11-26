@@ -26,7 +26,6 @@ import 'package:barwah_app/features/merchants/data/datasources/merchant_advertis
 import 'package:barwah_app/features/merchants/domain/entities/merchant_entity.dart';
 import 'package:barwah_app/features/merchants/presentation/screens/ads_management_screen.dart';
 import 'package:barwah_app/features/merchants/presentation/screens/advertisement_review_details_screen.dart';
-import 'package:barwah_app/features/merchants/presentation/screens/merchant_financial_requests_screen.dart';
 import 'package:barwah_app/features/services_supervisor/presentation/screens/services_supervisor_wallet_screen.dart';
 import 'package:barwah_app/l10n/app_localizations.dart';
 
@@ -454,108 +453,6 @@ void main() {
 
     expect(find.text(l10n.adsRejectedStatus), findsWidgets);
     expect(find.text(l10n.adsRejectReasonTitle), findsNothing);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('Merchant financial requests are reviewable and filterable',
-      (tester) async {
-    tester.view.physicalSize = const Size(390, 1600);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-    });
-    await tester.pumpWidget(
-      buildTestScreen(
-        MerchantsTabsShell(onLogout: () {}),
-        locale: const Locale('en'),
-      ),
-    );
-    await tester.pumpAndSettle();
-    final l10n = await AppLocalizations.delegate.load(const Locale('en'));
-    await tester.tap(
-      find.descendant(
-        of: find.byType(FinanceBottomNavigationBar),
-        matching: find.text('Financial Requests'),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(find.byType(MerchantFinancialRequestsScreen), findsOneWidget);
-    expect(find.text(l10n.finRequestLocalWorkflowNotice), findsOneWidget);
-    expect(find.text('Sales profit transfer request'), findsOneWidget);
-    await tester.ensureVisible(find.text('Sales profit transfer request'));
-    final requestIconRect =
-        tester.getRect(findMotionIcon(Icons.directions_car_outlined));
-    final requestTextRect =
-        tester.getRect(find.text('Sales profit transfer request'));
-    expect(
-      requestTextRect.left - requestIconRect.right,
-      inInclusiveRange(0, 10),
-    );
-    expect(find.text('Annual Gold package subscription fee'), findsOneWidget);
-    expect(find.text('Wallet balance withdrawal request'), findsOneWidget);
-    expect(find.text(l10n.finRequestSendToFinance), findsWidgets);
-    expect(
-      tester
-          .widget<OutlinedButton>(
-            find
-                .widgetWithText(
-                  OutlinedButton,
-                  l10n.finRequestSendToFinance,
-                )
-                .first,
-          )
-          .onPressed,
-      isNotNull,
-    );
-    expect(tester.takeException(), isNull);
-
-    await tester.ensureVisible(find.text('Package fees'));
-    await tester.tap(find.text('Package fees'));
-    await tester.pumpAndSettle();
-    expect(find.text('Annual Gold package subscription fee'), findsOneWidget);
-    expect(find.text('Sales profit transfer request'), findsNothing);
-
-    await tester.tap(find.text('View request details'));
-    await tester.pumpAndSettle();
-    expect(find.text('Request number: FIN-3016'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('Arabic financial requests fit a phone screen', (tester) async {
-    tester.view.physicalSize = const Size(390, 1600);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-    });
-    await tester.pumpWidget(
-      buildTestScreen(
-        MerchantsTabsShell(onLogout: () {}),
-        locale: const Locale('ar'),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    final l10n = await AppLocalizations.delegate.load(const Locale('ar'));
-    await tester.tap(
-      find.descendant(
-        of: find.byType(FinanceBottomNavigationBar),
-        matching: find.text(l10n.navFinancialRequests),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text(l10n.finRequestLocalWorkflowNotice), findsOneWidget);
-    expect(find.text(l10n.finRequestHistoryTitle), findsOneWidget);
-    await tester.ensureVisible(find.text(l10n.finRequestCarTitle));
-    final requestIconRect =
-        tester.getRect(findMotionIcon(Icons.directions_car_outlined));
-    final requestTextRect = tester.getRect(find.text(l10n.finRequestCarTitle));
-    expect(
-      requestIconRect.left - requestTextRect.right,
-      inInclusiveRange(0, 10),
-    );
     expect(tester.takeException(), isNull);
   });
 

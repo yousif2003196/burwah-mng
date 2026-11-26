@@ -84,6 +84,7 @@ import 'package:barwah_app/features/finance/domain/usecases/update_expense_reque
 import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_api_data_source.dart';
 import 'package:barwah_app/features/head_supervisor/data/datasources/market_branches_api_data_source.dart';
 import 'package:barwah_app/features/head_supervisor/data/datasources/supervisor_escalations_api.dart';
+import 'package:barwah_app/features/head_supervisor/data/datasources/head_merchant_actions_api.dart';
 import 'package:barwah_app/features/head_supervisor/data/datasources/head_supervisor_roster_store.dart';
 import 'package:barwah_app/features/merchants/data/datasources/merchants_data_source.dart';
 import 'package:barwah_app/features/merchants/data/datasources/merchants_api_data_source.dart';
@@ -169,6 +170,12 @@ Future<void> initDependencies() async {
   // فروع سوق برواح (api/BrowahBranches).
   sl.registerLazySingleton<SupervisorEscalationsApi>(
     () => SupervisorEscalationsApi(
+      apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'),
+    ),
+  );
+  // رئيس المشرفين على تاجر: ملفه وإيقافه / إعادة تفعيله.
+  sl.registerLazySingleton<HeadMerchantActionsApi>(
+    () => HeadMerchantActionsApi(
       apiConsumer: sl<ApiConsumer>(instanceName: 'berwah'),
     ),
   );

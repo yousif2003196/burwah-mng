@@ -44,6 +44,34 @@ class SupervisorEscalationRecord {
 
   bool get pending => status == 0;
 
+  /// رجع لمشرفه برد مطلوب منه.
+  bool get returned => status == 2;
+
+  /// رقم التاجر لو التصعيد عن تاجر (`MER-12` أو `MER-12-TCK-5`).
+  int? get merchantId => merchantIdOf(refKey);
+
+  /// رقم تذكرة الشكوى لو التصعيد مربوط بشكوى (`TCK-5` أو `MER-12-TCK-5`).
+  int? get ticketId => ticketIdOf(refKey);
+
+  static int? merchantIdOf(String refKey) => _refPart(refKey, 'MER');
+  static int? ticketIdOf(String refKey) => _refPart(refKey, 'TCK');
+
+  /// مرجع التصعيد: التاجر و/أو الشكوى، أو مرجع عام لو مفيش.
+  static String buildRefKey({int? merchantId, int? ticketId}) {
+    final parts = [
+      if (merchantId != null) 'MER-$merchantId',
+      if (ticketId != null) 'TCK-$ticketId',
+    ];
+    return parts.isEmpty
+        ? 'MRC-GEN-${DateTime.now().millisecondsSinceEpoch}'
+        : parts.join('-');
+  }
+
+  static int? _refPart(String refKey, String prefix) {
+    final match = RegExp('(?:^|-)$prefix-(\\d+)').firstMatch(refKey.trim());
+    return match == null ? null : int.tryParse(match.group(1)!);
+  }
+
   factory SupervisorEscalationRecord.fromJson(Map<String, dynamic> j) {
     DateTime? date(Object? v) {
       final raw = v == null ? '' : '$v'.trim();

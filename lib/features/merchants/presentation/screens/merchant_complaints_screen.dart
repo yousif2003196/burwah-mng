@@ -4,9 +4,11 @@ import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/network/api_consumer.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
+import 'package:barwah_app/features/merchants/presentation/screens/merchant_server_escalations_screen.dart';
 import 'package:barwah_app/features/support/data/datasources/support_inbox_api_data_source.dart';
 
-/// شكاوى التجار: تذاكر الدعم من السيرفر اللي تصنيفها "التجار". المشرف يراجع التذكرة ويقفلها.
+/// شكاوى التجار: تذاكر الدعم من السيرفر اللي تصنيفها "التجار". المشرف يراجع التذكرة
+/// ويقفلها، أو يصعّدها لرئيس المشرفين والتصعيد بيشيل رقم التذكرة.
 class MerchantComplaintsScreen extends StatefulWidget {
   const MerchantComplaintsScreen({super.key});
 
@@ -66,6 +68,20 @@ class _MerchantComplaintsScreenState extends State<MerchantComplaintsScreen> {
     }
   }
 
+  /// تصعيد الشكوى لرئيس المشرفين: المرجع فيه `TCK-{id}` والرئيس بيشوفه مرتبط بالشكوى.
+  Future<void> _escalate(SupportInboxTicket t) async {
+    Navigator.of(context).maybePop();
+    await MerchantEscalationSheet.show(
+      context,
+      ticket: MerchantEscalationTicket(
+        id: t.id,
+        title: t.title,
+        description: t.description,
+        customerName: t.name,
+      ),
+    );
+  }
+
   void _open(SupportInboxTicket t) {
     showModalBottomSheet<void>(
       context: context,
@@ -102,7 +118,7 @@ class _MerchantComplaintsScreenState extends State<MerchantComplaintsScreen> {
               Text(t.description,
                   style: TextStyle(color: AppColors.textPrimary, height: 1.5)),
               const SizedBox(height: 16),
-              if (!t.isClosed)
+              if (!t.isClosed) ...[
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton(
@@ -110,6 +126,16 @@ class _MerchantComplaintsScreenState extends State<MerchantComplaintsScreen> {
                     child: const Text('تمت المعالجة وإغلاق التذكرة'),
                   ),
                 ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _escalate(t),
+                    icon: const Icon(Icons.campaign_outlined),
+                    label: const Text('تصعيد لرئيس المشرفين'),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

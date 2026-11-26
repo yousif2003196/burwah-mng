@@ -7,6 +7,7 @@ import 'package:barwah_app/core/network/api_endpoints.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/core/widgets/brand_refresh_indicator.dart';
 import 'package:barwah_app/core/widgets/scroll_fx.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/widgets/head_merchant_case_sheet.dart';
 
 ApiConsumer get _api => sl<ApiConsumer>(instanceName: 'berwah');
 
@@ -197,6 +198,15 @@ class _HeadSupervisorMerchantAssignmentScreenState extends State<HeadSupervisorM
     await _submit(m, supervisorId: picked == current ? null : picked, approve: approve);
   }
 
+  /// ملف التاجر: مراجعة قرار مشرفه (إيقاف / رفض) وإلغاؤه أو إيقاف تاجر شغال.
+  Future<void> _openCase(Map<String, dynamic> m) async {
+    final changed = await showHeadMerchantCaseSheet(
+      context,
+      merchantId: (m['id'] as num).toInt(),
+    );
+    if (changed == true && mounted) await _load();
+  }
+
   Future<void> _approveOnly(Map<String, dynamic> m) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -369,6 +379,7 @@ class _HeadSupervisorMerchantAssignmentScreenState extends State<HeadSupervisorM
     final status = '${m['status'] ?? 'working'}';
     final look = _look(status);
     final pending = status == 'pending';
+    final stopped = status == 'suspended' || status == 'rejected';
     final supervisor = _s(m['supervisorName']);
     final image = _s(m['imageUrl']);
     return Container(
@@ -468,6 +479,19 @@ class _HeadSupervisorMerchantAssignmentScreenState extends State<HeadSupervisorM
                   ),
                 ],
               ],
+            ),
+          if (!busy && !pending)
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: TextButton.icon(
+                onPressed: () => _openCase(m),
+                icon: Icon(stopped ? Icons.gavel_outlined : Icons.folder_open_outlined, size: 17),
+                label: Text(stopped ? 'مراجعة قرار ${m['statusLabel'] ?? 'الإيقاف'}' : 'ملف التاجر',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                style: TextButton.styleFrom(
+                  foregroundColor: stopped ? AppColors.dangerDark : AppColors.infoDark,
+                ),
+              ),
             ),
         ],
       ),

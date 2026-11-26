@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -47,6 +48,20 @@ class MerchantsDashboardScreen extends StatefulWidget {
 class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
   final TextEditingController _searchController = TextEditingController();
   Map<String, bool> _suspensionOverrides = const {};
+
+  /// الزرار راكب على الشريط السفلي، وبينزل معاه لما الشريط يستخبى بالسكرول.
+  bool _barVisible = true;
+
+  bool _onUserScroll(UserScrollNotification notification) {
+    if (notification.metrics.axis != Axis.vertical) return false;
+    final visible = switch (notification.direction) {
+      ScrollDirection.reverse => false,
+      ScrollDirection.forward => true,
+      ScrollDirection.idle => _barVisible,
+    };
+    if (visible != _barVisible) setState(() => _barVisible = visible);
+    return false;
+  }
 
   @override
   void initState() {
@@ -420,7 +435,9 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
             onRefresh: () => context.read<MerchantsCubit>().loadMerchants(),
             child: Stack(
               children: [
-                ListView(
+                NotificationListener<UserScrollNotification>(
+                  onNotification: _onUserScroll,
+                  child: ListView(
                   padding: EdgeInsets.fromLTRB(
                       16, 12, 16, 90 + MediaQuery.paddingOf(context).bottom),
                   children: [
@@ -585,12 +602,18 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
                       ),
                   ],
                 ),
+                ),
 
-                // Floating Action Button: [ربط تاجر جديد]
-                Positioned(
-                  // يرتفع فوق الشريط السفلي ويتبعه عند اختفائه.
-                  bottom: 20 + MediaQuery.paddingOf(context).bottom,
-                  left: 20,
+                // زرار [ربط تاجر جديد]: عند بداية الشريط السفلي، فوقه على طول،
+                // وبينزل لتحت لما الشريط يستخبى بالسكرول.
+                AnimatedPositionedDirectional(
+                  duration: const Duration(milliseconds: 260),
+                  curve: Curves.easeInOut,
+                  // padding السفلي هنا = ارتفاع الشريط السفلي (extendBody في الـ shell).
+                  bottom: _barVisible
+                      ? MediaQuery.paddingOf(context).bottom + 6
+                      : MediaQuery.viewPaddingOf(context).bottom + 16,
+                  start: 12,
                   child: ElevatedButton.icon(
                     onPressed: () => _showAddMerchantSheet(context),
                     icon: const MotionIcon(Icons.store_mall_directory_outlined,

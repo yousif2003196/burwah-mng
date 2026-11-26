@@ -53,49 +53,6 @@ class MerchantSupervisorLocalStore {
     };
   }
 
-  static Future<void> setMerchantCommission({
-    required String merchantId,
-    required String merchantName,
-    required double commissionPercent,
-    required String action,
-  }) async {
-    if (!commissionPercent.isFinite ||
-        commissionPercent < 0 ||
-        commissionPercent > 100) {
-      throw ArgumentError.value(commissionPercent, 'commissionPercent');
-    }
-    final serverId = int.tryParse(merchantId);
-    if (serverId != null) {
-      await MerchantsApi.commission(serverId, percent: commissionPercent);
-      revision.value++;
-      return;
-    }
-    final state = await _readState();
-    final merchants = state['merchants'] as Map<String, dynamic>;
-    final existing = merchants[merchantId];
-    final merchant = existing is Map<String, dynamic>
-        ? Map<String, dynamic>.from(existing)
-        : <String, dynamic>{};
-    merchant['name'] = merchantName;
-    merchant['commissionPercent'] = commissionPercent;
-    merchant['commissionUpdatedAt'] = DateTime.now().toIso8601String();
-    merchants[merchantId] = merchant;
-    _appendAuditEvent(
-      state,
-      action: action,
-      subject: merchantName,
-      details: '${commissionPercent.toStringAsFixed(1)}%',
-      merchantId: merchantId,
-    );
-    await _writeState(state);
-    await _publishMerchantNotice(
-      action: action,
-      subject: merchantName,
-      details: '${commissionPercent.toStringAsFixed(1)}%',
-      merchantId: merchantId,
-    );
-  }
-
   static Future<List<MerchantSupervisorAuditEvent>> getAuditEvents() async {
     final remote = await MerchantsApi.events();
     final fromServer = <MerchantSupervisorAuditEvent>[
