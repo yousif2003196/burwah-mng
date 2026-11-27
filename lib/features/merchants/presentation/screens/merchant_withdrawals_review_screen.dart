@@ -25,9 +25,14 @@ class _MerchantWithdrawalsReviewScreenState
     _load();
   }
 
+  /// أول تحميل بس اللي بيعرض شاشة التحميل؛ السحب للتحديث والتحديث بعد أي
+  /// إجراء بيسيبوا القائمة ظاهرة (وإلا الـ RefreshIndicator بيتشال وهو شغال).
+  bool _loadedOnce = false;
+
   Future<void> _load() async {
+    final quiet = _loadedOnce;
     setState(() {
-      _loading = true;
+      if (!quiet) _loading = true;
       _error = null;
     });
     try {
@@ -36,9 +41,16 @@ class _MerchantWithdrawalsReviewScreenState
       setState(() {
         _rows = rows;
         _loading = false;
+        _loadedOnce = true;
       });
     } catch (e) {
       if (!mounted) return;
+      if (quiet) {
+        // البيانات القديمة تفضل، والخطأ يظهر كرسالة.
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(MerchantsApi.messageOf(e))));
+        return;
+      }
       setState(() {
         _error = MerchantsApi.messageOf(e);
         _loading = false;

@@ -49,6 +49,7 @@ class BossOperationModel extends BossOperation {
   static BossOperationType _type(String value) => switch (value.toLowerCase()) {
         'ad' || 'ads' => BossOperationType.ad,
         'dispute' || 'disputes' => BossOperationType.dispute,
+        'report' || 'reports' => BossOperationType.report,
         _ => BossOperationType.unknown,
       };
 }

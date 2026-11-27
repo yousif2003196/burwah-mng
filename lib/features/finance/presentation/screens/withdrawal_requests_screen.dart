@@ -119,8 +119,10 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
     super.dispose();
   }
 
-  Future<void> _loadRequests() async {
-    if (mounted) setState(() => _loading = true);
+  /// [quiet] = سحب للتحديث أو تحديث بعد إجراء: المحتوى يفضل ظاهر (من غير
+  /// سبينر يشيل القائمة من تحت مؤشر السحب فالشاشة تتنطط).
+  Future<void> _loadRequests({bool quiet = false}) async {
+    if (mounted && !quiet) setState(() => _loading = true);
     try {
       final repository = sl<FinanceRepository>();
       final results = await Future.wait([
@@ -559,7 +561,7 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen> {
         body: _loading
             ? const Center(child: CircularProgressIndicator())
             : BrandRefreshIndicator(
-                onRefresh: _loadRequests,
+                onRefresh: () => _loadRequests(quiet: true),
                 child: ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),

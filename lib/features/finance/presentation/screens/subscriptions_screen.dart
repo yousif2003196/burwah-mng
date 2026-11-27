@@ -166,8 +166,10 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
     super.dispose();
   }
 
-  Future<void> _loadData() async {
-    if (mounted) {
+  /// [quiet] = سحب للتحديث أو تحديث بعد إجراء: المحتوى يفضل ظاهر (من غير
+  /// سبينر يشيل القائمة من تحت مؤشر السحب فالشاشة تتنطط).
+  Future<void> _loadData({bool quiet = false}) async {
+    if (mounted && !quiet) {
       setState(() {
         _isLoading = true;
         _hasLoadError = false;
@@ -406,7 +408,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                     ),
                   )
                 : BrandRefreshIndicator(
-                    onRefresh: _loadData,
+                    onRefresh: () => _loadData(quiet: true),
                     child: ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.all(16),

@@ -179,16 +179,24 @@ class _HeadSupervisorTabsShellState extends State<HeadSupervisorTabsShell> {
                 ? notification.direction
                 : null;
             final atTop = notification.metrics.pixels <= 4;
+            // الشريط العلوي لما يتلف بيكبّر مساحة المحتوى بارتفاعه. لو المحتوى
+            // أقصر من كده، لفّه بيلغي السكرول فيرجع الشريط تاني ويتكرر (رعشة
+            // الهيدر واختفاء/ظهور الشريط مع السحب للتحديث). فمنخبيش إلا لو فيه مساحة.
+            final roomy = notification.metrics.maxScrollExtent >
+                (_topDocked
+                    ? MediaQuery.paddingOf(context).top + kToolbarHeight + 32
+                    : 4);
             var bars = _barsVisible;
             var top = _topDocked;
-            if (direction == ScrollDirection.reverse) {
+            if (direction == ScrollDirection.reverse && roomy) {
               bars = false;
             } else if (direction == ScrollDirection.forward) {
               bars = true;
             }
             if (atTop && notification is ScrollEndNotification) {
               top = true;
-            } else if (notification is ScrollUpdateNotification &&
+            } else if (roomy &&
+                notification is ScrollUpdateNotification &&
                 (notification.scrollDelta ?? 0) > 0 &&
                 notification.metrics.pixels > 24) {
               top = false;

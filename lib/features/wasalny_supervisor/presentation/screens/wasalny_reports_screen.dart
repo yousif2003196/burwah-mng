@@ -37,15 +37,19 @@ class _WasalnyReportsScreenState extends State<WasalnyReportsScreen> {
     _load();
   }
 
-  Future<void> _load() async {
+  /// [quiet] = سحب للتحديث أو تحديث بعد إجراء: المحتوى يفضل ظاهر (من غير
+  /// سبينر يشيل القائمة من تحت مؤشر السحب فالشاشة تتنطط).
+  Future<void> _load({bool quiet = false}) async {
     if (!AuthSession.isSignedIn) {
       setState(() => _loading = false);
       return;
     }
-    setState(() {
-      _loading = true;
-      _failed = false;
-    });
+    if (!quiet) {
+      setState(() {
+        _loading = true;
+        _failed = false;
+      });
+    }
     try {
       final response = await sl<ApiConsumer>(instanceName: 'berwah').get<Object>(
         ApiEndpoints.usedReports,
@@ -153,7 +157,7 @@ class _WasalnyReportsScreenState extends State<WasalnyReportsScreen> {
                 ),
               )
             : BrandRefreshIndicator(
-                onRefresh: _load,
+                onRefresh: () => _load(quiet: true),
                 child: ListView(
                   padding: const EdgeInsets.all(16),
                   children: [

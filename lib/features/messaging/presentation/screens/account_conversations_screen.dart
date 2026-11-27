@@ -7,6 +7,7 @@ import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/network/api_consumer.dart';
 import 'package:barwah_app/core/realtime/realtime_hub.dart';
 import 'package:barwah_app/features/messaging/presentation/screens/ad_owner_chat_screen.dart';
+import 'package:barwah_app/features/messaging/presentation/widgets/supervisor_picker_sheet.dart';
 
 import 'package:barwah_app/core/widgets/motion.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
@@ -466,12 +467,21 @@ class _AccountConversationsScreenState
                     onChanged: (v) => setState(() => _query = v),
                     style: TextStyle(
                         color: AppColors.textPrimary, fontSize: 13),
+                    // الحاوية هي شكل الحقل؛ الثيم العام بيدّي كل TextField خلفية
+                    // وإطار، فبنلغيهم هنا عشان ميبانش حقل جوه حقل.
                     decoration: InputDecoration(
                       hintText: _isArabic
                           ? 'ابحث بالاسم أو الرسالة'
                           : 'Search by name or message',
                       hintStyle: TextStyle(color: AppColors.textMuted),
+                      filled: false,
                       border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      disabledBorder: InputBorder.none,
+                      errorBorder: InputBorder.none,
+                      focusedErrorBorder: InputBorder.none,
+                      contentPadding: EdgeInsets.zero,
                       isDense: true,
                     ),
                   ),
@@ -521,6 +531,50 @@ class _AccountConversationsScreenState
         ],
       ),
     );
+  }
+
+  /// رئيس المشرفين (والأدمن) يقدر يبدأ محادثة مع أي مشرف يختاره.
+  bool get _canChatSupervisors =>
+      AuthSession.isSignedIn &&
+      (widget.accountId == 'head' || widget.accountId == 'admin');
+
+  Future<void> _startSupervisorChat() async {
+    final supervisor = await SupervisorPickerSheet.show(context);
+    if (supervisor == null || !mounted) return;
+    int? conversationId;
+    try {
+      final response = await sl<ApiConsumer>(instanceName: 'berwah').post<Object>(
+        'api/Chat/open',
+        data: {'kind': 9, 'refId': 0, 'otherUserId': supervisor.id},
+      );
+      final body = response.data;
+      final data = body is Map ? body['data'] : null;
+      if (data is Map && data['id'] is num) {
+        conversationId = (data['id'] as num).toInt();
+      }
+    } catch (_) {
+      conversationId = null;
+    }
+    if (!mounted) return;
+    if (conversationId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(_isArabic
+            ? 'تعذر فتح المحادثة، حاول مرة أخرى'
+            : 'Could not open the chat, try again'),
+      ));
+      return;
+    }
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => AdOwnerChatScreen(
+          adId: 0,
+          conversationId: conversationId,
+          title: supervisor.name.isEmpty ? supervisor.code : supervisor.name,
+          subtitle: supervisor.label(_isArabic),
+        ),
+      ),
+    );
+    _reload();
   }
 
   Future<void> _startConversation() async {
@@ -638,6 +692,12 @@ class _AccountConversationsScreenState
             ],
           ),
           actions: [
+            if (_canChatSupervisors)
+              IconButton(
+                tooltip: _isArabic ? 'محادثة مع مشرف' : 'Chat with a supervisor',
+                onPressed: _startSupervisorChat,
+                icon: const MotionIcon(Icons.add_comment_outlined),
+              ),
             if (!AuthSession.isSignedIn)
               IconButton(
                 tooltip: _isArabic ? 'محادثة جديدة' : 'New conversation',
@@ -646,6 +706,15 @@ class _AccountConversationsScreenState
               ),
           ],
         ),
+        floatingActionButton: _canChatSupervisors
+            ? FloatingActionButton.extended(
+                onPressed: _startSupervisorChat,
+                backgroundColor: _navy,
+                foregroundColor: Colors.white,
+                icon: const MotionIcon(Icons.add_comment_outlined, color: Colors.white),
+                label: Text(_isArabic ? 'محادثة مع مشرف' : 'Chat with a supervisor'),
+              )
+            : null,
         body: Column(
           children: [
             _filterBar(),

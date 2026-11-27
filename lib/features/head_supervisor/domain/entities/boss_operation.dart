@@ -1,13 +1,15 @@
 import 'package:barwah_app/features/head_supervisor/domain/entities/boss_status.dart';
 
-/// نوع العملية الحرجة: إعلان مرفوض/معلق، أو نزاع على طلب.
-enum BossOperationType { ad, dispute, unknown }
+/// نوع العملية الحرجة: إعلان مرفوض/معلق، نزاع على طلب، أو بلاغ على طلب
+/// (استلام بمشكلة / بلاغ مندوب) — البلاغ [BossOperation.id] فيه رقم التذكرة.
+enum BossOperationType { ad, dispute, report, unknown }
 
 /// تبويب التصفية الذي يقبله `orders-and-disputes`.
 enum BossOperationFilter {
   all('all'),
   ads('ads'),
-  disputes('disputes');
+  disputes('disputes'),
+  reports('reports');
 
   final String apiValue;
   const BossOperationFilter(this.apiValue);

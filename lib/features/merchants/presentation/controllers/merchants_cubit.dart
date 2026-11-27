@@ -36,7 +36,7 @@ class MerchantsCubit extends Cubit<MerchantsState> {
     if (current is! MerchantsLoaded || isClosed) return;
     try {
       final stats = await getSupervisorStatsUseCase();
-      final merchants = getSupervisedMerchantsUseCase != null
+      final merchants = _supervised && getSupervisedMerchantsUseCase != null
           ? await getSupervisedMerchantsUseCase!()
           : await getMerchantsUseCase();
       if (isClosed) return;
@@ -54,7 +54,20 @@ class MerchantsCubit extends Cubit<MerchantsState> {
     }
   }
 
+  /// آخر تحميل كان لتجار المشرف بس ولا لكل التجار (التحديث يكمّل على نفس المصدر).
+  bool _supervised = false;
+
+  /// سحب للتحديث: القائمة تفضل ظاهرة (من غير شاشة تحميل تشيل الـ ListView
+  /// من تحت مؤشر السحب) والفلتر والبحث يفضلوا زي ما هما.
+  Future<void> refresh() async {
+    if (state is! MerchantsLoaded) {
+      return _supervised ? loadSupervisedMerchants() : loadMerchants();
+    }
+    await _silentRefresh();
+  }
+
   Future<void> loadMerchants() async {
+    _supervised = false;
     emit(const MerchantsLoading());
     try {
       final stats = await getSupervisorStatsUseCase();
@@ -70,6 +83,7 @@ class MerchantsCubit extends Cubit<MerchantsState> {
   }
 
   Future<void> loadSupervisedMerchants() async {
+    _supervised = true;
     emit(const MerchantsLoading());
     try {
       final stats = await getSupervisorStatsUseCase();

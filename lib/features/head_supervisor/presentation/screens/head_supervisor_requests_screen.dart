@@ -8,8 +8,10 @@ import 'package:barwah_app/core/di/injection_container.dart';
 import 'package:barwah_app/core/theme/app_colors.dart';
 import 'package:barwah_app/core/widgets/scroll_fx.dart';
 import 'package:barwah_app/features/head_supervisor/domain/entities/boss_operation.dart';
+import 'package:barwah_app/features/head_supervisor/domain/entities/merchant_complaint.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/controllers/boss_load_state.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/controllers/boss_operations_cubit.dart';
+import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_complaint_details_screen.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_intervention_screen.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/screens/head_supervisor_request_review_screen.dart';
 import 'package:barwah_app/features/head_supervisor/presentation/utils/head_supervisor_text.dart';
@@ -63,6 +65,9 @@ class _RequestsViewState extends State<_RequestsView> {
 
   Future<void> _open(BossOperation operation, {required bool intervene}) async {
     final cubit = context.read<BossOperationsCubit>();
+    if (operation.type == BossOperationType.report) {
+      return _openReport(operation, cubit);
+    }
     final message = await Navigator.of(context).push<String>(
       MaterialPageRoute(
         builder: (_) => BlocProvider.value(
@@ -80,6 +85,35 @@ class _RequestsViewState extends State<_RequestsView> {
       headSupervisorText(context,
           arabic: 'تم إرسال القرار بنجاح.', english: 'Decision sent.'),
     );
+  }
+
+  /// البلاغ تذكرة عادية في صندوق رئيس المشرفين: يتفتح بشاشة تفاصيل الشكوى وقرارها.
+  Future<void> _openReport(
+      BossOperation operation, BossOperationsCubit cubit) async {
+    final message = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) => HeadSupervisorComplaintDetailsScreen(
+          summary: MerchantComplaintSummary(
+            id: operation.id,
+            code: 'TCK-${operation.id}',
+            title: operation.title,
+            description: operation.reason,
+            complainant: operation.category,
+            status: operation.status,
+            createdAt: operation.createdAt,
+            linkType: 'order',
+          ),
+        ),
+      ),
+    );
+    if (!mounted || message == null) return;
+    showBossMessage(
+      context,
+      message,
+      headSupervisorText(context,
+          arabic: 'تم تنفيذ الإجراء بنجاح.', english: 'Action completed.'),
+    );
+    await cubit.refresh();
   }
 
   @override
@@ -156,7 +190,7 @@ class _RequestsViewState extends State<_RequestsView> {
       BossLoaded(:final data) when data.operations.isEmpty => [
           BossEmptyView(
             message: headSupervisorText(context,
-                arabic: 'لا توجد عمليات حرجة أو نزاعات بانتظار القرار',
+                arabic: 'لا توجد عمليات حرجة أو نزاعات أو بلاغات بانتظار القرار',
                 english: 'No critical operations or disputes awaiting a decision'),
           ),
         ],

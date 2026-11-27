@@ -14,6 +14,8 @@ String bossOperationTypeLabel(BuildContext context, BossOperationType type) =>
         headSupervisorText(context, arabic: 'إعلان', english: 'Ad'),
       BossOperationType.dispute =>
         headSupervisorText(context, arabic: 'نزاع طلب', english: 'Order dispute'),
+      BossOperationType.report =>
+        headSupervisorText(context, arabic: 'بلاغ طلب', english: 'Order report'),
       BossOperationType.unknown =>
         headSupervisorText(context, arabic: 'عملية', english: 'Operation'),
     };
@@ -51,7 +53,8 @@ String bossOperationSupervisorLine(BuildContext context, BossOperation operation
 
 /// بطاقة عملية حرجة من `orders-and-disputes`.
 ///
-/// الإعلان يفتح "إعادة مراجعة القرار"، والنزاع يفتح "التدخل الرقابي".
+/// الإعلان يفتح "إعادة مراجعة القرار"، والنزاع يفتح "التدخل الرقابي"،
+/// والبلاغ يفتح تفاصيل التذكرة وقرارها (زر [onIntervene]).
 class BossOperationCard extends StatelessWidget {
   const BossOperationCard({
     super.key,
@@ -67,16 +70,21 @@ class BossOperationCard extends StatelessWidget {
   Color get _tint => switch (operation.type) {
         BossOperationType.ad => AppColors.info,
         BossOperationType.dispute => AppColors.warning,
+        BossOperationType.report => AppColors.dangerDark,
         BossOperationType.unknown => AppColors.textSecondary,
       };
 
   IconData get _icon => switch (operation.type) {
         BossOperationType.ad => Icons.campaign_outlined,
         BossOperationType.dispute => Icons.gavel_outlined,
+        BossOperationType.report => Icons.report_problem_outlined,
         BossOperationType.unknown => Icons.assignment_outlined,
       };
 
-  bool get _canReview => operation.type != BossOperationType.dispute;
+  bool get _isReport => operation.type == BossOperationType.report;
+  bool get _canReview =>
+      operation.type == BossOperationType.ad ||
+      operation.type == BossOperationType.unknown;
   bool get _canIntervene => operation.type != BossOperationType.ad;
 
   @override
@@ -217,9 +225,13 @@ class BossOperationCard extends StatelessWidget {
                 onPressed: onIntervene,
                 icon: const MotionIcon(Icons.tune, size: 17),
                 label: Text(
-                    headSupervisorText(context,
-                        arabic: 'التدخل الرقابي',
-                        english: 'Oversight intervention'),
+                    _isReport
+                        ? headSupervisorText(context,
+                            arabic: 'فتح البلاغ واتخاذ قرار',
+                            english: 'Open report & decide')
+                        : headSupervisorText(context,
+                            arabic: 'التدخل الرقابي',
+                            english: 'Oversight intervention'),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(

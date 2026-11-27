@@ -45,8 +45,10 @@ class _ProductSupervisorWalletScreenState
     _loadFinancialRequests();
   }
 
-  Future<void> _loadFinancialRequests() async {
-    if (mounted) {
+  /// [quiet] = سحب للتحديث أو تحديث بعد إجراء: المحتوى يفضل ظاهر (من غير
+  /// سبينر يشيل القائمة من تحت مؤشر السحب فالشاشة تتنطط).
+  Future<void> _loadFinancialRequests({bool quiet = false}) async {
+    if (mounted && !quiet) {
       setState(() {
         _isLoadingRequests = true;
         _requestsLoadFailed = false;
@@ -294,7 +296,7 @@ class _ProductSupervisorWalletScreenState
           ],
         ),
         body: BrandRefreshIndicator(
-          onRefresh: _loadFinancialRequests,
+          onRefresh: () => _loadFinancialRequests(quiet: true),
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),

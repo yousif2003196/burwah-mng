@@ -81,8 +81,10 @@ class _FinancialActivityLogScreenState
     }).toList();
   }
 
-  Future<void> _load() async {
-    setState(() => _loading = true);
+  /// [quiet] = سحب للتحديث أو تحديث بعد إجراء: المحتوى يفضل ظاهر (من غير
+  /// سبينر يشيل القائمة من تحت مؤشر السحب فالشاشة تتنطط).
+  Future<void> _load({bool quiet = false}) async {
+    if (!quiet) setState(() => _loading = true);
     try {
       final repository = sl<FinanceRepository>();
       final results = await Future.wait([
@@ -180,7 +182,7 @@ class _FinancialActivityLogScreenState
           body: SafeArea(
             bottom: false,
             child: BrandRefreshIndicator(
-              onRefresh: _load,
+              onRefresh: () => _load(quiet: true),
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
                 children: [

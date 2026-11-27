@@ -339,9 +339,10 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
     super.dispose();
   }
 
-  Future<void> _reload() async {
+  /// [silent] = سحب للتحديث: لوجو السحب كفاية، من غير سبينر تاني جوه القائمة.
+  Future<void> _reload({bool silent = false}) async {
     setState(() {
-      _loading = true;
+      _loading = !silent;
       _error = null;
     });
     try {
@@ -478,7 +479,7 @@ class _AdsManagementScreenState extends State<AdsManagementScreen> {
         ),
         Expanded(
           child: BrandRefreshIndicator(
-            onRefresh: _reload,
+            onRefresh: () => _reload(silent: true),
             child: NotificationListener<ScrollNotification>(
               onNotification: (n) {
                 if (n.metrics.pixels > n.metrics.maxScrollExtent - 300) _loadMore();

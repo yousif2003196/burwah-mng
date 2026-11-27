@@ -432,7 +432,7 @@ class _MerchantsDashboardScreenState extends State<MerchantsDashboardScreen> {
           final loadedState = state as MerchantsLoaded;
 
           return BrandRefreshIndicator(
-            onRefresh: () => context.read<MerchantsCubit>().loadMerchants(),
+            onRefresh: () => context.read<MerchantsCubit>().refresh(),
             child: Stack(
               children: [
                 NotificationListener<UserScrollNotification>(

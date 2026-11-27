@@ -41,7 +41,7 @@ class BossRequestsSearchBar extends StatelessWidget {
       );
 }
 
-/// تبويبات `filterTab` التي يقبلها الخادم: الكل / الإعلانات / النزاعات.
+/// تبويبات `filterTab` التي يقبلها الخادم: الكل / الإعلانات / النزاعات / البلاغات.
 class BossRequestsFilterBar extends StatelessWidget {
   const BossRequestsFilterBar({
     super.key,
@@ -62,6 +62,7 @@ class BossRequestsFilterBar extends StatelessWidget {
       BossOperationFilter.all: ('الكل', 'All'),
       BossOperationFilter.ads: ('الإعلانات', 'Ads'),
       BossOperationFilter.disputes: ('النزاعات', 'Disputes'),
+      BossOperationFilter.reports: ('بلاغات الطلبات', 'Order reports'),
     };
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
